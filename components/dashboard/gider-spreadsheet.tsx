@@ -198,12 +198,10 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       .order("tarih", { ascending: true })
       .order("vardiya", { ascending: true })
 
-    if (!isAdmin) {
-      if (userVardiya) {
-        query = query.eq("vardiya", userVardiya)
-      } else {
-        query = query.eq("vardiya", "S")
-      }
+    // Vardiyası olan kullanıcılar diğer vardiyayı da görür ama düzenleyemez.
+    // Sadece vardiyasız tek-vardiya kullanıcıda arka planda "S" kayıtları gösterilir.
+    if (!isAdmin && isSingleVardiya) {
+      query = query.eq("vardiya", "S")
     }
 
     const { data, error } = await query
