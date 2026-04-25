@@ -95,6 +95,10 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
   
   const ayYil = `${month}-${year}`
 
+  // Vardiyası olmayan normal kullanıcılar için tek vardiya modu.
+  // Bu modda vardiya kolonu görünmez, satır yine arka planda "S" olarak kaydedilir.
+  const isSingleVardiya = !isAdmin && !userVardiya
+
   const aktifGiderKolonlari = activeColumnKeys ?? [
   "el_fisi_odeme",
   "personel_mesai",
@@ -186,13 +190,23 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     if (personelData) setPersoneller(personelData)
 
     // Şubeye göre gider kayıtlarını yükle
-    const { data, error } = await supabase
+    let query = supabase
       .from("gider_kayitlari")
       .select("*")
       .eq("sube_id", currentSube.id)
       .eq("ay_yil", ayYil)
       .order("tarih", { ascending: true })
       .order("vardiya", { ascending: true })
+
+    if (!isAdmin) {
+      if (userVardiya) {
+        query = query.eq("vardiya", userVardiya)
+      } else {
+        query = query.eq("vardiya", "S")
+      }
+    }
+
+    const { data, error } = await query
 
     if (!error && data) {
       setRows(data.map(row => ({
@@ -341,13 +355,15 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
 
     // Sadece düzenleyebildiğim vardiyaları filtrele
     const editableRows = rows.filter(row => {
-      if (!userVardiya || isAdmin) return true
+      if (isAdmin) return true
+      if (isSingleVardiya) return row.vardiya === "S"
       return row.vardiya === userVardiya
     })
 
     // Çöp kutusuyla silinen kayıtları veritabanından sil
     const deletedEditableRows = deletedRows.filter(row => {
-      if (!userVardiya || isAdmin) return true
+      if (isAdmin) return true
+      if (isSingleVardiya) return row.vardiya === "S"
       return row.vardiya === userVardiya
     })
 
@@ -453,7 +469,10 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     return activeColumnKeys.includes(key)
   }
 
-  const visibleFixedColumns = FIXED_COLUMNS.filter(col => isStaticColumnVisible(col.key))
+  const visibleFixedColumns = FIXED_COLUMNS.filter(col => {
+    if (col.key === "vardiya" && isSingleVardiya) return false
+    return isStaticColumnVisible(col.key)
+  })
   const visibleOtherGiderColumns = OTHER_GIDER_COLUMNS.filter(col => isStaticColumnVisible(col.key))
 
   // Tüm sütunları oluştur
@@ -504,7 +523,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
           <tbody>
             {rows.map((row, rowIndex) => {
               // Vardiya kontrolü: userVardiya null ise hepsini düzenleyebilir, değilse sadece kendi vardiyasını
-              const canEditVardiya = !userVardiya || userVardiya === row.vardiya || isAdmin
+              const canEditVardiya = isAdmin || isSingleVardiya || userVardiya === row.vardiya
               
               return (
               <tr key={rowIndex} className={`hover:bg-gray-50 ${!canEditVardiya ? "bg-gray-100/50 opacity-70" : ""}`}>
