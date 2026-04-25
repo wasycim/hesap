@@ -183,7 +183,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
         kasa_gelen: Number(row.kasa_gelen) || 0,
         toplam: Number(row.toplam) || 0,
         giderler: Number(row.giderler) || 0,
-        kalan: Number(row.kalan) || 0,
+        kalan: (Number(row.toplam) || 0) - (Number(row.giderler) || 0),
         durum: row.durum || "KONTROL EDİLMEDİ",
       })))
     }
