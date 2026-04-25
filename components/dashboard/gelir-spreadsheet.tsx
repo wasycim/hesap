@@ -87,7 +87,12 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   
   const ayYil = `${month}-${year}`
 
+  // Vardiyası olmayan normal kullanıcılar için tek vardiya modu.
+  // Bu modda vardiya kolonu görünmez, satır yine arka planda "S" olarak kaydedilir.
+  const isSingleVardiya = !isAdmin && !userVardiya
+
   const isColumnActive = (key: string) => {
+    if (key === "vardiya" && isSingleVardiya) return false
     if (["tarih", "vardiya", "toplam", "giderler", "kalan", "durum"].includes(key)) return true
     if (activeColumnKeys === null) return true
     return activeColumnKeys.includes(key)
@@ -162,6 +167,14 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       .eq("ay_yil", ayYil)
       .order("tarih", { ascending: true })
       .order("vardiya", { ascending: true })
+
+    if (!isAdmin) {
+      if (userVardiya) {
+        query = query.eq("vardiya", userVardiya)
+      } else {
+        query = query.eq("vardiya", "S")
+      }
+    }
 
     const { data, error } = await query
 
@@ -280,15 +293,15 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     // Sadece düzenleyebildiğim vardiyaları filtrele
     // userVardiya null ise hepsini, değilse sadece kendi vardiyamı kaydedebilirim
     const editableRows = rows.filter(row => {
-      // Admin veya vardiyası olmayan kullanıcı her şeyi kaydedebilir
-      if (!userVardiya || isAdmin) return true
-      // Sadece kendi vardiyamı kaydedebilirim
+      if (isAdmin) return true
+      if (isSingleVardiya) return row.vardiya === "S"
       return row.vardiya === userVardiya
     })
 
     // Çöp kutusuyla silinen kayıtları veritabanından sil
     const deletedEditableRows = deletedRows.filter(row => {
-      if (!userVardiya || isAdmin) return true
+      if (isAdmin) return true
+      if (isSingleVardiya) return row.vardiya === "S"
       return row.vardiya === userVardiya
     })
 
@@ -409,7 +422,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
           <tbody>
             {rows.map((row, rowIndex) => {
               // Vardiya kontrolü: userVardiya null ise hepsini düzenleyebilir, değilse sadece kendi vardiyasını
-              const canEditVardiya = !userVardiya || userVardiya === row.vardiya || isAdmin
+              const canEditVardiya = isAdmin || isSingleVardiya || userVardiya === row.vardiya
               const canEdit = canEditVardiya
               
               return (
