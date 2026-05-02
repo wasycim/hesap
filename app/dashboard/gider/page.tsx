@@ -17,21 +17,25 @@ const months = [
   "Temmuz", "Agustos", "Eylul", "Ekim", "Kasim", "Aralik"
 ]
 
-const years = [2026, 2027, 2028, 2029, 2030]
+const START_YEAR = 2026
+const currentDate = new Date()
+const currentMonth = months[currentDate.getMonth()]
+const currentYear = currentDate.getFullYear()
+const years = Array.from({ length: Math.max(currentYear + 4, 2030) - START_YEAR + 1 }, (_, index) => START_YEAR + index)
 
 export default function GiderPage() {
-  const [month, setMonth] = useState("Nisan")
-  const [year, setYear] = useState(2026)
+  const [month, setMonth] = useState(currentMonth)
+  const [year, setYear] = useState(currentYear)
 
   const prevMonth = () => {
     const currentIndex = months.indexOf(month)
     if (currentIndex === 0) {
-      if (year > 2026) {
+      if (year > START_YEAR) {
         setMonth(months[11])
         setYear(year - 1)
       }
     } else {
-      if (year === 2026 && currentIndex <= 3) return
+      if (year === START_YEAR && currentIndex <= 3) return
       setMonth(months[currentIndex - 1])
     }
   }
@@ -39,7 +43,7 @@ export default function GiderPage() {
   const nextMonth = () => {
     const currentIndex = months.indexOf(month)
     if (currentIndex === 11) {
-      if (year < 2030) {
+      if (year < years[years.length - 1]) {
         setMonth(months[0])
         setYear(year + 1)
       }
