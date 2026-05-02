@@ -140,6 +140,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     const { data: settingsData } = await supabase
       .from("kolon_ayarlari")
       .select("*")
+      .eq("sube_id", currentSube.id)
       .eq("table_type", "gider")
       .order("sort_order", { ascending: true })
 

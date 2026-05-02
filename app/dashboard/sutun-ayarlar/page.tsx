@@ -17,6 +17,7 @@ import {
   makeCustomColumnKey,
   mergeColumnSettings,
 } from "@/lib/table-column-settings"
+import { useSube } from "@/contexts/sube-context"
 
 function createDefaultRows(tableType: TableType) {
   return getDefaultColumns(tableType).map(column => ({ ...column }))
@@ -33,15 +34,16 @@ export default function SutunAyarlarPage() {
   const [saving, setSaving] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const supabase = createClient()
+  const { currentSube } = useSube()
 
   useEffect(() => {
-    loadData()
-  }, [])
+    if (currentSube) loadData()
+  }, [currentSube?.id])
 
   async function loadData() {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user || !currentSube) return
 
     const { data: profile } = await supabase
       .from("user_profiles")
@@ -58,6 +60,7 @@ export default function SutunAyarlarPage() {
     const { data } = await supabase
       .from("kolon_ayarlari")
       .select("*")
+      .eq("sube_id", currentSube.id)
       .order("sort_order", { ascending: true })
 
     const saved = (data || []) as TableColumnSetting[]
@@ -97,9 +100,11 @@ export default function SutunAyarlarPage() {
   function addColumn(tableType: TableType) {
     const label = newLabel.trim()
     if (!label) return
+    if (!currentSube) return
     updateColumns(tableType, items => [
       ...items,
       {
+        sube_id: currentSube.id,
         table_type: tableType,
         column_key: makeCustomColumnKey(label),
         label: label.toUpperCase(),
@@ -117,8 +122,10 @@ export default function SutunAyarlarPage() {
   }
 
   async function saveColumns() {
+    if (!currentSube) return
     setSaving(true)
-    const rows = [...columns.gelir, ...columns.gider].map((column, index) => ({
+    const rows = [...columns.gelir, ...columns.gider].map((column) => ({
+      sube_id: currentSube.id,
       table_type: column.table_type,
       column_key: column.column_key,
       label: column.label,
@@ -129,9 +136,14 @@ export default function SutunAyarlarPage() {
       updated_at: new Date().toISOString(),
     }))
 
+    await Promise.all([
+      supabase.from("kolon_ayarlari").delete().eq("sube_id", currentSube.id).eq("table_type", "gelir"),
+      supabase.from("kolon_ayarlari").delete().eq("sube_id", currentSube.id).eq("table_type", "gider"),
+    ])
+
     const { error } = await supabase
       .from("kolon_ayarlari")
-      .upsert(rows, { onConflict: "table_type,column_key" })
+      .insert(rows)
 
     setSaving(false)
     if (error) {
@@ -261,7 +273,9 @@ export default function SutunAyarlarPage() {
       <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Sütun Ayarları</h1>
-          <p className="text-sm text-muted-foreground">Gelir ve gider tablolarının sütun sırası, rengi ve görünürlüğü.</p>
+          <p className="text-sm text-muted-foreground">
+            {currentSube?.ad ? `${currentSube.ad} subesi icin gelir ve gider sutun ayarlari.` : "Sube secimi bekleniyor."}
+          </p>
         </div>
         <Button onClick={saveColumns} disabled={saving} className="gap-2">
           <Save className="h-4 w-4" />

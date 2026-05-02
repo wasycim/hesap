@@ -2,6 +2,7 @@ export type TableType = "gelir" | "gider"
 
 export interface TableColumnSetting {
   id?: string
+  sube_id?: string
   table_type: TableType
   column_key: string
   label: string

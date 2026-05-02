@@ -137,6 +137,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     const { data: settingsData } = await supabase
       .from("kolon_ayarlari")
       .select("*")
+      .eq("sube_id", currentSube.id)
       .eq("table_type", "gelir")
       .order("sort_order", { ascending: true })
 

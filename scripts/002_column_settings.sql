@@ -3,6 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS kolon_ayarlari (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sube_id UUID REFERENCES subeler(id) ON DELETE CASCADE,
   table_type TEXT NOT NULL CHECK (table_type IN ('gelir', 'gider')),
   column_key TEXT NOT NULL,
   label TEXT NOT NULL,
@@ -12,8 +13,23 @@ CREATE TABLE IF NOT EXISTS kolon_ayarlari (
   builtin BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(table_type, column_key)
+  UNIQUE(sube_id, table_type, column_key)
 );
+
+ALTER TABLE kolon_ayarlari ADD COLUMN IF NOT EXISTS sube_id UUID REFERENCES subeler(id) ON DELETE CASCADE;
+ALTER TABLE kolon_ayarlari DROP CONSTRAINT IF EXISTS kolon_ayarlari_table_type_column_key_key;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'kolon_ayarlari_sube_table_column_key'
+  ) THEN
+    ALTER TABLE kolon_ayarlari
+      ADD CONSTRAINT kolon_ayarlari_sube_table_column_key
+      UNIQUE (sube_id, table_type, column_key);
+  END IF;
+END $$;
 
 ALTER TABLE gelir_kayitlari ADD COLUMN IF NOT EXISTS custom_values JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE gider_kayitlari ADD COLUMN IF NOT EXISTS custom_values JSONB NOT NULL DEFAULT '{}'::jsonb;
@@ -58,4 +74,4 @@ CREATE POLICY "kolon_ayarlari_admin_delete" ON kolon_ayarlari
     )
   );
 
-CREATE INDEX IF NOT EXISTS idx_kolon_ayarlari_table_type ON kolon_ayarlari(table_type, sort_order);
+CREATE INDEX IF NOT EXISTS idx_kolon_ayarlari_sube_table_type ON kolon_ayarlari(sube_id, table_type, sort_order);
