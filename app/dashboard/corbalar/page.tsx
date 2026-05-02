@@ -1,13 +1,11 @@
 "use client"
 
-import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Soup } from "lucide-react"
-import { useSube } from "@/contexts/sube-context"
 
 interface Personel {
   id: string
@@ -25,19 +23,21 @@ const months = [
   "Ocak", "Subat", "Mart", "Nisan", "Mayis", "Haziran",
   "Temmuz", "Agustos", "Eylul", "Ekim", "Kasim", "Aralik"
 ]
-const years = [2026, 2027, 2028, 2029, 2030]
+const START_YEAR = 2026
+const currentDate = new Date()
+const currentMonth = months[currentDate.getMonth()]
+const currentYear = currentDate.getFullYear()
+const years = Array.from({ length: Math.max(currentYear + 4, 2030) - START_YEAR + 1 }, (_, index) => START_YEAR + index)
 
 export default function CorbalarPage() {
-  const [month, setMonth] = useState("Nisan")
-  const [year, setYear] = useState(2026)
+  const [month, setMonth] = useState(currentMonth)
+  const [year, setYear] = useState(currentYear)
   const [personeller, setPersoneller] = useState<Personel[]>([])
   const [rows, setRows] = useState<CorbaRow[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
-  const { currentSube } = useSube()
-  const { markClean, registerSaveHandler } = useUnsavedChanges()
-
+  
   const ayYil = `${month}-${year}`
 
   useEffect(() => {
@@ -62,35 +62,30 @@ export default function CorbalarPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-}, [month, year, currentSube?.id])
-
-  useEffect(() => {
-    registerSaveHandler(saveData)
-    return () => registerSaveHandler(null)
-  }, [rows, personeller, currentSube?.id, month, year])
+  }, [month, year])
 
   async function loadData() {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !currentSube) return
+    if (!user) return
 
     // Personelleri cek
     const { data: personelData } = await supabase
-  .from("personeller")
-  .select("*")
-  .eq("sube_id", currentSube.id)
-  .eq("aktif", true)
-  .order("sira", { ascending: true })
+      .from("personeller")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("aktif", true)
+      .order("sira", { ascending: true })
     
     if (personelData) setPersoneller(personelData)
 
     // Corba kayitlarini cek
     const { data: corbaData } = await supabase
-  .from("corbalar")
-  .select("*")
-  .eq("sube_id", currentSube.id)
-  .eq("ay_yil", ayYil)
-  .order("tarih", { ascending: true })
+      .from("corbalar")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("ay_yil", ayYil)
+      .order("tarih", { ascending: true })
 
     if (corbaData && personelData) {
       // Tarihe gore grupla
@@ -113,12 +108,12 @@ export default function CorbalarPage() {
   const prevMonth = () => {
     const currentIndex = months.indexOf(month)
     if (currentIndex === 0) {
-      if (year > 2026) {
+      if (year > START_YEAR) {
         setMonth(months[11])
         setYear(year - 1)
       }
     } else {
-      if (year === 2026 && currentIndex <= 3) return
+      if (year === START_YEAR && currentIndex <= 3) return
       setMonth(months[currentIndex - 1])
     }
   }
@@ -126,7 +121,7 @@ export default function CorbalarPage() {
   const nextMonth = () => {
     const currentIndex = months.indexOf(month)
     if (currentIndex === 11) {
-      if (year < 2030) {
+      if (year < years[years.length - 1]) {
         setMonth(months[0])
         setYear(year + 1)
       }
@@ -168,16 +163,13 @@ export default function CorbalarPage() {
   async function saveData() {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !currentSube) {
-      setSaving(false)
-      return
-    }
+    if (!user) return
 
     // Bu ay icin tum corba kayitlarini sil
     await supabase
       .from("corbalar")
       .delete()
-      .eq("sube_id", currentSube.id)
+      .eq("user_id", user.id)
       .eq("ay_yil", ayYil)
 
     // Yeni kayitlari ekle
@@ -188,7 +180,6 @@ export default function CorbalarPage() {
         if (miktar > 0) {
           insertData.push({
             user_id: user.id,
-            sube_id: currentSube.id,
             ay_yil: ayYil,
             tarih: row.tarih,
             personel_id: personel.id,
@@ -203,7 +194,6 @@ export default function CorbalarPage() {
     }
 
     setSaving(false)
-    markClean()
     loadData()
   }
 
