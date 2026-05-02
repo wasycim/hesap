@@ -34,8 +34,8 @@ export default function KargoCariOzetPage() {
   const { markClean, registerSaveHandler } = useUnsavedChanges()
 
   useEffect(() => {
-  if (currentSube) checkAdminAndLoadData()
-}, [currentSube?.id])
+    if (currentSube) checkAdminAndLoadData()
+  }, [currentSube?.id])
 
   useEffect(() => {
     registerSaveHandler(saveOdemeler)
@@ -44,7 +44,7 @@ export default function KargoCariOzetPage() {
 
   async function checkAdminAndLoadData() {
     const { data: { user } } = await supabase.auth.getUser()
-if (!user || !currentSube) return
+    if (!user || !currentSube) return
 
     // Admin kontrolü
     const { data: profile } = await supabase
@@ -57,11 +57,12 @@ if (!user || !currentSube) return
 
     // Firmaları yükle
     const { data: firmaData } = await supabase
-  .from("kargo_cari_firmalar")
-  .select("id, ad")
-  .eq("sube_id", currentSube.id)
-  .eq("aktif", true)
-  .order("sira", { ascending: true })
+      .from("kargo_cari_firmalar")
+      .select("id, ad")
+      .eq("user_id", user.id)
+      .eq("sube_id", currentSube.id)
+      .eq("aktif", true)
+      .order("sira", { ascending: true })
 
     if (firmaData) {
       setFirmalar(firmaData)
@@ -79,6 +80,8 @@ if (!user || !currentSube) return
       const { data: kayitlar } = await supabase
         .from("kargo_cari_kayitlar")
         .select("alinan_tutar")
+        .eq("user_id", userId)
+        .eq("sube_id", currentSube.id)
         .eq("firma_id", firma.id)
 
       let toplamBorc = 0
@@ -92,6 +95,8 @@ if (!user || !currentSube) return
       const { data: odemeData } = await supabase
         .from("kargo_cari_odemeler")
         .select("odenen")
+        .eq("user_id", userId)
+        .eq("sube_id", currentSube.id)
         .eq("firma_id", firma.id)
         .single()
 
@@ -131,7 +136,7 @@ if (!user || !currentSube) return
   async function saveOdemeler() {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
-if (!user || !currentSube) {
+    if (!user || !currentSube) {
       setSaving(false)
       return
     }

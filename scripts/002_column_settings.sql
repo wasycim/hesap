@@ -37,7 +37,21 @@ ALTER TABLE gider_kayitlari ADD COLUMN IF NOT EXISTS custom_values JSONB NOT NUL
 ALTER TABLE ortaklar ADD COLUMN IF NOT EXISTS sube_id UUID REFERENCES subeler(id) ON DELETE CASCADE;
 ALTER TABLE personeller ADD COLUMN IF NOT EXISTS sube_id UUID REFERENCES subeler(id) ON DELETE CASCADE;
 ALTER TABLE kargo_cari_firmalar ADD COLUMN IF NOT EXISTS sube_id UUID REFERENCES subeler(id) ON DELETE CASCADE;
+ALTER TABLE kargo_cari_kayitlar ADD COLUMN IF NOT EXISTS sube_id UUID REFERENCES subeler(id) ON DELETE CASCADE;
+ALTER TABLE kargo_cari_odemeler ADD COLUMN IF NOT EXISTS sube_id UUID REFERENCES subeler(id) ON DELETE CASCADE;
 ALTER TABLE corbalar ADD COLUMN IF NOT EXISTS sube_id UUID REFERENCES subeler(id) ON DELETE CASCADE;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'kargo_cari_odemeler_sube_firma_key'
+  ) THEN
+    ALTER TABLE kargo_cari_odemeler
+      ADD CONSTRAINT kargo_cari_odemeler_sube_firma_key
+      UNIQUE (sube_id, firma_id);
+  END IF;
+END $$;
 
 ALTER TABLE kolon_ayarlari ENABLE ROW LEVEL SECURITY;
 
@@ -83,4 +97,6 @@ CREATE INDEX IF NOT EXISTS idx_kolon_ayarlari_sube_table_type ON kolon_ayarlari(
 CREATE INDEX IF NOT EXISTS idx_ortaklar_sube ON ortaklar(sube_id, sira);
 CREATE INDEX IF NOT EXISTS idx_personeller_sube ON personeller(sube_id, sira);
 CREATE INDEX IF NOT EXISTS idx_kargo_cari_firmalar_sube ON kargo_cari_firmalar(sube_id, sira);
+CREATE INDEX IF NOT EXISTS idx_kargo_cari_kayitlar_sube_firma_ay ON kargo_cari_kayitlar(sube_id, firma_id, ay_yil, tarih);
+CREATE INDEX IF NOT EXISTS idx_kargo_cari_odemeler_sube_firma ON kargo_cari_odemeler(sube_id, firma_id);
 CREATE INDEX IF NOT EXISTS idx_corbalar_sube_ay ON corbalar(sube_id, ay_yil, tarih);

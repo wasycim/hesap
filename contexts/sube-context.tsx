@@ -37,6 +37,9 @@ export function SubeProvider({ children }: { children: ReactNode }) {
   // Şube değişince refreshKey'i artır
   function handleSetCurrentSube(sube: Sube) {
     setCurrentSube(sube)
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("current_sube_id", sube.id)
+    }
     setRefreshKey(prev => prev + 1)
   }
 
@@ -85,8 +88,12 @@ export function SubeProvider({ children }: { children: ReactNode }) {
           setCurrentSube(userSubeData)
         }
       } else if (profile.is_admin && subeData && subeData.length > 0) {
-        // Admin ise ilk şubeyi seç
-        setCurrentSube(subeData[0])
+        // Admin ise son secilen subeyi koru, yoksa ilk subeyi sec.
+        const savedSubeId = typeof window !== "undefined"
+          ? window.localStorage.getItem("current_sube_id")
+          : null
+        const savedSube = savedSubeId ? subeData.find(s => s.id === savedSubeId) : null
+        setCurrentSube(savedSube || subeData[0])
       }
     }
 

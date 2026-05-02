@@ -28,6 +28,7 @@ const months = [
   "Temmuz", "Agustos", "Eylul", "Ekim", "Kasim", "Aralik"
 ]
 const years = [2026, 2027, 2028, 2029, 2030]
+const currentDate = new Date()
 
 const HEADER_COLORS: Record<string, string> = {
   tarih: "bg-green-600 text-white",
@@ -55,8 +56,8 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   const [rows, setRows] = useState<KargoRow[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [month, setMonth] = useState("Nisan")
-  const [year, setYear] = useState(2026)
+  const [month, setMonth] = useState(months[currentDate.getMonth()])
+  const [year, setYear] = useState(currentDate.getFullYear())
   const supabase = createClient()
   const { currentSube } = useSube()
   const { markClean, registerSaveHandler } = useUnsavedChanges()
@@ -138,6 +139,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     const { data, error } = await supabase
       .from("kargo_cari_kayitlar")
       .select("*")
+      .eq("user_id", user.id)
       .eq("sube_id", currentSube.id)
       .eq("firma_id", firma.id)
       .eq("ay_yil", ayYil)
@@ -229,6 +231,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     const { error: deleteError } = await supabase
       .from("kargo_cari_kayitlar")
       .delete()
+      .eq("user_id", user.id)
       .eq("sube_id", currentSube.id)
       .eq("firma_id", firma.id)
       .eq("ay_yil", ayYil)

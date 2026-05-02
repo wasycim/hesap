@@ -118,8 +118,7 @@ export default function AyarlarPage() {
     })
     setYeniKargoFirma("")
     loadData()
-    // Sidebar'i guncelle
-    window.location.reload()
+    window.dispatchEvent(new Event("kargo-firmalar-changed"))
   }
 
   async function toggleOrtak(id: string, aktif: boolean) {
@@ -135,7 +134,7 @@ export default function AyarlarPage() {
   async function toggleKargoFirma(id: string, aktif: boolean) {
     await supabase.from("kargo_cari_firmalar").update({ aktif: !aktif }).eq("id", id)
     loadData()
-    window.location.reload()
+    window.dispatchEvent(new Event("kargo-firmalar-changed"))
   }
 
   async function deleteOrtak(id: string) {
@@ -155,7 +154,7 @@ export default function AyarlarPage() {
     await supabase.from("kargo_cari_kayitlar").delete().eq("firma_id", id)
     await supabase.from("kargo_cari_firmalar").delete().eq("id", id)
     loadData()
-    window.location.reload()
+    window.dispatchEvent(new Event("kargo-firmalar-changed"))
   }
 
   if (loading) {

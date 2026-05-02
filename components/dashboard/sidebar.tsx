@@ -101,7 +101,16 @@ export function DashboardSidebar({ userEmail }: SidebarProps) {
   }, [])
 
   useEffect(() => {
-    if (currentSube) fetchKargoFirmalar()
+    if (currentSube) {
+      fetchKargoFirmalar()
+    } else {
+      setKargoFirmalar([])
+    }
+  }, [currentSube?.id])
+
+  useEffect(() => {
+    window.addEventListener("kargo-firmalar-changed", fetchKargoFirmalar)
+    return () => window.removeEventListener("kargo-firmalar-changed", fetchKargoFirmalar)
   }, [currentSube?.id])
 
   async function checkAdminStatus() {
