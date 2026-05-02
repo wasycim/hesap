@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Plus, Save, Trash2 } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
-import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 
 interface Ortak {
   id: string
@@ -19,7 +18,6 @@ interface Personel {
 
 interface GiderRow {
   id?: string
-  user_id?: string
   tarih: string
   vardiya: string
   el_fisi_odeme: number
@@ -60,7 +58,7 @@ const FIXED_COLUMNS = [
 const ORTAK_COLOR = "bg-yellow-500"
 const PERSONEL_COLOR = "bg-blue-600"
 
-const OTHER_GIDER_COLUMNS = [
+const MIDDLE_COLUMNS = [
   { key: "personel_mesai", label: "PERSONEL MESAİ", color: "bg-blue-600", editable: true },
   { key: "bil_iade", label: "BİL.İADE", color: "bg-red-600", editable: true },
   { key: "inegol_donus", label: "İNEGÖL DÖNÜŞ", color: "bg-orange-500", editable: true },
@@ -81,50 +79,29 @@ const OTHER_GIDER_COLUMNS = [
   { key: "genel_toplam", label: "GENEL TOPLAM", color: "bg-red-700", editable: false },
 ]
 
+const VARDIYASIZ_SUBELER = ["carsi", "darica"]
+
+function normalizeSubeName(name: string): string {
+  return name.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i")
+}
+
 export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
   const [rows, setRows] = useState<GiderRow[]>([])
   const [ortaklar, setOrtaklar] = useState<Ortak[]>([])
   const [personeller, setPersoneller] = useState<Personel[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [deletedRows, setDeletedRows] = useState<GiderRow[]>([])
-  const [activeColumnKeys, setActiveColumnKeys] = useState<string[] | null>(null)
   const supabase = createClient()
   const { currentSube, refreshKey, userVardiya, isAdmin } = useSube()
-  const { markClean, registerSaveHandler } = useUnsavedChanges()
   
   const ayYil = `${month}-${year}`
-
-  // Vardiyası olmayan normal kullanıcılar için tek vardiya modu.
-  // Bu modda vardiya kolonu görünmez, satır yine arka planda "S" olarak kaydedilir.
-  const isSingleVardiya = !isAdmin && !userVardiya
-
-  const aktifGiderKolonlari = activeColumnKeys ?? [
-  "el_fisi_odeme",
-  "personel_mesai",
-  "bil_iade",
-  "inegol_donus",
-  "yemek",
-  "yanmaz_bilet",
-  "diger",
-  "ziraat_bankasi",
-  "is_bankasi",
-  "kuveyt_turk",
-  "bakiye_bilet",
-  "kargo_cari",
-  "hesaba_gelen",
-  "on_dort_noya_giden",
-  "carsi_bilet",
-  "darica_bilet",
-  "kredi_karti_bakiye",
-  "bankaya_yatan",
-  "genel_toplam",
-]
+  const isVardiyasizSube = currentSube
+    ? VARDIYASIZ_SUBELER.includes(normalizeSubeName(currentSube.ad))
+    : false
 
   useEffect(() => {
     // Şube değiştiğinde önce mevcut verileri temizle
     setRows([])
-    setDeletedRows([])
     
     if (currentSube) {
       loadData()
@@ -156,41 +133,26 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || !currentSube) return
 
-    const { data: kolonAyarData } = await supabase
-      .from("sube_kolon_ayarlari")
-      .select("kolon_key, aktif, sira")
-      .eq("sube_id", currentSube.id)
-      .eq("tablo", "gider")
-      .order("sira", { ascending: true })
-
-    if (kolonAyarData && kolonAyarData.length > 0) {
-      setActiveColumnKeys(kolonAyarData.filter(k => k.aktif).map(k => k.kolon_key))
-    } else {
-      setActiveColumnKeys(null)
-    }
-
     // Ortakları yükle (tüm şubelerde aynı)
     const { data: ortakData } = await supabase
-    .from("ortaklar")
-    .select("*")
-    .eq("sube_id", currentSube.id)
-    .eq("aktif", true)
-    .order("sira", { ascending: true })
+      .from("ortaklar")
+      .select("*")
+      .eq("aktif", true)
+      .order("sira", { ascending: true })
     
     if (ortakData) setOrtaklar(ortakData)
 
     // Personelleri yükle (tüm şubelerde aynı)
     const { data: personelData } = await supabase
-    .from("personeller")
-    .select("*")
-    .eq("sube_id", currentSube.id)
-    .eq("aktif", true)
-    .order("sira", { ascending: true })
+      .from("personeller")
+      .select("*")
+      .eq("aktif", true)
+      .order("sira", { ascending: true })
     
     if (personelData) setPersoneller(personelData)
 
     // Şubeye göre gider kayıtlarını yükle
-    let query = supabase
+    const { data, error } = await supabase
       .from("gider_kayitlari")
       .select("*")
       .eq("sube_id", currentSube.id)
@@ -198,20 +160,11 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       .order("tarih", { ascending: true })
       .order("vardiya", { ascending: true })
 
-    // Vardiyası olan kullanıcılar diğer vardiyayı da görür ama düzenleyemez.
-    // Sadece vardiyasız tek-vardiya kullanıcıda arka planda "S" kayıtları gösterilir.
-    if (!isAdmin && isSingleVardiya) {
-      query = query.eq("vardiya", "S")
-    }
-
-    const { data, error } = await query
-
     if (!error && data) {
       setRows(data.map(row => ({
         id: row.id,
-        user_id: row.user_id,
         tarih: row.tarih,
-        vardiya: row.vardiya || "S",
+        vardiya: isVardiyasizSube ? "" : (row.vardiya || "S"),
         el_fisi_odeme: Number(row.el_fisi_odeme) || 0,
         ortak_paylari: row.ortak_pilarim || {},
         personel_paylari: row.personel_paylari || {},
@@ -274,12 +227,13 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
 
   function addRow() {
     const nextDate = getNextDate()
-
-    const vardiyalarToAdd = isAdmin ? ["S", "A"] : [userVardiya || "S"]
-
-    const newRowsToAdd: GiderRow[] = vardiyalarToAdd.map((vardiya) => ({
+    
+    // Vardiyasiz subelerde tek satir eklenir ve vardiya etiketi gosterilmez.
+    const vardiyaToAdd = isVardiyasizSube ? "" : (userVardiya || "S")
+    
+    const newRow: GiderRow = {
       tarih: nextDate,
-      vardiya,
+      vardiya: vardiyaToAdd,
       el_fisi_odeme: 0,
       ortak_paylari: {},
       personel_paylari: {},
@@ -301,24 +255,19 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       kredi_karti_bakiye: 0,
       bankaya_yatan: 0,
       genel_toplam: 0,
-    }))
-
-    const newRows = [...rows, ...newRowsToAdd].sort((a, b) => {
+    }
+    
+    // Yeni satırı ekle ve tarihe + vardiyaya göre sırala
+    const newRows = [...rows, newRow].sort((a, b) => {
       const dateCompare = a.tarih.localeCompare(b.tarih)
       if (dateCompare !== 0) return dateCompare
       return a.vardiya.localeCompare(b.vardiya)
     })
-
+    
     setRows(newRows)
   }
 
   function deleteRow(index: number) {
-    const rowToDelete = rows[index]
-
-    if (rowToDelete?.id) {
-      setDeletedRows(prev => [...prev, rowToDelete])
-    }
-
     const newRows = [...rows]
     newRows.splice(index, 1)
     setRows(newRows)
@@ -353,74 +302,58 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
 
     // Sadece düzenleyebildiğim vardiyaları filtrele
     const editableRows = rows.filter(row => {
-      if (isAdmin) return true
-      if (isSingleVardiya) return row.vardiya === "S"
+      if (isVardiyasizSube || !userVardiya || isAdmin) return true
       return row.vardiya === userVardiya
     })
 
-    // Çöp kutusuyla silinen kayıtları veritabanından sil
-    const deletedEditableRows = deletedRows.filter(row => {
-      if (isAdmin) return true
-      if (isSingleVardiya) return row.vardiya === "S"
-      return row.vardiya === userVardiya
-    })
-
-    for (const row of deletedEditableRows) {
-      const { error: deleteError } = await supabase
-        .from("gider_kayitlari")
-        .delete()
-        .eq("id", row.id)
-
-      if (deleteError) {
-        console.log("Gider silme hatası:", deleteError)
-        alert("Gider silinemedi: " + deleteError.message)
-        setSaving(false)
-        return
-      }
+    // Önce bu ay/yıl için kendi kayıtlarımı sil (sadece düzenleyebildiğim vardiyalardan)
+    let deleteQuery = supabase
+      .from("gider_kayitlari")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("sube_id", currentSube.id)
+      .eq("ay_yil", ayYil)
+    
+    if (!isVardiyasizSube && userVardiya && !isAdmin) {
+      deleteQuery = deleteQuery.eq("vardiya", userVardiya)
     }
+    
+    await deleteQuery
 
     // Yeni kayıtları ekle
     if (editableRows.length > 0) {
       const insertData = editableRows.map(row => ({
-        user_id: row.user_id || user.id,
+        user_id: user.id,
         sube_id: currentSube.id,
         ay_yil: ayYil,
         tarih: row.tarih,
         vardiya: row.vardiya,
-        el_fisi_odeme: aktifGiderKolonlari.includes("el_fisi_odeme") ? row.el_fisi_odeme : 0,
+        el_fisi_odeme: row.el_fisi_odeme,
         ortak_pilarim: row.ortak_paylari,
         personel_paylari: row.personel_paylari,
-        personel_mesai: aktifGiderKolonlari.includes("personel_mesai") ? row.personel_mesai : 0,
-        bil_iade: aktifGiderKolonlari.includes("bil_iade") ? row.bil_iade : 0,
-        inegol_donus: aktifGiderKolonlari.includes("inegol_donus") ? row.inegol_donus : 0,
-        yemek: aktifGiderKolonlari.includes("yemek") ? row.yemek : 0,
-        yanmaz_bilet: aktifGiderKolonlari.includes("yanmaz_bilet") ? row.yanmaz_bilet : 0,
-        diger: aktifGiderKolonlari.includes("diger") ? row.diger : 0,
-        ziraat_bankasi: aktifGiderKolonlari.includes("ziraat_bankasi") ? row.ziraat_bankasi : 0,
-        is_bankasi: aktifGiderKolonlari.includes("is_bankasi") ? row.is_bankasi : 0,
-        kuveyt_turk: aktifGiderKolonlari.includes("kuveyt_turk") ? row.kuveyt_turk : 0,
-        bakiye_bilet: aktifGiderKolonlari.includes("bakiye_bilet") ? row.bakiye_bilet : 0,
-        kargo_cari: aktifGiderKolonlari.includes("kargo_cari") ? row.kargo_cari : 0,
-        hesaba_gelen: aktifGiderKolonlari.includes("hesaba_gelen") ? row.hesaba_gelen : 0,
-        on_dort_noya_giden: aktifGiderKolonlari.includes("on_dort_noya_giden") ? row.on_dort_noya_giden : 0,
-        carsi_bilet: aktifGiderKolonlari.includes("carsi_bilet") ? row.carsi_bilet : 0,
-        darica_bilet: aktifGiderKolonlari.includes("darica_bilet") ? row.darica_bilet : 0,
-        kredi_karti_bakiye: aktifGiderKolonlari.includes("kredi_karti_bakiye") ? row.kredi_karti_bakiye : 0,
-        bankaya_yatan: aktifGiderKolonlari.includes("bankaya_yatan") ? row.bankaya_yatan : 0,
+        personel_mesai: row.personel_mesai,
+        bil_iade: row.bil_iade,
+        inegol_donus: row.inegol_donus,
+        yemek: row.yemek,
+        yanmaz_bilet: row.yanmaz_bilet,
+        diger: row.diger,
+        ziraat_bankasi: row.ziraat_bankasi,
+        is_bankasi: row.is_bankasi,
+        kuveyt_turk: row.kuveyt_turk,
+        bakiye_bilet: row.bakiye_bilet,
+        kargo_cari: row.kargo_cari,
+        hesaba_gelen: row.hesaba_gelen,
+        on_dort_noya_giden: row.on_dort_noya_giden,
+        carsi_bilet: row.carsi_bilet,
+        darica_bilet: row.darica_bilet,
+        kredi_karti_bakiye: row.kredi_karti_bakiye,
+        bankaya_yatan: row.bankaya_yatan,
         genel_toplam: row.genel_toplam,
       }))
 
-      const { error } = await supabase
-        .from("gider_kayitlari")
-        .upsert(insertData, {
-          onConflict: "sube_id,ay_yil,tarih,vardiya",
-        })
-
+      const { error } = await supabase.from("gider_kayitlari").insert(insertData)
       if (error) {
-        console.log("Gider kaydetme hatası:", error)
-        alert("Gider kaydedilemedi: " + error.message)
-        setSaving(false)
-        return
+        console.log("[v0] Gider kaydetme hatası:", error)
       }
 
       // Gelir tablosundaki giderler sütununu güncelle (aynı tarihe göre)
@@ -431,26 +364,14 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
             giderler: row.genel_toplam,
             kalan: supabase.rpc ? undefined : 0 // kalan = toplam - giderler (frontend'de hesaplanacak)
           })
-          .eq("sube_id", currentSube.id)
-          .eq("ay_yil", ayYil)
+          .eq("user_id", user.id)
           .eq("tarih", row.tarih)
-          .eq("vardiya", row.vardiya)
       }
     }
 
-    setDeletedRows([])
-    markClean()
     setSaving(false)
     loadData()
   }
-
-  useEffect(() => {
-    registerSaveHandler(saveData)
-
-    return () => {
-      registerSaveHandler(null)
-    }
-  })
 
   function formatDate(dateStr: string): string {
     const date = new Date(dateStr)
@@ -461,24 +382,12 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     return num.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
-  const isStaticColumnVisible = (key: string) => {
-    if (key === "tarih" || key === "vardiya" || key === "genel_toplam") return true
-    if (!activeColumnKeys) return true
-    return activeColumnKeys.includes(key)
-  }
-
-  const visibleFixedColumns = FIXED_COLUMNS.filter(col => {
-    if (col.key === "vardiya" && isSingleVardiya) return false
-    return isStaticColumnVisible(col.key)
-  })
-  const visibleOtherGiderColumns = OTHER_GIDER_COLUMNS.filter(col => isStaticColumnVisible(col.key))
-
   // Tüm sütunları oluştur
   const allColumns = [
-    ...visibleFixedColumns,
+    ...(isVardiyasizSube ? FIXED_COLUMNS.filter(col => col.key !== "vardiya") : FIXED_COLUMNS),
     ...ortaklar.map(o => ({ key: `ortak_${o.id}`, label: o.ad.toUpperCase(), color: ORTAK_COLOR, editable: true, type: "ortak" as const })),
     ...personeller.map(p => ({ key: `personel_${p.id}`, label: p.ad.toUpperCase(), color: PERSONEL_COLOR, editable: true, type: "personel" as const })),
-    ...visibleOtherGiderColumns,
+    ...MIDDLE_COLUMNS,
   ]
 
   if (loading) {
@@ -521,7 +430,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
           <tbody>
             {rows.map((row, rowIndex) => {
               // Vardiya kontrolü: userVardiya null ise hepsini düzenleyebilir, değilse sadece kendi vardiyasını
-              const canEditVardiya = isAdmin || isSingleVardiya || userVardiya === row.vardiya
+              const canEditVardiya = isVardiyasizSube || !userVardiya || userVardiya === row.vardiya || isAdmin
               
               return (
               <tr key={rowIndex} className={`hover:bg-gray-50 ${!canEditVardiya ? "bg-gray-100/50 opacity-70" : ""}`}>
@@ -601,49 +510,6 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
               </tr>
             )}
           </tbody>
-          {rows.length > 0 && (
-  <tfoot>
-    <tr className="bg-gray-100 font-semibold">
-      <td className="p-2 border"></td>
-
-      {allColumns.map(col => {
-        if (col.key === "tarih") {
-          return (
-            <td key={col.key} className="p-2 border text-center">
-              TOPLAM
-            </td>
-          )
-        }
-
-        if (col.key === "vardiya") {
-          return <td key={col.key} className="p-2 border"></td>
-        }
-
-        const total = rows.reduce((sum, row) => {
-          if (col.key.startsWith("ortak_")) {
-            const id = col.key.replace("ortak_", "")
-            return sum + (Number(row.ortak_paylari[id]) || 0)
-          }
-
-          if (col.key.startsWith("personel_")) {
-            const id = col.key.replace("personel_", "")
-            return sum + (Number(row.personel_paylari[id]) || 0)
-          }
-
-          return sum + (Number((row as any)[col.key]) || 0)
-        }, 0)
-
-        return (
-          <td key={col.key} className="p-2 border text-right">
-            {formatNumber(total)} ₺
-          </td>
-        )
-      })}
-
-      <td className="p-2 border"></td>
-    </tr>
-  </tfoot>
-)}
         </table>
       </div>
     </div>
