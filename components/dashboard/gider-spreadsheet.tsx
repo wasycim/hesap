@@ -80,9 +80,10 @@ const MIDDLE_COLUMNS = [
 ]
 
 const VARDIYASIZ_SUBELER = ["carsi", "darica"]
+const VARDIYA_SIRASI: Record<string, number> = { S: 0, A: 1, "": 2 }
 
 function normalizeSubeName(name: string): string {
-  return name.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i")
+  return name.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\u0131/g, "i")
 }
 
 export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
@@ -228,12 +229,12 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
   function addRow() {
     const nextDate = getNextDate()
     
-    // Vardiyasiz subelerde tek satir eklenir ve vardiya etiketi gosterilmez.
-    const vardiyaToAdd = isVardiyasizSube ? "" : (userVardiya || "S")
+    // Vardiyasiz subelerde tek satir, vardiyali subelerde admin icin S ve A eklenir.
+    const vardiyalarToAdd = isVardiyasizSube ? [""] : (isAdmin ? ["S", "A"] : [userVardiya || "S"])
     
-    const newRow: GiderRow = {
+    const newRowsToAdd: GiderRow[] = vardiyalarToAdd.map(vardiya => ({
       tarih: nextDate,
-      vardiya: vardiyaToAdd,
+      vardiya,
       el_fisi_odeme: 0,
       ortak_paylari: {},
       personel_paylari: {},
@@ -255,13 +256,13 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       kredi_karti_bakiye: 0,
       bankaya_yatan: 0,
       genel_toplam: 0,
-    }
+    }))
     
     // Yeni satırı ekle ve tarihe + vardiyaya göre sırala
-    const newRows = [...rows, newRow].sort((a, b) => {
+    const newRows = [...rows, ...newRowsToAdd].sort((a, b) => {
       const dateCompare = a.tarih.localeCompare(b.tarih)
       if (dateCompare !== 0) return dateCompare
-      return a.vardiya.localeCompare(b.vardiya)
+      return (VARDIYA_SIRASI[a.vardiya] ?? 99) - (VARDIYA_SIRASI[b.vardiya] ?? 99)
     })
     
     setRows(newRows)
@@ -362,7 +363,6 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
           .from("gelir_kayitlari")
           .update({ 
             giderler: row.genel_toplam,
-            kalan: supabase.rpc ? undefined : 0 // kalan = toplam - giderler (frontend'de hesaplanacak)
           })
           .eq("user_id", user.id)
           .eq("tarih", row.tarih)
