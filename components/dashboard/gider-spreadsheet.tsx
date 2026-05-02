@@ -98,3 +98,443 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
   const supabase = createClient()
   const { currentSube, refreshKey, userVardiya, isAdmin } = useSube()
   
+  const ayYil = `${month}-${year}`
+  const isVardiyasizSube = currentSube
+    ? VARDIYASIZ_SUBELER.includes(normalizeSubeName(currentSube.ad))
+    : false
+
+  useEffect(() => {
+    // Şube değiştiğinde önce mevcut verileri temizle
+    setRows([])
+    
+    if (currentSube) {
+      loadData()
+    }
+
+    // Realtime subscription
+    const channel = supabase
+      .channel(`gider_changes_${currentSube?.id || 'none'}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'gider_kayitlari',
+        },
+        () => {
+          if (currentSube) loadData()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [month, year, currentSube?.id, refreshKey])
+
+  async function loadData() {
+    setLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || !currentSube) return
+
+    const { data: settingsData } = await supabase
+      .from("kolon_ayarlari")
+      .select("*")
+      .eq("table_type", "gider")
+      .order("sort_order", { ascending: true })
+
+    setColumnSettings(mergeColumnSettings("gider", settingsData as TableColumnSetting[] | null))
+
+    // Ortakları yükle (tüm şubelerde aynı)
+    const { data: ortakData } = await supabase
+      .from("ortaklar")
+      .select("*")
+      .eq("aktif", true)
+      .order("sira", { ascending: true })
+    
+    if (ortakData) setOrtaklar(ortakData)
+
+    // Personelleri yükle (tüm şubelerde aynı)
+    const { data: personelData } = await supabase
+      .from("personeller")
+      .select("*")
+      .eq("aktif", true)
+      .order("sira", { ascending: true })
+    
+    if (personelData) setPersoneller(personelData)
+
+    // Şubeye göre gider kayıtlarını yükle
+    const { data, error } = await supabase
+      .from("gider_kayitlari")
+      .select("*")
+      .eq("sube_id", currentSube.id)
+      .eq("ay_yil", ayYil)
+      .order("tarih", { ascending: true })
+      .order("vardiya", { ascending: true })
+
+    if (!error && data) {
+      setRows(data.map(row => ({
+        id: row.id,
+        tarih: row.tarih,
+        vardiya: isVardiyasizSube ? "" : (row.vardiya || "S"),
+        el_fisi_odeme: Number(row.el_fisi_odeme) || 0,
+        ortak_paylari: row.ortak_pilarim || {},
+        personel_paylari: row.personel_paylari || {},
+        personel_mesai: Number(row.personel_mesai) || 0,
+        bil_iade: Number(row.bil_iade) || 0,
+        inegol_donus: Number(row.inegol_donus) || 0,
+        yemek: Number(row.yemek) || 0,
+        yanmaz_bilet: Number(row.yanmaz_bilet) || 0,
+        diger: Number(row.diger) || 0,
+        ziraat_bankasi: Number(row.ziraat_bankasi) || 0,
+        is_bankasi: Number(row.is_bankasi) || 0,
+        kuveyt_turk: Number(row.kuveyt_turk) || 0,
+        bakiye_bilet: Number(row.bakiye_bilet) || 0,
+        kargo_cari: Number(row.kargo_cari) || 0,
+        hesaba_gelen: Number(row.hesaba_gelen) || 0,
+        on_dort_noya_giden: Number(row.on_dort_noya_giden) || 0,
+        carsi_bilet: Number(row.carsi_bilet) || 0,
+        darica_bilet: Number(row.darica_bilet) || 0,
+        kredi_karti_bakiye: Number(row.kredi_karti_bakiye) || 0,
+        bankaya_yatan: Number(row.bankaya_yatan) || 0,
+        genel_toplam: Number(row.genel_toplam) || 0,
+        custom_values: row.custom_values || {},
+      })))
+    }
+    setLoading(false)
+  }
+
+  function getNextDate(): string {
+    const monthIndex = ["Ocak", "Subat", "Mart", "Nisan", "Mayis", "Haziran", 
+      "Temmuz", "Agustos", "Eylul", "Ekim", "Kasim", "Aralik"].indexOf(month)
+    
+    if (rows.length === 0) {
+      return `${year}-${String(monthIndex + 1).padStart(2, "0")}-01`
+    }
+    
+    const lastDate = new Date(rows[rows.length - 1].tarih)
+    lastDate.setDate(lastDate.getDate() + 1)
+    return lastDate.toISOString().split("T")[0]
+  }
+
+  function calculateTotal(row: GiderRow): number {
+    let total = row.el_fisi_odeme + row.personel_mesai + row.bil_iade + 
+      row.inegol_donus + row.yemek + row.yanmaz_bilet + row.diger +
+      row.ziraat_bankasi + row.is_bankasi + row.kuveyt_turk +
+      row.bakiye_bilet + row.kargo_cari + row.hesaba_gelen +
+      row.on_dort_noya_giden + row.carsi_bilet + row.darica_bilet +
+      row.kredi_karti_bakiye + row.bankaya_yatan
+      + Object.values(row.custom_values || {}).reduce((sum, val) => sum + (Number(val) || 0), 0)
+
+    // Ortak paylarını ekle
+    Object.values(row.ortak_paylari).forEach(val => {
+      total += Number(val) || 0
+    })
+
+    // Personel paylarını ekle
+    Object.values(row.personel_paylari).forEach(val => {
+      total += Number(val) || 0
+    })
+
+    return total
+  }
+
+  function addRow() {
+    const nextDate = getNextDate()
+    
+    // Vardiyasiz subelerde tek satir, vardiyali subelerde admin icin S ve A eklenir.
+    const vardiyalarToAdd = isVardiyasizSube ? [""] : (isAdmin ? ["S", "A"] : [userVardiya || "S"])
+    
+    const newRowsToAdd: GiderRow[] = vardiyalarToAdd.map(vardiya => ({
+      tarih: nextDate,
+      vardiya,
+      el_fisi_odeme: 0,
+      ortak_paylari: {},
+      personel_paylari: {},
+      personel_mesai: 0,
+      bil_iade: 0,
+      inegol_donus: 0,
+      yemek: 0,
+      yanmaz_bilet: 0,
+      diger: 0,
+      ziraat_bankasi: 0,
+      is_bankasi: 0,
+      kuveyt_turk: 0,
+      bakiye_bilet: 0,
+      kargo_cari: 0,
+      hesaba_gelen: 0,
+      on_dort_noya_giden: 0,
+      carsi_bilet: 0,
+      darica_bilet: 0,
+      kredi_karti_bakiye: 0,
+      bankaya_yatan: 0,
+      genel_toplam: 0,
+      custom_values: {},
+    }))
+    
+    // Yeni satırı ekle ve tarihe + vardiyaya göre sırala
+    const newRows = [...rows, ...newRowsToAdd].sort((a, b) => {
+      const dateCompare = a.tarih.localeCompare(b.tarih)
+      if (dateCompare !== 0) return dateCompare
+      return (VARDIYA_SIRASI[a.vardiya] ?? 99) - (VARDIYA_SIRASI[b.vardiya] ?? 99)
+    })
+    
+    setRows(newRows)
+  }
+
+  function deleteRow(index: number) {
+    const newRows = [...rows]
+    newRows.splice(index, 1)
+    setRows(newRows)
+  }
+
+  function updateCell(rowIndex: number, key: string, value: number, type?: "ortak" | "personel") {
+    const newRows = [...rows]
+    const row = { ...newRows[rowIndex] }
+    
+    if (type === "ortak") {
+      row.ortak_paylari = { ...row.ortak_paylari, [key]: value }
+    } else if (type === "personel") {
+      row.personel_paylari = { ...row.personel_paylari, [key]: value }
+    } else if (key.startsWith("custom_")) {
+      row.custom_values = { ...row.custom_values, [key]: value }
+    } else {
+      (row as any)[key] = value
+    }
+    
+    // Genel toplamı hesapla
+    row.genel_toplam = calculateTotal(row)
+    
+    newRows[rowIndex] = row
+    setRows(newRows)
+  }
+
+  async function saveData() {
+    setSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || !currentSube) {
+      setSaving(false)
+      return
+    }
+
+    // Sadece düzenleyebildiğim vardiyaları filtrele
+    const editableRows = rows.filter(row => {
+      if (isVardiyasizSube || !userVardiya || isAdmin) return true
+      return row.vardiya === userVardiya
+    })
+
+    // Önce bu ay/yıl için kendi kayıtlarımı sil (sadece düzenleyebildiğim vardiyalardan)
+    let deleteQuery = supabase
+      .from("gider_kayitlari")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("sube_id", currentSube.id)
+      .eq("ay_yil", ayYil)
+    
+    if (!isVardiyasizSube && userVardiya && !isAdmin) {
+      deleteQuery = deleteQuery.eq("vardiya", userVardiya)
+    }
+    
+    await deleteQuery
+
+    // Yeni kayıtları ekle
+    if (editableRows.length > 0) {
+      const insertData = editableRows.map(row => ({
+        user_id: user.id,
+        sube_id: currentSube.id,
+        ay_yil: ayYil,
+        tarih: row.tarih,
+        vardiya: row.vardiya,
+        el_fisi_odeme: row.el_fisi_odeme,
+        ortak_pilarim: row.ortak_paylari,
+        personel_paylari: row.personel_paylari,
+        personel_mesai: row.personel_mesai,
+        bil_iade: row.bil_iade,
+        inegol_donus: row.inegol_donus,
+        yemek: row.yemek,
+        yanmaz_bilet: row.yanmaz_bilet,
+        diger: row.diger,
+        ziraat_bankasi: row.ziraat_bankasi,
+        is_bankasi: row.is_bankasi,
+        kuveyt_turk: row.kuveyt_turk,
+        bakiye_bilet: row.bakiye_bilet,
+        kargo_cari: row.kargo_cari,
+        hesaba_gelen: row.hesaba_gelen,
+        on_dort_noya_giden: row.on_dort_noya_giden,
+        carsi_bilet: row.carsi_bilet,
+        darica_bilet: row.darica_bilet,
+        kredi_karti_bakiye: row.kredi_karti_bakiye,
+        bankaya_yatan: row.bankaya_yatan,
+        genel_toplam: row.genel_toplam,
+        custom_values: row.custom_values || {},
+      }))
+
+      const { error } = await supabase.from("gider_kayitlari").insert(insertData)
+      if (error) {
+        console.log("[v0] Gider kaydetme hatası:", error)
+      }
+
+      // Gelir tablosundaki giderler sütununu güncelle (aynı tarihe göre)
+      for (const row of editableRows) {
+        await supabase
+          .from("gelir_kayitlari")
+          .update({ 
+            giderler: row.genel_toplam,
+          })
+          .eq("user_id", user.id)
+          .eq("tarih", row.tarih)
+      }
+    }
+
+    setSaving(false)
+    loadData()
+  }
+
+  function formatDate(dateStr: string): string {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" })
+  }
+
+  function formatNumber(num: number): string {
+    return num.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  }
+
+  // Tüm sütunları oluştur
+  const configuredColumns = columnSettings
+    .filter(col => col.aktif && (!isVardiyasizSube || col.column_key !== "vardiya"))
+    .map(col => ({ key: col.column_key, label: col.label, color: col.color, editable: col.column_key !== "tarih" && col.column_key !== "vardiya" && col.column_key !== "genel_toplam" }))
+
+  const allColumns = [
+    ...configuredColumns.filter(col => col.key === "tarih" || col.key === "vardiya" || col.key === "el_fisi_odeme"),
+    ...ortaklar.map(o => ({ key: `ortak_${o.id}`, label: o.ad.toUpperCase(), color: ORTAK_COLOR, editable: true, type: "ortak" as const })),
+    ...personeller.map(p => ({ key: `personel_${p.id}`, label: p.ad.toUpperCase(), color: PERSONEL_COLOR, editable: true, type: "personel" as const })),
+    ...configuredColumns.filter(col => col.key !== "tarih" && col.key !== "vardiya" && col.key !== "el_fisi_odeme"),
+  ]
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-64">Yükleniyor...</div>
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <Button onClick={addRow} size="sm" className="bg-green-600 hover:bg-green-700">
+          <Plus className="w-4 h-4 mr-1" /> Satır Ekle
+        </Button>
+        <Button onClick={saveData} size="sm" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+          <Save className="w-4 h-4 mr-1" /> {saving ? "Kaydediliyor..." : "Kaydet"}
+        </Button>
+      </div>
+
+      {(ortaklar.length === 0 || personeller.length === 0) && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-yellow-800">
+          <strong>Dikkat:</strong> Önce &quot;Ayarlar&quot; sayfasından ortakları ve personelleri eklemeniz gerekiyor.
+        </div>
+      )}
+
+      <div className="overflow-x-auto border rounded-lg">
+        <table className="w-full text-sm">
+          <thead>
+            <tr>
+              <th className="p-2 border bg-gray-100 w-10 sticky left-0">#</th>
+              {allColumns.map(col => (
+                <th 
+                  key={col.key} 
+                  className={`p-2 border font-semibold whitespace-nowrap ${col.color} ${getColumnTextColor(col.color)}`}
+                >
+                  {col.label}
+                </th>
+              ))}
+              <th className="p-2 border bg-gray-100 w-10"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => {
+              // Vardiya kontrolü: userVardiya null ise hepsini düzenleyebilir, değilse sadece kendi vardiyasını
+              const canEditVardiya = isVardiyasizSube || !userVardiya || userVardiya === row.vardiya || isAdmin
+              
+              return (
+              <tr key={rowIndex} className={`hover:bg-gray-50 ${!canEditVardiya ? "bg-gray-100/50 opacity-70" : ""}`}>
+                <td className="p-1 border text-center text-gray-500 sticky left-0 bg-white">{rowIndex + 1}</td>
+                {allColumns.map(col => {
+                  const isOrtak = col.key.startsWith("ortak_")
+                  const isPersonel = col.key.startsWith("personel_")
+                  const id = isOrtak ? col.key.replace("ortak_", "") : isPersonel ? col.key.replace("personel_", "") : null
+                  
+                  let value: number = 0
+                  if (isOrtak && id) {
+                    value = row.ortak_paylari[id] || 0
+                  } else if (isPersonel && id) {
+                    value = row.personel_paylari[id] || 0
+                  } else if (col.key.startsWith("custom_")) {
+                    value = row.custom_values?.[col.key] || 0
+                  } else {
+                    value = (row as any)[col.key] || 0
+                  }
+
+                  return (
+                    <td key={col.key} className="p-0 border">
+                      {col.key === "tarih" ? (
+                        <div className="px-2 py-1 bg-gray-100 text-center font-medium">
+                          {formatDate(row.tarih)}
+                        </div>
+                      ) : col.key === "vardiya" ? (
+                        <div className={`px-2 py-1 text-center font-bold ${
+                          row.vardiya === "S" ? "bg-amber-100 text-amber-700" : "bg-indigo-100 text-indigo-700"
+                        }`}>
+                          {row.vardiya}
+                        </div>
+                      ) : col.key === "genel_toplam" ? (
+                        <div className="px-2 py-1 text-right font-bold bg-red-100 text-red-800">
+                          {formatNumber(row.genel_toplam)} ₺
+                        </div>
+                      ) : canEditVardiya ? (
+                        <input
+                          type="number"
+                          value={value || ""}
+                          onChange={(e) => {
+                            const newVal = Number(e.target.value) || 0
+                            if (isOrtak && id) {
+                              updateCell(rowIndex, id, newVal, "ortak")
+                            } else if (isPersonel && id) {
+                              updateCell(rowIndex, id, newVal, "personel")
+                            } else {
+                              updateCell(rowIndex, col.key, newVal)
+                            }
+                          }}
+                          className="w-full px-2 py-1 text-right focus:outline-none focus:bg-blue-50"
+                          placeholder="0,00"
+                        />
+                      ) : (
+                        <div className="px-2 py-1 text-right text-gray-600">
+                          {formatNumber(value)} ₺
+                        </div>
+                      )}
+                    </td>
+                  )
+                })}
+                <td className="p-1 border">
+                  {canEditVardiya && (
+                    <button
+                      onClick={() => deleteRow(rowIndex)}
+                      className="p-1 text-red-500 hover:bg-red-50 rounded"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </td>
+              </tr>
+            )})}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={allColumns.length + 2} className="p-8 text-center text-gray-500">
+                  Henüz kayıt yok. &quot;Satır Ekle&quot; butonuna tıklayarak başlayın.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}

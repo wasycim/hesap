@@ -98,3 +98,196 @@ export default function SutunAyarlarPage() {
     const label = newLabel.trim()
     if (!label) return
     updateColumns(tableType, items => [
+      ...items,
+      {
+        table_type: tableType,
+        column_key: makeCustomColumnKey(label),
+        label: label.toUpperCase(),
+        color: "bg-blue-600",
+        sort_order: items.length,
+        aktif: true,
+        builtin: false,
+      },
+    ])
+    setNewLabel("")
+  }
+
+  function removeColumn(tableType: TableType, columnKey: string) {
+    updateColumns(tableType, items => items.filter(column => column.column_key !== columnKey))
+  }
+
+  async function saveColumns() {
+    setSaving(true)
+    const rows = [...columns.gelir, ...columns.gider].map((column, index) => ({
+      table_type: column.table_type,
+      column_key: column.column_key,
+      label: column.label,
+      color: column.color,
+      sort_order: column.sort_order,
+      aktif: column.aktif,
+      builtin: column.builtin,
+      updated_at: new Date().toISOString(),
+    }))
+
+    const { error } = await supabase
+      .from("kolon_ayarlari")
+      .upsert(rows, { onConflict: "table_type,column_key" })
+
+    setSaving(false)
+    if (error) {
+      alert(`Sutun ayarlari kaydedilemedi: ${error.message}`)
+      return
+    }
+    alert("Sutun ayarlari kaydedildi.")
+    loadData()
+  }
+
+  function renderTableSettings(tableType: TableType) {
+    const items = columns[tableType]
+
+    return (
+      <div className="space-y-4">
+        <div className="flex max-w-xl gap-2">
+          <Input
+            value={newLabel}
+            onChange={(event) => setNewLabel(event.target.value)}
+            placeholder="Yeni sutun adi"
+            onKeyDown={(event) => event.key === "Enter" && addColumn(tableType)}
+          />
+          <Button onClick={() => addColumn(tableType)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Ekle
+          </Button>
+        </div>
+
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full min-w-[820px] text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="p-3 text-left">Sira</th>
+                <th className="p-3 text-left">Sutun Adi</th>
+                <th className="p-3 text-left">Renk</th>
+                <th className="p-3 text-left">Onizleme</th>
+                <th className="p-3 text-center">Durum</th>
+                <th className="p-3 text-right">Islem</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((column, index) => (
+                <tr key={column.column_key} className="border-b">
+                  <td className="p-3">
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => moveColumn(tableType, column.column_key, -1)} disabled={index === 0}>
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => moveColumn(tableType, column.column_key, 1)} disabled={index === items.length - 1}>
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </td>
+                  <td className="p-3">
+                    <Input
+                      value={column.label}
+                      onChange={(event) => updateColumn(tableType, column.column_key, { label: event.target.value.toUpperCase() })}
+                      disabled={column.column_key === "tarih" || column.column_key === "vardiya"}
+                    />
+                  </td>
+                  <td className="p-3">
+                    <Select value={column.color} onValueChange={(value) => updateColumn(tableType, column.column_key, { color: value })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COLOR_OPTIONS.map(option => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </td>
+                  <td className="p-3">
+                    <div className={`inline-flex min-w-32 justify-center rounded px-3 py-2 font-semibold ${column.color} ${getColumnTextColor(column.color)}`}>
+                      {column.label || "SUTUN"}
+                    </div>
+                  </td>
+                  <td className="p-3 text-center">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => updateColumn(tableType, column.column_key, { aktif: !column.aktif })}
+                      disabled={column.column_key === "tarih"}
+                    >
+                      {column.aktif ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                    </Button>
+                  </td>
+                  <td className="p-3 text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => column.builtin ? updateColumn(tableType, column.column_key, { aktif: false }) : removeColumn(tableType, column.column_key)}
+                      disabled={column.column_key === "tarih"}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return <div className="flex h-64 items-center justify-center text-muted-foreground">Yukleniyor...</div>
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="text-center">
+          <h2 className="mb-2 text-xl font-semibold">Erisim Engellendi</h2>
+          <p className="text-muted-foreground">Bu sayfaya sadece yoneticiler erisebilir.</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-6 lg:p-8">
+      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Sütun Ayarları</h1>
+          <p className="text-sm text-muted-foreground">Gelir ve gider tablolarının sütun sırası, rengi ve görünürlüğü.</p>
+        </div>
+        <Button onClick={saveColumns} disabled={saving} className="gap-2">
+          <Save className="h-4 w-4" />
+          {saving ? "Kaydediliyor..." : "Kaydet"}
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Tablo Ayarlari</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TableType)}>
+            <TabsList>
+              <TabsTrigger value="gelir">Gelir Tablosu</TabsTrigger>
+              <TabsTrigger value="gider">Gider Tablosu</TabsTrigger>
+            </TabsList>
+            <TabsContent value="gelir" className="pt-4">
+              {renderTableSettings("gelir")}
+            </TabsContent>
+            <TabsContent value="gider" className="pt-4">
+              {renderTableSettings("gider")}
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
