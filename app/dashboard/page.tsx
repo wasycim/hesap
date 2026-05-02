@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { TrendingUp, TrendingDown, Soup } from "lucide-react"
+import { TrendingUp, TrendingDown, Wallet, Soup } from "lucide-react"
 import Link from "next/link"
 import { useSube } from "@/contexts/sube-context"
 
@@ -12,11 +12,15 @@ const months = [
   "Ocak", "Subat", "Mart", "Nisan", "Mayis", "Haziran",
   "Temmuz", "Agustos", "Eylul", "Ekim", "Kasim", "Aralik"
 ]
-const years = [2026, 2027, 2028, 2029, 2030]
+const START_YEAR = 2026
+const currentDate = new Date()
+const currentMonth = months[currentDate.getMonth()]
+const currentYear = currentDate.getFullYear()
+const years = Array.from({ length: Math.max(currentYear + 4, 2030) - START_YEAR + 1 }, (_, index) => START_YEAR + index)
 
 export default function DashboardPage() {
-  const [month, setMonth] = useState("Nisan")
-  const [year, setYear] = useState(2026)
+  const [month, setMonth] = useState(currentMonth)
+  const [year, setYear] = useState(currentYear)
   const [stats, setStats] = useState({
     toplamGelir: 0,
     toplamGider: 0,
@@ -145,7 +149,7 @@ export default function DashboardPage() {
       ) : (
         <>
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Link href="/dashboard/gelir">
               <Card className="bg-emerald-50 border-emerald-200 hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer">
                 <CardContent className="p-6">
@@ -180,7 +184,25 @@ export default function DashboardPage() {
                   </div>
                 </CardContent>
               </Card>
-            </Link>            
+            </Link>
+
+            <Card className="bg-blue-50 border-blue-200">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-600 mb-1">Kalan</p>
+                    <p className={`text-2xl font-bold ${stats.kalan >= 0 ? "text-blue-700" : "text-red-700"}`}>
+                      {formatCurrency(stats.kalan)} <span className="text-base font-normal">TL</span>
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-full bg-blue-100">
+                    <Wallet className="h-6 w-6 text-blue-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            
           </div>
 
           {/* Net Durum */}
