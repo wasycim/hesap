@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Plus, Save, Trash2 } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
-import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 
 interface GelirRow {
   id?: string
@@ -75,46 +74,28 @@ const COLUMNS = [
   "diger_komisyon", "kasa_gelen", "toplam", "giderler", "kalan", "durum"
 ]
 
+const VARDIYASIZ_SUBELER = ["carsi", "darica"]
+
+function normalizeSubeName(name: string): string {
+  return name.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i")
+}
+
 export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   const [rows, setRows] = useState<GelirRow[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [deletedRows, setDeletedRows] = useState<GelirRow[]>([])
-  const [activeColumnKeys, setActiveColumnKeys] = useState<string[] | null>(null)
   const supabase = createClient()
   const { currentSube, isAdmin, currentUserId, refreshKey, userVardiya } = useSube()
-  const { markClean, registerSaveHandler } = useUnsavedChanges()
   
   const ayYil = `${month}-${year}`
+  const isVardiyasizSube = currentSube
+    ? VARDIYASIZ_SUBELER.includes(normalizeSubeName(currentSube.ad))
+    : false
+  const visibleColumns = isVardiyasizSube ? COLUMNS.filter(col => col !== "vardiya") : COLUMNS
 
-  // Vardiyası olmayan normal kullanıcılar için tek vardiya modu.
-  // Bu modda vardiya kolonu görünmez, satır yine arka planda "S" olarak kaydedilir.
-  const isSingleVardiya = !isAdmin && !userVardiya
-
-  const isColumnActive = (key: string) => {
-    if (key === "vardiya" && isSingleVardiya) return false
-    if (["tarih", "vardiya", "toplam", "giderler", "kalan", "durum"].includes(key)) return true
-    if (activeColumnKeys === null) return true
-    return activeColumnKeys.includes(key)
-  }
-
-  const visibleColumns = COLUMNS.filter(isColumnActive)
-  const aktifGelirKolonlari = activeColumnKeys ?? [
-    "pamukkale_turizm",
-    "anadolu_ulasim",
-    "inegol_seyahat",
-    "alasehir_turizm",
-    "unlu_1",
-    "unlu_2",
-    "pamukkale_kargo",
-    "diger_komisyon",
-    "kasa_gelen",
-  ]
   useEffect(() => {
     // Şube değiştiğinde önce mevcut verileri temizle
     setRows([])
-    setDeletedRows([])
-    setActiveColumnKeys(null)
     
     if (currentSube) {
       loadData()
@@ -146,19 +127,6 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || !currentSube) return
 
-    const { data: kolonAyarData } = await supabase
-      .from("sube_kolon_ayarlari")
-      .select("kolon_key, aktif, sira")
-      .eq("sube_id", currentSube.id)
-      .eq("tablo", "gelir")
-      .order("sira", { ascending: true })
-
-    if (kolonAyarData && kolonAyarData.length > 0) {
-      setActiveColumnKeys(kolonAyarData.filter((k: any) => k.aktif).map((k: any) => k.kolon_key))
-    } else {
-      setActiveColumnKeys(null)
-    }
-
     // Şubeye göre kayıtları çek (admin tüm kullanıcıların kayıtlarını görür)
     let query = supabase
       .from("gelir_kayitlari")
@@ -168,12 +136,6 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       .order("tarih", { ascending: true })
       .order("vardiya", { ascending: true })
 
-    // Vardiyası olan kullanıcılar diğer vardiyayı da görür ama düzenleyemez.
-    // Sadece vardiyasız tek-vardiya kullanıcıda arka planda "S" kayıtları gösterilir.
-    if (!isAdmin && isSingleVardiya) {
-      query = query.eq("vardiya", "S")
-    }
-
     const { data, error } = await query
 
     if (!error && data) {
@@ -182,7 +144,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
         user_id: row.user_id,
         sube_id: row.sube_id,
         tarih: row.tarih,
-        vardiya: row.vardiya || "S",
+        vardiya: isVardiyasizSube ? "" : (row.vardiya || "S"),
         pamukkale_turizm: Number(row.pamukkale_turizm) || 0,
         anadolu_ulasim: Number(row.anadolu_ulasim) || 0,
         inegol_seyahat: Number(row.inegol_seyahat) || 0,
@@ -194,7 +156,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
         kasa_gelen: Number(row.kasa_gelen) || 0,
         toplam: Number(row.toplam) || 0,
         giderler: Number(row.giderler) || 0,
-        kalan: (Number(row.toplam) || 0) - (Number(row.giderler) || 0),
+        kalan: Number(row.kalan) || 0,
         durum: row.durum || "KONTROL EDİLMEDİ",
       })))
     }
@@ -216,12 +178,13 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
 
   function addRow() {
     const nextDate = getNextDate()
-
-    const vardiyalarToAdd = isAdmin ? ["S", "A"] : [userVardiya || "S"]
-
-    const newRowsToAdd: GelirRow[] = vardiyalarToAdd.map((vardiya) => ({
+    
+    // Vardiyasiz subelerde tek satir eklenir ve vardiya etiketi gosterilmez.
+    const vardiyaToAdd = isVardiyasizSube ? "" : (userVardiya || "S")
+    
+    const newRow: GelirRow = {
       tarih: nextDate,
-      vardiya,
+      vardiya: vardiyaToAdd,
       pamukkale_turizm: 0,
       anadolu_ulasim: 0,
       inegol_seyahat: 0,
@@ -235,24 +198,20 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       giderler: 0,
       kalan: 0,
       durum: "KONTROL EDİLMEDİ",
-    }))
-
-    const newRows = [...rows, ...newRowsToAdd].sort((a, b) => {
+    }
+    
+    // Yeni satırı ekle ve tarihe + vardiyaya göre sırala (S önce, A sonra)
+    const newRows = [...rows, newRow].sort((a, b) => {
       const dateCompare = a.tarih.localeCompare(b.tarih)
       if (dateCompare !== 0) return dateCompare
+      // Aynı tarihte S önce A sonra
       return a.vardiya.localeCompare(b.vardiya)
     })
-
+    
     setRows(newRows)
   }
 
   function deleteRow(index: number) {
-    const rowToDelete = rows[index]
-
-    if (rowToDelete?.id) {
-      setDeletedRows(prev => [...prev, rowToDelete])
-    }
-
     const newRows = [...rows]
     newRows.splice(index, 1)
     setRows(newRows)
@@ -291,83 +250,59 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     // Sadece düzenleyebildiğim vardiyaları filtrele
     // userVardiya null ise hepsini, değilse sadece kendi vardiyamı kaydedebilirim
     const editableRows = rows.filter(row => {
-      if (isAdmin) return true
-      if (isSingleVardiya) return row.vardiya === "S"
+      // Admin veya vardiyası olmayan kullanıcı her şeyi kaydedebilir
+      if (isVardiyasizSube || !userVardiya || isAdmin) return true
+      // Sadece kendi vardiyamı kaydedebilirim
       return row.vardiya === userVardiya
     })
 
-    // Çöp kutusuyla silinen kayıtları veritabanından sil
-    const deletedEditableRows = deletedRows.filter(row => {
-      if (isAdmin) return true
-      if (isSingleVardiya) return row.vardiya === "S"
-      return row.vardiya === userVardiya
-    })
-
-    for (const row of deletedEditableRows) {
-      const { error: deleteError } = await supabase
-        .from("gelir_kayitlari")
-        .delete()
-        .eq("id", row.id)
-
-      if (deleteError) {
-        console.log("Gelir silme hatası:", deleteError)
-        alert("Gelir silinemedi: " + deleteError.message)
-        setSaving(false)
-        return
-      }
+    // Önce kendi kayıtlarımı sil (sadece düzenleyebildiğim vardiyalardan)
+    let deleteQuery = supabase
+      .from("gelir_kayitlari")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("sube_id", currentSube.id)
+      .eq("ay_yil", ayYil)
+    
+    // Eğer kullanıcının belirli bir vardiyası varsa sadece o vardiyayı sil
+    if (!isVardiyasizSube && userVardiya && !isAdmin) {
+      deleteQuery = deleteQuery.eq("vardiya", userVardiya)
     }
+    
+    await deleteQuery
 
     // Yeni kayıtları ekle
     if (editableRows.length > 0) {
       const insertData = editableRows.map(row => ({
-        user_id: row.user_id || user.id,
+        user_id: user.id,
         sube_id: currentSube.id,
         ay_yil: ayYil,
         tarih: row.tarih,
         vardiya: row.vardiya,
-        pamukkale_turizm: aktifGelirKolonlari.includes("pamukkale_turizm") ? row.pamukkale_turizm : 0,
-        anadolu_ulasim: aktifGelirKolonlari.includes("anadolu_ulasim") ? row.anadolu_ulasim : 0,
-        inegol_seyahat: aktifGelirKolonlari.includes("inegol_seyahat") ? row.inegol_seyahat : 0,
-        alasehir_turizm: aktifGelirKolonlari.includes("alasehir_turizm") ? row.alasehir_turizm : 0,
-        unlu_1: aktifGelirKolonlari.includes("unlu_1") ? row.unlu_1 : 0,
-        unlu_2: aktifGelirKolonlari.includes("unlu_2") ? row.unlu_2 : 0,
-        pamukkale_kargo: aktifGelirKolonlari.includes("pamukkale_kargo") ? row.pamukkale_kargo : 0,
-        diger_komisyon: aktifGelirKolonlari.includes("diger_komisyon") ? row.diger_komisyon : 0,
-        kasa_gelen: aktifGelirKolonlari.includes("kasa_gelen") ? row.kasa_gelen : 0,
+        pamukkale_turizm: row.pamukkale_turizm,
+        anadolu_ulasim: row.anadolu_ulasim,
+        inegol_seyahat: row.inegol_seyahat,
+        alasehir_turizm: row.alasehir_turizm,
+        unlu_1: row.unlu_1,
+        unlu_2: row.unlu_2,
+        pamukkale_kargo: row.pamukkale_kargo,
+        diger_komisyon: row.diger_komisyon,
+        kasa_gelen: row.kasa_gelen,
         toplam: row.toplam,
         giderler: row.giderler,
         kalan: row.kalan,
         durum: row.durum,
       }))
 
-      const { error } = await supabase
-        .from("gelir_kayitlari")
-        .upsert(insertData, {
-          onConflict: "sube_id,ay_yil,tarih,vardiya",
-        })
-
+      const { error } = await supabase.from("gelir_kayitlari").insert(insertData)
       if (error) {
-        console.log("Gelir kaydetme hatası:", error)
-        alert("Gelir kaydedilemedi: " + error.message)
-        setSaving(false)
-        return
+        console.log("[v0] Kaydetme hatası:", error)
       }
     }
 
-    setDeletedRows([])
-    setActiveColumnKeys(null)
-    markClean()
     setSaving(false)
     loadData()
   }
-
-  useEffect(() => {
-    registerSaveHandler(saveData)
-
-    return () => {
-      registerSaveHandler(null)
-    }
-  })
 
   function formatDate(dateStr: string): string {
     const date = new Date(dateStr)
@@ -379,7 +314,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   }
 
   // Sütun toplamları
-  const columnTotals = visibleColumns.reduce((acc, col) => {
+  const columnTotals = COLUMNS.reduce((acc, col) => {
     if (col !== "tarih" && col !== "durum" && col !== "vardiya") {
       acc[col] = rows.reduce((sum, row) => sum + ((row as any)[col] || 0), 0)
     }
@@ -420,7 +355,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
           <tbody>
             {rows.map((row, rowIndex) => {
               // Vardiya kontrolü: userVardiya null ise hepsini düzenleyebilir, değilse sadece kendi vardiyasını
-              const canEditVardiya = isAdmin || isSingleVardiya || userVardiya === row.vardiya
+              const canEditVardiya = isVardiyasizSube || !userVardiya || userVardiya === row.vardiya || isAdmin
               const canEdit = canEditVardiya
               
               return (
