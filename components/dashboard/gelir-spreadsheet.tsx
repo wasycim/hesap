@@ -75,9 +75,10 @@ const COLUMNS = [
 ]
 
 const VARDIYASIZ_SUBELER = ["carsi", "darica"]
+const VARDIYA_SIRASI: Record<string, number> = { S: 0, A: 1, "": 2 }
 
 function normalizeSubeName(name: string): string {
-  return name.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i")
+  return name.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\u0131/g, "i")
 }
 
 export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
@@ -179,12 +180,12 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   function addRow() {
     const nextDate = getNextDate()
     
-    // Vardiyasiz subelerde tek satir eklenir ve vardiya etiketi gosterilmez.
-    const vardiyaToAdd = isVardiyasizSube ? "" : (userVardiya || "S")
+    // Vardiyasiz subelerde tek satir, vardiyali subelerde admin icin S ve A eklenir.
+    const vardiyalarToAdd = isVardiyasizSube ? [""] : (isAdmin ? ["S", "A"] : [userVardiya || "S"])
     
-    const newRow: GelirRow = {
+    const newRowsToAdd: GelirRow[] = vardiyalarToAdd.map(vardiya => ({
       tarih: nextDate,
-      vardiya: vardiyaToAdd,
+      vardiya,
       pamukkale_turizm: 0,
       anadolu_ulasim: 0,
       inegol_seyahat: 0,
@@ -198,14 +199,14 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       giderler: 0,
       kalan: 0,
       durum: "KONTROL EDİLMEDİ",
-    }
+    }))
     
     // Yeni satırı ekle ve tarihe + vardiyaya göre sırala (S önce, A sonra)
-    const newRows = [...rows, newRow].sort((a, b) => {
+    const newRows = [...rows, ...newRowsToAdd].sort((a, b) => {
       const dateCompare = a.tarih.localeCompare(b.tarih)
       if (dateCompare !== 0) return dateCompare
       // Aynı tarihte S önce A sonra
-      return a.vardiya.localeCompare(b.vardiya)
+      return (VARDIYA_SIRASI[a.vardiya] ?? 99) - (VARDIYA_SIRASI[b.vardiya] ?? 99)
     })
     
     setRows(newRows)
