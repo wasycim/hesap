@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Soup } from "lucide-react"
+import { useSube } from "@/contexts/sube-context"
 
 interface Personel {
   id: string
@@ -37,11 +38,12 @@ export default function CorbalarPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
+  const { currentSube } = useSube()
   
   const ayYil = `${month}-${year}`
 
   useEffect(() => {
-    loadData()
+    if (currentSube) loadData()
 
     // Realtime subscription
     const channel = supabase
@@ -62,18 +64,19 @@ export default function CorbalarPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [month, year])
+  }, [month, year, currentSube?.id])
 
   async function loadData() {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user || !currentSube) return
 
     // Personelleri cek
     const { data: personelData } = await supabase
       .from("personeller")
       .select("*")
       .eq("user_id", user.id)
+      .eq("sube_id", currentSube.id)
       .eq("aktif", true)
       .order("sira", { ascending: true })
     
@@ -84,6 +87,7 @@ export default function CorbalarPage() {
       .from("corbalar")
       .select("*")
       .eq("user_id", user.id)
+      .eq("sube_id", currentSube.id)
       .eq("ay_yil", ayYil)
       .order("tarih", { ascending: true })
 
@@ -163,13 +167,14 @@ export default function CorbalarPage() {
   async function saveData() {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user || !currentSube) return
 
     // Bu ay icin tum corba kayitlarini sil
     await supabase
       .from("corbalar")
       .delete()
       .eq("user_id", user.id)
+      .eq("sube_id", currentSube.id)
       .eq("ay_yil", ayYil)
 
     // Yeni kayitlari ekle
@@ -180,6 +185,7 @@ export default function CorbalarPage() {
         if (miktar > 0) {
           insertData.push({
             user_id: user.id,
+            sube_id: currentSube.id,
             ay_yil: ayYil,
             tarih: row.tarih,
             personel_id: personel.id,

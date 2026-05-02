@@ -34,6 +34,11 @@ END $$;
 ALTER TABLE gelir_kayitlari ADD COLUMN IF NOT EXISTS custom_values JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE gider_kayitlari ADD COLUMN IF NOT EXISTS custom_values JSONB NOT NULL DEFAULT '{}'::jsonb;
 
+ALTER TABLE ortaklar ADD COLUMN IF NOT EXISTS sube_id UUID REFERENCES subeler(id) ON DELETE CASCADE;
+ALTER TABLE personeller ADD COLUMN IF NOT EXISTS sube_id UUID REFERENCES subeler(id) ON DELETE CASCADE;
+ALTER TABLE kargo_cari_firmalar ADD COLUMN IF NOT EXISTS sube_id UUID REFERENCES subeler(id) ON DELETE CASCADE;
+ALTER TABLE corbalar ADD COLUMN IF NOT EXISTS sube_id UUID REFERENCES subeler(id) ON DELETE CASCADE;
+
 ALTER TABLE kolon_ayarlari ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "kolon_ayarlari_select_auth" ON kolon_ayarlari;
@@ -75,3 +80,7 @@ CREATE POLICY "kolon_ayarlari_admin_delete" ON kolon_ayarlari
   );
 
 CREATE INDEX IF NOT EXISTS idx_kolon_ayarlari_sube_table_type ON kolon_ayarlari(sube_id, table_type, sort_order);
+CREATE INDEX IF NOT EXISTS idx_ortaklar_sube ON ortaklar(sube_id, sira);
+CREATE INDEX IF NOT EXISTS idx_personeller_sube ON personeller(sube_id, sira);
+CREATE INDEX IF NOT EXISTS idx_kargo_cari_firmalar_sube ON kargo_cari_firmalar(sube_id, sira);
+CREATE INDEX IF NOT EXISTS idx_corbalar_sube_ay ON corbalar(sube_id, ay_yil, tarih);

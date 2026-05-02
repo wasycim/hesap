@@ -1,11 +1,11 @@
 "use client"
 
-import { useSube } from "@/contexts/sube-context"
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Trash2, Users, Package } from "lucide-react"
+import { useSube } from "@/contexts/sube-context"
 
 interface Ortak {
   id: string
@@ -38,15 +38,12 @@ export default function AyarlarPage() {
   const { currentSube } = useSube()
 
   useEffect(() => {
-    loadData()
-  }, [])
+    if (currentSube) loadData()
+  }, [currentSube?.id])
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !currentSube) {
-      setLoading(false)
-      return
-    }
+    if (!user || !currentSube) return
 
     // Admin kontrolü
     const { data: profile } = await supabase
@@ -64,9 +61,9 @@ export default function AyarlarPage() {
     }
 
     const [ortakRes, personelRes, kargoRes] = await Promise.all([
-      supabase.from("ortaklar").select("*").eq("sube_id", currentSube.id).order("sira"),
-      supabase.from("personeller").select("*").eq("sube_id", currentSube.id).order("sira"),
-      supabase.from("kargo_cari_firmalar").select("*").eq("sube_id", currentSube.id).order("sira"),
+      supabase.from("ortaklar").select("*").eq("user_id", user.id).eq("sube_id", currentSube.id).order("sira"),
+      supabase.from("personeller").select("*").eq("user_id", user.id).eq("sube_id", currentSube.id).order("sira"),
+      supabase.from("kargo_cari_firmalar").select("*").eq("user_id", user.id).eq("sube_id", currentSube.id).order("sira"),
     ])
 
     if (ortakRes.data) setOrtaklar(ortakRes.data)
@@ -78,15 +75,15 @@ export default function AyarlarPage() {
   async function addOrtak() {
     if (!yeniOrtak.trim()) return
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user || !currentSube) return
 
     await supabase.from("ortaklar").insert({
-  user_id: user.id,
-  sube_id: currentSube.id,
-  ad: yeniOrtak.toUpperCase(),
-  sira: ortaklar.length,
-  aktif: true,
-})
+      user_id: user.id,
+      sube_id: currentSube.id,
+      ad: yeniOrtak.toUpperCase(),
+      sira: ortaklar.length,
+      aktif: true,
+    })
     setYeniOrtak("")
     loadData()
   }
@@ -94,15 +91,15 @@ export default function AyarlarPage() {
   async function addPersonel() {
     if (!yeniPersonel.trim()) return
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user || !currentSube) return
 
     await supabase.from("personeller").insert({
-  user_id: user.id,
-  sube_id: currentSube.id,
-  ad: yeniPersonel.toUpperCase(),
-  sira: personeller.length,
-  aktif: true,
-})
+      user_id: user.id,
+      sube_id: currentSube.id,
+      ad: yeniPersonel.toUpperCase(),
+      sira: personeller.length,
+      aktif: true,
+    })
     setYeniPersonel("")
     loadData()
   }
@@ -110,15 +107,15 @@ export default function AyarlarPage() {
   async function addKargoFirma() {
     if (!yeniKargoFirma.trim()) return
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user || !currentSube) return
 
     await supabase.from("kargo_cari_firmalar").insert({
-  user_id: user.id,
-  sube_id: currentSube.id,
-  ad: yeniKargoFirma.toUpperCase(),
-  sira: kargoFirmalar.length,
-  aktif: true,
-})
+      user_id: user.id,
+      sube_id: currentSube.id,
+      ad: yeniKargoFirma.toUpperCase(),
+      sira: kargoFirmalar.length,
+      aktif: true,
+    })
     setYeniKargoFirma("")
     loadData()
     // Sidebar'i guncelle
@@ -178,7 +175,10 @@ export default function AyarlarPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold text-foreground mb-6">Ayarlar</h1>
+      <h1 className="text-2xl font-bold text-foreground mb-2">Ayarlar</h1>
+      <p className="text-sm text-muted-foreground mb-6">
+        {currentSube?.ad ? `${currentSube.ad} subesi icin ayarlar` : "Sube secimi bekleniyor"}
+      </p>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Ortaklar Card */}

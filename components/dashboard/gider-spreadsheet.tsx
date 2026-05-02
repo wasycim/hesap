@@ -150,6 +150,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     const { data: ortakData } = await supabase
       .from("ortaklar")
       .select("*")
+      .eq("sube_id", currentSube.id)
       .eq("aktif", true)
       .order("sira", { ascending: true })
     
@@ -159,6 +160,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     const { data: personelData } = await supabase
       .from("personeller")
       .select("*")
+      .eq("sube_id", currentSube.id)
       .eq("aktif", true)
       .order("sira", { ascending: true })
     

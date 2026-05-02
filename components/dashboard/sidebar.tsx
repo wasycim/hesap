@@ -97,9 +97,12 @@ export function DashboardSidebar({ userEmail }: SidebarProps) {
   const [subeMenuOpen, setSubeMenuOpen] = useState(false)
 
   useEffect(() => {
-    fetchKargoFirmalar()
     checkAdminStatus()
   }, [])
+
+  useEffect(() => {
+    if (currentSube) fetchKargoFirmalar()
+  }, [currentSube?.id])
 
   async function checkAdminStatus() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -123,12 +126,13 @@ export function DashboardSidebar({ userEmail }: SidebarProps) {
 
   async function fetchKargoFirmalar() {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user || !currentSube) return
 
     const { data } = await supabase
       .from("kargo_cari_firmalar")
       .select("id, ad")
       .eq("user_id", user.id)
+      .eq("sube_id", currentSube.id)
       .eq("aktif", true)
       .order("sira", { ascending: true })
 
