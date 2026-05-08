@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Plus, Save, Trash2 } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
+import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 import { TableColumnSetting, getColumnTextColor, mergeColumnSettings } from "@/lib/table-column-settings"
 
 interface Ortak {
@@ -19,6 +20,8 @@ interface Personel {
 
 interface GiderRow {
   id?: string
+  user_id?: string
+  sube_id?: string
   tarih: string
   vardiya: string
   el_fisi_odeme: number
@@ -97,6 +100,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
   const { currentSube, refreshKey, userVardiya, isAdmin } = useSube()
+  const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
   
   const ayYil = `${month}-${year}`
   const isVardiyasizSube = currentSube
@@ -131,6 +135,11 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       supabase.removeChannel(channel)
     }
   }, [month, year, currentSube?.id, refreshKey])
+
+  useEffect(() => {
+    registerSaveHandler(saveData)
+    return () => registerSaveHandler(null)
+  }, [rows, currentSube?.id, ayYil, userVardiya, isAdmin, registerSaveHandler])
 
   async function loadData() {
     setLoading(true)
@@ -178,6 +187,8 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     if (!error && data) {
       setRows(data.map(row => ({
         id: row.id,
+        user_id: row.user_id,
+        sube_id: row.sube_id,
         tarih: row.tarih,
         vardiya: isVardiyasizSube ? "" : (row.vardiya || "S"),
         el_fisi_odeme: Number(row.el_fisi_odeme) || 0,
@@ -289,6 +300,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     const newRows = [...rows]
     newRows.splice(index, 1)
     setRows(newRows)
+    markDirty()
   }
 
   function updateCell(rowIndex: number, key: string, value: number, type?: "ortak" | "personel") {
@@ -317,7 +329,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || !currentSube) {
       setSaving(false)
-      return
+      return false
     }
 
     // Sadece düzenleyebildiğim vardiyaları filtrele
@@ -330,20 +342,28 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     let deleteQuery = supabase
       .from("gider_kayitlari")
       .delete()
-      .eq("user_id", user.id)
       .eq("sube_id", currentSube.id)
       .eq("ay_yil", ayYil)
+
+    if (!isAdmin) {
+      deleteQuery = deleteQuery.eq("user_id", user.id)
+    }
     
     if (!isVardiyasizSube && userVardiya && !isAdmin) {
       deleteQuery = deleteQuery.eq("vardiya", userVardiya)
     }
     
-    await deleteQuery
+    const { error: deleteError } = await deleteQuery
+    if (deleteError) {
+      console.log("[v0] Gider silme hatasi:", deleteError)
+      setSaving(false)
+      return false
+    }
 
     // Yeni kayıtları ekle
     if (editableRows.length > 0) {
       const insertData = editableRows.map(row => ({
-        user_id: user.id,
+        user_id: row.user_id || user.id,
         sube_id: currentSube.id,
         ay_yil: ayYil,
         tarih: row.tarih,
@@ -374,23 +394,33 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
 
       const { error } = await supabase.from("gider_kayitlari").insert(insertData)
       if (error) {
-        console.log("[v0] Gider kaydetme hatası:", error)
+        console.log("[v0] Gider kaydetme hatasi:", error)
+        setSaving(false)
+        return false
       }
 
       // Gelir tablosundaki giderler sütununu güncelle (aynı tarihe göre)
       for (const row of editableRows) {
-        await supabase
+        let updateGelirQuery = supabase
           .from("gelir_kayitlari")
           .update({ 
             giderler: row.genel_toplam,
           })
-          .eq("user_id", user.id)
+          .eq("sube_id", currentSube.id)
           .eq("tarih", row.tarih)
+
+        if (!isAdmin) {
+          updateGelirQuery = updateGelirQuery.eq("user_id", user.id)
+        }
+
+        await updateGelirQuery
       }
     }
 
     setSaving(false)
+    markClean()
     loadData()
+    return true
   }
 
   function formatDate(dateStr: string): string {
