@@ -2,7 +2,7 @@
 
 import { createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react"
 
-type SaveHandler = () => Promise<void> | void
+type SaveHandler = () => Promise<void | boolean> | void | boolean
 
 interface UnsavedChangesContextType {
   isDirty: boolean
@@ -17,12 +17,14 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   const [isDirty, setIsDirty] = useState(false)
   const [showPopup, setShowPopup] = useState(false)
   const [pendingUrl, setPendingUrl] = useState<string | null>(null)
+  const [hasSaveHandler, setHasSaveHandler] = useState(false)
   const saveHandlerRef = useRef<SaveHandler | null>(null)
 
   const markDirty = useCallback(() => setIsDirty(true), [])
   const markClean = useCallback(() => setIsDirty(false), [])
   const registerSaveHandler = useCallback((handler: SaveHandler | null) => {
     saveHandlerRef.current = handler
+    setHasSaveHandler(Boolean(handler))
   }, [])
 
   useEffect(() => {
@@ -82,20 +84,10 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("click", interceptLinks, true)
   }, [isDirty])
 
-  useEffect(() => {
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!isDirty) return
-      event.preventDefault()
-      event.returnValue = ""
-    }
-
-    window.addEventListener("beforeunload", handleBeforeUnload)
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
-  }, [isDirty])
-
   async function saveAndContinue() {
     if (saveHandlerRef.current) {
-      await saveHandlerRef.current()
+      const result = await saveHandlerRef.current()
+      if (result === false) return
     }
 
     setIsDirty(false)
@@ -134,12 +126,14 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
               >
                 Kaydetmeden çık
               </button>
-              <button
-                onClick={saveAndContinue}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-              >
-                Kaydet
-              </button>
+              {hasSaveHandler && (
+                <button
+                  onClick={saveAndContinue}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                >
+                  Kaydet
+                </button>
+              )}
             </div>
           </div>
         </div>
