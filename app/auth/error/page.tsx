@@ -25,7 +25,7 @@ export default function AuthErrorPage() {
         </CardContent>
         <CardFooter className="flex flex-col gap-2">
           <Link href="/auth/giris" className="w-full">
-            <Button className="w-full">Giris Sayfasina Don</Button>
+            <Button className="w-full">Giriş Sayfasına Dön</Button>
           </Link>
           <Link href="/auth/kayit" className="w-full">
             <Button variant="outline" className="w-full">Yeniden Kayit Ol</Button>

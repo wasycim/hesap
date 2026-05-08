@@ -53,7 +53,7 @@ const menuItems = [
     color: "text-red-500",
   },
   {
-    title: "Corbalar",
+    title: "Çorbalar",
     href: "/dashboard/corbalar",
     icon: Soup,
     color: "text-orange-500",
@@ -126,7 +126,7 @@ export function DashboardSidebar({ userEmail }: SidebarProps) {
     setIsAdmin(profile?.is_admin || false)
   }
 
-  // Kargo Cari altindaki bir sayfadaysak otomatik ac
+  // Kargo Cari altındaki bir sayfadaysak otomatik aç
   useEffect(() => {
     if (pathname.startsWith("/dashboard/kargo-cari")) {
       setKargoOpen(true)
@@ -140,7 +140,6 @@ export function DashboardSidebar({ userEmail }: SidebarProps) {
     const { data } = await supabase
       .from("kargo_cari_firmalar")
       .select("id, ad")
-      .eq("user_id", user.id)
       .eq("sube_id", currentSube.id)
       .eq("aktif", true)
       .order("sira", { ascending: true })
@@ -221,7 +220,7 @@ export function DashboardSidebar({ userEmail }: SidebarProps) {
             {/* Sub items */}
             {kargoOpen && (
               <ul className="mt-1 ml-4 space-y-1 border-l border-sidebar-border pl-4">
-                {/* Borc Ozeti - Sadece Admin */}
+                {/* Borç Özeti - Sadece Admin */}
                 {isAdmin && (
                   <li>
                     <Link
@@ -235,7 +234,7 @@ export function DashboardSidebar({ userEmail }: SidebarProps) {
                       )}
                     >
                       <Wallet className="h-4 w-4 text-red-500" />
-                      <span>Borc Ozeti</span>
+                      <span>Borç Özeti</span>
                     </Link>
                   </li>
                 )}
@@ -384,7 +383,7 @@ export function DashboardSidebar({ userEmail }: SidebarProps) {
           className="w-full justify-start gap-3 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
         >
           <LogOut className="h-4 w-4" />
-          <span>Cikis Yap</span>
+          <span>Çıkış Yap</span>
         </Button>
       </div>
     </>

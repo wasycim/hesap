@@ -100,3 +100,220 @@ CREATE INDEX IF NOT EXISTS idx_kargo_cari_firmalar_sube ON kargo_cari_firmalar(s
 CREATE INDEX IF NOT EXISTS idx_kargo_cari_kayitlar_sube_firma_ay ON kargo_cari_kayitlar(sube_id, firma_id, ay_yil, tarih);
 CREATE INDEX IF NOT EXISTS idx_kargo_cari_odemeler_sube_firma ON kargo_cari_odemeler(sube_id, firma_id);
 CREATE INDEX IF NOT EXISTS idx_corbalar_sube_ay ON corbalar(sube_id, ay_yil, tarih);
+
+ALTER TABLE personeller ENABLE ROW LEVEL SECURITY;
+ALTER TABLE kargo_cari_firmalar ENABLE ROW LEVEL SECURITY;
+ALTER TABLE kargo_cari_kayitlar ENABLE ROW LEVEL SECURITY;
+ALTER TABLE kargo_cari_odemeler ENABLE ROW LEVEL SECURITY;
+ALTER TABLE corbalar ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "personeller_select_own" ON personeller;
+DROP POLICY IF EXISTS "personeller_select_sube" ON personeller;
+CREATE POLICY "personeller_select_sube" ON personeller
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.user_id = auth.uid()
+      AND (
+        user_profiles.is_admin = true
+        OR user_profiles.sube_id = personeller.sube_id
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS "personeller_admin_insert" ON personeller;
+CREATE POLICY "personeller_admin_insert" ON personeller
+  FOR INSERT
+  WITH CHECK (
+    auth.uid() = user_id
+    AND EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.user_id = auth.uid()
+      AND user_profiles.is_admin = true
+    )
+  );
+
+DROP POLICY IF EXISTS "personeller_admin_update" ON personeller;
+CREATE POLICY "personeller_admin_update" ON personeller
+  FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.user_id = auth.uid()
+      AND user_profiles.is_admin = true
+    )
+  );
+
+DROP POLICY IF EXISTS "personeller_admin_delete" ON personeller;
+CREATE POLICY "personeller_admin_delete" ON personeller
+  FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.user_id = auth.uid()
+      AND user_profiles.is_admin = true
+    )
+  );
+
+DROP POLICY IF EXISTS "kargo_cari_firmalar_select_own" ON kargo_cari_firmalar;
+DROP POLICY IF EXISTS "kargo_cari_firmalar_select_sube" ON kargo_cari_firmalar;
+CREATE POLICY "kargo_cari_firmalar_select_sube" ON kargo_cari_firmalar
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.user_id = auth.uid()
+      AND (
+        user_profiles.is_admin = true
+        OR user_profiles.sube_id = kargo_cari_firmalar.sube_id
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS "kargo_cari_firmalar_admin_insert" ON kargo_cari_firmalar;
+CREATE POLICY "kargo_cari_firmalar_admin_insert" ON kargo_cari_firmalar
+  FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.user_id = auth.uid()
+      AND user_profiles.is_admin = true
+    )
+  );
+
+DROP POLICY IF EXISTS "kargo_cari_firmalar_admin_update" ON kargo_cari_firmalar;
+CREATE POLICY "kargo_cari_firmalar_admin_update" ON kargo_cari_firmalar
+  FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.user_id = auth.uid()
+      AND user_profiles.is_admin = true
+    )
+  );
+
+DROP POLICY IF EXISTS "kargo_cari_firmalar_admin_delete" ON kargo_cari_firmalar;
+CREATE POLICY "kargo_cari_firmalar_admin_delete" ON kargo_cari_firmalar
+  FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.user_id = auth.uid()
+      AND user_profiles.is_admin = true
+    )
+  );
+
+DROP POLICY IF EXISTS "kargo_cari_kayitlar_select_own" ON kargo_cari_kayitlar;
+DROP POLICY IF EXISTS "kargo_cari_kayitlar_select_sube" ON kargo_cari_kayitlar;
+CREATE POLICY "kargo_cari_kayitlar_select_sube" ON kargo_cari_kayitlar
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.user_id = auth.uid()
+      AND (
+        user_profiles.is_admin = true
+        OR user_profiles.sube_id = kargo_cari_kayitlar.sube_id
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS "kargo_cari_kayitlar_write_sube" ON kargo_cari_kayitlar;
+CREATE POLICY "kargo_cari_kayitlar_write_sube" ON kargo_cari_kayitlar
+  FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.user_id = auth.uid()
+      AND (
+        user_profiles.is_admin = true
+        OR user_profiles.sube_id = kargo_cari_kayitlar.sube_id
+      )
+    )
+  )
+  WITH CHECK (
+    auth.uid() = user_id
+    AND EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.user_id = auth.uid()
+      AND (
+        user_profiles.is_admin = true
+        OR user_profiles.sube_id = kargo_cari_kayitlar.sube_id
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS "kargo_cari_odemeler_select_own" ON kargo_cari_odemeler;
+DROP POLICY IF EXISTS "kargo_cari_odemeler_select_sube" ON kargo_cari_odemeler;
+CREATE POLICY "kargo_cari_odemeler_select_sube" ON kargo_cari_odemeler
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.user_id = auth.uid()
+      AND (
+        user_profiles.is_admin = true
+        OR user_profiles.sube_id = kargo_cari_odemeler.sube_id
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS "kargo_cari_odemeler_admin_write" ON kargo_cari_odemeler;
+CREATE POLICY "kargo_cari_odemeler_admin_write" ON kargo_cari_odemeler
+  FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.user_id = auth.uid()
+      AND user_profiles.is_admin = true
+    )
+  )
+  WITH CHECK (
+    auth.uid() = user_id
+    AND EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.user_id = auth.uid()
+      AND user_profiles.is_admin = true
+    )
+  );
+
+DROP POLICY IF EXISTS "corbalar_select_own" ON corbalar;
+DROP POLICY IF EXISTS "corbalar_select_sube" ON corbalar;
+CREATE POLICY "corbalar_select_sube" ON corbalar
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.user_id = auth.uid()
+      AND (
+        user_profiles.is_admin = true
+        OR user_profiles.sube_id = corbalar.sube_id
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS "corbalar_write_sube" ON corbalar;
+CREATE POLICY "corbalar_write_sube" ON corbalar
+  FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.user_id = auth.uid()
+      AND (
+        user_profiles.is_admin = true
+        OR user_profiles.sube_id = corbalar.sube_id
+      )
+    )
+  )
+  WITH CHECK (
+    auth.uid() = user_id
+    AND EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE user_profiles.user_id = auth.uid()
+      AND (
+        user_profiles.is_admin = true
+        OR user_profiles.sube_id = corbalar.sube_id
+      )
+    )
+  );

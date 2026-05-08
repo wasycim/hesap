@@ -50,7 +50,7 @@ export default function GirisPage() {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">Hesap Rapor Sistemi</CardTitle>
-          <CardDescription>Hesabiniza giris yapin</CardDescription>
+          <CardDescription>Hesabınıza giriş yapın</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
@@ -85,7 +85,7 @@ export default function GirisPage() {
           <CardFooter>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Giris Yap
+              Giriş Yap
             </Button>
           </CardFooter>
         </form>

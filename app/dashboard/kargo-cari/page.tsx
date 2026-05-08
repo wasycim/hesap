@@ -59,19 +59,20 @@ export default function KargoCariOzetPage() {
     const { data: firmaData } = await supabase
       .from("kargo_cari_firmalar")
       .select("id, ad")
-      .eq("user_id", user.id)
       .eq("sube_id", currentSube.id)
       .eq("aktif", true)
       .order("sira", { ascending: true })
 
     if (firmaData) {
       setFirmalar(firmaData)
-      await loadBorcOzetleri(user.id, firmaData)
+      await loadBorcOzetleri(firmaData)
     }
     setLoading(false)
   }
 
-  async function loadBorcOzetleri(userId: string, firmaList: KargoFirma[]) {
+  async function loadBorcOzetleri(firmaList: KargoFirma[]) {
+    if (!currentSube) return
+
     const ozetler: FirmaBorcOzet[] = []
     const odemeVerileri: Record<string, number> = {}
 
@@ -80,7 +81,6 @@ export default function KargoCariOzetPage() {
       const { data: kayitlar } = await supabase
         .from("kargo_cari_kayitlar")
         .select("alinan_tutar")
-        .eq("user_id", userId)
         .eq("sube_id", currentSube.id)
         .eq("firma_id", firma.id)
 
@@ -95,7 +95,6 @@ export default function KargoCariOzetPage() {
       const { data: odemeData } = await supabase
         .from("kargo_cari_odemeler")
         .select("odenen")
-        .eq("user_id", userId)
         .eq("sube_id", currentSube.id)
         .eq("firma_id", firma.id)
         .single()
@@ -171,15 +170,15 @@ export default function KargoCariOzetPage() {
   }), { toplam_borc: 0, odenen: 0, kalan_borc: 0 })
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">Yukleniyor...</div>
+    return <div className="flex items-center justify-center h-64 text-muted-foreground">Yükleniyor...</div>
   }
 
   if (!isAdmin) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-foreground mb-2">Erisim Engellendi</h2>
-          <p className="text-muted-foreground">Bu sayfaya sadece yoneticiler erisebilir.</p>
+          <h2 className="text-xl font-semibold text-foreground mb-2">Erişim Engellendi</h2>
+          <p className="text-muted-foreground">Bu sayfaya sadece yöneticiler erişebilir.</p>
         </div>
       </div>
     )
@@ -190,8 +189,8 @@ export default function KargoCariOzetPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Kargo Cari Borc Ozeti</h1>
-          <p className="text-muted-foreground mt-1">Tum firmalarin borc durumu (tum zamanlar)</p>
+          <h1 className="text-3xl font-bold text-foreground">Kargo Cari Borç Özeti</h1>
+          <p className="text-muted-foreground mt-1">Tüm firmaların borç durumu (tüm zamanlar)</p>
         </div>
 
         <Button onClick={saveOdemeler} disabled={saving} className="gap-2">
@@ -206,7 +205,7 @@ export default function KargoCariOzetPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-blue-600 mb-1">Toplam Borc</p>
+                <p className="text-sm font-medium text-blue-600 mb-1">Toplam Borç</p>
                 <p className="text-2xl font-bold text-blue-700">
                   {formatNumber(genelToplam.toplam_borc)} <span className="text-base font-normal">TL</span>
                 </p>
@@ -222,7 +221,7 @@ export default function KargoCariOzetPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-green-600 mb-1">Toplam Odenen</p>
+                <p className="text-sm font-medium text-green-600 mb-1">Toplam Ödenen</p>
                 <p className="text-2xl font-bold text-green-700">
                   {formatNumber(genelToplam.odenen)} <span className="text-base font-normal">TL</span>
                 </p>
@@ -238,7 +237,7 @@ export default function KargoCariOzetPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className={`text-sm font-medium mb-1 ${genelToplam.kalan_borc > 0 ? "text-red-600" : "text-emerald-600"}`}>Kalan Borc</p>
+                <p className={`text-sm font-medium mb-1 ${genelToplam.kalan_borc > 0 ? "text-red-600" : "text-emerald-600"}`}>Kalan Borç</p>
                 <p className={`text-2xl font-bold ${genelToplam.kalan_borc > 0 ? "text-red-700" : "text-emerald-700"}`}>
                   {formatNumber(genelToplam.kalan_borc)} <span className="text-base font-normal">TL</span>
                 </p>
@@ -251,28 +250,28 @@ export default function KargoCariOzetPage() {
         </Card>
       </div>
 
-      {/* Firma Bazli Borc Tablosu */}
+      {/* Firma Bazlı Borç Tablosu */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Package className="h-5 w-5 text-cyan-500" />
-            Firma Bazli Borc Durumu
+            Firma Bazlı Borç Durumu
           </CardTitle>
         </CardHeader>
         <CardContent>
           {firmalar.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              Henuz firma eklenmemis. Ayarlar sayfasindan firma ekleyebilirsiniz.
+              Henüz firma eklenmemiş. Ayarlar sayfasından firma ekleyebilirsiniz.
             </div>
           ) : (
             <div className="overflow-x-auto flex justify-center">
               <table className="text-sm min-w-[700px]">
                 <thead>
                   <tr className="border-b">
-                    <th className="p-3 text-left font-semibold bg-gray-50">FIRMA ADI</th>
-                    <th className="p-3 text-right font-semibold bg-blue-50 text-blue-700">TOPLAM BORC</th>
-                    <th className="p-3 text-center font-semibold bg-green-50 text-green-700">ODENEN (Giriniz)</th>
-                    <th className="p-3 text-right font-semibold bg-orange-50 text-orange-700">KALAN BORC</th>
+                    <th className="p-3 text-left font-semibold bg-gray-50">FİRMA ADI</th>
+                    <th className="p-3 text-right font-semibold bg-blue-50 text-blue-700">TOPLAM BORÇ</th>
+                    <th className="p-3 text-center font-semibold bg-green-50 text-green-700">ÖDENEN (Giriniz)</th>
+                    <th className="p-3 text-right font-semibold bg-orange-50 text-orange-700">KALAN BORÇ</th>
                   </tr>
                 </thead>
                 <tbody>

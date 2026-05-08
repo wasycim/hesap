@@ -62,8 +62,8 @@ export default function AyarlarPage() {
 
     const [ortakRes, personelRes, kargoRes] = await Promise.all([
       supabase.from("ortaklar").select("*").eq("user_id", user.id).eq("sube_id", currentSube.id).order("sira"),
-      supabase.from("personeller").select("*").eq("user_id", user.id).eq("sube_id", currentSube.id).order("sira"),
-      supabase.from("kargo_cari_firmalar").select("*").eq("user_id", user.id).eq("sube_id", currentSube.id).order("sira"),
+      supabase.from("personeller").select("*").eq("sube_id", currentSube.id).order("sira"),
+      supabase.from("kargo_cari_firmalar").select("*").eq("sube_id", currentSube.id).order("sira"),
     ])
 
     if (ortakRes.data) setOrtaklar(ortakRes.data)
@@ -150,7 +150,7 @@ export default function AyarlarPage() {
   }
 
   async function deleteKargoFirma(id: string) {
-    if (!confirm("Bu firmayi ve tum kayitlarini silmek istediginizden emin misiniz?")) return
+    if (!confirm("Bu firmayı ve tüm kayıtlarını silmek istediğinizden emin misiniz?")) return
     await supabase.from("kargo_cari_kayitlar").delete().eq("firma_id", id)
     await supabase.from("kargo_cari_firmalar").delete().eq("id", id)
     loadData()
@@ -158,15 +158,15 @@ export default function AyarlarPage() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">Yukleniyor...</div>
+    return <div className="flex items-center justify-center h-64 text-muted-foreground">Yükleniyor...</div>
   }
 
   if (!isAdmin) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-foreground mb-2">Erisim Engellendi</h2>
-          <p className="text-muted-foreground">Bu sayfaya sadece yoneticiler erisebilir.</p>
+          <h2 className="text-xl font-semibold text-foreground mb-2">Erişim Engellendi</h2>
+          <p className="text-muted-foreground">Bu sayfaya sadece yöneticiler erişebilir.</p>
         </div>
       </div>
     )
@@ -176,7 +176,7 @@ export default function AyarlarPage() {
     <div className="p-6">
       <h1 className="text-2xl font-bold text-foreground mb-2">Ayarlar</h1>
       <p className="text-sm text-muted-foreground mb-6">
-        {currentSube?.ad ? `${currentSube.ad} subesi icin ayarlar` : "Sube secimi bekleniyor"}
+        {currentSube?.ad ? `${currentSube.ad} şubesi için ayarlar` : "Şube seçimi bekleniyor"}
       </p>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -189,7 +189,7 @@ export default function AyarlarPage() {
               </div>
               <div>
                 <h2 className="font-bold text-lg text-white">Ortaklar</h2>
-                <p className="text-amber-100 text-sm">Gider tablosunda sari sutunlar</p>
+                <p className="text-amber-100 text-sm">Gider tablosunda sarı sütunlar</p>
               </div>
             </div>
           </div>
@@ -214,7 +214,7 @@ export default function AyarlarPage() {
             <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
               {ortaklar.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  Henuz ortak eklenmemis
+                  Henüz ortak eklenmemiş
                 </div>
               ) : (
                 ortaklar.map((ortak) => (
@@ -263,7 +263,7 @@ export default function AyarlarPage() {
               </div>
               <div>
                 <h2 className="font-bold text-lg text-white">Personeller</h2>
-                <p className="text-blue-100 text-sm">Gider tablosunda mavi sutunlar</p>
+                <p className="text-blue-100 text-sm">Gider tablosunda mavi sütunlar</p>
               </div>
             </div>
           </div>
@@ -288,7 +288,7 @@ export default function AyarlarPage() {
             <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
               {personeller.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  Henuz personel eklenmemis
+                  Henüz personel eklenmemiş
                 </div>
               ) : (
                 personeller.map((personel) => (
@@ -337,7 +337,7 @@ export default function AyarlarPage() {
               </div>
               <div>
                 <h2 className="font-bold text-lg text-white">Kargo Cari Firmalar</h2>
-                <p className="text-cyan-100 text-sm">Menude Kargo Cari altinda gorunecek firmalar</p>
+                <p className="text-cyan-100 text-sm">Menüde Kargo Cari altında görünecek firmalar</p>
               </div>
             </div>
           </div>
@@ -362,7 +362,7 @@ export default function AyarlarPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {kargoFirmalar.length === 0 ? (
                 <div className="col-span-full text-center py-8 text-muted-foreground">
-                  Henuz firma eklenmemis. Firma ekleyince menude Kargo Cari altinda gorunecek.
+                  Henüz firma eklenmemiş. Firma ekleyince menüde Kargo Cari altında görünecek.
                 </div>
               ) : (
                 kargoFirmalar.map((firma) => (
