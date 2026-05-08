@@ -24,6 +24,10 @@ function createDefaultRows(tableType: TableType) {
   return getDefaultColumns(tableType).map(column => ({ ...column }))
 }
 
+function columnIdentity(column: Pick<TableColumnSetting, "table_type" | "column_key">) {
+  return `${column.table_type}:${column.column_key}`
+}
+
 export default function SutunAyarlarPage() {
   const [activeTab, setActiveTab] = useState<TableType>("gelir")
   const [columns, setColumns] = useState<Record<TableType, TableColumnSetting[]>>({
@@ -65,16 +69,35 @@ export default function SutunAyarlarPage() {
       return
     }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("kolon_ayarlari")
       .select("*")
-      .eq("sube_id", currentSube.id)
+      .or(`sube_id.eq.${currentSube.id},sube_id.is.null`)
       .order("sort_order", { ascending: true })
 
+    if (error) {
+      setSaveMessage({ type: "error", text: `Sütun ayarları yüklenemedi: ${error.message}` })
+      setLoading(false)
+      return
+    }
+
     const saved = (data || []) as TableColumnSetting[]
+    const getSavedColumns = (tableType: TableType) => {
+      const byKey = new Map<string, TableColumnSetting>()
+      saved
+        .filter(column => column.table_type === tableType)
+        .forEach(column => {
+          const previous = byKey.get(column.column_key)
+          if (!previous || column.sube_id === currentSube.id) {
+            byKey.set(column.column_key, { ...column, sube_id: currentSube.id })
+          }
+        })
+      return [...byKey.values()]
+    }
+
     setColumns({
-      gelir: mergeColumnSettings("gelir", saved.filter(column => column.table_type === "gelir")),
-      gider: mergeColumnSettings("gider", saved.filter(column => column.table_type === "gider")),
+      gelir: mergeColumnSettings("gelir", getSavedColumns("gelir")),
+      gider: mergeColumnSettings("gider", getSavedColumns("gider")),
     })
     setLoading(false)
   }
@@ -150,21 +173,48 @@ export default function SutunAyarlarPage() {
       builtin: column.builtin,
       updated_at: new Date().toISOString(),
     }))
+    const savedKeys = new Set(rows.map(columnIdentity))
 
-    await Promise.all([
-      supabase.from("kolon_ayarlari").delete().eq("sube_id", currentSube.id).eq("table_type", "gelir"),
-      supabase.from("kolon_ayarlari").delete().eq("sube_id", currentSube.id).eq("table_type", "gider"),
-    ])
-
-    const { error } = await supabase
+    const { error: upsertError } = await supabase
       .from("kolon_ayarlari")
-      .insert(rows)
+      .upsert(rows, { onConflict: "sube_id,table_type,column_key" })
 
-    setSaving(false)
-    if (error) {
-      setSaveMessage({ type: "error", text: `Sütun ayarları kaydedilemedi: ${error.message}` })
+    if (upsertError) {
+      setSaving(false)
+      setSaveMessage({ type: "error", text: `Sütun ayarları kaydedilemedi: ${upsertError.message}` })
       return false
     }
+
+    const { data: existingRows, error: existingError } = await supabase
+      .from("kolon_ayarlari")
+      .select("id, sube_id, table_type, column_key")
+      .or(`sube_id.eq.${currentSube.id},sube_id.is.null`)
+      .in("table_type", ["gelir", "gider"])
+
+    if (existingError) {
+      setSaving(false)
+      setSaveMessage({ type: "error", text: `Eski sütun kayıtları kontrol edilemedi: ${existingError.message}` })
+      return false
+    }
+
+    const staleIds = (existingRows || [])
+      .filter(column => !column.sube_id || !savedKeys.has(columnIdentity(column)))
+      .map(column => column.id)
+
+    if (staleIds.length > 0) {
+      const { error: deleteError } = await supabase
+        .from("kolon_ayarlari")
+        .delete()
+        .in("id", staleIds)
+
+      if (deleteError) {
+        setSaving(false)
+        setSaveMessage({ type: "error", text: `Silinen sütun kayıtları temizlenemedi: ${deleteError.message}` })
+        return false
+      }
+    }
+
+    setSaving(false)
     markClean()
     setSaveMessage({ type: "success", text: "Sütun ayarları kaydedildi." })
     loadData()
