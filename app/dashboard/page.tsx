@@ -66,14 +66,14 @@ export default function DashboardPage() {
       return
     }
 
-    // Şubeye göre gelir kayitlarini cek
+    // Şubeye göre gelir kayıtlarını çek
     const { data: gelirData } = await supabase
       .from("gelir_kayitlari")
-      .select("toplam, kalan")
+      .select("toplam")
       .eq("sube_id", currentSube.id)
       .eq("ay_yil", ayYil)
 
-    // Şubeye göre gider kayitlarini cek
+    // Şubeye göre gider kayıtlarını çek
     const { data: giderData } = await supabase
       .from("gider_kayitlari")
       .select("genel_toplam")
@@ -85,13 +85,14 @@ export default function DashboardPage() {
 
     if (gelirData) {
       toplamGelir = gelirData.reduce((sum, row) => sum + (Number(row.toplam) || 0), 0)
-      toplamKalan = gelirData.reduce((sum, row) => sum + (Number(row.kalan) || 0), 0)
     }
 
     let toplamGider = 0
     if (giderData) {
       toplamGider = giderData.reduce((sum, row) => sum + (Number(row.genel_toplam) || 0), 0)
     }
+
+    toplamKalan = toplamGelir - toplamGider
 
     setStats({
       toplamGelir,
@@ -229,7 +230,7 @@ export default function DashboardPage() {
                 <CardContent className="p-6">
                   <TrendingUp className="h-8 w-8 mb-3 opacity-80" />
                   <h3 className="text-lg font-bold mb-1">Gelir Tablosu</h3>
-                  <p className="text-emerald-100 text-sm">Gunluk gelir kayitlari</p>
+                  <p className="text-emerald-100 text-sm">Günlük gelir kayıtları</p>
                 </CardContent>
               </Card>
             </Link>
@@ -238,7 +239,7 @@ export default function DashboardPage() {
                 <CardContent className="p-6">
                   <TrendingDown className="h-8 w-8 mb-3 opacity-80" />
                   <h3 className="text-lg font-bold mb-1">Gider Tablosu</h3>
-                  <p className="text-red-100 text-sm">Gunluk gider kayitlari</p>
+                  <p className="text-red-100 text-sm">Günlük gider kayıtları</p>
                 </CardContent>
               </Card>
             </Link>
