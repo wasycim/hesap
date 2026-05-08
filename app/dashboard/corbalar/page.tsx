@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Soup } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
+import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 
 interface Personel {
   id: string
@@ -39,6 +40,7 @@ export default function CorbalarPage() {
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
   const { currentSube } = useSube()
+  const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
   
   const ayYil = `${month}-${year}`
 
@@ -66,27 +68,33 @@ export default function CorbalarPage() {
     }
   }, [month, year, currentSube?.id])
 
+  useEffect(() => {
+    registerSaveHandler(saveData)
+    return () => registerSaveHandler(null)
+  }, [rows, personeller, currentSube?.id, ayYil, registerSaveHandler])
+
   async function loadData() {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !currentSube) return
+    if (!user || !currentSube) {
+      setLoading(false)
+      return
+    }
 
     // Personelleri cek
     const { data: personelData } = await supabase
       .from("personeller")
       .select("*")
-      .eq("user_id", user.id)
       .eq("sube_id", currentSube.id)
       .eq("aktif", true)
       .order("sira", { ascending: true })
     
     if (personelData) setPersoneller(personelData)
 
-    // Corba kayitlarini cek
+    // Çorba kayıtlarını çek
     const { data: corbaData } = await supabase
       .from("corbalar")
       .select("*")
-      .eq("user_id", user.id)
       .eq("sube_id", currentSube.id)
       .eq("ay_yil", ayYil)
       .order("tarih", { ascending: true })
@@ -156,6 +164,7 @@ export default function CorbalarPage() {
     const newRows = [...rows]
     newRows.splice(index, 1)
     setRows(newRows)
+    markDirty()
   }
 
   function updateCell(rowIndex: number, personelId: string, value: number) {
@@ -167,17 +176,25 @@ export default function CorbalarPage() {
   async function saveData() {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !currentSube) return
+    if (!user || !currentSube) {
+      setSaving(false)
+      return false
+    }
 
-    // Bu ay icin tum corba kayitlarini sil
-    await supabase
+    // Bu ay için tüm çorba kayıtlarını sil
+    const { error: deleteError } = await supabase
       .from("corbalar")
       .delete()
-      .eq("user_id", user.id)
       .eq("sube_id", currentSube.id)
       .eq("ay_yil", ayYil)
 
-    // Yeni kayitlari ekle
+    if (deleteError) {
+      console.log("Çorba silme hatası:", deleteError)
+      setSaving(false)
+      return false
+    }
+
+    // Yeni kayıtları ekle
     const insertData: any[] = []
     rows.forEach(row => {
       personeller.forEach(personel => {
@@ -196,11 +213,18 @@ export default function CorbalarPage() {
     })
 
     if (insertData.length > 0) {
-      await supabase.from("corbalar").insert(insertData)
+      const { error: insertError } = await supabase.from("corbalar").insert(insertData)
+      if (insertError) {
+        console.log("Çorba kaydetme hatası:", insertError)
+        setSaving(false)
+        return false
+      }
     }
 
     setSaving(false)
+    markClean()
     loadData()
+    return true
   }
 
   function formatDate(dateStr: string): string {
@@ -219,7 +243,7 @@ export default function CorbalarPage() {
   }, {} as Record<string, number>)
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Yukleniyor...</div>
+    return <div className="flex items-center justify-center h-64">Yükleniyor...</div>
   }
 
   return (
@@ -228,7 +252,7 @@ export default function CorbalarPage() {
       <div className="flex items-center justify-between p-4 bg-orange-600 text-white">
         <div className="flex items-center gap-3">
           <Soup className="h-6 w-6" />
-          <h1 className="text-xl font-bold">Corbalar</h1>
+          <h1 className="text-xl font-bold">Çorbalar</h1>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={prevMonth} className="text-white hover:bg-orange-700">
@@ -267,9 +291,9 @@ export default function CorbalarPage() {
           <Card className="max-w-md mx-auto mt-8">
             <CardContent className="p-6 text-center">
               <Soup className="h-12 w-12 mx-auto mb-4 text-orange-400" />
-              <h3 className="font-semibold mb-2">Personel Bulunamadi</h3>
+              <h3 className="font-semibold mb-2">Personel Bulunamadı</h3>
               <p className="text-gray-500 text-sm">
-                Corba girisi yapabilmek icin once Ayarlar sayfasindan personel eklemeniz gerekiyor.
+                Çorba girişi yapabilmek için önce Ayarlar sayfasından personel eklemeniz gerekiyor.
               </p>
             </CardContent>
           </Card>
@@ -290,7 +314,7 @@ export default function CorbalarPage() {
             {/* Butonlar */}
             <div className="flex items-center gap-2 mb-4">
               <Button onClick={addRow} size="sm" className="bg-orange-600 hover:bg-orange-700">
-                <Plus className="w-4 h-4 mr-1" /> Satir Ekle
+                <Plus className="w-4 h-4 mr-1" /> Satır Ekle
               </Button>
               <Button onClick={saveData} size="sm" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
                 <Save className="w-4 h-4 mr-1" /> {saving ? "Kaydediliyor..." : "Kaydet"}
@@ -303,7 +327,7 @@ export default function CorbalarPage() {
                 <thead>
                   <tr>
                     <th className="p-2 border bg-gray-100 w-10">#</th>
-                    <th className="p-2 border bg-green-600 text-white font-semibold">TARIH</th>
+                    <th className="p-2 border bg-green-600 text-white font-semibold">TARİH</th>
                     {personeller.map(personel => (
                       <th key={personel.id} className="p-2 border bg-blue-600 text-white font-semibold whitespace-nowrap">
                         {personel.ad}
@@ -345,7 +369,7 @@ export default function CorbalarPage() {
                   {rows.length === 0 && (
                     <tr>
                       <td colSpan={personeller.length + 3} className="p-8 text-center text-gray-500">
-                        Henuz kayit yok. &quot;Satir Ekle&quot; butonuna tiklayarak baslayin.
+                        Henüz kayıt yok. &quot;Satır Ekle&quot; butonuna tıklayarak başlayın.
                       </td>
                     </tr>
                   )}
