@@ -18,6 +18,7 @@ import {
   mergeColumnSettings,
 } from "@/lib/table-column-settings"
 import { useSube } from "@/contexts/sube-context"
+import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 
 function createDefaultRows(tableType: TableType) {
   return getDefaultColumns(tableType).map(column => ({ ...column }))
@@ -32,13 +33,20 @@ export default function SutunAyarlarPage() {
   const [newLabel, setNewLabel] = useState("")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error", text: string } | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const supabase = createClient()
   const { currentSube } = useSube()
+  const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
 
   useEffect(() => {
     if (currentSube) loadData()
   }, [currentSube?.id])
+
+  useEffect(() => {
+    registerSaveHandler(saveColumns)
+    return () => registerSaveHandler(null)
+  }, [columns, currentSube?.id, registerSaveHandler])
 
   async function loadData() {
     setLoading(true)
@@ -72,6 +80,8 @@ export default function SutunAyarlarPage() {
   }
 
   function updateColumns(tableType: TableType, updater: (items: TableColumnSetting[]) => TableColumnSetting[]) {
+    setSaveMessage(null)
+    markDirty()
     setColumns(prev => ({
       ...prev,
       [tableType]: updater(prev[tableType]).map((column, index) => ({ ...column, sort_order: index })),
@@ -86,14 +96,16 @@ export default function SutunAyarlarPage() {
 
   function moveColumn(tableType: TableType, columnKey: string, direction: -1 | 1) {
     updateColumns(tableType, items => {
-      const index = items.findIndex(column => column.column_key === columnKey)
+      const activeItems = items.filter(column => column.aktif)
+      const inactiveItems = items.filter(column => !column.aktif)
+      const index = activeItems.findIndex(column => column.column_key === columnKey)
       const nextIndex = index + direction
-      if (index < 0 || nextIndex < 0 || nextIndex >= items.length) return items
-      const next = [...items]
+      if (index < 0 || nextIndex < 0 || nextIndex >= activeItems.length) return items
+      const next = [...activeItems]
       const current = next[index]
       next[index] = next[nextIndex]
       next[nextIndex] = current
-      return next
+      return [...next, ...inactiveItems]
     })
   }
 
@@ -118,11 +130,14 @@ export default function SutunAyarlarPage() {
   }
 
   function removeColumn(tableType: TableType, columnKey: string) {
-    updateColumns(tableType, items => items.filter(column => column.column_key !== columnKey))
+    updateColumns(tableType, items => items.flatMap(column => {
+      if (column.column_key !== columnKey) return [column]
+      return column.builtin ? [{ ...column, aktif: false }] : []
+    }))
   }
 
   async function saveColumns() {
-    if (!currentSube) return
+    if (!currentSube) return false
     setSaving(true)
     const rows = [...columns.gelir, ...columns.gider].map((column) => ({
       sube_id: currentSube.id,
@@ -147,23 +162,58 @@ export default function SutunAyarlarPage() {
 
     setSaving(false)
     if (error) {
-      alert(`Sutun ayarlari kaydedilemedi: ${error.message}`)
-      return
+      setSaveMessage({ type: "error", text: `Sütun ayarları kaydedilemedi: ${error.message}` })
+      return false
     }
-    alert("Sutun ayarlari kaydedildi.")
+    markClean()
+    setSaveMessage({ type: "success", text: "Sütun ayarları kaydedildi." })
     loadData()
+    return true
+  }
+
+  function renderColumnPreview(tableType: TableType) {
+    const items = columns[tableType].filter(column => column.aktif)
+
+    return (
+      <div className="rounded-lg border bg-white">
+        <div className="border-b px-4 py-3">
+          <h3 className="font-semibold">Sütun Önizleme</h3>
+          <p className="text-xs text-muted-foreground">Tabloda görünecek başlık sırası ve renkleri.</p>
+        </div>
+        <div className="overflow-x-auto p-3">
+          <div className="flex min-w-max items-stretch">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-r-0 bg-gray-100 text-sm font-bold">
+              #
+            </div>
+            {items.map(column => (
+              <div
+                key={column.column_key}
+                className={`flex h-10 min-w-32 shrink-0 items-center justify-center border border-r-0 px-3 text-center text-sm font-bold leading-tight last:border-r ${
+                  column.color
+                  } ${getColumnTextColor(column.color)}`}
+                title={column.label}
+              >
+                <span className="whitespace-nowrap">{column.label || "SÜTUN"}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   function renderTableSettings(tableType: TableType) {
-    const items = columns[tableType]
+    const items = columns[tableType].filter(column => column.aktif)
 
     return (
       <div className="space-y-4">
+        {renderColumnPreview(tableType)}
+
         <div className="flex max-w-xl gap-2">
           <Input
             value={newLabel}
             onChange={(event) => setNewLabel(event.target.value)}
-            placeholder="Yeni sutun adi"
+            placeholder="Yeni sütun adı"
             onKeyDown={(event) => event.key === "Enter" && addColumn(tableType)}
           />
           <Button onClick={() => addColumn(tableType)} className="gap-2">
@@ -176,12 +226,12 @@ export default function SutunAyarlarPage() {
           <table className="w-full min-w-[820px] text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="p-3 text-left">Sira</th>
-                <th className="p-3 text-left">Sutun Adi</th>
+                <th className="p-3 text-left">Sıra</th>
+                <th className="p-3 text-left">Sütun Adı</th>
                 <th className="p-3 text-left">Renk</th>
-                <th className="p-3 text-left">Onizleme</th>
+                <th className="p-3 text-left">Önizleme</th>
                 <th className="p-3 text-center">Durum</th>
-                <th className="p-3 text-right">Islem</th>
+                <th className="p-3 text-right">İşlem</th>
               </tr>
             </thead>
             <tbody>
@@ -220,7 +270,7 @@ export default function SutunAyarlarPage() {
                   </td>
                   <td className="p-3">
                     <div className={`inline-flex min-w-32 justify-center rounded px-3 py-2 font-semibold ${column.color} ${getColumnTextColor(column.color)}`}>
-                      {column.label || "SUTUN"}
+                      {column.label || "SÜTUN"}
                     </div>
                   </td>
                   <td className="p-3 text-center">
@@ -237,7 +287,7 @@ export default function SutunAyarlarPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => column.builtin ? updateColumn(tableType, column.column_key, { aktif: false }) : removeColumn(tableType, column.column_key)}
+                      onClick={() => removeColumn(tableType, column.column_key)}
                       disabled={column.column_key === "tarih"}
                       className="text-red-600 hover:text-red-700"
                     >
@@ -254,15 +304,15 @@ export default function SutunAyarlarPage() {
   }
 
   if (loading) {
-    return <div className="flex h-64 items-center justify-center text-muted-foreground">Yukleniyor...</div>
+    return <div className="flex h-64 items-center justify-center text-muted-foreground">Yükleniyor...</div>
   }
 
   if (!isAdmin) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="text-center">
-          <h2 className="mb-2 text-xl font-semibold">Erisim Engellendi</h2>
-          <p className="text-muted-foreground">Bu sayfaya sadece yoneticiler erisebilir.</p>
+          <h2 className="mb-2 text-xl font-semibold">Erişim Engellendi</h2>
+          <p className="text-muted-foreground">Bu sayfaya sadece yöneticiler erişebilir.</p>
         </div>
       </div>
     )
@@ -274,7 +324,7 @@ export default function SutunAyarlarPage() {
         <div>
           <h1 className="text-2xl font-bold">Sütun Ayarları</h1>
           <p className="text-sm text-muted-foreground">
-            {currentSube?.ad ? `${currentSube.ad} subesi icin gelir ve gider sutun ayarlari.` : "Sube secimi bekleniyor."}
+            {currentSube?.ad ? `${currentSube.ad} şubesi için gelir ve gider sütun ayarları.` : "Şube seçimi bekleniyor."}
           </p>
         </div>
         <Button onClick={saveColumns} disabled={saving} className="gap-2">
@@ -282,10 +332,21 @@ export default function SutunAyarlarPage() {
           {saving ? "Kaydediliyor..." : "Kaydet"}
         </Button>
       </div>
+      {saveMessage && (
+        <div
+          className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+            saveMessage.type === "success"
+              ? "border-green-200 bg-green-50 text-green-700"
+              : "border-red-200 bg-red-50 text-red-700"
+          }`}
+        >
+          {saveMessage.text}
+        </div>
+      )}
 
       <Card>
         <CardHeader>
-          <CardTitle>Tablo Ayarlari</CardTitle>
+          <CardTitle>Tablo Ayarları</CardTitle>
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TableType)}>
