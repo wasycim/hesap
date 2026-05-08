@@ -113,11 +113,11 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Genel Bakis</h1>
-          <p className="text-muted-foreground mt-1">Aylik hesap ozeti</p>
+          <h1 className="text-3xl font-bold text-foreground">Genel Bakış</h1>
+          <p className="text-muted-foreground mt-1">Aylık hesap özeti</p>
         </div>
         
-        {/* Ay/Yil Secimi */}
+        {/* Ay/Yıl Seçimi */}
         <div className="flex items-center gap-2">
           <Select value={month} onValueChange={setMonth}>
             <SelectTrigger className="w-32">
@@ -246,8 +246,8 @@ export default function DashboardPage() {
               <Card className="hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer bg-gradient-to-br from-orange-500 to-orange-600 text-white border-none h-full">
                 <CardContent className="p-6">
                   <Soup className="h-8 w-8 mb-3 opacity-80" />
-                  <h3 className="text-lg font-bold mb-1">Corbalar</h3>
-                  <p className="text-orange-100 text-sm">Personel corba takibi</p>
+                  <h3 className="text-lg font-bold mb-1">Çorbalar</h3>
+                  <p className="text-orange-100 text-sm">Personel çorba takibi</p>
                 </CardContent>
               </Card>
             </Link>
