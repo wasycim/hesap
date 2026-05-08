@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Plus, Save, Trash2 } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
+import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 import { TableColumnSetting, getColumnTextColor, mergeColumnSettings } from "@/lib/table-column-settings"
 
 interface GelirRow {
@@ -90,6 +91,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
   const { currentSube, isAdmin, currentUserId, refreshKey, userVardiya } = useSube()
+  const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
   
   const ayYil = `${month}-${year}`
   const isVardiyasizSube = currentSube
@@ -128,6 +130,11 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       supabase.removeChannel(channel)
     }
   }, [month, year, currentSube?.id, refreshKey])
+
+  useEffect(() => {
+    registerSaveHandler(saveData)
+    return () => registerSaveHandler(null)
+  }, [rows, currentSube?.id, ayYil, userVardiya, isAdmin, registerSaveHandler])
 
   async function loadData() {
     setLoading(true)
@@ -233,6 +240,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     const newRows = [...rows]
     newRows.splice(index, 1)
     setRows(newRows)
+    markDirty()
   }
 
   function updateCell(rowIndex: number, column: string, value: string | number) {
@@ -267,7 +275,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || !currentSube) {
       setSaving(false)
-      return
+      return false
     }
 
     // Sadece düzenleyebildiğim vardiyaları filtrele
@@ -283,21 +291,29 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     let deleteQuery = supabase
       .from("gelir_kayitlari")
       .delete()
-      .eq("user_id", user.id)
       .eq("sube_id", currentSube.id)
       .eq("ay_yil", ayYil)
+
+    if (!isAdmin) {
+      deleteQuery = deleteQuery.eq("user_id", user.id)
+    }
     
     // Eğer kullanıcının belirli bir vardiyası varsa sadece o vardiyayı sil
     if (!isVardiyasizSube && userVardiya && !isAdmin) {
       deleteQuery = deleteQuery.eq("vardiya", userVardiya)
     }
     
-    await deleteQuery
+    const { error: deleteError } = await deleteQuery
+    if (deleteError) {
+      console.log("[v0] Gelir silme hatasi:", deleteError)
+      setSaving(false)
+      return false
+    }
 
     // Yeni kayıtları ekle
     if (editableRows.length > 0) {
       const insertData = editableRows.map(row => ({
-        user_id: user.id,
+        user_id: row.user_id || user.id,
         sube_id: currentSube.id,
         ay_yil: ayYil,
         tarih: row.tarih,
@@ -320,12 +336,16 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
 
       const { error } = await supabase.from("gelir_kayitlari").insert(insertData)
       if (error) {
-        console.log("[v0] Kaydetme hatası:", error)
+        console.log("[v0] Gelir kaydetme hatasi:", error)
+        setSaving(false)
+        return false
       }
     }
 
     setSaving(false)
+    markClean()
     loadData()
+    return true
   }
 
   function formatDate(dateStr: string): string {
