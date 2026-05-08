@@ -60,7 +60,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   const [year, setYear] = useState(currentDate.getFullYear())
   const supabase = createClient()
   const { currentSube } = useSube()
-  const { markClean, registerSaveHandler } = useUnsavedChanges()
+  const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
 
   const ayYil = `${month}-${year}`
 
@@ -127,7 +127,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   }
 
   async function loadData() {
-    if (!firma) return
+    if (!firma) return false
     
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
@@ -139,7 +139,6 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     const { data, error } = await supabase
       .from("kargo_cari_kayitlar")
       .select("*")
-      .eq("user_id", user.id)
       .eq("sube_id", currentSube.id)
       .eq("firma_id", firma.id)
       .eq("ay_yil", ayYil)
@@ -159,19 +158,28 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     setLoading(false)
   }
 
-  function getNextDate(): string {
-    const monthIndex = months.indexOf(month)
-    if (rows.length === 0) {
-      return `${year}-${String(monthIndex + 1).padStart(2, "0")}-01`
+  function getKargoBusinessDate(): string {
+    const now = new Date()
+    const businessDate = new Date(now)
+
+    if (now.getHours() < 4) {
+      businessDate.setDate(businessDate.getDate() - 1)
     }
-    const lastDate = new Date(rows[rows.length - 1].tarih)
-    lastDate.setDate(lastDate.getDate() + 1)
-    return lastDate.toISOString().split("T")[0]
+
+    const businessMonth = businessDate.getMonth()
+    const selectedMonth = months.indexOf(month)
+
+    if (businessDate.getFullYear() !== year || businessMonth !== selectedMonth) {
+      return `${year}-${String(selectedMonth + 1).padStart(2, "0")}-01`
+    }
+
+    const day = String(businessDate.getDate()).padStart(2, "0")
+    return `${year}-${String(selectedMonth + 1).padStart(2, "0")}-${day}`
   }
 
   function addRow() {
     const newRow: KargoRow = {
-      tarih: getNextDate(),
+      tarih: getKargoBusinessDate(),
       fis_no: "",
       gonderilen_yer: "",
       alinan_tutar: 0,
@@ -185,6 +193,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     const newRows = [...rows]
     newRows.splice(index, 1)
     setRows(newRows)
+    markDirty()
   }
 
   // Fiş No'yu 6 haneli formata çevir
@@ -224,14 +233,13 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || !currentSube) {
       setSaving(false)
-      return
+      return false
     }
 
     // Önce bu şube + firma + ay/yıl için tüm kayıtları sil
     const { error: deleteError } = await supabase
       .from("kargo_cari_kayitlar")
       .delete()
-      .eq("user_id", user.id)
       .eq("sube_id", currentSube.id)
       .eq("firma_id", firma.id)
       .eq("ay_yil", ayYil)
@@ -240,7 +248,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
       console.log("Kargo cari silme hatası:", deleteError)
       alert("Kargo cari silinemedi: " + deleteError.message)
       setSaving(false)
-      return
+      return false
     }
 
     // Yeni kayıtları ekle
@@ -264,13 +272,14 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         console.log("Kargo cari kaydetme hatası:", insertError)
         alert("Kargo cari kaydedilemedi: " + insertError.message)
         setSaving(false)
-        return
+        return false
       }
     }
 
     setSaving(false)
     markClean()
     loadData()
+    return true
   }
 
   const prevMonth = () => {
