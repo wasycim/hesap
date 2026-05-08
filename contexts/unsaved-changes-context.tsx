@@ -17,14 +17,12 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   const [isDirty, setIsDirty] = useState(false)
   const [showPopup, setShowPopup] = useState(false)
   const [pendingUrl, setPendingUrl] = useState<string | null>(null)
-  const [hasSaveHandler, setHasSaveHandler] = useState(false)
   const saveHandlerRef = useRef<SaveHandler | null>(null)
 
   const markDirty = useCallback(() => setIsDirty(true), [])
   const markClean = useCallback(() => setIsDirty(false), [])
   const registerSaveHandler = useCallback((handler: SaveHandler | null) => {
     saveHandlerRef.current = handler
-    setHasSaveHandler(Boolean(handler))
   }, [])
 
   useEffect(() => {
@@ -126,14 +124,12 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
               >
                 Kaydetmeden çık
               </button>
-              {hasSaveHandler && (
-                <button
-                  onClick={saveAndContinue}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                >
-                  Kaydet
-                </button>
-              )}
+              <button
+                onClick={saveAndContinue}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Kaydet
+              </button>
             </div>
           </div>
         </div>
