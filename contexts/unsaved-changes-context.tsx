@@ -45,7 +45,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
       if (button.closest("[data-unsaved-ignore='true']")) return
 
       const text = (button.textContent || "").toLocaleLowerCase("tr-TR")
-      const isAddButton = text.includes("satÄ±r ekle") || text.includes("satir ekle")
+      const isAddButton = text.includes("satır ekle") || text.includes("satir ekle")
       const isTableDeleteButton = !!button.closest("tbody") && button.className.includes("text-red")
 
       if (isAddButton || isTableDeleteButton) {
@@ -86,7 +86,8 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
 
   async function saveAndContinue() {
     if (saveHandlerRef.current) {
-      await saveHandlerRef.current()
+      const result = await saveHandlerRef.current()
+      if (result === false) return
     }
 
     setIsDirty(false)
@@ -113,9 +114,9 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
       {showPopup && (
         <div data-unsaved-ignore="true" className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-            <h2 className="mb-2 text-lg font-bold text-gray-900">KaydedilmemiÅŸ deÄŸiÅŸiklikler var</h2>
+            <h2 className="mb-2 text-lg font-bold text-gray-900">Kaydedilmemiş değişiklikler var</h2>
             <p className="mb-5 text-sm text-gray-600">
-              YaptÄ±ÄŸÄ±nÄ±z iÅŸlemler kaydedilmedi. Ã‡Ä±kmadan Ã¶nce kaydetmek ister misiniz?
+              Yaptığınız işlemler kaydedilmedi. Çıkmadan önce kaydetmek ister misiniz?
             </p>
 
             <div className="flex justify-end gap-3">
@@ -123,7 +124,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
                 onClick={leaveWithoutSaving}
                 className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-100"
               >
-                Kaydetmeden Ã§Ä±k
+                Kaydetmeden çık
               </button>
               {hasSaveHandler && (
                 <button
