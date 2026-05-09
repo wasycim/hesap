@@ -43,7 +43,25 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ events: data || [] })
+  const { data: authData } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+  const displayNameById = new Map((authData?.users || []).map(user => [
+    user.id,
+    String(user.user_metadata?.display_name || "").trim(),
+  ]))
+  const displayNameByEmail = new Map((authData?.users || []).map(user => [
+    String(user.email || "").toLowerCase(),
+    String(user.user_metadata?.display_name || "").trim(),
+  ]))
+
+  const events = (data || []).map(event => {
+    const email = String(event.user_email || "").toLowerCase()
+    return {
+      ...event,
+      user_display_name: displayNameById.get(event.user_id) || displayNameByEmail.get(email) || null,
+    }
+  })
+
+  return NextResponse.json({ events })
 }
 
 export async function POST(request: NextRequest) {

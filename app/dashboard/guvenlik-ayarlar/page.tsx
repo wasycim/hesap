@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 
 interface SecurityEvent {
   id: string
+  user_display_name?: string | null
   user_email: string | null
   event_type: string
   ip_address: string | null
@@ -91,6 +92,10 @@ function formatDate(value: string) {
 
 function getUserKey(event: SecurityEvent) {
   return event.user_email || event.details?.email || event.user_agent || "unknown"
+}
+
+function getUserDisplay(event: SecurityEvent) {
+  return event.user_display_name || event.details?.display_name || event.user_email || event.details?.email || "-"
 }
 
 function buildPasswordChangeCounts(events: SecurityEvent[]) {
@@ -396,7 +401,12 @@ export default function GuvenlikAyarlarPage() {
                           {EVENT_LABELS[event.event_type] || event.event_type}
                         </div>
                       </td>
-                      <td className="p-3">{event.user_email || "-"}</td>
+                      <td className="p-3">
+                        <div className="font-medium">{getUserDisplay(event)}</div>
+                        {event.user_display_name && event.user_email && (
+                          <div className="text-xs opacity-70">{event.user_email}</div>
+                        )}
+                      </td>
                       <td className="p-3">{event.ip_address || "-"}</td>
                       <td className="p-3">{formatDate(event.created_at)}</td>
                       <td className="p-3">
