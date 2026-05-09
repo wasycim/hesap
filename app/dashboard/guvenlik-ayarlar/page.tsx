@@ -104,8 +104,28 @@ function buildKnownLoginIps(events: SecurityEvent[]) {
   return differentIpEvents
 }
 
-function getSeverity(event: SecurityEvent, passwordChangeCount: number, isDifferentIp: boolean): Severity {
+function buildSharedLoginIpEvents(events: SecurityEvent[]) {
+  const chronological = [...events].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  const usersByIp = new Map<string, Set<string>>()
+  const sharedIpEvents = new Set<string>()
+
+  chronological.forEach(event => {
+    if (event.event_type !== "login" || !event.ip_address) return
+    const userKey = getUserKey(event)
+    const users = usersByIp.get(event.ip_address) || new Set<string>()
+    if (users.size > 0 && !users.has(userKey)) {
+      sharedIpEvents.add(event.id)
+    }
+    users.add(userKey)
+    usersByIp.set(event.ip_address, users)
+  })
+
+  return sharedIpEvents
+}
+
+function getSeverity(event: SecurityEvent, passwordChangeCount: number, isDifferentIp: boolean, isSharedIp: boolean): Severity {
   if (isDifferentIp) return "critical"
+  if (isSharedIp) return "medium"
   if (["row_delete", "column_delete", "person_delete", "kargo_cari_delete"].includes(event.event_type)) return "critical"
   if (event.event_type === "column_hide") return "medium"
   if (event.event_type === "password_change") {
@@ -116,7 +136,7 @@ function getSeverity(event: SecurityEvent, passwordChangeCount: number, isDiffer
   return "normal"
 }
 
-function getSummary(event: SecurityEvent, passwordChangeCount: number, isDifferentIp: boolean) {
+function getSummary(event: SecurityEvent, passwordChangeCount: number, isDifferentIp: boolean, isSharedIp: boolean) {
   const details = event.details || {}
   const label = details.label || details.ad || details.name
 
@@ -128,6 +148,7 @@ function getSummary(event: SecurityEvent, passwordChangeCount: number, isDiffere
   if (event.event_type === "ortak_delete") return `${label || "Ortak"} silindi.`
   if (event.event_type === "password_change") return `Şifre ${passwordChangeCount}. kez değiştirildi.`
   if (event.event_type === "login" && isDifferentIp) return `Kullanıcı farklı bir IP adresinden giriş yaptı: ${event.ip_address || "-"}`
+  if (event.event_type === "login" && isSharedIp) return `Aynı IP adresinden farklı bir hesaba giriş yapıldı: ${event.ip_address || "-"}`
   if (event.event_type === "login") return `Kullanıcı giriş yaptı.`
   if (event.event_type === "user_create") return `${details.created_email || "Kullanıcı"} oluşturuldu.`
   if (event.event_type === "user_update") return `Kullanıcı yetki/şube/vardiya bilgileri güncellendi.`
@@ -146,6 +167,7 @@ export default function GuvenlikAyarlarPage() {
 
   const passwordChangeCounts = useMemo(() => buildPasswordChangeCounts(events), [events])
   const differentIpEvents = useMemo(() => buildKnownLoginIps(events), [events])
+  const sharedIpEvents = useMemo(() => buildSharedLoginIpEvents(events), [events])
 
   useEffect(() => {
     loadData()
@@ -254,7 +276,8 @@ export default function GuvenlikAyarlarPage() {
                   const Icon = EVENT_ICONS[event.event_type] || Shield
                   const passwordCount = passwordChangeCounts.get(event.id) || 0
                   const isDifferentIp = differentIpEvents.has(event.id)
-                  const severity = getSeverity(event, passwordCount, isDifferentIp)
+                  const isSharedIp = sharedIpEvents.has(event.id)
+                  const severity = getSeverity(event, passwordCount, isDifferentIp, isSharedIp)
                   const detailsOpen = Boolean(openDetails[event.id])
 
                   return (
@@ -269,7 +292,7 @@ export default function GuvenlikAyarlarPage() {
                       <td className="p-3">{event.ip_address || "-"}</td>
                       <td className="p-3">{formatDate(event.created_at)}</td>
                       <td className="p-3">
-                        <div>{getSummary(event, passwordCount, isDifferentIp)}</div>
+                        <div>{getSummary(event, passwordCount, isDifferentIp, isSharedIp)}</div>
                         {detailsOpen && (
                           <pre className="mt-2 max-w-xl overflow-x-auto rounded border bg-white/70 p-2 text-xs text-slate-800">
                             {JSON.stringify(event.details || {}, null, 2)}
@@ -302,4 +325,3 @@ export default function GuvenlikAyarlarPage() {
     </div>
   )
 }
-
