@@ -59,14 +59,9 @@ export default function GirisPage() {
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_32%_22%,hsl(var(--primary)/0.18),transparent_34%),linear-gradient(135deg,hsl(var(--muted)/0.75),transparent_65%)]" />
             <div className="relative flex items-start">
               <img
-                src="/iconw.png"
+                src="/w-logo.svg"
                 alt="W logo"
-                className="h-36 w-56 object-contain object-left drop-shadow-2xl transition-all duration-700 dark:hidden sm:h-44 sm:w-72"
-              />
-              <img
-                src="/iconw2.png"
-                alt="W logo"
-                className="hidden h-36 w-56 object-contain object-left drop-shadow-2xl transition-all duration-700 dark:block sm:h-44 sm:w-72"
+                className="h-36 w-56 object-contain object-left drop-shadow-2xl transition-all duration-700 dark:invert sm:h-44 sm:w-72"
               />
             </div>
             <div className="relative space-y-3">

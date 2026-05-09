@@ -25,16 +25,16 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: '/iconw.png',
+        url: '/w-logo.svg',
         media: '(prefers-color-scheme: light)',
       },
       {
-        url: '/iconw2.png',
+        url: '/w-logo.svg',
         media: '(prefers-color-scheme: dark)',
       },
       {
-        url: '/iconw.png',
-        type: 'image/png',
+        url: '/w-logo.svg',
+        type: 'image/svg+xml',
       },
     ],
     apple: '/iconw.png',
