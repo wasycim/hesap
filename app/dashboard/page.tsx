@@ -26,6 +26,7 @@ export default function DashboardPage() {
   })
   const [loading, setLoading] = useState(true)
   const [shiftWarnings, setShiftWarnings] = useState<{ sube_id: string; message: string }[]>([])
+  const [menuVisibility, setMenuVisibility] = useState<Record<string, boolean>>({})
   const supabase = createClient()
   const { currentSube, refreshKey, isAdmin } = useSube()
 
@@ -34,6 +35,9 @@ export default function DashboardPage() {
   useEffect(() => {
     if (currentSube) {
       fetchStats()
+      fetchMenuVisibility()
+    } else {
+      setMenuVisibility({})
     }
     if (isAdmin) {
       fetchShiftWarnings()
@@ -61,6 +65,20 @@ export default function DashboardPage() {
       supabase.removeChannel(giderChannel)
     }
   }, [month, year, currentSube?.id, refreshKey, isAdmin])
+
+  async function fetchMenuVisibility() {
+    if (!currentSube) return
+
+    const { data } = await supabase
+      .from("sube_menu_izinleri")
+      .select("menu_key, visible")
+      .eq("sube_id", currentSube.id)
+
+    setMenuVisibility((data || []).reduce((acc, item) => ({
+      ...acc,
+      [item.menu_key]: item.visible,
+    }), {} as Record<string, boolean>))
+  }
 
   async function fetchShiftWarnings() {
     const response = await fetch("/api/admin/branch-shift-warnings")
@@ -120,6 +138,23 @@ export default function DashboardPage() {
     }).format(amount)
   }
 
+  function canSeeMenu(key: string) {
+    return menuVisibility[key] !== false
+  }
+
+  function getDashboardGridClass(itemCount: number) {
+    if (itemCount <= 1) return "mx-auto grid max-w-md grid-cols-1 gap-4"
+    if (itemCount === 2) return "mx-auto grid max-w-5xl grid-cols-1 gap-4 md:grid-cols-2"
+    return "grid grid-cols-1 gap-4 md:grid-cols-3"
+  }
+
+  const statsGridItemCount = 1 + (canSeeMenu("gelir") ? 1 : 0) + (canSeeMenu("gider") ? 1 : 0)
+  const quickActionCount = [
+    canSeeMenu("gelir"),
+    canSeeMenu("gider"),
+    canSeeMenu("corbalar"),
+  ].filter(Boolean).length
+
   return (
     <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       {/* Header */}
@@ -177,11 +212,12 @@ export default function DashboardPage() {
           )}
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className={getDashboardGridClass(statsGridItemCount)}>
+            {canSeeMenu("gelir") && (
             <Link href="/dashboard/gelir">
-              <Card className="bg-emerald-50 border-emerald-200 hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer">
+              <Card className="h-full bg-emerald-50 border-emerald-200 hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer">
                 <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-emerald-600 mb-1">Toplam Gelir</p>
                       <p className="text-2xl font-bold text-emerald-700">
@@ -195,11 +231,13 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </Link>
+            )}
 
+            {canSeeMenu("gider") && (
             <Link href="/dashboard/gider">
-              <Card className="bg-red-50 border-red-200 hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer">
+              <Card className="h-full bg-red-50 border-red-200 hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer">
                 <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-red-600 mb-1">Toplam Gider</p>
                       <p className="text-2xl font-bold text-red-700">
@@ -213,10 +251,11 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </Link>
+            )}
 
-            <Card className="bg-blue-50 border-blue-200">
+            <Card className="h-full bg-blue-50 border-blue-200">
               <CardContent className="p-6">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-medium text-blue-600 mb-1">Kalan</p>
                     <p className={`text-2xl font-bold ${stats.kalan >= 0 ? "text-blue-700" : "text-red-700"}`}>
@@ -251,7 +290,8 @@ export default function DashboardPage() {
           </Card>
 
           {/* Quick Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className={getDashboardGridClass(quickActionCount)}>
+            {canSeeMenu("gelir") && (
             <Link href="/dashboard/gelir">
               <Card className="hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-none h-full">
                 <CardContent className="p-6">
@@ -261,6 +301,8 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </Link>
+            )}
+            {canSeeMenu("gider") && (
             <Link href="/dashboard/gider">
               <Card className="hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer bg-gradient-to-br from-red-500 to-red-600 text-white border-none h-full">
                 <CardContent className="p-6">
@@ -270,6 +312,8 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </Link>
+            )}
+            {canSeeMenu("corbalar") && (
             <Link href="/dashboard/corbalar">
               <Card className="hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer bg-gradient-to-br from-orange-500 to-orange-600 text-white border-none h-full">
                 <CardContent className="p-6">
@@ -279,6 +323,7 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </Link>
+            )}
           </div>
         </>
       )}
