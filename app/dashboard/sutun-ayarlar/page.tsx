@@ -49,6 +49,7 @@ export default function SutunAyarlarPage() {
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error", text: string } | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [draggedColumnKey, setDraggedColumnKey] = useState<string | null>(null)
+  const [dragOverColumnKey, setDragOverColumnKey] = useState<string | null>(null)
   const [ortaklar, setOrtaklar] = useState<DynamicColumnItem[]>([])
   const [personeller, setPersoneller] = useState<DynamicColumnItem[]>([])
   const supabase = createClient()
@@ -180,6 +181,7 @@ export default function SutunAyarlarPage() {
       next.splice(toIndex, 0, moved)
       return next
     })
+    setDragOverColumnKey(null)
   }
 
   function addColumn(tableType: TableType) {
@@ -367,15 +369,36 @@ export default function SutunAyarlarPage() {
                 <tr
                   key={column.column_key}
                   draggable
-                  onDragStart={() => setDraggedColumnKey(column.column_key)}
-                  onDragOver={(event) => event.preventDefault()}
+                  onDragStart={() => {
+                    setDraggedColumnKey(column.column_key)
+                    setDragOverColumnKey(null)
+                  }}
+                  onDragOver={(event) => {
+                    event.preventDefault()
+                    if (draggedColumnKey && draggedColumnKey !== column.column_key) {
+                      setDragOverColumnKey(column.column_key)
+                    }
+                  }}
                   onDrop={() => dragColumn(tableType, column.column_key)}
-                  onDragEnd={() => setDraggedColumnKey(null)}
-                  className={`border-b ${!column.aktif ? "bg-muted/40 opacity-70" : ""} ${draggedColumnKey === column.column_key ? "bg-blue-50 dark:bg-blue-500/15" : ""}`}
+                  onDragEnd={() => {
+                    setDraggedColumnKey(null)
+                    setDragOverColumnKey(null)
+                  }}
+                  className={`relative border-b transition-all duration-300 ease-out ${
+                    !column.aktif ? "bg-muted/40 opacity-70" : ""
+                  } ${
+                    draggedColumnKey === column.column_key
+                      ? "z-10 scale-[1.01] bg-blue-50/90 opacity-80 shadow-2xl shadow-blue-500/20 ring-2 ring-blue-400/50 dark:bg-blue-500/15"
+                      : ""
+                  } ${
+                    dragOverColumnKey === column.column_key
+                      ? "bg-amber-50 shadow-inner ring-2 ring-amber-400/70 dark:bg-amber-500/15 dark:ring-amber-300/50"
+                      : ""
+                  }`}
                 >
                   <td className="p-3">
                     <div className="flex items-center gap-1">
-                      <GripVertical className="h-4 w-4 cursor-grab text-muted-foreground" />
+                      <GripVertical className={`h-4 w-4 cursor-grab text-muted-foreground transition-transform duration-300 ${draggedColumnKey === column.column_key ? "scale-125 text-blue-600 dark:text-blue-300" : ""}`} />
                       <Button variant="ghost" size="icon" onClick={() => moveColumn(tableType, column.column_key, -1)} disabled={index === 0}>
                         <ArrowUp className="h-4 w-4" />
                       </Button>
