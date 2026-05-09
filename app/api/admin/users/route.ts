@@ -94,3 +94,45 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ ok: true })
 }
+
+export async function PATCH(request: NextRequest) {
+  const { user: actor, isAdmin } = await requireAdmin()
+
+  if (!actor || !isAdmin) {
+    return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
+  }
+
+  const body = await request.json().catch(() => ({}))
+  const userId = String(body.userId || "").trim()
+  const subeId = String(body.subeId || "").trim()
+  const nextIsAdmin = Boolean(body.isAdmin)
+  const vardiya = body.vardiya === "S" || body.vardiya === "A" || body.vardiya === "T" ? body.vardiya : "T"
+
+  if (!userId || !subeId) {
+    return NextResponse.json({ error: "Kullanıcı ve şube zorunlu." }, { status: 400 })
+  }
+
+  const admin = createAdminClient()
+  const { error: profileError } = await admin
+    .from("user_profiles")
+    .update({
+      is_admin: nextIsAdmin,
+      sube_id: subeId,
+      vardiya,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId)
+
+  if (profileError) {
+    return NextResponse.json({ error: profileError.message }, { status: 500 })
+  }
+
+  await admin.from("security_events").insert({
+    user_id: actor.id,
+    user_email: actor.email,
+    event_type: "user_update",
+    details: { updated_user_id: userId, sube_id: subeId, is_admin: nextIsAdmin, vardiya },
+  })
+
+  return NextResponse.json({ ok: true })
+}

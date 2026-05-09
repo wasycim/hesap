@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { Building2, Plus, Trash2, UserPlus } from "lucide-react"
+import { Building2, Plus, Trash2, UserCog, UserPlus } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -34,10 +34,20 @@ export default function AdminAyarlarPage() {
   const [subeId, setSubeId] = useState("")
   const [role, setRole] = useState("user")
   const [vardiya, setVardiya] = useState("T")
+  const [selectedUserId, setSelectedUserId] = useState("")
+  const [editSubeId, setEditSubeId] = useState("")
+  const [editRole, setEditRole] = useState("user")
+  const [editVardiya, setEditVardiya] = useState("T")
   const [newSubeName, setNewSubeName] = useState("")
   const [savingUser, setSavingUser] = useState(false)
+  const [savingEdit, setSavingEdit] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const supabase = createClient()
+
+  const selectedUser = useMemo(
+    () => users.find(user => user.user_id === selectedUserId) || null,
+    [users, selectedUserId]
+  )
 
   useEffect(() => {
     if (subeler.length > 0 && !subeId) setSubeId(subeler[0].id)
@@ -46,6 +56,13 @@ export default function AdminAyarlarPage() {
   useEffect(() => {
     if (isAdmin) loadUsers()
   }, [isAdmin])
+
+  useEffect(() => {
+    if (!selectedUser) return
+    setEditSubeId(selectedUser.sube_id || subeler[0]?.id || "")
+    setEditRole(selectedUser.is_admin ? "admin" : "user")
+    setEditVardiya(selectedUser.vardiya || "T")
+  }, [selectedUser, subeler])
 
   async function loadUsers() {
     const response = await fetch("/api/admin/users")
@@ -87,6 +104,39 @@ export default function AdminAyarlarPage() {
     setMessage("Kullanıcı oluşturuldu. İlk şifre: 123456")
     toast.success("Kullanıcı oluşturuldu. İlk şifre: 123456")
     setSavingUser(false)
+    loadUsers()
+  }
+
+  async function updateUser() {
+    if (!selectedUserId || !editSubeId) {
+      toast.error("Düzenlenecek kullanıcı ve şube zorunlu.")
+      return
+    }
+
+    setSavingEdit(true)
+    setMessage(null)
+    const response = await fetch("/api/admin/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: selectedUserId,
+        subeId: editSubeId,
+        isAdmin: editRole === "admin",
+        vardiya: editVardiya,
+      }),
+    })
+    const result = await response.json()
+
+    if (!response.ok) {
+      const text = result.error || "Kullanıcı güncellenemedi."
+      setMessage(text)
+      toast.error(text)
+      setSavingEdit(false)
+      return
+    }
+
+    toast.success("Kullanıcı bilgileri güncellendi.")
+    setSavingEdit(false)
     loadUsers()
   }
 
@@ -147,12 +197,12 @@ export default function AdminAyarlarPage() {
     <div className="space-y-6 p-6 lg:p-8">
       <div>
         <h1 className="text-2xl font-bold">Admin Ayarları</h1>
-        <p className="text-sm text-muted-foreground">Kullanıcı ve şube yönetimi.</p>
+        <p className="text-sm text-muted-foreground">Kullanıcı, yetki, vardiya ve şube yönetimi.</p>
       </div>
 
       {message && <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">{message}</div>}
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 xl:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -208,6 +258,76 @@ export default function AdminAyarlarPage() {
             <Button onClick={createUser} disabled={savingUser} className="w-full gap-2">
               <Plus className="h-4 w-4" />
               {savingUser ? "Oluşturuluyor..." : "Kullanıcı Oluştur"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UserCog className="h-5 w-5" />
+              Kullanıcı Düzenle
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Kullanıcı</Label>
+              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Kullanıcı seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map(user => (
+                    <SelectItem key={user.user_id} value={user.user_id}>
+                      {user.email || user.user_id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Şube</Label>
+              <Select value={editSubeId} onValueChange={setEditSubeId} disabled={!selectedUser}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Şube seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {subeler.map(sube => (
+                    <SelectItem key={sube.id} value={sube.id}>{sube.ad}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Yetki</Label>
+                <Select value={editRole} onValueChange={setEditRole} disabled={!selectedUser}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">Kullanıcı</SelectItem>
+                    <SelectItem value="admin">Yönetici</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Vardiya</Label>
+                <Select value={editVardiya} onValueChange={setEditVardiya} disabled={!selectedUser}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="T">Tek vardiya</SelectItem>
+                    <SelectItem value="S">Sabah</SelectItem>
+                    <SelectItem value="A">Akşam</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button onClick={updateUser} disabled={!selectedUser || savingEdit} className="w-full gap-2">
+              <UserCog className="h-4 w-4" />
+              {savingEdit ? "Kaydediliyor..." : "Kullanıcıyı Güncelle"}
             </Button>
           </CardContent>
         </Card>
