@@ -636,10 +636,12 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
           {rows.length > 0 && (
             <tfoot>
               <tr className="bg-muted font-semibold text-foreground">
-                <td className="p-2 border text-center">TOPLAM</td>
+                <td className="p-2 border"></td>
                 {allColumns.map(col => (
                   <td key={col.key} className="p-2 border text-right">
-                    {col.key !== "tarih" && col.key !== "vardiya" && columnTotals[col.key] !== undefined
+                    {col.key === "tarih"
+                      ? "TOPLAM"
+                      : col.key !== "vardiya" && columnTotals[col.key] !== undefined
                       ? `${formatNumber(columnTotals[col.key])} ₺`
                       : ""}
                   </td>
