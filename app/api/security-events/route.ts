@@ -8,6 +8,11 @@ function getClientIp(request: NextRequest) {
   return request.headers.get("x-real-ip")
 }
 
+function normalizeTrustedIps(value: unknown) {
+  const rawItems = Array.isArray(value) ? value : String(value || "").split(/[\n,; ]+/)
+  return Array.from(new Set(rawItems.map(item => String(item).trim()).filter(Boolean)))
+}
+
 async function getCurrentUserAndProfile() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -52,6 +57,14 @@ export async function GET() {
     String(user.email || "").toLowerCase(),
     String(user.user_metadata?.display_name || "").trim(),
   ]))
+  const trustedIpsById = new Map((authData?.users || []).map(user => [
+    user.id,
+    normalizeTrustedIps(user.user_metadata?.trusted_ips),
+  ]))
+  const trustedIpsByEmail = new Map((authData?.users || []).map(user => [
+    String(user.email || "").toLowerCase(),
+    normalizeTrustedIps(user.user_metadata?.trusted_ips),
+  ]))
   const { data: profiles } = await admin
     .from("user_profiles")
     .select("user_id, email, sube_id, subeler:sube_id(ad)")
@@ -68,10 +81,13 @@ export async function GET() {
     const email = String(event.user_email || "").toLowerCase()
     const details = event.details || {}
     const detailBranchId = details.sube_id || details.branch_id
+    const trustedIps = trustedIpsById.get(event.user_id) || trustedIpsByEmail.get(email) || []
     return {
       ...event,
       user_display_name: displayNameById.get(event.user_id) || displayNameByEmail.get(email) || null,
       branch_name: branchById.get(detailBranchId) || details.sube_ad || details.branch_name || branchByUserId.get(event.user_id) || branchByEmail.get(email) || null,
+      trusted_ips: trustedIps,
+      is_trusted_ip: Boolean(event.ip_address && trustedIps.includes(event.ip_address)),
     }
   })
 

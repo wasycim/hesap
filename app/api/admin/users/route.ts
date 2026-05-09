@@ -17,6 +17,11 @@ async function requireAdmin() {
   return { user, isAdmin: Boolean(profile?.is_admin) }
 }
 
+function normalizeTrustedIps(value: unknown) {
+  const rawItems = Array.isArray(value) ? value : String(value || "").split(/[\n,; ]+/)
+  return Array.from(new Set(rawItems.map(item => String(item).trim()).filter(Boolean)))
+}
+
 export async function GET() {
   const { isAdmin } = await requireAdmin()
 
@@ -37,10 +42,12 @@ export async function GET() {
   const { data: authData } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
   const authEmailById = new Map((authData?.users || []).map(user => [user.id, user.email]))
   const authDisplayNameById = new Map((authData?.users || []).map(user => [user.id, user.user_metadata?.display_name || ""]))
+  const authTrustedIpsById = new Map((authData?.users || []).map(user => [user.id, normalizeTrustedIps(user.user_metadata?.trusted_ips)]))
   const users = (data || []).map(profile => ({
     ...profile,
     email: profile.email || authEmailById.get(profile.user_id) || null,
     display_name: authDisplayNameById.get(profile.user_id) || "",
+    trusted_ips: authTrustedIpsById.get(profile.user_id) || [],
   }))
 
   return NextResponse.json({ users })
@@ -59,6 +66,7 @@ export async function POST(request: NextRequest) {
   const subeId = String(body.subeId || "").trim()
   const isNewUserAdmin = Boolean(body.isAdmin)
   const vardiya = body.vardiya === "S" || body.vardiya === "A" || body.vardiya === "T" ? body.vardiya : "T"
+  const trustedIps = normalizeTrustedIps(body.trustedIps)
 
   if (!email || !subeId) {
     return NextResponse.json({ error: "E-posta ve şube zorunlu." }, { status: 400 })
@@ -69,7 +77,7 @@ export async function POST(request: NextRequest) {
     email,
     password: "123456",
     email_confirm: true,
-    user_metadata: { display_name: displayName },
+    user_metadata: { display_name: displayName, trusted_ips: trustedIps },
   })
 
   if (authError || !authData.user) {
@@ -93,7 +101,7 @@ export async function POST(request: NextRequest) {
     user_id: actor.id,
     user_email: actor.email,
     event_type: "user_create",
-    details: { created_email: email, display_name: displayName, sube_id: subeId, is_admin: isNewUserAdmin, vardiya },
+    details: { created_email: email, display_name: displayName, sube_id: subeId, is_admin: isNewUserAdmin, vardiya, trusted_ips: trustedIps },
   })
 
   return NextResponse.json({ ok: true })
@@ -112,6 +120,7 @@ export async function PATCH(request: NextRequest) {
   const subeId = String(body.subeId || "").trim()
   const nextIsAdmin = Boolean(body.isAdmin)
   const vardiya = body.vardiya === "S" || body.vardiya === "A" || body.vardiya === "T" ? body.vardiya : "T"
+  const trustedIps = normalizeTrustedIps(body.trustedIps)
 
   if (!userId || !subeId) {
     return NextResponse.json({ error: "Kullanıcı ve şube zorunlu." }, { status: 400 })
@@ -119,7 +128,7 @@ export async function PATCH(request: NextRequest) {
 
   const admin = createAdminClient()
   const { error: authUpdateError } = await admin.auth.admin.updateUserById(userId, {
-    user_metadata: { display_name: displayName },
+    user_metadata: { display_name: displayName, trusted_ips: trustedIps },
   })
 
   if (authUpdateError) {
@@ -144,7 +153,7 @@ export async function PATCH(request: NextRequest) {
     user_id: actor.id,
     user_email: actor.email,
     event_type: "user_update",
-    details: { updated_user_id: userId, display_name: displayName, sube_id: subeId, is_admin: nextIsAdmin, vardiya },
+    details: { updated_user_id: userId, display_name: displayName, sube_id: subeId, is_admin: nextIsAdmin, vardiya, trusted_ips: trustedIps },
   })
 
   return NextResponse.json({ ok: true })

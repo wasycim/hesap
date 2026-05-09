@@ -16,6 +16,8 @@ interface SecurityEvent {
   event_type: string
   ip_address: string | null
   user_agent: string | null
+  trusted_ips?: string[]
+  is_trusted_ip?: boolean
   details: Record<string, any>
   created_at: string
 }
@@ -168,6 +170,7 @@ function buildDifferentLoginIpEvents(events: SecurityEvent[]) {
 
   events.forEach(event => {
     if (event.event_type !== "login" || !event.ip_address) return
+    if (event.is_trusted_ip) return
     if ((ipsByUser.get(getUserKey(event))?.size || 0) > 1) differentIpEvents.add(event.id)
   })
 
@@ -249,16 +252,21 @@ export default function GuvenlikAyarlarPage() {
   const supabase = createClient()
 
   const passwordChangeCounts = useMemo(() => buildPasswordChangeCounts(events), [events])
+  const trustedLoginIps = useMemo(() => buildTrustedLoginIps(events), [events])
   const differentIpEvents = useMemo(() => buildDifferentLoginIpEvents(events), [events])
   const sharedIpEvents = useMemo(() => buildSharedLoginIpEvents(events), [events])
   const eventsWithSeverity = useMemo(() => events.map(event => {
     const passwordCount = passwordChangeCounts.get(event.id) || 0
-    const isDifferentIp = differentIpEvents.has(event.id)
+    const isTrustedIp = Boolean(
+      event.is_trusted_ip ||
+      (event.event_type === "login" && event.ip_address && trustedLoginIps.get(getUserKey(event))?.has(event.ip_address))
+    )
+    const isDifferentIp = !isTrustedIp && differentIpEvents.has(event.id)
     const isSharedIp = sharedIpEvents.has(event.id)
     const severity = getSeverity(event, passwordCount, isDifferentIp, isSharedIp)
 
-    return { event, passwordCount, isDifferentIp, isSharedIp, severity }
-  }), [events, passwordChangeCounts, differentIpEvents, sharedIpEvents])
+    return { event, passwordCount, isDifferentIp, isSharedIp, isTrustedIp, severity }
+  }), [events, passwordChangeCounts, trustedLoginIps, differentIpEvents, sharedIpEvents])
   const branchOptions = useMemo(() => (
     Array.from(new Set(events.map(getBranchDisplay).filter(branch => branch !== "-"))).sort((a, b) => a.localeCompare(b, "tr"))
   ), [events])
@@ -419,7 +427,7 @@ export default function GuvenlikAyarlarPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredEvents.map(({ event, passwordCount, isDifferentIp, isSharedIp, severity }) => {
+                {filteredEvents.map(({ event, passwordCount, isDifferentIp, isSharedIp, isTrustedIp, severity }) => {
                   const Icon = EVENT_ICONS[event.event_type] || Shield
                   const detailsOpen = Boolean(openDetails[event.id])
 
@@ -437,7 +445,14 @@ export default function GuvenlikAyarlarPage() {
                           <div className="text-xs opacity-70">{event.user_email}</div>
                         )}
                       </td>
-                      <td className="p-3">{event.ip_address || "-"}</td>
+                      <td className="p-3">
+                        <div>{event.ip_address || "-"}</div>
+                        {isTrustedIp && (
+                          <span className="mt-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100">
+                            Güvenli
+                          </span>
+                        )}
+                      </td>
                       <td className="p-3">{formatDate(event.created_at)}</td>
                       <td className="p-3">
                         <div>{getSummary(event, passwordCount, isDifferentIp, isSharedIp)}</div>
@@ -463,7 +478,7 @@ export default function GuvenlikAyarlarPage() {
                 })}
                 {filteredEvents.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-muted-foreground">Bu filtrede güvenlik kaydı yok.</td>
+                    <td colSpan={7} className="p-8 text-center text-muted-foreground">Bu filtrede güvenlik kaydı yok.</td>
                   </tr>
                 )}
               </tbody>

@@ -26,6 +26,7 @@ interface AdminUser {
   user_id: string
   email: string | null
   display_name?: string | null
+  trusted_ips?: string[]
   is_admin: boolean
   sube_id: string | null
   vardiya: string | null
@@ -64,6 +65,7 @@ export default function AdminAyarlarPage() {
   const [selectedUserId, setSelectedUserId] = useState("")
   const [editSubeId, setEditSubeId] = useState("")
   const [editDisplayName, setEditDisplayName] = useState("")
+  const [editTrustedIps, setEditTrustedIps] = useState("")
   const [editRole, setEditRole] = useState("user")
   const [editVardiya, setEditVardiya] = useState("T")
   const [newSubeName, setNewSubeName] = useState("")
@@ -90,6 +92,7 @@ export default function AdminAyarlarPage() {
   useEffect(() => {
     if (!selectedUser) return
     setEditDisplayName(selectedUser.display_name || "")
+    setEditTrustedIps((selectedUser.trusted_ips || []).join(", "))
     setEditSubeId(selectedUser.sube_id || subeler[0]?.id || "")
     setEditRole(selectedUser.is_admin ? "admin" : "user")
     setEditVardiya(selectedUser.vardiya || "T")
@@ -154,6 +157,7 @@ export default function AdminAyarlarPage() {
       body: JSON.stringify({
         userId: selectedUserId,
         displayName: editDisplayName,
+        trustedIps: editTrustedIps,
         subeId: editSubeId,
         isAdmin: editRole === "admin",
         vardiya: editVardiya,
@@ -381,6 +385,16 @@ export default function AdminAyarlarPage() {
             <div className="space-y-2">
               <Label>Görünen ad</Label>
               <Input value={editDisplayName} onChange={(event) => setEditDisplayName(event.target.value)} placeholder="Sol menüde görünecek ad" disabled={!selectedUser} />
+            </div>
+            <div className="space-y-2">
+              <Label>Güvenilir IP</Label>
+              <Input
+                value={editTrustedIps}
+                onChange={(event) => setEditTrustedIps(event.target.value)}
+                placeholder="88.230.254.101, 192.168.1.10"
+                disabled={!selectedUser}
+              />
+              <p className="text-xs text-muted-foreground">Birden fazla IP için virgül, boşluk veya yeni satır kullanabilirsiniz.</p>
             </div>
             <div className="space-y-2">
               <Label>Şube</Label>
