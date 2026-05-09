@@ -1,13 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
+import { Building2, Plus, Trash2, UserPlus } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Building2, Plus, Trash2, UserPlus } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { logSecurityEvent } from "@/lib/audit-log"
 
@@ -20,13 +21,19 @@ interface AdminUser {
   subeler?: { ad?: string } | null
 }
 
+function formatVardiya(value: string | null) {
+  if (value === "S") return "Sabah"
+  if (value === "A") return "Akşam"
+  return "Tek vardiya"
+}
+
 export default function AdminAyarlarPage() {
   const { subeler, isAdmin } = useSube()
   const [users, setUsers] = useState<AdminUser[]>([])
   const [email, setEmail] = useState("")
   const [subeId, setSubeId] = useState("")
   const [role, setRole] = useState("user")
-  const [vardiya, setVardiya] = useState("none")
+  const [vardiya, setVardiya] = useState("T")
   const [newSubeName, setNewSubeName] = useState("")
   const [savingUser, setSavingUser] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -48,7 +55,7 @@ export default function AdminAyarlarPage() {
 
   async function createUser() {
     if (!email.trim() || !subeId) {
-      setMessage("E-posta ve şube zorunlu.")
+      toast.error("E-posta ve şube zorunlu.")
       return
     }
 
@@ -61,21 +68,24 @@ export default function AdminAyarlarPage() {
         email,
         subeId,
         isAdmin: role === "admin",
-        vardiya: vardiya === "none" ? null : vardiya,
+        vardiya,
       }),
     })
     const result = await response.json()
 
     if (!response.ok) {
-      setMessage(result.error || "Kullanıcı oluşturulamadı.")
+      const text = result.error || "Kullanıcı oluşturulamadı."
+      setMessage(text)
+      toast.error(text)
       setSavingUser(false)
       return
     }
 
     setEmail("")
     setRole("user")
-    setVardiya("none")
+    setVardiya("T")
     setMessage("Kullanıcı oluşturuldu. İlk şifre: 123456")
+    toast.success("Kullanıcı oluşturuldu. İlk şifre: 123456")
     setSavingUser(false)
     loadUsers()
   }
@@ -100,9 +110,11 @@ export default function AdminAyarlarPage() {
     if (!error) {
       await logSecurityEvent("branch_create", { ad: name })
       setNewSubeName("")
+      toast.success("Şube eklendi.")
       window.location.reload()
     } else {
       setMessage(error.message)
+      toast.error(error.message)
     }
   }
 
@@ -112,9 +124,11 @@ export default function AdminAyarlarPage() {
     const { error } = await supabase.from("subeler").delete().eq("id", id)
     if (!error) {
       await logSecurityEvent("branch_delete", { sube_id: id, ad: name })
+      toast.success("Şube silindi.")
       window.location.reload()
     } else {
       setMessage(error.message)
+      toast.error(error.message)
     }
   }
 
@@ -136,9 +150,7 @@ export default function AdminAyarlarPage() {
         <p className="text-sm text-muted-foreground">Kullanıcı ve şube yönetimi.</p>
       </div>
 
-      {message && (
-        <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">{message}</div>
-      )}
+      {message && <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">{message}</div>}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
@@ -186,7 +198,7 @@ export default function AdminAyarlarPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Hepsi</SelectItem>
+                    <SelectItem value="T">Tek vardiya</SelectItem>
                     <SelectItem value="S">Sabah</SelectItem>
                     <SelectItem value="A">Akşam</SelectItem>
                   </SelectContent>
@@ -252,7 +264,7 @@ export default function AdminAyarlarPage() {
                     <td className="p-3">{user.email || "-"}</td>
                     <td className="p-3">{user.is_admin ? "Yönetici" : "Kullanıcı"}</td>
                     <td className="p-3">{user.subeler?.ad || "-"}</td>
-                    <td className="p-3">{user.vardiya || "Hepsi"}</td>
+                    <td className="p-3">{formatVardiya(user.vardiya)}</td>
                   </tr>
                 ))}
               </tbody>

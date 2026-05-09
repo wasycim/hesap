@@ -34,7 +34,14 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ users: data || [] })
+  const { data: authData } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+  const authEmailById = new Map((authData?.users || []).map(user => [user.id, user.email]))
+  const users = (data || []).map(profile => ({
+    ...profile,
+    email: profile.email || authEmailById.get(profile.user_id) || null,
+  }))
+
+  return NextResponse.json({ users })
 }
 
 export async function POST(request: NextRequest) {
@@ -48,7 +55,7 @@ export async function POST(request: NextRequest) {
   const email = String(body.email || "").trim().toLowerCase()
   const subeId = String(body.subeId || "").trim()
   const isNewUserAdmin = Boolean(body.isAdmin)
-  const vardiya = body.vardiya === "S" || body.vardiya === "A" ? body.vardiya : null
+  const vardiya = body.vardiya === "S" || body.vardiya === "A" || body.vardiya === "T" ? body.vardiya : "T"
 
   if (!email || !subeId) {
     return NextResponse.json({ error: "E-posta ve şube zorunlu." }, { status: 400 })
@@ -87,4 +94,3 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ ok: true })
 }
-

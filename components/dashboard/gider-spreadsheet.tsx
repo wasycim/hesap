@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Plus, Save, Trash2 } from "lucide-react"
@@ -108,6 +109,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
   const isVardiyasizSube = currentSube
     ? VARDIYASIZ_SUBELER.includes(normalizeSubeName(currentSube.ad))
     : false
+  const isTekVardiya = isVardiyasizSube || (!isAdmin && (!userVardiya || userVardiya === "T"))
 
   useEffect(() => {
     // Şube değiştiğinde önce mevcut verileri temizle
@@ -192,7 +194,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
         user_id: row.user_id,
         sube_id: row.sube_id,
         tarih: row.tarih,
-        vardiya: isVardiyasizSube ? "" : (row.vardiya || "S"),
+        vardiya: isTekVardiya ? "" : (row.vardiya || "S"),
         el_fisi_odeme: Number(row.el_fisi_odeme) || 0,
         ortak_paylari: row.ortak_pilarim || {},
         personel_paylari: row.personel_paylari || {},
@@ -260,15 +262,15 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     const nextDate = isAdmin ? getNextDate() : today
 
     if (!isAdmin && (month !== todayMonthYear.month || year !== todayMonthYear.year)) {
-      alert("Normal kullanıcılar sadece bugünün olduğu ayda satır ekleyebilir.")
+      toast.error("Normal kullanıcılar sadece bugünün olduğu ayda satır ekleyebilir.")
       return
     }
     
     // Vardiyasiz subelerde tek satir, vardiyali subelerde admin icin S ve A eklenir.
-    const vardiyalarToAdd = isVardiyasizSube ? [""] : (isAdmin ? ["S", "A"] : [userVardiya || "S"])
+    const vardiyalarToAdd = isTekVardiya ? [""] : (isAdmin ? ["S", "A"] : [userVardiya || "S"])
 
     if (!isAdmin && vardiyalarToAdd.some(vardiya => rows.some(row => row.tarih === today && row.vardiya === vardiya))) {
-      alert("Bugün için zaten bir satır var.")
+      toast.error("Bugün için zaten bir satır var.")
       return
     }
     
@@ -357,7 +359,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     // Sadece düzenleyebildiğim vardiyaları filtrele
     const editableRows = rows.filter(row => {
       if (!isAdmin && row.tarih !== getLocalDateString()) return false
-      if (isVardiyasizSube || !userVardiya || isAdmin) return true
+      if (isTekVardiya || isAdmin) return true
       return row.vardiya === userVardiya
     })
 
@@ -373,7 +375,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       deleteQuery = deleteQuery.eq("tarih", getLocalDateString())
     }
     
-    if (!isVardiyasizSube && userVardiya && !isAdmin) {
+    if (!isTekVardiya && userVardiya && !isAdmin) {
       deleteQuery = deleteQuery.eq("vardiya", userVardiya)
     }
     
@@ -436,7 +438,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
         if (!isAdmin) {
           updateGelirQuery = updateGelirQuery.eq("user_id", user.id)
         }
-        if (!isVardiyasizSube) {
+        if (!isTekVardiya) {
           updateGelirQuery = updateGelirQuery.eq("vardiya", row.vardiya)
         }
 
@@ -461,7 +463,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
 
   // Tüm sütunları oluştur
   const configuredColumns = columnSettings
-    .filter(col => col.aktif && (!isVardiyasizSube || col.column_key !== "vardiya"))
+    .filter(col => col.aktif && (!isTekVardiya || col.column_key !== "vardiya"))
     .map(col => ({ key: col.column_key, label: col.label, color: col.color, editable: col.column_key !== "tarih" && col.column_key !== "vardiya" && col.column_key !== "genel_toplam" }))
 
   const allColumns = [
@@ -525,7 +527,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
           <tbody>
             {rows.map((row, rowIndex) => {
               // Vardiya kontrolü: userVardiya null ise hepsini düzenleyebilir, değilse sadece kendi vardiyasını
-              const canEditVardiya = isAdmin || (row.tarih === getLocalDateString() && (isVardiyasizSube || !userVardiya || userVardiya === row.vardiya))
+              const canEditVardiya = isAdmin || (row.tarih === getLocalDateString() && (isTekVardiya || userVardiya === row.vardiya))
               
               return (
               <tr key={rowIndex} className={`hover:bg-gray-50 ${!canEditVardiya ? "bg-gray-100/50 opacity-70" : ""}`}>

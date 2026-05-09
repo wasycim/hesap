@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Plus, Save, Trash2 } from "lucide-react"
@@ -99,7 +100,8 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   const isVardiyasizSube = currentSube
     ? VARDIYASIZ_SUBELER.includes(normalizeSubeName(currentSube.ad))
     : false
-  const activeColumnSettings = columnSettings.filter(col => col.aktif && (!isVardiyasizSube || col.column_key !== "vardiya"))
+  const isTekVardiya = isVardiyasizSube || (!isAdmin && (!userVardiya || userVardiya === "T"))
+  const activeColumnSettings = columnSettings.filter(col => col.aktif && (!isTekVardiya || col.column_key !== "vardiya"))
   const visibleColumns = activeColumnSettings.map(col => col.column_key)
   const columnColorMap = Object.fromEntries(activeColumnSettings.map(col => [col.column_key, col.color]))
   const columnLabelMap = Object.fromEntries(activeColumnSettings.map(col => [col.column_key, col.label]))
@@ -169,7 +171,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
         user_id: row.user_id,
         sube_id: row.sube_id,
         tarih: row.tarih,
-        vardiya: isVardiyasizSube ? "" : (row.vardiya || "S"),
+        vardiya: isTekVardiya ? "" : (row.vardiya || "S"),
         pamukkale_turizm: Number(row.pamukkale_turizm) || 0,
         anadolu_ulasim: Number(row.anadolu_ulasim) || 0,
         inegol_seyahat: Number(row.inegol_seyahat) || 0,
@@ -207,15 +209,15 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     const nextDate = isAdmin ? getNextDate() : today
 
     if (!isAdmin && (month !== todayMonthYear.month || year !== todayMonthYear.year)) {
-      alert("Normal kullanıcılar sadece bugünün olduğu ayda satır ekleyebilir.")
+      toast.error("Normal kullanıcılar sadece bugünün olduğu ayda satır ekleyebilir.")
       return
     }
     
     // Vardiyasiz subelerde tek satir, vardiyali subelerde admin icin S ve A eklenir.
-    const vardiyalarToAdd = isVardiyasizSube ? [""] : (isAdmin ? ["S", "A"] : [userVardiya || "S"])
+    const vardiyalarToAdd = isTekVardiya ? [""] : (isAdmin ? ["S", "A"] : [userVardiya || "S"])
 
     if (!isAdmin && vardiyalarToAdd.some(vardiya => rows.some(row => row.tarih === today && row.vardiya === vardiya))) {
-      alert("Bugün için zaten bir satır var.")
+      toast.error("Bugün için zaten bir satır var.")
       return
     }
     
@@ -305,7 +307,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     const editableRows = rows.filter(row => {
       if (!isAdmin && row.tarih !== getLocalDateString()) return false
       // Admin veya vardiyası olmayan kullanıcı her şeyi kaydedebilir
-      if (isVardiyasizSube || !userVardiya || isAdmin) return true
+      if (isTekVardiya || isAdmin) return true
       // Sadece kendi vardiyamı kaydedebilirim
       return row.vardiya === userVardiya
     })
@@ -323,7 +325,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     }
     
     // Eğer kullanıcının belirli bir vardiyası varsa sadece o vardiyayı sil
-    if (!isVardiyasizSube && userVardiya && !isAdmin) {
+    if (!isTekVardiya && userVardiya && !isAdmin) {
       deleteQuery = deleteQuery.eq("vardiya", userVardiya)
     }
     
@@ -427,7 +429,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
           <tbody>
             {rows.map((row, rowIndex) => {
               // Vardiya kontrolü: userVardiya null ise hepsini düzenleyebilir, değilse sadece kendi vardiyasını
-              const canEditVardiya = isAdmin || (row.tarih === getLocalDateString() && (isVardiyasizSube || !userVardiya || userVardiya === row.vardiya))
+              const canEditVardiya = isAdmin || (row.tarih === getLocalDateString() && (isTekVardiya || userVardiya === row.vardiya))
               const canEdit = canEditVardiya
               
               return (

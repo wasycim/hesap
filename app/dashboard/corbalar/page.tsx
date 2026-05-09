@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -165,12 +166,12 @@ export default function CorbalarPage() {
       const todayMonthYear = getMonthYearFromDate(today)
 
       if (month !== todayMonthYear.month || year !== todayMonthYear.year) {
-        alert("Normal kullanıcılar sadece bugünün olduğu ayda satır ekleyebilir.")
+        toast.error("Normal kullanıcılar sadece bugünün olduğu ayda satır ekleyebilir.")
         return
       }
 
       if (rows.some(row => row.tarih === today)) {
-        alert("Bugün için zaten bir satır var.")
+        toast.error("Bugün için zaten bir satır var.")
         return
       }
 

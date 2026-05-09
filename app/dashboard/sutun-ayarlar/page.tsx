@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowDown, ArrowUp, Eye, EyeOff, Plus, Save, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowUp, Eye, EyeOff, GripVertical, Plus, Save, Trash2 } from "lucide-react"
 import {
   COLOR_OPTIONS,
   TableColumnSetting,
@@ -40,6 +40,7 @@ export default function SutunAyarlarPage() {
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error", text: string } | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [draggedColumnKey, setDraggedColumnKey] = useState<string | null>(null)
   const supabase = createClient()
   const { currentSube } = useSube()
   const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
@@ -129,16 +130,27 @@ export default function SutunAyarlarPage() {
 
   function moveColumn(tableType: TableType, columnKey: string, direction: -1 | 1) {
     updateColumns(tableType, items => {
-      const activeItems = items.filter(column => column.aktif)
-      const inactiveItems = items.filter(column => !column.aktif)
-      const index = activeItems.findIndex(column => column.column_key === columnKey)
+      const index = items.findIndex(column => column.column_key === columnKey)
       const nextIndex = index + direction
-      if (index < 0 || nextIndex < 0 || nextIndex >= activeItems.length) return items
-      const next = [...activeItems]
+      if (index < 0 || nextIndex < 0 || nextIndex >= items.length) return items
+      const next = [...items]
       const current = next[index]
       next[index] = next[nextIndex]
       next[nextIndex] = current
-      return [...next, ...inactiveItems]
+      return next
+    })
+  }
+
+  function dragColumn(tableType: TableType, targetColumnKey: string) {
+    if (!draggedColumnKey || draggedColumnKey === targetColumnKey) return
+    updateColumns(tableType, items => {
+      const fromIndex = items.findIndex(column => column.column_key === draggedColumnKey)
+      const toIndex = items.findIndex(column => column.column_key === targetColumnKey)
+      if (fromIndex < 0 || toIndex < 0) return items
+      const next = [...items]
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, moved)
+      return next
     })
   }
 
@@ -240,7 +252,7 @@ export default function SutunAyarlarPage() {
   }
 
   function renderColumnPreview(tableType: TableType) {
-    const items = columns[tableType]
+    const items = columns[tableType].filter(column => column.aktif)
 
     return (
       <div className="rounded-lg border bg-white">
@@ -271,7 +283,7 @@ export default function SutunAyarlarPage() {
   }
 
   function renderTableSettings(tableType: TableType) {
-    const items = columns[tableType].filter(column => column.aktif)
+    const items = columns[tableType]
 
     return (
       <div className="space-y-4">
@@ -304,13 +316,22 @@ export default function SutunAyarlarPage() {
             </thead>
             <tbody>
               {items.map((column, index) => (
-                <tr key={column.column_key} className={`border-b ${!column.aktif ? "bg-muted/40 opacity-70" : ""}`}>
+                <tr
+                  key={column.column_key}
+                  draggable
+                  onDragStart={() => setDraggedColumnKey(column.column_key)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => dragColumn(tableType, column.column_key)}
+                  onDragEnd={() => setDraggedColumnKey(null)}
+                  className={`border-b ${!column.aktif ? "bg-muted/40 opacity-70" : ""} ${draggedColumnKey === column.column_key ? "bg-blue-50" : ""}`}
+                >
                   <td className="p-3">
                     <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => moveColumn(tableType, column.column_key, -1)} disabled={!column.aktif || index === 0}>
+                      <GripVertical className="h-4 w-4 cursor-grab text-muted-foreground" />
+                      <Button variant="ghost" size="icon" onClick={() => moveColumn(tableType, column.column_key, -1)} disabled={index === 0}>
                         <ArrowUp className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => moveColumn(tableType, column.column_key, 1)} disabled={!column.aktif || index === items.length - 1}>
+                      <Button variant="ghost" size="icon" onClick={() => moveColumn(tableType, column.column_key, 1)} disabled={index === items.length - 1}>
                         <ArrowDown className="h-4 w-4" />
                       </Button>
                     </div>
