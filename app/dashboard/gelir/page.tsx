@@ -15,17 +15,15 @@ import {
   MONTHS,
   START_MONTH_INDEX,
   START_YEAR,
-  getInitialEndYear,
   getInitialMonth,
   getInitialYear,
-  makeYears,
+  makeYearWindow,
 } from "@/lib/date-navigation"
 
 export default function GelirPage() {
   const [month, setMonth] = useState(getInitialMonth())
   const [year, setYear] = useState(getInitialYear())
-  const [endYear, setEndYear] = useState(getInitialEndYear())
-  const years = makeYears(endYear)
+  const years = makeYearWindow(year)
 
   const prevMonth = () => {
     const currentIndex = MONTHS.indexOf(month)
@@ -43,13 +41,8 @@ export default function GelirPage() {
   const nextMonth = () => {
     const currentIndex = MONTHS.indexOf(month)
     if (currentIndex === 11) {
-      if (year >= endYear) {
-        setEndYear(endYear + 5)
-      }
-      if (year < endYear + 5) {
-        setMonth(MONTHS[0])
-        setYear(year + 1)
-      }
+      setMonth(MONTHS[0])
+      setYear(year + 1)
     } else {
       setMonth(MONTHS[currentIndex + 1])
     }

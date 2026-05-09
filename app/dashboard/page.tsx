@@ -10,17 +10,15 @@ import { useSube } from "@/contexts/sube-context"
 import {
   MONTHS,
   START_MONTH_INDEX,
-  getInitialEndYear,
   getInitialMonth,
   getInitialYear,
-  makeYears,
+  makeYearWindow,
 } from "@/lib/date-navigation"
 
 export default function DashboardPage() {
   const [month, setMonth] = useState(getInitialMonth())
   const [year, setYear] = useState(getInitialYear())
-  const [endYear] = useState(getInitialEndYear())
-  const years = makeYears(endYear)
+  const years = makeYearWindow(year)
   const [stats, setStats] = useState({
     toplamGelir: 0,
     toplamGider: 0,

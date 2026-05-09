@@ -33,6 +33,11 @@ export function makeYears(endYear: number) {
   return Array.from({ length: endYear - START_YEAR + 1 }, (_, index) => START_YEAR + index)
 }
 
+export function makeYearWindow(selectedYear: number) {
+  const startYear = Math.max(START_YEAR, selectedYear - 2)
+  return Array.from({ length: 5 }, (_, index) => startYear + index)
+}
+
 export function getInitialEndYear() {
   return Math.max(INITIAL_END_YEAR, getInitialYear())
 }
@@ -59,4 +64,3 @@ export function getMonthYearFromDate(dateStr: string) {
     year,
   }
 }
-

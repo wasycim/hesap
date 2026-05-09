@@ -13,12 +13,11 @@ import {
   MONTHS,
   START_MONTH_INDEX,
   START_YEAR,
-  getInitialEndYear,
   getInitialMonth,
   getInitialYear,
   getLocalDateString,
   getMonthYearFromDate,
-  makeYears,
+  makeYearWindow,
 } from "@/lib/date-navigation"
 import { logSecurityEvent } from "@/lib/audit-log"
 
@@ -37,7 +36,6 @@ interface CorbaRow {
 export default function CorbalarPage() {
   const [month, setMonth] = useState(getInitialMonth())
   const [year, setYear] = useState(getInitialYear())
-  const [endYear, setEndYear] = useState(getInitialEndYear())
   const [personeller, setPersoneller] = useState<Personel[]>([])
   const [rows, setRows] = useState<CorbaRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -45,7 +43,7 @@ export default function CorbalarPage() {
   const supabase = createClient()
   const { currentSube, isAdmin } = useSube()
   const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
-  const years = makeYears(endYear)
+  const years = makeYearWindow(year)
   
   const ayYil = `${month}-${year}`
 
@@ -138,13 +136,8 @@ export default function CorbalarPage() {
   const nextMonth = () => {
     const currentIndex = MONTHS.indexOf(month)
     if (currentIndex === 11) {
-      if (year >= endYear) {
-        setEndYear(endYear + 5)
-      }
-      if (year < endYear + 5) {
-        setMonth(MONTHS[0])
-        setYear(year + 1)
-      }
+      setMonth(MONTHS[0])
+      setYear(year + 1)
     } else {
       setMonth(MONTHS[currentIndex + 1])
     }
