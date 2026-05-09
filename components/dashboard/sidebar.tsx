@@ -197,14 +197,17 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                   <Package className="h-5 w-5 text-cyan-500" />
                   <span>Kargo Cari</span>
                 </div>
-                {kargoOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                <ChevronDown className={cn("h-4 w-4 transition-transform duration-500", kargoOpen ? "rotate-0" : "-rotate-90")} />
               </button>
 
               <div className={cn(
-                "grid transition-[grid-template-rows,opacity] duration-700 ease-out",
-                kargoOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                "grid overflow-hidden transition-[grid-template-rows,opacity,transform] duration-700 ease-out",
+                kargoOpen ? "grid-rows-[1fr] translate-y-0 opacity-100" : "grid-rows-[0fr] -translate-y-2 opacity-0"
               )}>
-                <ul className="ml-4 mt-1 min-h-0 overflow-hidden border-l border-sidebar-border pl-4">
+                <ul className={cn(
+                  "ml-4 mt-1 min-h-0 overflow-hidden border-l border-sidebar-border pl-4 transition-all duration-700 ease-out",
+                  kargoOpen ? "translate-y-0 blur-0" : "-translate-y-2 blur-[1px]"
+                )}>
                   {isAdmin && (
                     <li>
                       <Link

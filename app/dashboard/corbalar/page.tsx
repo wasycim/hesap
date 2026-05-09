@@ -360,7 +360,7 @@ export default function CorbalarPage() {
 
             {/* Tablo */}
             <div className="mobile-scroll overflow-x-auto rounded-lg border bg-card">
-              <table className="min-w-max text-sm">
+              <table className="w-full min-w-[760px] text-sm">
                 <thead>
                   <tr>
                     <th className="w-10 border bg-muted p-2 text-muted-foreground">#</th>

@@ -22,7 +22,7 @@ type EventFilter = "all" | "login" | "different_login" | "delete" | "hide"
 type SeverityFilter = "all" | Severity
 
 const EVENT_LABELS: Record<string, string> = {
-  failed_login: "Hatali giris",
+  failed_login: "Hatalı giriş",
   login: "Giriş",
   row_delete: "Satır silme",
   column_delete: "Sütun silme",
@@ -197,7 +197,7 @@ function getSeverity(event: SecurityEvent, passwordChangeCount: number, isDiffer
 function getSummary(event: SecurityEvent, passwordChangeCount: number, isDifferentIp: boolean, isSharedIp: boolean) {
   const details = event.details || {}
   const label = details.label || details.ad || details.name
-  if (event.event_type === "failed_login") return `${details.email || event.user_email || "Bilinmeyen kullanici"} icin hatali sifre denemesi yapildi.`
+  if (event.event_type === "failed_login") return `${details.email || event.user_email || "Bilinmeyen kullanıcı"} için hatalı şifre denemesi yapıldı.`
 
   if (event.event_type === "column_hide") return `${label || "Bir sütun"} gizlendi.`
   if (event.event_type === "column_delete") return `${label || "Bir sütun"} sütunu silindi.`

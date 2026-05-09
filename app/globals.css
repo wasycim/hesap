@@ -133,6 +133,11 @@
 .mobile-scroll {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.mobile-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 @keyframes page-enter {

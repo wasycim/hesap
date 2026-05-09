@@ -7,6 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Save, Trash2, ChevronLeft, ChevronRight } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
+import {
+  MONTHS,
+  START_MONTH_INDEX,
+  START_YEAR,
+  makeYearWindow,
+} from "@/lib/date-navigation"
 
 interface KargoRow {
   id?: string
@@ -23,11 +29,6 @@ interface KargoFirma {
   ad: string
 }
 
-const months = [
-  "Ocak", "Subat", "Mart", "Nisan", "Mayis", "Haziran",
-  "Temmuz", "Agustos", "Eylul", "Ekim", "Kasim", "Aralik"
-]
-const years = [2026, 2027, 2028, 2029, 2030]
 const currentDate = new Date()
 
 const HEADER_COLORS: Record<string, string> = {
@@ -56,8 +57,9 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   const [rows, setRows] = useState<KargoRow[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [month, setMonth] = useState(months[currentDate.getMonth()])
+  const [month, setMonth] = useState(MONTHS[currentDate.getMonth()])
   const [year, setYear] = useState(currentDate.getFullYear())
+  const years = makeYearWindow(year)
   const supabase = createClient()
   const { currentSube } = useSube()
   const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
@@ -167,7 +169,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     }
 
     const businessMonth = businessDate.getMonth()
-    const selectedMonth = months.indexOf(month)
+    const selectedMonth = MONTHS.indexOf(month)
 
     if (businessDate.getFullYear() !== year || businessMonth !== selectedMonth) {
       return `${year}-${String(selectedMonth + 1).padStart(2, "0")}-01`
@@ -178,8 +180,18 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   }
 
   function addRow() {
+    const lastDate = rows
+      .map(row => row.tarih)
+      .filter(Boolean)
+      .sort()
+      .at(-1)
+    const nextDate = lastDate ? new Date(`${lastDate}T12:00:00`) : null
+    if (nextDate) {
+      nextDate.setDate(nextDate.getDate() + 1)
+    }
+
     const newRow: KargoRow = {
-      tarih: getKargoBusinessDate(),
+      tarih: nextDate ? nextDate.toISOString().slice(0, 10) : getKargoBusinessDate(),
       fis_no: "",
       gonderilen_yer: "",
       alinan_tutar: 0,
@@ -283,27 +295,25 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   }
 
   const prevMonth = () => {
-    const currentIndex = months.indexOf(month)
+    const currentIndex = MONTHS.indexOf(month)
     if (currentIndex === 0) {
-      if (year > 2026) {
-        setMonth(months[11])
+      if (year > START_YEAR) {
+        setMonth(MONTHS[11])
         setYear(year - 1)
       }
     } else {
-      if (year === 2026 && currentIndex <= 3) return
-      setMonth(months[currentIndex - 1])
+      if (year === START_YEAR && currentIndex <= START_MONTH_INDEX) return
+      setMonth(MONTHS[currentIndex - 1])
     }
   }
 
   const nextMonth = () => {
-    const currentIndex = months.indexOf(month)
+    const currentIndex = MONTHS.indexOf(month)
     if (currentIndex === 11) {
-      if (year < 2030) {
-        setMonth(months[0])
-        setYear(year + 1)
-      }
+      setMonth(MONTHS[0])
+      setYear(year + 1)
     } else {
-      setMonth(months[currentIndex + 1])
+      setMonth(MONTHS[currentIndex + 1])
     }
   }
 
@@ -350,7 +360,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {months.map(m => (
+              {MONTHS.filter((_, index) => year !== START_YEAR || index >= START_MONTH_INDEX).map(m => (
                 <SelectItem key={m} value={m}>{m}</SelectItem>
               ))}
             </SelectContent>
@@ -383,7 +393,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
 
       {/* Table */}
       <div className="mobile-scroll overflow-x-auto rounded-lg border bg-card">
-        <table className="min-w-max text-sm">
+        <table className="w-full min-w-[760px] text-sm">
           <thead>
             <tr>
               <th className="w-10 border bg-muted p-2 text-muted-foreground">#</th>
