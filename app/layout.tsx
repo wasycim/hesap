@@ -40,7 +40,7 @@ export default function RootLayout({
       <body className="font-sans antialiased bg-background">
         {children}
         <Toaster
-          position="top-left"
+          position="top-right"
           richColors
           toastOptions={{
             className: "border-emerald-700 bg-emerald-950 text-emerald-100",
