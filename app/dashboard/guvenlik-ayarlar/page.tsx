@@ -18,6 +18,8 @@ interface SecurityEvent {
 }
 
 type Severity = "normal" | "medium" | "warning" | "critical"
+type EventFilter = "all" | "login" | "different_login" | "delete" | "hide"
+type SeverityFilter = "all" | Severity
 
 const EVENT_LABELS: Record<string, string> = {
   login: "Giriş",
@@ -53,11 +55,27 @@ const EVENT_ICONS: Record<string, any> = {
 }
 
 const SEVERITY_STYLES: Record<Severity, string> = {
-  normal: "border-emerald-200 bg-emerald-50 text-emerald-800",
-  medium: "border-amber-200 bg-amber-50 text-amber-800",
-  warning: "border-orange-200 bg-orange-50 text-orange-800",
-  critical: "border-red-200 bg-red-50 text-red-800",
+  normal: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-100",
+  medium: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-100",
+  warning: "border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-500/30 dark:bg-orange-500/15 dark:text-orange-100",
+  critical: "border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-100",
 }
+
+const EVENT_FILTERS: Array<{ key: EventFilter; label: string }> = [
+  { key: "all", label: "Tümü" },
+  { key: "login", label: "Girişler" },
+  { key: "different_login", label: "Farklı Girişler" },
+  { key: "delete", label: "Silme İşlemleri" },
+  { key: "hide", label: "Gizleme İşlemleri" },
+]
+
+const SEVERITY_FILTERS: Array<{ key: SeverityFilter; label: string }> = [
+  { key: "all", label: "Tüm Dereceler" },
+  { key: "critical", label: "Yüksek" },
+  { key: "warning", label: "Orta" },
+  { key: "medium", label: "Düşük" },
+  { key: "normal", label: "Normal" },
+]
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString("tr-TR", {
@@ -173,6 +191,8 @@ function getSummary(event: SecurityEvent, passwordChangeCount: number, isDiffere
 export default function GuvenlikAyarlarPage() {
   const [events, setEvents] = useState<SecurityEvent[]>([])
   const [openDetails, setOpenDetails] = useState<Record<string, boolean>>({})
+  const [eventFilter, setEventFilter] = useState<EventFilter>("all")
+  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const supabase = createClient()
@@ -180,6 +200,23 @@ export default function GuvenlikAyarlarPage() {
   const passwordChangeCounts = useMemo(() => buildPasswordChangeCounts(events), [events])
   const differentIpEvents = useMemo(() => buildKnownLoginIps(events), [events])
   const sharedIpEvents = useMemo(() => buildSharedLoginIpEvents(events), [events])
+  const eventsWithSeverity = useMemo(() => events.map(event => {
+    const passwordCount = passwordChangeCounts.get(event.id) || 0
+    const isDifferentIp = differentIpEvents.has(event.id)
+    const isSharedIp = sharedIpEvents.has(event.id)
+    const severity = getSeverity(event, passwordCount, isDifferentIp, isSharedIp)
+
+    return { event, passwordCount, isDifferentIp, isSharedIp, severity }
+  }), [events, passwordChangeCounts, differentIpEvents, sharedIpEvents])
+
+  const filteredEvents = useMemo(() => eventsWithSeverity.filter(item => {
+    if (severityFilter !== "all" && item.severity !== severityFilter) return false
+    if (eventFilter === "login") return item.event.event_type === "login"
+    if (eventFilter === "different_login") return item.event.event_type === "login" && item.isDifferentIp
+    if (eventFilter === "delete") return item.event.event_type.endsWith("_delete") || item.event.event_type === "branch_delete_failed"
+    if (eventFilter === "hide") return item.event.event_type === "column_hide" || item.event.event_type === "visibility_update"
+    return true
+  }), [eventsWithSeverity, eventFilter, severityFilter])
 
   useEffect(() => {
     loadData()
@@ -270,7 +307,36 @@ export default function GuvenlikAyarlarPage() {
         <CardHeader>
           <CardTitle>İşlem Kayıtları</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-3">
+            <div className="flex flex-wrap gap-2">
+              {EVENT_FILTERS.map(filter => (
+                <Button
+                  key={filter.key}
+                  type="button"
+                  size="sm"
+                  variant={eventFilter === filter.key ? "default" : "outline"}
+                  onClick={() => setEventFilter(filter.key)}
+                >
+                  {filter.label}
+                </Button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {SEVERITY_FILTERS.map(filter => (
+                <Button
+                  key={filter.key}
+                  type="button"
+                  size="sm"
+                  variant={severityFilter === filter.key ? "default" : "outline"}
+                  onClick={() => setSeverityFilter(filter.key)}
+                >
+                  {filter.label}
+                </Button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">{filteredEvents.length} kayıt gösteriliyor.</p>
+          </div>
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full min-w-[980px] text-sm">
               <thead>
@@ -284,12 +350,8 @@ export default function GuvenlikAyarlarPage() {
                 </tr>
               </thead>
               <tbody>
-                {events.map(event => {
+                {filteredEvents.map(({ event, passwordCount, isDifferentIp, isSharedIp, severity }) => {
                   const Icon = EVENT_ICONS[event.event_type] || Shield
-                  const passwordCount = passwordChangeCounts.get(event.id) || 0
-                  const isDifferentIp = differentIpEvents.has(event.id)
-                  const isSharedIp = sharedIpEvents.has(event.id)
-                  const severity = getSeverity(event, passwordCount, isDifferentIp, isSharedIp)
                   const detailsOpen = Boolean(openDetails[event.id])
 
                   return (
@@ -306,7 +368,7 @@ export default function GuvenlikAyarlarPage() {
                       <td className="p-3">
                         <div>{getSummary(event, passwordCount, isDifferentIp, isSharedIp)}</div>
                         {detailsOpen && (
-                          <pre className="mt-2 max-w-xl overflow-x-auto rounded border bg-white/70 p-2 text-xs text-slate-800">
+                          <pre className="mt-2 max-w-xl overflow-x-auto rounded border bg-white/70 p-2 text-xs text-slate-800 dark:bg-black/30 dark:text-slate-100">
                             {JSON.stringify(event.details || {}, null, 2)}
                           </pre>
                         )}
@@ -324,9 +386,9 @@ export default function GuvenlikAyarlarPage() {
                     </tr>
                   )
                 })}
-                {events.length === 0 && (
+                {filteredEvents.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-muted-foreground">Henüz güvenlik kaydı yok.</td>
+                    <td colSpan={6} className="p-8 text-center text-muted-foreground">Bu filtrede güvenlik kaydı yok.</td>
                   </tr>
                 )}
               </tbody>

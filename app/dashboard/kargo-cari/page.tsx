@@ -201,49 +201,49 @@ export default function KargoCariOzetPage() {
 
       {/* Genel Toplam Kartlari */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-blue-50 border-blue-200">
+        <Card className="border-blue-200 bg-blue-50 dark:border-blue-500/30 dark:bg-blue-500/15">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-blue-600 mb-1">Toplam Borç</p>
-                <p className="text-2xl font-bold text-blue-700">
+                <p className="mb-1 text-sm font-medium text-blue-600 dark:text-blue-200">Toplam Borç</p>
+                <p className="text-2xl font-bold text-blue-700 dark:text-blue-100">
                   {formatNumber(genelToplam.toplam_borc)} <span className="text-base font-normal">TL</span>
                 </p>
               </div>
-              <div className="p-3 rounded-full bg-blue-100">
-                <TrendingUp className="h-6 w-6 text-blue-600" />
+              <div className="rounded-full bg-blue-100 p-3 dark:bg-blue-500/20">
+                <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-200" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-green-50 border-green-200">
+        <Card className="border-green-200 bg-green-50 dark:border-green-500/30 dark:bg-green-500/15">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-green-600 mb-1">Toplam Ödenen</p>
-                <p className="text-2xl font-bold text-green-700">
+                <p className="mb-1 text-sm font-medium text-green-600 dark:text-green-200">Toplam Ödenen</p>
+                <p className="text-2xl font-bold text-green-700 dark:text-green-100">
                   {formatNumber(genelToplam.odenen)} <span className="text-base font-normal">TL</span>
                 </p>
               </div>
-              <div className="p-3 rounded-full bg-green-100">
-                <TrendingDown className="h-6 w-6 text-green-600" />
+              <div className="rounded-full bg-green-100 p-3 dark:bg-green-500/20">
+                <TrendingDown className="h-6 w-6 text-green-600 dark:text-green-200" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className={`${genelToplam.kalan_borc > 0 ? "bg-red-50 border-red-200" : "bg-emerald-50 border-emerald-200"}`}>
+        <Card className={`${genelToplam.kalan_borc > 0 ? "border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/15" : "border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/15"}`}>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className={`text-sm font-medium mb-1 ${genelToplam.kalan_borc > 0 ? "text-red-600" : "text-emerald-600"}`}>Kalan Borç</p>
-                <p className={`text-2xl font-bold ${genelToplam.kalan_borc > 0 ? "text-red-700" : "text-emerald-700"}`}>
+                <p className={`mb-1 text-sm font-medium ${genelToplam.kalan_borc > 0 ? "text-red-600 dark:text-red-200" : "text-emerald-600 dark:text-emerald-200"}`}>Kalan Borç</p>
+                <p className={`text-2xl font-bold ${genelToplam.kalan_borc > 0 ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"}`}>
                   {formatNumber(genelToplam.kalan_borc)} <span className="text-base font-normal">TL</span>
                 </p>
               </div>
-              <div className={`p-3 rounded-full ${genelToplam.kalan_borc > 0 ? "bg-red-100" : "bg-emerald-100"}`}>
-                <Wallet className={`h-6 w-6 ${genelToplam.kalan_borc > 0 ? "text-red-600" : "text-emerald-600"}`} />
+              <div className={`rounded-full p-3 ${genelToplam.kalan_borc > 0 ? "bg-red-100 dark:bg-red-500/20" : "bg-emerald-100 dark:bg-emerald-500/20"}`}>
+                <Wallet className={`h-6 w-6 ${genelToplam.kalan_borc > 0 ? "text-red-600 dark:text-red-200" : "text-emerald-600 dark:text-emerald-200"}`} />
               </div>
             </div>
           </CardContent>
@@ -265,41 +265,41 @@ export default function KargoCariOzetPage() {
             </div>
           ) : (
             <div className="overflow-x-auto flex justify-center">
-              <table className="text-sm min-w-[700px]">
+              <table className="min-w-[700px] text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="p-3 text-left font-semibold bg-gray-50">FİRMA ADI</th>
-                    <th className="p-3 text-right font-semibold bg-blue-50 text-blue-700">TOPLAM BORÇ</th>
-                    <th className="p-3 text-center font-semibold bg-green-50 text-green-700">ÖDENEN (Giriniz)</th>
-                    <th className="p-3 text-right font-semibold bg-orange-50 text-orange-700">KALAN BORÇ</th>
+                    <th className="bg-muted p-3 text-left font-semibold text-foreground">FİRMA ADI</th>
+                    <th className="bg-blue-50 p-3 text-right font-semibold text-blue-700 dark:bg-blue-500/15 dark:text-blue-200">TOPLAM BORÇ</th>
+                    <th className="bg-green-50 p-3 text-center font-semibold text-green-700 dark:bg-green-500/15 dark:text-green-200">ÖDENEN (Giriniz)</th>
+                    <th className="bg-orange-50 p-3 text-right font-semibold text-orange-700 dark:bg-orange-500/15 dark:text-orange-200">KALAN BORÇ</th>
                   </tr>
                 </thead>
                 <tbody>
                   {borcOzetleri.map((ozet) => (
-                    <tr key={ozet.firma_id} className="border-b hover:bg-gray-50">
+                    <tr key={ozet.firma_id} className="border-b hover:bg-muted/50">
                       <td className="p-3 font-medium">{ozet.firma_ad}</td>
-                      <td className="p-3 text-right text-blue-700 font-semibold">{formatNumber(ozet.toplam_borc)} TL</td>
+                      <td className="p-3 text-right font-semibold text-blue-700 dark:text-blue-200">{formatNumber(ozet.toplam_borc)} TL</td>
                       <td className="p-2">
                         <Input
                           type="number"
                           value={odemeler[ozet.firma_id] || ""}
                           onChange={(e) => handleOdemeChange(ozet.firma_id, e.target.value)}
-                          className="w-40 mx-auto text-center bg-green-50 border-green-200 focus:border-green-400"
+                          className="mx-auto w-40 border-green-200 bg-green-50 text-center dark:border-green-500/30 dark:bg-green-500/15"
                           placeholder="0.00"
                         />
                       </td>
-                      <td className={`p-3 text-right font-bold ${ozet.kalan_borc > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                      <td className={`p-3 text-right font-bold ${ozet.kalan_borc > 0 ? "text-red-600 dark:text-red-200" : "text-emerald-600 dark:text-emerald-200"}`}>
                         {formatNumber(ozet.kalan_borc)} TL
                       </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-gray-100 font-bold">
+                  <tr className="bg-muted font-bold text-foreground">
                     <td className="p-3">GENEL TOPLAM</td>
-                    <td className="p-3 text-right text-blue-700">{formatNumber(genelToplam.toplam_borc)} TL</td>
-                    <td className="p-3 text-center text-green-700">{formatNumber(genelToplam.odenen)} TL</td>
-                    <td className={`p-3 text-right ${genelToplam.kalan_borc > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                    <td className="p-3 text-right text-blue-700 dark:text-blue-200">{formatNumber(genelToplam.toplam_borc)} TL</td>
+                    <td className="p-3 text-center text-green-700 dark:text-green-200">{formatNumber(genelToplam.odenen)} TL</td>
+                    <td className={`p-3 text-right ${genelToplam.kalan_borc > 0 ? "text-red-600 dark:text-red-200" : "text-emerald-600 dark:text-emerald-200"}`}>
                       {formatNumber(genelToplam.kalan_borc)} TL
                     </td>
                   </tr>

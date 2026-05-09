@@ -32,7 +32,7 @@ const currentDate = new Date()
 
 const HEADER_COLORS: Record<string, string> = {
   tarih: "bg-green-600 text-white",
-  fis_no: "bg-gray-100 text-gray-800",
+  fis_no: "bg-muted text-foreground",
   gonderilen_yer: "bg-gray-500 text-white",
   alinan_tutar: "bg-yellow-500 text-white",
   satilan_tutar: "bg-green-600 text-white",
@@ -382,11 +382,11 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto border rounded-lg bg-white">
+      <div className="overflow-x-auto rounded-lg border bg-card">
         <table className="w-full text-sm">
           <thead>
             <tr>
-              <th className="p-2 border bg-gray-100 w-10">#</th>
+              <th className="w-10 border bg-muted p-2 text-muted-foreground">#</th>
               {COLUMNS.map(col => (
                 <th 
                   key={col} 
@@ -395,19 +395,19 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                   {HEADER_LABELS[col]}
                 </th>
               ))}
-              <th className="p-2 border bg-gray-100 w-10"></th>
+              <th className="w-10 border bg-muted p-2"></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={COLUMNS.length + 2} className="p-8 text-center text-gray-500">
+                <td colSpan={COLUMNS.length + 2} className="p-8 text-center text-muted-foreground">
                   Yükleniyor...
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={COLUMNS.length + 2} className="p-8 text-center text-gray-500">
+                <td colSpan={COLUMNS.length + 2} className="p-8 text-center text-muted-foreground">
                   Henüz kayıt yok. &quot;Satır Ekle&quot; butonuna tıklayarak başlayın.
                 </td>
               </tr>
@@ -416,17 +416,17 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                 // Kalan kar pozitifse (alinan > satilan) yeşil arka plan
                 const isProfit = row.kalan_kar > 0
                 return (
-                <tr key={rowIndex} className={`${isProfit ? "bg-green-50" : "hover:bg-gray-50"}`}>
-                  <td className="p-1 border text-center text-gray-500">{rowIndex + 1}</td>
+                <tr key={rowIndex} className={`${isProfit ? "bg-green-50 dark:bg-green-500/10" : "hover:bg-muted/50"}`}>
+                  <td className="border p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
                   {COLUMNS.map(col => (
                     <td key={col} className="p-0 border">
                       {col === "tarih" ? (
-                        <div className="px-2 py-1 bg-gray-100 text-center font-medium">
+                        <div className="bg-muted px-2 py-1 text-center font-medium text-foreground">
                           {formatDate(row.tarih)}
                         </div>
                       ) : col === "kalan_kar" ? (
                         <div className={`px-2 py-1 text-right font-semibold ${
-                          row.kalan_kar >= 0 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                          row.kalan_kar >= 0 ? "bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-200" : "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-200"
                         }`}>
                           {formatNumber(row.kalan_kar)} ₺
                         </div>
@@ -441,7 +441,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                           const padded = val.padStart(6, "0")
                           updateCell(rowIndex, col, padded)
                         }}
-                        className="w-full px-2 py-1 text-center font-mono focus:outline-none focus:bg-blue-50"
+                        className="w-full bg-transparent px-2 py-1 text-center font-mono text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"
                         placeholder="000000"
                         maxLength={6}
                         />
@@ -455,7 +455,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                               .toUpperCase()
                             updateCell(rowIndex, col, onlyLetters)
                           }}
-                          className="w-full px-2 py-1 text-left focus:outline-none focus:bg-blue-50"
+                          className="w-full bg-transparent px-2 py-1 text-left text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"
                           placeholder="Gönderilen yer"
                         />
                       ) : (
@@ -463,7 +463,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                           type="number"
                           value={(row as any)[col] || ""}
                           onChange={(e) => updateCell(rowIndex, col, e.target.value)}
-                          className="w-full px-2 py-1 text-right focus:outline-none focus:bg-blue-50"
+                          className="w-full bg-transparent px-2 py-1 text-right text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"
                           placeholder="0,00"
                         />
                       )}
@@ -472,7 +472,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                   <td className="p-1 border">
                     <button
                       onClick={() => deleteRow(rowIndex)}
-                      className="p-1 text-red-500 hover:bg-red-50 rounded"
+                      className="rounded p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/20"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -484,14 +484,14 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
           </tbody>
           {rows.length > 0 && (
             <tfoot>
-              <tr className="bg-gray-100 font-semibold">
+              <tr className="bg-muted font-semibold text-foreground">
                 <td className="p-2 border"></td>
                 <td className="p-2 border text-center">TOPLAM</td>
                 <td className="p-2 border"></td>
                 <td className="p-2 border"></td>
                 <td className="p-2 border text-right">{formatNumber(columnTotals.alinan_tutar)} ₺</td>
                 <td className="p-2 border text-right">{formatNumber(columnTotals.satilan_tutar)} ₺</td>
-                <td className={`p-2 border text-right font-bold ${columnTotals.kalan_kar >= 0 ? "text-green-700" : "text-red-700"}`}>
+                <td className={`p-2 border text-right font-bold ${columnTotals.kalan_kar >= 0 ? "text-green-700 dark:text-green-200" : "text-red-700 dark:text-red-200"}`}>
                   {formatNumber(columnTotals.kalan_kar)} ₺
                 </td>
                 <td className="p-2 border"></td>
