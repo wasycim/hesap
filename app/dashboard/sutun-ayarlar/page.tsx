@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -247,6 +248,7 @@ export default function SutunAyarlarPage() {
     setSaving(false)
     markClean()
     setSaveMessage({ type: "success", text: "Sütun ayarları kaydedildi." })
+    toast.success("Değişiklikler kaydedildi ✅")
     loadData()
     return true
   }

@@ -259,6 +259,7 @@ export default function CorbalarPage() {
 
     setSaving(false)
     markClean()
+    toast.success("Değişiklikler kaydedildi ✅")
     loadData()
     return true
   }

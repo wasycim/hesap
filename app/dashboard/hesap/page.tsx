@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -169,6 +170,7 @@ export default function HesapAyarlariPage() {
 
     if (ok) {
       markClean()
+      toast.success("Değişiklikler kaydedildi ✅")
     }
 
     return ok

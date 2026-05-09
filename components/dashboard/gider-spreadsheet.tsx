@@ -448,6 +448,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
 
     setSaving(false)
     markClean()
+    toast.success("Değişiklikler kaydedildi ✅")
     loadData()
     return true
   }

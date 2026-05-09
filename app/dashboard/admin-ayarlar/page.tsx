@@ -102,7 +102,7 @@ export default function AdminAyarlarPage() {
     setRole("user")
     setVardiya("T")
     setMessage("Kullanıcı oluşturuldu. İlk şifre: 123456")
-    toast.success("Kullanıcı oluşturuldu. İlk şifre: 123456")
+    toast.success("Değişiklikler kaydedildi ✅")
     setSavingUser(false)
     loadUsers()
   }
@@ -135,7 +135,7 @@ export default function AdminAyarlarPage() {
       return
     }
 
-    toast.success("Kullanıcı bilgileri güncellendi.")
+    toast.success("Değişiklikler kaydedildi ✅")
     setSavingEdit(false)
     loadUsers()
   }
@@ -160,7 +160,7 @@ export default function AdminAyarlarPage() {
     if (!error) {
       await logSecurityEvent("branch_create", { ad: name })
       setNewSubeName("")
-      toast.success("Şube eklendi.")
+      toast.success("Değişiklikler kaydedildi ✅")
       window.location.reload()
     } else {
       setMessage(error.message)
@@ -174,7 +174,7 @@ export default function AdminAyarlarPage() {
     const { error } = await supabase.from("subeler").delete().eq("id", id)
     if (!error) {
       await logSecurityEvent("branch_delete", { sube_id: id, ad: name })
-      toast.success("Şube silindi.")
+      toast.success("Değişiklikler kaydedildi ✅")
       window.location.reload()
     } else {
       setMessage(error.message)
@@ -395,4 +395,3 @@ export default function AdminAyarlarPage() {
     </div>
   )
 }
-

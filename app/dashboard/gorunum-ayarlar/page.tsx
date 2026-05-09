@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -63,6 +64,9 @@ export default function GorunumAyarlarPage() {
 
     if (!error) {
       await logSecurityEvent("visibility_update", { sube_id: selectedSubeId, visibility })
+      toast.success("Değişiklikler kaydedildi ✅")
+    } else {
+      toast.error("Değişiklikler kaydedilemedi.")
     }
     setSaving(false)
   }
@@ -126,4 +130,3 @@ export default function GorunumAyarlarPage() {
     </div>
   )
 }
-

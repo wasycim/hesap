@@ -370,6 +370,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
 
     setSaving(false)
     markClean()
+    toast.success("Değişiklikler kaydedildi ✅")
     loadData()
     return true
   }
