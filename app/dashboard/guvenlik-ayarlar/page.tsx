@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 interface SecurityEvent {
   id: string
   user_display_name?: string | null
+  branch_name?: string | null
   user_email: string | null
   event_type: string
   ip_address: string | null
@@ -96,6 +97,10 @@ function getUserKey(event: SecurityEvent) {
 
 function getUserDisplay(event: SecurityEvent) {
   return event.user_display_name || event.details?.display_name || event.user_email || event.details?.email || "-"
+}
+
+function getBranchDisplay(event: SecurityEvent) {
+  return event.branch_name || event.details?.sube_ad || event.details?.branch_name || "-"
 }
 
 function buildPasswordChangeCounts(events: SecurityEvent[]) {
@@ -377,7 +382,7 @@ export default function GuvenlikAyarlarPage() {
             <p className="text-xs text-muted-foreground">{filteredEvents.length} kayıt gösteriliyor.</p>
           </div>
           <div className="mobile-scroll overflow-x-auto rounded-lg border">
-            <table className="w-full min-w-[980px] text-sm">
+            <table className="w-full min-w-[1080px] text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="p-3 text-left">İşlem</th>
@@ -385,6 +390,7 @@ export default function GuvenlikAyarlarPage() {
                   <th className="p-3 text-left">IP Adresi</th>
                   <th className="p-3 text-left">Zaman</th>
                   <th className="p-3 text-left">Açıklama</th>
+                  <th className="p-3 text-left">Şube</th>
                   <th className="p-3 text-center">Detay</th>
                 </tr>
               </thead>
@@ -417,6 +423,7 @@ export default function GuvenlikAyarlarPage() {
                           </pre>
                         )}
                       </td>
+                      <td className="p-3 font-medium">{getBranchDisplay(event)}</td>
                       <td className="p-3 text-center">
                         <Button
                           variant="ghost"

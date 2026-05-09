@@ -52,12 +52,26 @@ export async function GET() {
     String(user.email || "").toLowerCase(),
     String(user.user_metadata?.display_name || "").trim(),
   ]))
+  const { data: profiles } = await admin
+    .from("user_profiles")
+    .select("user_id, email, sube_id, subeler:sube_id(ad)")
+  const { data: branches } = await admin
+    .from("subeler")
+    .select("id, ad")
+
+  const branchById = new Map((branches || []).map(branch => [branch.id, branch.ad]))
+  const getProfileBranch = (profile: any) => Array.isArray(profile.subeler) ? profile.subeler[0]?.ad : profile.subeler?.ad
+  const branchByUserId = new Map((profiles || []).map(profile => [profile.user_id, getProfileBranch(profile)]))
+  const branchByEmail = new Map((profiles || []).map(profile => [String(profile.email || "").toLowerCase(), getProfileBranch(profile)]))
 
   const events = (data || []).map(event => {
     const email = String(event.user_email || "").toLowerCase()
+    const details = event.details || {}
+    const detailBranchId = details.sube_id || details.branch_id
     return {
       ...event,
       user_display_name: displayNameById.get(event.user_id) || displayNameByEmail.get(email) || null,
+      branch_name: branchById.get(detailBranchId) || details.sube_ad || details.branch_name || branchByUserId.get(event.user_id) || branchByEmail.get(email) || null,
     }
   })
 
