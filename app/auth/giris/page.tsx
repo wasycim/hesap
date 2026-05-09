@@ -33,7 +33,7 @@ export default function GirisPage() {
     if (error) {
       await logSecurityEvent("failed_login", {
         email: email.trim().toLowerCase(),
-        reason: error.message === "Invalid login credentials" ? "E-posta veya sifre hatali." : error.message,
+        reason: error.message === "Invalid login credentials" ? "E-posta veya şifre hatalı." : error.message,
       })
       setError(error.message === "Invalid login credentials"
         ? "E-posta veya şifre hatalı"
@@ -50,23 +50,28 @@ export default function GirisPage() {
   return (
     <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-5xl items-center justify-center">
-        <Card className="grid w-full overflow-hidden rounded-3xl border shadow-xl md:grid-cols-[0.95fr_1.05fr]">
-          <CardHeader className="flex min-h-[380px] flex-col justify-between border-b bg-muted/30 p-8 md:border-b-0 md:border-r md:p-10">
-            <div className="flex items-start justify-between gap-4">
-              <div
-                aria-label="Wasy logo"
-                className="h-24 w-40 rounded-3xl border bg-card bg-[url('/w-icon.png')] bg-contain bg-center bg-no-repeat shadow-inner shadow-primary/20 transition-all duration-700 dark:invert sm:h-32 sm:w-52"
+        <Card className="relative grid w-full overflow-hidden rounded-[2rem] border bg-card shadow-2xl md:grid-cols-[0.98fr_1.02fr]">
+          <div className="absolute right-5 top-5 z-10">
+            <ThemeToggle />
+          </div>
+          <CardHeader className="relative flex min-h-[390px] flex-col justify-between overflow-hidden border-b p-8 md:border-b-0 md:p-10">
+            <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-28 bg-gradient-to-r from-transparent via-card/60 to-card md:block" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_32%_22%,hsl(var(--primary)/0.18),transparent_34%),linear-gradient(135deg,hsl(var(--muted)/0.75),transparent_65%)]" />
+            <div className="relative flex items-start">
+              <img
+                src="/iconw.png"
+                alt="W logo"
+                className="h-36 w-56 object-contain object-left drop-shadow-2xl transition-all duration-700 sm:h-44 sm:w-72"
               />
-              <ThemeToggle />
             </div>
-            <div className="space-y-3">
+            <div className="relative space-y-3">
               <CardTitle className="text-3xl font-bold">Hesap Rapor Sistemi</CardTitle>
               <CardDescription className="text-base">Hesabınıza giriş yapın.</CardDescription>
             </div>
           </CardHeader>
 
           <form onSubmit={handleLogin}>
-            <CardContent className="space-y-6 p-8 md:p-10">
+            <CardContent className="space-y-6 p-8 pt-20 md:p-10 md:pt-20">
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>

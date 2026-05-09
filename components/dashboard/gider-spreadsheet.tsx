@@ -532,7 +532,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
         </div>
       )}
 
-      <div className="mobile-scroll overflow-x-auto rounded-lg border bg-card">
+      <div className="overflow-x-auto rounded-lg border bg-card">
         <table className="min-w-max text-sm">
           <thead>
             <tr>
