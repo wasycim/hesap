@@ -127,6 +127,8 @@ function getSeverity(event: SecurityEvent, passwordChangeCount: number, isDiffer
   if (isDifferentIp) return "critical"
   if (isSharedIp) return "medium"
   if (["row_delete", "column_delete", "person_delete", "kargo_cari_delete"].includes(event.event_type)) return "critical"
+  if (event.event_type === "user_create" && event.details?.is_admin) return "critical"
+  if (event.event_type === "user_update" && event.details?.is_admin) return "critical"
   if (event.event_type === "column_hide") return "medium"
   if (event.event_type === "password_change") {
     if (passwordChangeCount >= 3) return "critical"
@@ -150,7 +152,9 @@ function getSummary(event: SecurityEvent, passwordChangeCount: number, isDiffere
   if (event.event_type === "login" && isDifferentIp) return `Kullanıcı farklı bir IP adresinden giriş yaptı: ${event.ip_address || "-"}`
   if (event.event_type === "login" && isSharedIp) return `Aynı IP adresinden farklı bir hesaba giriş yapıldı: ${event.ip_address || "-"}`
   if (event.event_type === "login") return `Kullanıcı giriş yaptı.`
+  if (event.event_type === "user_create" && details.is_admin) return `${details.created_email || "Kullanıcı"} yönetici hesabı olarak oluşturuldu.`
   if (event.event_type === "user_create") return `${details.created_email || "Kullanıcı"} oluşturuldu.`
+  if (event.event_type === "user_update" && details.is_admin) return `Kullanıcı yönetici yetkisine geçirildi.`
   if (event.event_type === "user_update") return `Kullanıcı yetki/şube/vardiya bilgileri güncellendi.`
   if (event.event_type === "branch_create") return `${label || "Şube"} şubesi eklendi.`
   if (event.event_type === "branch_delete") return `${label || "Şube"} şubesi silindi.`
