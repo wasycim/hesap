@@ -5,6 +5,7 @@ import { AlertTriangle, Code2, Columns3, KeyRound, Monitor, Shield, Trash2, User
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 
 interface SecurityEvent {
@@ -242,6 +243,7 @@ export default function GuvenlikAyarlarPage() {
   const [openDetails, setOpenDetails] = useState<Record<string, boolean>>({})
   const [eventFilter, setEventFilter] = useState<EventFilter>("all")
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
+  const [branchFilter, setBranchFilter] = useState("all")
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const supabase = createClient()
@@ -257,15 +259,19 @@ export default function GuvenlikAyarlarPage() {
 
     return { event, passwordCount, isDifferentIp, isSharedIp, severity }
   }), [events, passwordChangeCounts, differentIpEvents, sharedIpEvents])
+  const branchOptions = useMemo(() => (
+    Array.from(new Set(events.map(getBranchDisplay).filter(branch => branch !== "-"))).sort((a, b) => a.localeCompare(b, "tr"))
+  ), [events])
 
   const filteredEvents = useMemo(() => eventsWithSeverity.filter(item => {
+    if (branchFilter !== "all" && getBranchDisplay(item.event) !== branchFilter) return false
     if (severityFilter !== "all" && item.severity !== severityFilter) return false
     if (eventFilter === "login") return item.event.event_type === "login" || item.event.event_type === "failed_login"
     if (eventFilter === "different_login") return item.event.event_type === "login" && item.isDifferentIp
     if (eventFilter === "delete") return item.event.event_type.endsWith("_delete") || item.event.event_type === "branch_delete_failed"
     if (eventFilter === "hide") return item.event.event_type === "column_hide" || item.event.event_type === "visibility_update"
     return true
-  }), [eventsWithSeverity, eventFilter, severityFilter])
+  }), [eventsWithSeverity, eventFilter, severityFilter, branchFilter])
 
   useEffect(() => {
     loadData()
@@ -386,6 +392,19 @@ export default function GuvenlikAyarlarPage() {
             </div>
             <p className="text-xs text-muted-foreground">{filteredEvents.length} kayıt gösteriliyor.</p>
           </div>
+            <div className="max-w-xs">
+              <Select value={branchFilter} onValueChange={setBranchFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Şube seç" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tüm Şubeler</SelectItem>
+                  {branchOptions.map(branch => (
+                    <SelectItem key={branch} value={branch}>{branch}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           <div className="mobile-scroll overflow-x-auto rounded-lg border">
             <table className="w-full min-w-[1080px] text-sm">
               <thead>
