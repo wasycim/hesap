@@ -3,8 +3,12 @@ export type SecurityEventType =
   | "row_delete"
   | "column_delete"
   | "column_hide"
+  | "person_delete"
+  | "kargo_cari_delete"
+  | "ortak_delete"
   | "password_change"
   | "user_create"
+  | "user_update"
   | "branch_create"
   | "branch_delete"
   | "visibility_update"
@@ -20,4 +24,3 @@ export async function logSecurityEvent(eventType: SecurityEventType, details: Re
     console.warn("Güvenlik kaydı oluşturulamadı", error)
   }
 }
-

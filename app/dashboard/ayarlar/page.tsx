@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Trash2, Users, Package } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
+import { logSecurityEvent } from "@/lib/audit-log"
 
 interface Ortak {
   id: string
@@ -139,20 +140,26 @@ export default function AyarlarPage() {
 
   async function deleteOrtak(id: string) {
     if (!confirm("Bu ortagi silmek istediginizden emin misiniz?")) return
+    const ortak = ortaklar.find(item => item.id === id)
     await supabase.from("ortaklar").delete().eq("id", id)
+    await logSecurityEvent("ortak_delete", { id, label: ortak?.ad, sube_id: currentSube?.id })
     loadData()
   }
 
   async function deletePersonel(id: string) {
     if (!confirm("Bu personeli silmek istediginizden emin misiniz?")) return
+    const personel = personeller.find(item => item.id === id)
     await supabase.from("personeller").delete().eq("id", id)
+    await logSecurityEvent("person_delete", { id, label: personel?.ad, sube_id: currentSube?.id })
     loadData()
   }
 
   async function deleteKargoFirma(id: string) {
     if (!confirm("Bu firmayı ve tüm kayıtlarını silmek istediğinizden emin misiniz?")) return
+    const firma = kargoFirmalar.find(item => item.id === id)
     await supabase.from("kargo_cari_kayitlar").delete().eq("firma_id", id)
     await supabase.from("kargo_cari_firmalar").delete().eq("id", id)
+    await logSecurityEvent("kargo_cari_delete", { id, label: firma?.ad, sube_id: currentSube?.id })
     loadData()
     window.dispatchEvent(new Event("kargo-firmalar-changed"))
   }
