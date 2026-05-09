@@ -22,6 +22,7 @@ type EventFilter = "all" | "login" | "different_login" | "delete" | "hide"
 type SeverityFilter = "all" | Severity
 
 const EVENT_LABELS: Record<string, string> = {
+  failed_login: "Hatali giris",
   login: "Giriş",
   row_delete: "Satır silme",
   column_delete: "Sütun silme",
@@ -40,6 +41,7 @@ const EVENT_LABELS: Record<string, string> = {
 }
 
 const EVENT_ICONS: Record<string, any> = {
+  failed_login: AlertTriangle,
   login: Monitor,
   row_delete: Trash2,
   column_delete: Columns3,
@@ -175,6 +177,7 @@ function buildSharedLoginIpEvents(events: SecurityEvent[]) {
 }
 
 function getSeverity(event: SecurityEvent, passwordChangeCount: number, isDifferentIp: boolean, isSharedIp: boolean): Severity {
+  if (event.event_type === "failed_login") return "warning"
   if (isDifferentIp) return "critical"
   if (isSharedIp) return "medium"
   if (event.event_type === "branch_delete_failed") return "critical"
@@ -194,6 +197,7 @@ function getSeverity(event: SecurityEvent, passwordChangeCount: number, isDiffer
 function getSummary(event: SecurityEvent, passwordChangeCount: number, isDifferentIp: boolean, isSharedIp: boolean) {
   const details = event.details || {}
   const label = details.label || details.ad || details.name
+  if (event.event_type === "failed_login") return `${details.email || event.user_email || "Bilinmeyen kullanici"} icin hatali sifre denemesi yapildi.`
 
   if (event.event_type === "column_hide") return `${label || "Bir sütun"} gizlendi.`
   if (event.event_type === "column_delete") return `${label || "Bir sütun"} sütunu silindi.`
@@ -241,7 +245,7 @@ export default function GuvenlikAyarlarPage() {
 
   const filteredEvents = useMemo(() => eventsWithSeverity.filter(item => {
     if (severityFilter !== "all" && item.severity !== severityFilter) return false
-    if (eventFilter === "login") return item.event.event_type === "login"
+    if (eventFilter === "login") return item.event.event_type === "login" || item.event.event_type === "failed_login"
     if (eventFilter === "different_login") return item.event.event_type === "login" && item.isDifferentIp
     if (eventFilter === "delete") return item.event.event_type.endsWith("_delete") || item.event.event_type === "branch_delete_failed"
     if (eventFilter === "hide") return item.event.event_type === "column_hide" || item.event.event_type === "visibility_update"

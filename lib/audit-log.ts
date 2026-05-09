@@ -1,5 +1,6 @@
 export type SecurityEventType =
   | "login"
+  | "failed_login"
   | "row_delete"
   | "column_delete"
   | "column_hide"

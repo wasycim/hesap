@@ -48,11 +48,6 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const { user, profile } = await getCurrentUserAndProfile()
-
-  if (!user) {
-    return NextResponse.json({ error: "Oturum bulunamadı." }, { status: 401 })
-  }
-
   const body = await request.json().catch(() => ({}))
   const eventType = String(body.eventType || "").trim()
 
@@ -60,14 +55,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Kayıt tipi gerekli." }, { status: 400 })
   }
 
+  if (!user && eventType !== "failed_login") {
+    return NextResponse.json({ error: "Oturum bulunamadı." }, { status: 401 })
+  }
+
+  const details = body.details || {}
   const admin = createAdminClient()
   const { error } = await admin.from("security_events").insert({
-    user_id: user.id,
-    user_email: profile?.email || user.email,
+    user_id: user?.id || null,
+    user_email: profile?.email || user?.email || details.email || null,
     event_type: eventType,
     ip_address: getClientIp(request),
     user_agent: request.headers.get("user-agent"),
-    details: body.details || {},
+    details,
   })
 
   if (error) {
@@ -76,4 +76,3 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ ok: true })
 }
-

@@ -31,6 +31,10 @@ export default function GirisPage() {
     })
 
     if (error) {
+      await logSecurityEvent("failed_login", {
+        email: email.trim().toLowerCase(),
+        reason: error.message === "Invalid login credentials" ? "E-posta veya sifre hatali." : error.message,
+      })
       setError(error.message === "Invalid login credentials"
         ? "E-posta veya şifre hatalı"
         : error.message)
