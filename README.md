@@ -971,5 +971,4 @@ Corbalari bir subede kapatmak:
 
 ## Lisans
 
-Bu repoda acik bir lisans dosyasi bulunmamaktadir. Kullanim ve dagitim haklari repo sahibinin kararina baglidir.
-
+Bu proje MIT lisansi ile lisanslanmistir. Detaylar icin `LICENSE` dosyasina bakin.
