@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button"
 import { useSube } from "@/contexts/sube-context"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 interface SidebarProps {
   userEmail: string
@@ -340,8 +341,9 @@ export function DashboardSidebar({ userEmail }: SidebarProps) {
           })}
         </ul>
 
-        <div className="mb-3 rounded-lg bg-sidebar-accent/30 px-3 py-2">
-          <p className="truncate text-xs font-medium text-sidebar-foreground/80">{userEmail}</p>
+        <div className="mb-3 flex items-center gap-2 rounded-lg bg-sidebar-accent/30 px-3 py-2">
+          <p className="min-w-0 flex-1 truncate text-xs font-medium text-sidebar-foreground/80">{userEmail}</p>
+          <ThemeToggle className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground" />
         </div>
         <Button
           variant="ghost"
@@ -383,4 +385,3 @@ export function DashboardSidebar({ userEmail }: SidebarProps) {
     </>
   )
 }
-

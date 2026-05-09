@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/sonner'
+import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -36,17 +37,19 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="tr" className="bg-background">
+    <html lang="tr" className="bg-background" suppressHydrationWarning>
       <body className="font-sans antialiased bg-background">
-        {children}
-        <Toaster
-          position="top-right"
-          richColors
-          toastOptions={{
-            className: "border-emerald-700 bg-emerald-950 text-emerald-100",
-          }}
-        />
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem storageKey="hesap-theme">
+          {children}
+          <Toaster
+            position="top-right"
+            richColors
+            toastOptions={{
+              className: "border-emerald-700 bg-emerald-950 text-emerald-100",
+            }}
+          />
+          {process.env.NODE_ENV === 'production' && <Analytics />}
+        </ThemeProvider>
       </body>
     </html>
   )
