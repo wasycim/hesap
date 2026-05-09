@@ -527,16 +527,16 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       </div>
 
       {(ortaklar.length === 0 || personeller.length === 0) && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-yellow-800">
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-yellow-800 dark:border-yellow-500/30 dark:bg-yellow-500/15 dark:text-yellow-100">
           <strong>Dikkat:</strong> Önce &quot;Ayarlar&quot; sayfasından ortakları ve personelleri eklemeniz gerekiyor.
         </div>
       )}
 
-      <div className="overflow-x-auto border rounded-lg">
+      <div className="overflow-x-auto rounded-lg border bg-card">
         <table className="w-full text-sm">
           <thead>
             <tr>
-              <th className="p-2 border bg-gray-100 w-10 sticky left-0">#</th>
+              <th className="sticky left-0 w-10 border bg-muted p-2 text-muted-foreground">#</th>
               {allColumns.map(col => (
                 <th 
                   key={col.key} 
@@ -545,7 +545,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
                   {col.label}
                 </th>
               ))}
-              <th className="p-2 border bg-gray-100 w-10"></th>
+              <th className="w-10 border bg-muted p-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -554,8 +554,8 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
               const canEditVardiya = isAdmin || (row.tarih === getLocalDateString() && (isTekVardiya || userVardiya === row.vardiya))
               
               return (
-              <tr key={rowIndex} className={`hover:bg-gray-50 ${!canEditVardiya ? "bg-gray-100/50 opacity-70" : ""}`}>
-                <td className="p-1 border text-center text-gray-500 sticky left-0 bg-white">{rowIndex + 1}</td>
+              <tr key={rowIndex} className={`hover:bg-muted/50 ${!canEditVardiya ? "bg-muted/50 opacity-70" : ""}`}>
+                <td className="sticky left-0 border bg-card p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
                 {allColumns.map(col => {
                   const isOrtak = col.key.startsWith("ortak_")
                   const isPersonel = col.key.startsWith("personel_")
@@ -575,17 +575,17 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
                   return (
                     <td key={col.key} className="p-0 border">
                       {col.key === "tarih" ? (
-                        <div className="px-2 py-1 bg-gray-100 text-center font-medium">
+                        <div className="bg-muted px-2 py-1 text-center font-medium text-foreground">
                           {formatDate(row.tarih)}
                         </div>
                       ) : col.key === "vardiya" ? (
                         <div className={`px-2 py-1 text-center font-bold ${
-                          row.vardiya === "S" ? "bg-amber-100 text-amber-700" : "bg-indigo-100 text-indigo-700"
+                          row.vardiya === "S" ? "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200" : "bg-indigo-100 text-indigo-800 dark:bg-indigo-500/20 dark:text-indigo-200"
                         }`}>
                           {row.vardiya}
                         </div>
                       ) : col.key === "genel_toplam" ? (
-                        <div className="px-2 py-1 text-right font-bold bg-red-100 text-red-800">
+                        <div className="bg-red-100 px-2 py-1 text-right font-bold text-red-800 dark:bg-red-500/20 dark:text-red-200">
                           {formatNumber(row.genel_toplam)} ₺
                         </div>
                       ) : canEditVardiya ? (
@@ -602,11 +602,11 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
                               updateCell(rowIndex, col.key, newVal)
                             }
                           }}
-                          className="w-full px-2 py-1 text-right focus:outline-none focus:bg-blue-50"
+                          className="w-full bg-transparent px-2 py-1 text-right text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"
                           placeholder="0,00"
                         />
                       ) : (
-                        <div className="px-2 py-1 text-right text-gray-600">
+                        <div className="px-2 py-1 text-right text-muted-foreground">
                           {formatNumber(value)} ₺
                         </div>
                       )}
@@ -617,7 +617,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
                   {canEditVardiya && (
                     <button
                       onClick={() => deleteRow(rowIndex)}
-                      className="p-1 text-red-500 hover:bg-red-50 rounded"
+                      className="rounded p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/20"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -627,7 +627,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
             )})}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={allColumns.length + 2} className="p-8 text-center text-gray-500">
+                <td colSpan={allColumns.length + 2} className="p-8 text-center text-muted-foreground">
                   Henüz kayıt yok. &quot;Satır Ekle&quot; butonuna tıklayarak başlayın.
                 </td>
               </tr>
@@ -635,7 +635,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
           </tbody>
           {rows.length > 0 && (
             <tfoot>
-              <tr className="bg-gray-100 font-semibold">
+              <tr className="bg-muted font-semibold text-foreground">
                 <td className="p-2 border text-center">TOPLAM</td>
                 {allColumns.map(col => (
                   <td key={col.key} className="p-2 border text-right">

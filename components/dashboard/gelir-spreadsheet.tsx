@@ -411,11 +411,11 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
         </Button>
       </div>
 
-      <div className="overflow-x-auto border rounded-lg">
+      <div className="overflow-x-auto rounded-lg border bg-card">
         <table className="w-full text-sm">
           <thead>
             <tr>
-              <th className="p-2 border bg-gray-100 w-10">#</th>
+              <th className="w-10 border bg-muted p-2 text-muted-foreground">#</th>
               {visibleColumns.map(col => (
                 <th 
                   key={col} 
@@ -424,7 +424,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                   {columnLabelMap[col] || HEADER_LABELS[col] || col}
                 </th>
               ))}
-              <th className="p-2 border bg-gray-100 w-10"></th>
+              <th className="w-10 border bg-muted p-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -434,23 +434,23 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
               const canEdit = canEditVardiya
               
               return (
-              <tr key={rowIndex} className={`hover:bg-gray-50 ${!canEditVardiya ? "bg-gray-100/50 opacity-70" : ""}`}>
-                <td className="p-1 border text-center text-gray-500">{rowIndex + 1}</td>
+              <tr key={rowIndex} className={`hover:bg-muted/50 ${!canEditVardiya ? "bg-muted/50 opacity-70" : ""}`}>
+                <td className="border p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
                 {visibleColumns.map(col => (
                   <td key={col} className="p-0 border">
                     {col === "tarih" ? (
-                      <div className="px-2 py-1 bg-gray-100 text-center font-medium">
+                      <div className="bg-muted px-2 py-1 text-center font-medium text-foreground">
                         {formatDate(row.tarih)}
                       </div>
                     ) : col === "vardiya" ? (
                       <div className={`px-2 py-1 text-center font-bold ${
-                        row.vardiya === "S" ? "bg-amber-100 text-amber-700" : "bg-indigo-100 text-indigo-700"
+                        row.vardiya === "S" ? "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200" : "bg-indigo-100 text-indigo-800 dark:bg-indigo-500/20 dark:text-indigo-200"
                       }`}>
                         {row.vardiya}
                       </div>
                     ) : col === "toplam" || col === "kalan" ? (
                       <div className={`px-2 py-1 text-right font-semibold ${
-                        col === "kalan" ? (row.kalan >= 0 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800") : "bg-gray-100"
+                        col === "kalan" ? (row.kalan >= 0 ? "bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-200" : "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-200") : "bg-muted text-foreground"
                       }`}>
                         {formatNumber(getCellValue(row, col))} ₺
                       </div>
@@ -461,8 +461,8 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                           onChange={(e) => updateCell(rowIndex, col, e.target.value)}
                           className={`w-full px-2 py-1.5 text-center font-medium cursor-pointer border-0 ${
                             row.durum === "KONTROL EDİLDİ" 
-                              ? "bg-emerald-100 text-emerald-700" 
-                              : "bg-red-100 text-red-700"
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200" 
+                              : "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-200"
                           }`}
                         >
                           <option value="KONTROL EDİLMEDİ" className="bg-red-100 text-red-700">KONTROL EDİLMEDİ</option>
@@ -471,14 +471,14 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                       ) : (
                         <div className={`w-full px-2 py-1.5 text-center font-medium ${
                           row.durum === "KONTROL EDİLDİ" 
-                            ? "bg-emerald-100 text-emerald-700" 
-                            : "bg-red-100 text-red-700"
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200" 
+                            : "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-200"
                         }`}>
                           {row.durum}
                         </div>
                       )
                     ) : col === "giderler" ? (
-                      <div className="px-2 py-1 text-right bg-red-50 text-red-700 font-medium">
+                      <div className="bg-red-50 px-2 py-1 text-right font-medium text-red-700 dark:bg-red-500/15 dark:text-red-200">
                         {formatNumber(row.giderler)} ₺
                       </div>
                     ) : canEdit ? (
@@ -486,11 +486,11 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                         type="number"
                         value={getCellValue(row, col) || ""}
                         onChange={(e) => updateCell(rowIndex, col, e.target.value)}
-                        className="w-full px-2 py-1 text-right focus:outline-none focus:bg-blue-50"
+                        className="w-full bg-transparent px-2 py-1 text-right text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"
                         placeholder="0,00"
                       />
                     ) : (
-                      <div className="px-2 py-1 text-right text-gray-600">
+                      <div className="px-2 py-1 text-right text-muted-foreground">
                         {formatNumber(getCellValue(row, col) || 0)} ₺
                       </div>
                     )}
@@ -500,7 +500,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                   {canEdit && (
                     <button
                       onClick={() => deleteRow(rowIndex)}
-                      className="p-1 text-red-500 hover:bg-red-50 rounded"
+                      className="rounded p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/20"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -511,7 +511,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
             
             {rows.length === 0 && (
               <tr>
-                <td colSpan={visibleColumns.length + 2} className="p-8 text-center text-gray-500">
+                <td colSpan={visibleColumns.length + 2} className="p-8 text-center text-muted-foreground">
                   Henüz kayıt yok. &quot;Satır Ekle&quot; butonuna tıklayarak başlayın.
                 </td>
               </tr>
@@ -519,7 +519,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
           </tbody>
           {rows.length > 0 && (
             <tfoot>
-              <tr className="bg-gray-100 font-semibold">
+              <tr className="bg-muted font-semibold text-foreground">
                 <td className="p-2 border"></td>
                 <td className="p-2 border text-center">TOPLAM</td>
                 {visibleColumns.slice(1).map(col => (
