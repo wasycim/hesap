@@ -19,9 +19,9 @@ export default async function DashboardLayout({
   return (
     <SubeProvider>
   <UnsavedChangesProvider>
-    <div className="flex h-screen bg-background">
+    <div className="flex h-dvh bg-background lg:flex-row">
       <DashboardSidebar userEmail={user.email ?? ""} displayName={String(user.user_metadata?.display_name || "")} />
-      <main className="flex-1 overflow-auto">
+      <main className="mobile-safe-area min-w-0 flex-1 overflow-auto pt-14 lg:pt-0">
         {children}
       </main>
     </div>

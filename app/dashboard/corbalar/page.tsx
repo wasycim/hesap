@@ -284,20 +284,20 @@ export default function CorbalarPage() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 bg-orange-600 text-white">
+      <div className="flex flex-col gap-3 bg-orange-600 p-4 text-white sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Soup className="h-6 w-6" />
           <h1 className="text-xl font-bold">Çorbalar</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 sm:flex">
           <Button variant="ghost" size="icon" onClick={prevMonth} className="text-white hover:bg-orange-700">
             <ChevronLeft className="h-5 w-5" />
           </Button>
           <div className="flex items-center gap-2">
             <Select value={month} onValueChange={setMonth}>
-              <SelectTrigger className="w-28 bg-orange-700 border-orange-500 text-white">
+              <SelectTrigger className="w-full min-w-0 bg-orange-700 border-orange-500 text-white sm:w-28">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -307,7 +307,7 @@ export default function CorbalarPage() {
               </SelectContent>
             </Select>
             <Select value={year.toString()} onValueChange={(v) => setYear(Number(v))}>
-              <SelectTrigger className="w-20 bg-orange-700 border-orange-500 text-white">
+              <SelectTrigger className="w-full min-w-0 bg-orange-700 border-orange-500 text-white sm:w-20">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -323,7 +323,7 @@ export default function CorbalarPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto p-3 sm:p-4">
         {personeller.length === 0 ? (
           <Card className="max-w-md mx-auto mt-8">
             <CardContent className="p-6 text-center">
@@ -337,7 +337,7 @@ export default function CorbalarPage() {
         ) : (
           <>
             {/* Personel Toplam Kartlari */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
+            <div className="mb-6 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-4 lg:grid-cols-6">
               {personeller.map(personel => (
                 <Card key={personel.id} className="border-amber-200 bg-amber-50 shadow-sm dark:border-amber-500/30 dark:bg-amber-500/15">
                   <CardContent className="p-4">
@@ -349,7 +349,7 @@ export default function CorbalarPage() {
             </div>
 
             {/* Butonlar */}
-            <div className="flex items-center gap-2 mb-4">
+            <div className="mb-4 flex flex-wrap items-center gap-2">
               <Button onClick={addRow} size="sm" className="bg-orange-600 hover:bg-orange-700">
                 <Plus className="w-4 h-4 mr-1" /> Satır Ekle
               </Button>
@@ -359,8 +359,8 @@ export default function CorbalarPage() {
             </div>
 
             {/* Tablo */}
-            <div className="overflow-x-auto rounded-lg border bg-card">
-              <table className="w-full text-sm">
+            <div className="mobile-scroll overflow-x-auto rounded-lg border bg-card">
+              <table className="min-w-max text-sm">
                 <thead>
                   <tr>
                     <th className="w-10 border bg-muted p-2 text-muted-foreground">#</th>

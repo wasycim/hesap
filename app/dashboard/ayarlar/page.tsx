@@ -218,13 +218,13 @@ export default function AyarlarPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <h1 className="text-2xl font-bold text-foreground mb-2">Ayarlar</h1>
       <p className="text-sm text-muted-foreground mb-6">
         {currentSube?.ad ? `${currentSube.ad} şubesi için ayarlar` : "Şube seçimi bekleniyor"}
       </p>
       
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
         {/* Ortaklar Card */}
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
           <div className="bg-gradient-to-r from-amber-400 to-yellow-500 px-5 py-4">

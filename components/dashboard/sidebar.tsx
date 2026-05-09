@@ -369,7 +369,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
       <Button
         variant="ghost"
         size="icon"
-        className="fixed left-4 top-4 z-50 lg:hidden"
+        className="fixed left-4 top-[calc(0.75rem+env(safe-area-inset-top))] z-50 border bg-background/90 shadow-sm backdrop-blur lg:hidden"
         onClick={() => setMobileOpen(!mobileOpen)}
       >
         {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -382,7 +382,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
         />
       )}
 
-      <aside className={cn("fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-sidebar transition-transform lg:hidden", mobileOpen ? "translate-x-0" : "-translate-x-full")}>
+      <aside className={cn("fixed inset-y-0 left-0 z-40 flex w-[min(18rem,86vw)] flex-col bg-sidebar pt-[env(safe-area-inset-top)] shadow-2xl transition-transform duration-300 ease-out lg:hidden", mobileOpen ? "translate-x-0" : "-translate-x-full")}>
         <SidebarContent />
       </aside>
 

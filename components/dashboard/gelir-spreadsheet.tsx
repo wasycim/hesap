@@ -402,7 +402,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button onClick={addRow} size="sm" className="bg-green-600 hover:bg-green-700">
           <Plus className="w-4 h-4 mr-1" /> Satır Ekle
         </Button>
@@ -411,8 +411,8 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border bg-card">
-        <table className="w-full text-sm">
+      <div className="mobile-scroll overflow-x-auto rounded-lg border bg-card">
+        <table className="min-w-max text-sm">
           <thead>
             <tr>
               <th className="w-10 border bg-muted p-2 text-muted-foreground">#</th>

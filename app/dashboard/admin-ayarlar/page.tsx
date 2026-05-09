@@ -283,7 +283,7 @@ export default function AdminAyarlarPage() {
   }
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       <div>
         <h1 className="text-2xl font-bold">Admin Ayarları</h1>
         <p className="text-sm text-muted-foreground">Kullanıcı, yetki, vardiya ve şube yönetimi.</p>
@@ -474,7 +474,7 @@ export default function AdminAyarlarPage() {
           <CardTitle>Kullanıcılar</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="mobile-scroll overflow-x-auto rounded-lg border">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">

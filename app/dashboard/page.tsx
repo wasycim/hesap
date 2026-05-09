@@ -121,7 +121,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 space-y-6">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -130,9 +130,9 @@ export default function DashboardPage() {
         </div>
         
         {/* Ay/Yıl Seçimi */}
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
           <Select value={month} onValueChange={setMonth}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-full sm:w-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -142,7 +142,7 @@ export default function DashboardPage() {
             </SelectContent>
           </Select>
           <Select value={year.toString()} onValueChange={(v) => setYear(Number(v))}>
-            <SelectTrigger className="w-24">
+            <SelectTrigger className="w-full sm:w-24">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

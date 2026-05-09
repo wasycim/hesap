@@ -332,7 +332,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   }
 
   return (
-    <div className="p-6 lg:p-8 space-y-6">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -341,12 +341,12 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         </div>
 
         {/* Ay/Yil Secimi */}
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-[auto_1fr_0.8fr_auto] items-center gap-2 sm:flex">
           <Button variant="outline" size="icon" onClick={prevMonth}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <Select value={month} onValueChange={setMonth}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-full min-w-0 sm:w-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -356,7 +356,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
             </SelectContent>
           </Select>
           <Select value={year.toString()} onValueChange={(v) => setYear(Number(v))}>
-            <SelectTrigger className="w-24">
+            <SelectTrigger className="w-full min-w-0 sm:w-24">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -372,7 +372,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button onClick={addRow} size="sm" className="bg-green-600 hover:bg-green-700">
           <Plus className="w-4 h-4 mr-1" /> Satır Ekle
         </Button>
@@ -382,8 +382,8 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-lg border bg-card">
-        <table className="w-full text-sm">
+      <div className="mobile-scroll overflow-x-auto rounded-lg border bg-card">
+        <table className="min-w-max text-sm">
           <thead>
             <tr>
               <th className="w-10 border bg-muted p-2 text-muted-foreground">#</th>

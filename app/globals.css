@@ -121,7 +121,18 @@
   }
   body {
     @apply bg-background text-foreground;
+    -webkit-tap-highlight-color: transparent;
   }
+}
+
+.mobile-safe-area {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+.mobile-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 
 @keyframes page-enter {

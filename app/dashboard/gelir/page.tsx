@@ -49,14 +49,14 @@ export default function GelirPage() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-4 bg-emerald-600 text-white">
+    <div className="flex h-full flex-col">
+      <div className="flex flex-col gap-3 bg-emerald-600 p-4 text-white sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <TrendingUp className="h-6 w-6" />
           <h1 className="text-xl font-bold">Gelir Tablosu</h1>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-[auto_1fr_0.8fr_auto] items-center gap-2 sm:flex">
           <Button 
             variant="ghost" 
             size="icon" 
@@ -67,7 +67,7 @@ export default function GelirPage() {
           </Button>
           
           <Select value={month} onValueChange={setMonth}>
-            <SelectTrigger className="w-32 bg-emerald-700 border-emerald-500 text-white">
+            <SelectTrigger className="w-full min-w-0 bg-emerald-700 border-emerald-500 text-white sm:w-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -78,7 +78,7 @@ export default function GelirPage() {
           </Select>
           
           <Select value={year.toString()} onValueChange={(v) => setYear(parseInt(v))}>
-            <SelectTrigger className="w-24 bg-emerald-700 border-emerald-500 text-white">
+            <SelectTrigger className="w-full min-w-0 bg-emerald-700 border-emerald-500 text-white sm:w-24">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -99,7 +99,7 @@ export default function GelirPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto p-3 sm:p-4">
         <GelirSpreadsheet month={month} year={year} />
       </div>
     </div>

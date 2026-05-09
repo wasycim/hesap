@@ -310,7 +310,7 @@ export default function SutunAyarlarPage() {
           <h3 className="font-semibold">Sütun Önizleme</h3>
           <p className="text-xs text-muted-foreground">Tabloda görünecek başlık sırası ve renkleri.</p>
         </div>
-        <div className="overflow-x-auto p-3">
+        <div className="mobile-scroll overflow-x-auto p-3">
           <div className="flex min-w-max items-stretch">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-r-0 bg-muted text-sm font-bold text-muted-foreground">
               #
@@ -352,7 +352,7 @@ export default function SutunAyarlarPage() {
           </Button>
         </div>
 
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="mobile-scroll overflow-x-auto rounded-lg border">
           <table className="w-full min-w-[820px] text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
@@ -491,7 +491,7 @@ export default function SutunAyarlarPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Sütun Ayarları</h1>

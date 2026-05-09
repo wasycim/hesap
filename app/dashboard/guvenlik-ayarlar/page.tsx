@@ -301,7 +301,7 @@ export default function GuvenlikAyarlarPage() {
   const passwordEvents = events.filter(event => event.event_type === "password_change")
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       <div>
         <h1 className="text-2xl font-bold">Güvenlik Ayarları</h1>
         <p className="text-sm text-muted-foreground">Girişler, silme işlemleri ve hesap güvenliği kayıtları.</p>
@@ -371,7 +371,7 @@ export default function GuvenlikAyarlarPage() {
             </div>
             <p className="text-xs text-muted-foreground">{filteredEvents.length} kayıt gösteriliyor.</p>
           </div>
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="mobile-scroll overflow-x-auto rounded-lg border">
             <table className="w-full min-w-[980px] text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
