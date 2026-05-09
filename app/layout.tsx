@@ -25,19 +25,19 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: '/w-icon.png',
+        url: '/iconw.png',
         media: '(prefers-color-scheme: light)',
       },
       {
-        url: '/w-icon.png',
+        url: '/iconw2.png',
         media: '(prefers-color-scheme: dark)',
       },
       {
-        url: '/w-icon.png',
+        url: '/iconw.png',
         type: 'image/png',
       },
     ],
-    apple: '/w-icon.png',
+    apple: '/iconw.png',
   },
 }
 

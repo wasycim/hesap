@@ -61,7 +61,12 @@ export default function GirisPage() {
               <img
                 src="/iconw.png"
                 alt="W logo"
-                className="h-36 w-56 object-contain object-left drop-shadow-2xl transition-all duration-700 sm:h-44 sm:w-72"
+                className="h-36 w-56 object-contain object-left drop-shadow-2xl transition-all duration-700 dark:hidden sm:h-44 sm:w-72"
+              />
+              <img
+                src="/iconw2.png"
+                alt="W logo"
+                className="hidden h-36 w-56 object-contain object-left drop-shadow-2xl transition-all duration-700 dark:block sm:h-44 sm:w-72"
               />
             </div>
             <div className="relative space-y-3">
