@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { TrendingUp, TrendingDown, Wallet, Soup } from "lucide-react"
+import { AlertTriangle, TrendingUp, TrendingDown, Wallet, Soup } from "lucide-react"
 import Link from "next/link"
 import { useSube } from "@/contexts/sube-context"
 import {
@@ -25,14 +25,20 @@ export default function DashboardPage() {
     kalan: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [shiftWarnings, setShiftWarnings] = useState<{ sube_id: string; message: string }[]>([])
   const supabase = createClient()
-  const { currentSube, refreshKey } = useSube()
+  const { currentSube, refreshKey, isAdmin } = useSube()
 
   const ayYil = `${month}-${year}`
 
   useEffect(() => {
     if (currentSube) {
       fetchStats()
+    }
+    if (isAdmin) {
+      fetchShiftWarnings()
+    } else {
+      setShiftWarnings([])
     }
 
     // Realtime subscription - birden fazla tablo
@@ -54,7 +60,14 @@ export default function DashboardPage() {
       supabase.removeChannel(gelirChannel)
       supabase.removeChannel(giderChannel)
     }
-  }, [month, year, currentSube?.id, refreshKey])
+  }, [month, year, currentSube?.id, refreshKey, isAdmin])
+
+  async function fetchShiftWarnings() {
+    const response = await fetch("/api/admin/branch-shift-warnings")
+    if (!response.ok) return
+    const result = await response.json()
+    setShiftWarnings(result.warnings || [])
+  }
 
   const fetchStats = async () => {
     setLoading(true)
@@ -147,6 +160,22 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
+          {shiftWarnings.length > 0 && (
+            <Card className="border-amber-200 bg-amber-50">
+              <CardContent className="space-y-2 p-4">
+                {shiftWarnings.map(warning => (
+                  <div key={`${warning.sube_id}-${warning.message}`} className="flex items-start gap-3 text-amber-900">
+                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                    <div>
+                      <p className="font-semibold">Vardiya ipucu</p>
+                      <p className="text-sm">{warning.message}</p>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Link href="/dashboard/gelir">
