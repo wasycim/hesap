@@ -79,7 +79,7 @@ export default function AyarlarPage() {
     }
 
     const [ortakRes, personelRes, kargoRes] = await Promise.all([
-      supabase.from("ortaklar").select("*").eq("user_id", user.id).eq("sube_id", currentSube.id).order("sira"),
+      supabase.from("ortaklar").select("*").eq("sube_id", currentSube.id).order("sira"),
       supabase.from("personeller").select("*").eq("sube_id", currentSube.id).order("sira"),
       supabase.from("kargo_cari_firmalar").select("*").eq("sube_id", currentSube.id).order("sira"),
     ])

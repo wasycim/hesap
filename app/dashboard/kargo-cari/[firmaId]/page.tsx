@@ -163,8 +163,9 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   function getKargoBusinessDate(): string {
     const now = new Date()
     const businessDate = new Date(now)
+    const isBeforeBusinessDayCutoff = now.getHours() < 3 || (now.getHours() === 3 && now.getMinutes() <= 30)
 
-    if (now.getHours() < 4) {
+    if (isBeforeBusinessDayCutoff) {
       businessDate.setDate(businessDate.getDate() - 1)
     }
 
@@ -180,18 +181,8 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   }
 
   function addRow() {
-    const lastDate = rows
-      .map(row => row.tarih)
-      .filter(Boolean)
-      .sort()
-      .at(-1)
-    const nextDate = lastDate ? new Date(`${lastDate}T12:00:00`) : null
-    if (nextDate) {
-      nextDate.setDate(nextDate.getDate() + 1)
-    }
-
     const newRow: KargoRow = {
-      tarih: nextDate ? nextDate.toISOString().slice(0, 10) : getKargoBusinessDate(),
+      tarih: getKargoBusinessDate(),
       fis_no: "",
       gonderilen_yer: "",
       alinan_tutar: 0,
@@ -199,6 +190,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
       kalan_kar: 0,
     }
     setRows([...rows, newRow])
+    markDirty()
   }
 
   function deleteRow(index: number) {
