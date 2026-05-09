@@ -4,6 +4,16 @@ import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Plus, Trash2, Users, Package } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { logSecurityEvent } from "@/lib/audit-log"
@@ -26,6 +36,12 @@ interface KargoFirma {
   aktif: boolean
 }
 
+interface ConfirmState {
+  title: string
+  description: string
+  action: () => void
+}
+
 export default function AyarlarPage() {
   const [ortaklar, setOrtaklar] = useState<Ortak[]>([])
   const [personeller, setPersoneller] = useState<Personel[]>([])
@@ -35,6 +51,7 @@ export default function AyarlarPage() {
   const [yeniKargoFirma, setYeniKargoFirma] = useState("")
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null)
   const supabase = createClient()
   const { currentSube } = useSube()
 
@@ -139,7 +156,14 @@ export default function AyarlarPage() {
   }
 
   async function deleteOrtak(id: string) {
-    if (!confirm("Bu ortagi silmek istediginizden emin misiniz?")) return
+    setConfirmState({
+      title: "Ortak silinsin mi?",
+      description: "Bu ortağı silmek istediğinizden emin misiniz?",
+      action: () => performDeleteOrtak(id),
+    })
+  }
+
+  async function performDeleteOrtak(id: string) {
     const ortak = ortaklar.find(item => item.id === id)
     await supabase.from("ortaklar").delete().eq("id", id)
     await logSecurityEvent("ortak_delete", { id, label: ortak?.ad, sube_id: currentSube?.id })
@@ -147,7 +171,14 @@ export default function AyarlarPage() {
   }
 
   async function deletePersonel(id: string) {
-    if (!confirm("Bu personeli silmek istediginizden emin misiniz?")) return
+    setConfirmState({
+      title: "Personel silinsin mi?",
+      description: "Bu personeli silmek istediğinizden emin misiniz?",
+      action: () => performDeletePersonel(id),
+    })
+  }
+
+  async function performDeletePersonel(id: string) {
     const personel = personeller.find(item => item.id === id)
     await supabase.from("personeller").delete().eq("id", id)
     await logSecurityEvent("person_delete", { id, label: personel?.ad, sube_id: currentSube?.id })
@@ -155,7 +186,14 @@ export default function AyarlarPage() {
   }
 
   async function deleteKargoFirma(id: string) {
-    if (!confirm("Bu firmayı ve tüm kayıtlarını silmek istediğinizden emin misiniz?")) return
+    setConfirmState({
+      title: "Firma silinsin mi?",
+      description: "Bu firmayı ve tüm kayıtlarını silmek istediğinizden emin misiniz?",
+      action: () => performDeleteKargoFirma(id),
+    })
+  }
+
+  async function performDeleteKargoFirma(id: string) {
     const firma = kargoFirmalar.find(item => item.id === id)
     await supabase.from("kargo_cari_kayitlar").delete().eq("firma_id", id)
     await supabase.from("kargo_cari_firmalar").delete().eq("id", id)
@@ -409,6 +447,27 @@ export default function AyarlarPage() {
           </div>
         </div>
       </div>
+      <AlertDialog open={Boolean(confirmState)} onOpenChange={(open) => !open && setConfirmState(null)}>
+        <AlertDialogContent className="animate-modal-pop rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmState?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmState?.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={() => {
+                const action = confirmState?.action
+                setConfirmState(null)
+                action?.()
+              }}
+            >
+              Tamam
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

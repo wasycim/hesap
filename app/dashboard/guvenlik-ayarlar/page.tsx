@@ -107,20 +107,49 @@ function buildPasswordChangeCounts(events: SecurityEvent[]) {
   return eventCounts
 }
 
-function buildKnownLoginIps(events: SecurityEvent[]) {
+function buildTrustedLoginIps(events: SecurityEvent[]) {
   const chronological = [...events].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-  const seen = new Map<string, Set<string>>()
-  const differentIpEvents = new Set<string>()
+  const ipRanges = new Map<string, Map<string, { first: number; last: number }>>()
 
   chronological.forEach(event => {
     if (event.event_type !== "login" || !event.ip_address) return
     const key = getUserKey(event)
-    const userIps = seen.get(key) || new Set<string>()
-    if (userIps.size > 0 && !userIps.has(event.ip_address)) {
+    const userIps = ipRanges.get(key) || new Map<string, { first: number; last: number }>()
+    const time = new Date(event.created_at).getTime()
+    const range = userIps.get(event.ip_address)
+    if (range) {
+      range.last = time
+    } else {
+      userIps.set(event.ip_address, { first: time, last: time })
+    }
+    ipRanges.set(key, userIps)
+  })
+
+  const trusted = new Map<string, Set<string>>()
+  const threeDays = 3 * 24 * 60 * 60 * 1000
+
+  ipRanges.forEach((ips, userKey) => {
+    ips.forEach((range, ip) => {
+      if (range.last - range.first >= threeDays) {
+        const trustedIps = trusted.get(userKey) || new Set<string>()
+        trustedIps.add(ip)
+        trusted.set(userKey, trustedIps)
+      }
+    })
+  })
+
+  return trusted
+}
+
+function buildDifferentLoginIpEvents(events: SecurityEvent[], trustedIpsByUser: Map<string, Set<string>>) {
+  const differentIpEvents = new Set<string>()
+
+  events.forEach(event => {
+    if (event.event_type !== "login" || !event.ip_address) return
+    const trustedIps = trustedIpsByUser.get(getUserKey(event))
+    if (trustedIps && trustedIps.size > 0 && !trustedIps.has(event.ip_address)) {
       differentIpEvents.add(event.id)
     }
-    userIps.add(event.ip_address)
-    seen.set(key, userIps)
   })
 
   return differentIpEvents
@@ -198,7 +227,8 @@ export default function GuvenlikAyarlarPage() {
   const supabase = createClient()
 
   const passwordChangeCounts = useMemo(() => buildPasswordChangeCounts(events), [events])
-  const differentIpEvents = useMemo(() => buildKnownLoginIps(events), [events])
+  const trustedLoginIps = useMemo(() => buildTrustedLoginIps(events), [events])
+  const differentIpEvents = useMemo(() => buildDifferentLoginIpEvents(events, trustedLoginIps), [events, trustedLoginIps])
   const sharedIpEvents = useMemo(() => buildSharedLoginIpEvents(events), [events])
   const eventsWithSeverity = useMemo(() => events.map(event => {
     const passwordCount = passwordChangeCounts.get(event.id) || 0

@@ -6,6 +6,16 @@ import { Building2, Plus, Trash2, UserCog, UserPlus, UserX } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -20,6 +30,12 @@ interface AdminUser {
   sube_id: string | null
   vardiya: string | null
   subeler?: { ad?: string } | null
+}
+
+interface ConfirmState {
+  title: string
+  description: string
+  action: () => void
 }
 
 function formatVardiya(value: string | null) {
@@ -54,6 +70,7 @@ export default function AdminAyarlarPage() {
   const [savingUser, setSavingUser] = useState(false)
   const [savingEdit, setSavingEdit] = useState(false)
   const [deletingUser, setDeletingUser] = useState(false)
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const supabase = createClient()
 
@@ -164,14 +181,20 @@ export default function AdminAyarlarPage() {
     }
 
     const userLabel = selectedUser.email || selectedUser.user_id
-    if (!confirm(`${userLabel} kullanıcısını silmek istediğinizden emin misiniz? Bu işlem kritik olarak kaydedilecek.`)) return
+    setConfirmState({
+      title: "Kullanıcı silinsin mi?",
+      description: `${userLabel} kullanıcısını silmek istediğinizden emin misiniz? Bu işlem kritik olarak kaydedilecek.`,
+      action: () => performDeleteUser(selectedUser.user_id),
+    })
+  }
 
+  async function performDeleteUser(userId: string) {
     setDeletingUser(true)
     setMessage(null)
     const response = await fetch("/api/admin/users", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: selectedUser.user_id }),
+      body: JSON.stringify({ userId }),
     })
     const result = await response.json()
 
@@ -219,8 +242,14 @@ export default function AdminAyarlarPage() {
   }
 
   async function deleteBranch(id: string, name: string) {
-    if (!confirm(`${name} şubesini silmek istediğinizden emin misiniz?`)) return
+    setConfirmState({
+      title: "Şube silinsin mi?",
+      description: `${name} şubesini silmek istediğinizden emin misiniz?`,
+      action: () => performDeleteBranch(id, name),
+    })
+  }
 
+  async function performDeleteBranch(id: string, name: string) {
     const { error } = await supabase.from("subeler").delete().eq("id", id)
     if (!error) {
       await logSecurityEvent("branch_delete", { sube_id: id, ad: name })
@@ -483,6 +512,27 @@ export default function AdminAyarlarPage() {
           </div>
         </CardContent>
       </Card>
+      <AlertDialog open={Boolean(confirmState)} onOpenChange={(open) => !open && setConfirmState(null)}>
+        <AlertDialogContent className="animate-modal-pop rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmState?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmState?.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={() => {
+                const action = confirmState?.action
+                setConfirmState(null)
+                action?.()
+              }}
+            >
+              Tamam
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

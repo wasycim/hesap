@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { FileSpreadsheet, Loader2, LockKeyhole, Mail } from "lucide-react"
+import { Loader2, LockKeyhole, Mail } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,12 +46,13 @@ export default function GirisPage() {
   return (
     <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-5xl items-center justify-center">
-        <Card className="grid w-full overflow-hidden border shadow-xl md:grid-cols-[0.9fr_1.1fr]">
-          <CardHeader className="flex min-h-[280px] flex-col justify-between border-b bg-muted/40 p-8 md:border-b-0 md:border-r md:p-10">
+        <Card className="grid w-full overflow-hidden rounded-3xl border shadow-xl md:grid-cols-[0.95fr_1.05fr]">
+          <CardHeader className="flex min-h-[380px] flex-col justify-between border-b bg-muted/30 p-8 md:border-b-0 md:border-r md:p-10">
             <div className="flex items-start justify-between gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                <FileSpreadsheet className="h-6 w-6 text-primary" />
-              </div>
+              <div
+                aria-label="Wasy logo"
+                className="h-24 w-40 rounded-3xl border bg-[url('/wasy-icon.png')] bg-[length:300%_300%] bg-left-top shadow-inner shadow-primary/20 transition-all duration-700 dark:bg-[position:100%_50%] sm:h-32 sm:w-52"
+              />
               <ThemeToggle />
             </div>
             <div className="space-y-3">

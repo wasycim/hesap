@@ -138,3 +138,18 @@
 .animate-page-enter {
   animation: page-enter 700ms ease-out both;
 }
+
+@keyframes modal-pop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-modal-pop {
+  animation: modal-pop 350ms ease-out both;
+}

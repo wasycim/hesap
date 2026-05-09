@@ -111,7 +111,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
 
       {showPopup && (
         <div data-unsaved-ignore="true" className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-xl border bg-card p-6 text-card-foreground shadow-xl">
+          <div className="animate-modal-pop w-full max-w-md rounded-xl border bg-card p-6 text-card-foreground shadow-xl">
             <h2 className="mb-2 text-lg font-bold">Kaydedilmemiş değişiklikler var</h2>
             <p className="mb-5 text-sm text-muted-foreground">
               Yaptığınız işlemler kaydedilmedi. Çıkmadan önce kaydetmek ister misiniz?
