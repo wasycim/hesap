@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowDown, ArrowUp, Eye, EyeOff, GripVertical, Plus, Save, Trash2 } from "lucide-react"
 import {
   COLOR_OPTIONS,
+  ORTAKLAR_GROUP_KEY,
+  PERSONELLER_GROUP_KEY,
   TableColumnSetting,
   TableType,
   getColumnTextColor,
@@ -30,6 +32,11 @@ function columnIdentity(column: Pick<TableColumnSetting, "table_type" | "column_
   return `${column.table_type}:${column.column_key}`
 }
 
+interface DynamicColumnItem {
+  id: string
+  ad: string
+}
+
 export default function SutunAyarlarPage() {
   const [activeTab, setActiveTab] = useState<TableType>("gelir")
   const [columns, setColumns] = useState<Record<TableType, TableColumnSetting[]>>({
@@ -42,6 +49,8 @@ export default function SutunAyarlarPage() {
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error", text: string } | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [draggedColumnKey, setDraggedColumnKey] = useState<string | null>(null)
+  const [ortaklar, setOrtaklar] = useState<DynamicColumnItem[]>([])
+  const [personeller, setPersoneller] = useState<DynamicColumnItem[]>([])
   const supabase = createClient()
   const { currentSube } = useSube()
   const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
@@ -83,6 +92,24 @@ export default function SutunAyarlarPage() {
       setLoading(false)
       return
     }
+
+    const [ortakRes, personelRes] = await Promise.all([
+      supabase
+        .from("ortaklar")
+        .select("id, ad")
+        .eq("sube_id", currentSube.id)
+        .eq("aktif", true)
+        .order("sira", { ascending: true }),
+      supabase
+        .from("personeller")
+        .select("id, ad")
+        .eq("sube_id", currentSube.id)
+        .eq("aktif", true)
+        .order("sira", { ascending: true }),
+    ])
+
+    setOrtaklar(ortakRes.data || [])
+    setPersoneller(personelRes.data || [])
 
     const saved = (data || []) as TableColumnSetting[]
     const getSavedColumns = (tableType: TableType) => {
@@ -255,6 +282,25 @@ export default function SutunAyarlarPage() {
 
   function renderColumnPreview(tableType: TableType) {
     const items = columns[tableType].filter(column => column.aktif)
+    const previewItems = items.flatMap(column => {
+      if (tableType === "gider" && column.column_key === ORTAKLAR_GROUP_KEY) {
+        return ortaklar.map(ortak => ({
+          ...column,
+          column_key: `ortak_${ortak.id}`,
+          label: ortak.ad.toUpperCase(),
+        }))
+      }
+
+      if (tableType === "gider" && column.column_key === PERSONELLER_GROUP_KEY) {
+        return personeller.map(personel => ({
+          ...column,
+          column_key: `personel_${personel.id}`,
+          label: personel.ad.toUpperCase(),
+        }))
+      }
+
+      return [column]
+    })
 
     return (
       <div className="rounded-lg border bg-white">
@@ -267,7 +313,7 @@ export default function SutunAyarlarPage() {
             <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-r-0 bg-gray-100 text-sm font-bold">
               #
             </div>
-            {items.map(column => (
+            {previewItems.map(column => (
               <div
                 key={column.column_key}
                 className={`flex h-10 min-w-32 shrink-0 items-center justify-center border border-r-0 px-3 text-center text-sm font-bold leading-tight last:border-r ${
@@ -342,7 +388,12 @@ export default function SutunAyarlarPage() {
                     <Input
                       value={column.label}
                       onChange={(event) => updateColumn(tableType, column.column_key, { label: event.target.value.toUpperCase() })}
-                      disabled={column.column_key === "tarih" || column.column_key === "vardiya"}
+                      disabled={
+                        column.column_key === "tarih" ||
+                        column.column_key === "vardiya" ||
+                        column.column_key === ORTAKLAR_GROUP_KEY ||
+                        column.column_key === PERSONELLER_GROUP_KEY
+                      }
                     />
                   </td>
                   <td className="p-3">
@@ -363,6 +414,12 @@ export default function SutunAyarlarPage() {
                     <div className={`inline-flex min-w-32 justify-center rounded px-3 py-2 font-semibold ${column.color} ${getColumnTextColor(column.color)}`}>
                       {column.label || "SÜTUN"}
                     </div>
+                    {tableType === "gider" && column.column_key === ORTAKLAR_GROUP_KEY && (
+                      <div className="mt-1 text-xs text-muted-foreground">Ön izlemede ortak adları görünür.</div>
+                    )}
+                    {tableType === "gider" && column.column_key === PERSONELLER_GROUP_KEY && (
+                      <div className="mt-1 text-xs text-muted-foreground">Ön izlemede personel adları görünür.</div>
+                    )}
                   </td>
                   <td className="p-3 text-center">
                     <Button

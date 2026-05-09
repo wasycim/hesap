@@ -12,6 +12,9 @@ export interface TableColumnSetting {
   builtin: boolean
 }
 
+export const ORTAKLAR_GROUP_KEY = "ortaklar_group"
+export const PERSONELLER_GROUP_KEY = "personeller_group"
+
 export const COLOR_OPTIONS = [
   { label: "Yeşil", value: "bg-green-600", text: "text-white" },
   { label: "Mavi", value: "bg-blue-600", text: "text-white" },
@@ -53,24 +56,26 @@ export const GIDER_DEFAULT_COLUMNS: TableColumnSetting[] = [
   { table_type: "gider", column_key: "tarih", label: "TARİH", color: "bg-green-600", sort_order: 0, aktif: true, builtin: true },
   { table_type: "gider", column_key: "vardiya", label: "VARDİYA", color: "bg-blue-600", sort_order: 1, aktif: true, builtin: true },
   { table_type: "gider", column_key: "el_fisi_odeme", label: "EL FİŞİ ÖDEME", color: "bg-yellow-500", sort_order: 2, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "personel_mesai", label: "PERSONEL MESAİ", color: "bg-blue-600", sort_order: 3, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "bil_iade", label: "BİL. İADE", color: "bg-red-600", sort_order: 4, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "inegol_donus", label: "İNEGÖL DÖNÜŞ", color: "bg-orange-500", sort_order: 5, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "yemek", label: "YEMEK", color: "bg-orange-500", sort_order: 6, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "yanmaz_bilet", label: "YANMAZ BİLET", color: "bg-orange-500", sort_order: 7, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "diger", label: "DİĞER", color: "bg-gray-500", sort_order: 8, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "ziraat_bankasi", label: "ZİRAAT BANKASI", color: "bg-green-600", sort_order: 9, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "is_bankasi", label: "İŞ BANKASI", color: "bg-green-600", sort_order: 10, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "kuveyt_turk", label: "KUVEYT TÜRK", color: "bg-green-600", sort_order: 11, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "bakiye_bilet", label: "BAKİYE BİLET", color: "bg-blue-500", sort_order: 12, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "kargo_cari", label: "KARGO CARİ", color: "bg-blue-500", sort_order: 13, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "hesaba_gelen", label: "HESABA GELEN", color: "bg-green-600", sort_order: 14, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "on_dort_noya_giden", label: "14 NOYA GİDEN", color: "bg-green-600", sort_order: 15, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "carsi_bilet", label: "ÇARŞI BİLET", color: "bg-blue-500", sort_order: 16, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "darica_bilet", label: "DARICA BİLET", color: "bg-blue-500", sort_order: 17, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "kredi_karti_bakiye", label: "K.KARTI BAKİYE", color: "bg-blue-500", sort_order: 18, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "bankaya_yatan", label: "BANKAYA YATAN", color: "bg-blue-700", sort_order: 19, aktif: true, builtin: true },
-  { table_type: "gider", column_key: "genel_toplam", label: "GENEL TOPLAM", color: "bg-red-700", sort_order: 20, aktif: true, builtin: true },
+  { table_type: "gider", column_key: ORTAKLAR_GROUP_KEY, label: "ORTAKLAR BÖLÜMÜ", color: "bg-yellow-500", sort_order: 3, aktif: true, builtin: true },
+  { table_type: "gider", column_key: PERSONELLER_GROUP_KEY, label: "PERSONELLER BÖLÜMÜ", color: "bg-blue-600", sort_order: 4, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "personel_mesai", label: "PERSONEL MESAİ", color: "bg-blue-600", sort_order: 5, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "bil_iade", label: "BİL. İADE", color: "bg-red-600", sort_order: 6, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "inegol_donus", label: "İNEGÖL DÖNÜŞ", color: "bg-orange-500", sort_order: 7, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "yemek", label: "YEMEK", color: "bg-orange-500", sort_order: 8, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "yanmaz_bilet", label: "YANMAZ BİLET", color: "bg-orange-500", sort_order: 9, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "diger", label: "DİĞER", color: "bg-gray-500", sort_order: 10, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "ziraat_bankasi", label: "ZİRAAT BANKASI", color: "bg-green-600", sort_order: 11, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "is_bankasi", label: "İŞ BANKASI", color: "bg-green-600", sort_order: 12, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "kuveyt_turk", label: "KUVEYT TÜRK", color: "bg-green-600", sort_order: 13, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "bakiye_bilet", label: "BAKİYE BİLET", color: "bg-blue-500", sort_order: 14, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "kargo_cari", label: "KARGO CARİ", color: "bg-blue-500", sort_order: 15, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "hesaba_gelen", label: "HESABA GELEN", color: "bg-green-600", sort_order: 16, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "on_dort_noya_giden", label: "14 NOYA GİDEN", color: "bg-green-600", sort_order: 17, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "carsi_bilet", label: "ÇARŞI BİLET", color: "bg-blue-500", sort_order: 18, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "darica_bilet", label: "DARICA BİLET", color: "bg-blue-500", sort_order: 19, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "kredi_karti_bakiye", label: "K.KARTI BAKİYE", color: "bg-blue-500", sort_order: 20, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "bankaya_yatan", label: "BANKAYA YATAN", color: "bg-blue-700", sort_order: 21, aktif: true, builtin: true },
+  { table_type: "gider", column_key: "genel_toplam", label: "GENEL TOPLAM", color: "bg-red-700", sort_order: 22, aktif: true, builtin: true },
 ]
 
 export function getDefaultColumns(tableType: TableType): TableColumnSetting[] {
@@ -82,7 +87,9 @@ export function mergeColumnSettings(tableType: TableType, saved: TableColumnSett
   const savedMap = new Map((saved || []).map(column => [column.column_key, column]))
   const mergedDefaults = defaults.map(column => ({ ...column, ...savedMap.get(column.column_key), builtin: true }))
   const customColumns = (saved || []).filter(column => !defaults.some(defaultColumn => defaultColumn.column_key === column.column_key))
-  return [...mergedDefaults, ...customColumns].sort((a, b) => a.sort_order - b.sort_order)
+  return [...mergedDefaults, ...customColumns]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((column, index) => ({ ...column, sort_order: index }))
 }
 
 export function makeCustomColumnKey(label: string): string {
@@ -95,4 +102,3 @@ export function makeCustomColumnKey(label: string): string {
     .replace(/^_+|_+$/g, "")
   return `custom_${base || "sutun"}_${Date.now()}`
 }
-

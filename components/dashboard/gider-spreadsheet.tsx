@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/button"
 import { Plus, Save, Trash2 } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
-import { TableColumnSetting, getColumnTextColor, mergeColumnSettings } from "@/lib/table-column-settings"
+import {
+  ORTAKLAR_GROUP_KEY,
+  PERSONELLER_GROUP_KEY,
+  TableColumnSetting,
+  getColumnTextColor,
+  mergeColumnSettings,
+} from "@/lib/table-column-settings"
 import { getLocalDateString, getMonthIndex, getMonthYearFromDate } from "@/lib/date-navigation"
 import { logSecurityEvent } from "@/lib/audit-log"
 
@@ -467,12 +473,29 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     .filter(col => col.aktif && (!isTekVardiya || col.column_key !== "vardiya"))
     .map(col => ({ key: col.column_key, label: col.label, color: col.color, editable: col.column_key !== "tarih" && col.column_key !== "vardiya" && col.column_key !== "genel_toplam" }))
 
-  const allColumns = [
-    ...configuredColumns.filter(col => col.key === "tarih" || col.key === "vardiya" || col.key === "el_fisi_odeme"),
-    ...ortaklar.map(o => ({ key: `ortak_${o.id}`, label: o.ad.toUpperCase(), color: ORTAK_COLOR, editable: true, type: "ortak" as const })),
-    ...personeller.map(p => ({ key: `personel_${p.id}`, label: p.ad.toUpperCase(), color: PERSONEL_COLOR, editable: true, type: "personel" as const })),
-    ...configuredColumns.filter(col => col.key !== "tarih" && col.key !== "vardiya" && col.key !== "el_fisi_odeme"),
-  ]
+  const allColumns = configuredColumns.flatMap(col => {
+    if (col.key === ORTAKLAR_GROUP_KEY) {
+      return ortaklar.map(o => ({
+        key: `ortak_${o.id}`,
+        label: o.ad.toUpperCase(),
+        color: col.color || ORTAK_COLOR,
+        editable: true,
+        type: "ortak" as const,
+      }))
+    }
+
+    if (col.key === PERSONELLER_GROUP_KEY) {
+      return personeller.map(p => ({
+        key: `personel_${p.id}`,
+        label: p.ad.toUpperCase(),
+        color: col.color || PERSONEL_COLOR,
+        editable: true,
+        type: "personel" as const,
+      }))
+    }
+
+    return [col]
+  })
 
   function getColumnValue(row: GiderRow, key: string) {
     if (key.startsWith("ortak_")) return row.ortak_paylari[key.replace("ortak_", "")] || 0
