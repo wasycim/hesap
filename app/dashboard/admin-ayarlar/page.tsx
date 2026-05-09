@@ -27,6 +27,15 @@ function formatVardiya(value: string | null) {
   return "Tek vardiya"
 }
 
+function getBranchDeleteErrorMessage(error: { code?: string; message?: string }) {
+  const message = error.message || ""
+  if (error.code === "23503" || message.includes("user_profiles_sube_id_fkey")) {
+    return "Şube silinemez, şubeye bağlı kullanıcılar var."
+  }
+
+  return "Şube silinemedi. Lütfen güvenlik kayıtlarındaki hata detayını kontrol edin."
+}
+
 export default function AdminAyarlarPage() {
   const { subeler, isAdmin } = useSube()
   const [users, setUsers] = useState<AdminUser[]>([])
@@ -177,8 +186,18 @@ export default function AdminAyarlarPage() {
       toast.success("Değişiklikler kaydedildi ✅")
       window.location.reload()
     } else {
-      setMessage(error.message)
-      toast.error(error.message)
+      const friendlyMessage = getBranchDeleteErrorMessage(error)
+      await logSecurityEvent("branch_delete_failed", {
+        sube_id: id,
+        ad: name,
+        reason: friendlyMessage,
+        error_message: error.message,
+        error_code: error.code,
+        error_details: error.details,
+        error_hint: error.hint,
+      })
+      setMessage(friendlyMessage)
+      toast.error(friendlyMessage)
     }
   }
 

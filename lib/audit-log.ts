@@ -11,6 +11,7 @@ export type SecurityEventType =
   | "user_update"
   | "branch_create"
   | "branch_delete"
+  | "branch_delete_failed"
   | "visibility_update"
 
 export async function logSecurityEvent(eventType: SecurityEventType, details: Record<string, unknown> = {}) {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Code2, Columns3, KeyRound, Monitor, Shield, Trash2, UserPlus } from "lucide-react"
+import { AlertTriangle, Code2, Columns3, KeyRound, Monitor, Shield, Trash2, UserPlus } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,6 +32,7 @@ const EVENT_LABELS: Record<string, string> = {
   user_update: "Kullanıcı güncelleme",
   branch_create: "Şube ekleme",
   branch_delete: "Şube silme",
+  branch_delete_failed: "Şube silme hatası",
   visibility_update: "Görünüm ayarı",
 }
 
@@ -46,6 +47,7 @@ const EVENT_ICONS: Record<string, any> = {
   password_change: KeyRound,
   user_create: UserPlus,
   user_update: UserPlus,
+  branch_delete_failed: AlertTriangle,
 }
 
 const SEVERITY_STYLES: Record<Severity, string> = {
@@ -126,6 +128,7 @@ function buildSharedLoginIpEvents(events: SecurityEvent[]) {
 function getSeverity(event: SecurityEvent, passwordChangeCount: number, isDifferentIp: boolean, isSharedIp: boolean): Severity {
   if (isDifferentIp) return "critical"
   if (isSharedIp) return "medium"
+  if (event.event_type === "branch_delete_failed") return "critical"
   if (["row_delete", "column_delete", "person_delete", "kargo_cari_delete"].includes(event.event_type)) return "critical"
   if (event.event_type === "user_create" && event.details?.is_admin) return "critical"
   if (event.event_type === "user_update" && event.details?.is_admin) return "critical"
@@ -158,6 +161,7 @@ function getSummary(event: SecurityEvent, passwordChangeCount: number, isDiffere
   if (event.event_type === "user_update") return `Kullanıcı yetki/şube/vardiya bilgileri güncellendi.`
   if (event.event_type === "branch_create") return `${label || "Şube"} şubesi eklendi.`
   if (event.event_type === "branch_delete") return `${label || "Şube"} şubesi silindi.`
+  if (event.event_type === "branch_delete_failed") return `${label || "Şube"} şubesi silinemedi: ${details.reason || "hata oluştu."}`
   if (event.event_type === "visibility_update") return `Şube görünüm ayarları güncellendi.`
   return EVENT_LABELS[event.event_type] || event.event_type
 }
