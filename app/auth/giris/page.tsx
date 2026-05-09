@@ -55,7 +55,7 @@ export default function GirisPage() {
             <div className="flex items-start justify-between gap-4">
               <div
                 aria-label="Wasy logo"
-                className="h-24 w-40 rounded-3xl border bg-[url('/wasy-icon.png')] bg-[length:300%_300%] bg-left-top shadow-inner shadow-primary/20 transition-all duration-700 dark:bg-[position:100%_50%] sm:h-32 sm:w-52"
+                className="h-24 w-40 rounded-3xl border bg-card bg-[url('/w-icon.png')] bg-contain bg-center bg-no-repeat shadow-inner shadow-primary/20 transition-all duration-700 dark:invert sm:h-32 sm:w-52"
               />
               <ThemeToggle />
             </div>

@@ -13,12 +13,12 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: "portrait",
     icons: [
       {
-        src: "/apple-icon.png",
-        sizes: "180x180",
+        src: "/w-icon.png",
+        sizes: "1024x1024",
         type: "image/png",
       },
       {
-        src: "/wasy-icon.png",
+        src: "/w-icon.png",
         sizes: "1024x1024",
         type: "image/png",
         purpose: "any maskable",
