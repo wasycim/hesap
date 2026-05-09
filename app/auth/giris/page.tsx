@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, FileSpreadsheet } from "lucide-react"
+import { logSecurityEvent } from "@/lib/audit-log"
 
 export default function GirisPage() {
   const [email, setEmail] = useState("")
@@ -30,12 +31,13 @@ export default function GirisPage() {
 
     if (error) {
       setError(error.message === "Invalid login credentials" 
-        ? "E-posta veya sifre hatali" 
+        ? "E-posta veya şifre hatalı" 
         : error.message)
       setLoading(false)
       return
     }
 
+    await logSecurityEvent("login", { email: email.trim().toLowerCase() })
     router.push("/dashboard")
     router.refresh()
   }
@@ -71,7 +73,7 @@ export default function GirisPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Sifre</Label>
+              <Label htmlFor="password">Şifre</Label>
               <Input
                 id="password"
                 type="password"

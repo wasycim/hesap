@@ -7,6 +7,8 @@ import { Plus, Save, Trash2 } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 import { TableColumnSetting, getColumnTextColor, mergeColumnSettings } from "@/lib/table-column-settings"
+import { getLocalDateString, getMonthIndex, getMonthYearFromDate } from "@/lib/date-navigation"
+import { logSecurityEvent } from "@/lib/audit-log"
 
 interface GelirRow {
   id?: string
@@ -179,7 +181,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
         kasa_gelen: Number(row.kasa_gelen) || 0,
         toplam: Number(row.toplam) || 0,
         giderler: Number(row.giderler) || 0,
-        kalan: Number(row.kalan) || 0,
+        kalan: (Number(row.toplam) || 0) - (Number(row.giderler) || 0),
         durum: row.durum || "KONTROL EDİLMEDİ",
         custom_values: row.custom_values || {},
       })))
@@ -188,8 +190,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   }
 
   function getNextDate(): string {
-    const monthIndex = ["Ocak", "Subat", "Mart", "Nisan", "Mayis", "Haziran", 
-      "Temmuz", "Agustos", "Eylul", "Ekim", "Kasim", "Aralik"].indexOf(month)
+    const monthIndex = getMonthIndex(month)
     
     if (rows.length === 0) {
       return `${year}-${String(monthIndex + 1).padStart(2, "0")}-01`
@@ -201,10 +202,22 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   }
 
   function addRow() {
-    const nextDate = getNextDate()
+    const today = getLocalDateString()
+    const todayMonthYear = getMonthYearFromDate(today)
+    const nextDate = isAdmin ? getNextDate() : today
+
+    if (!isAdmin && (month !== todayMonthYear.month || year !== todayMonthYear.year)) {
+      alert("Normal kullanıcılar sadece bugünün olduğu ayda satır ekleyebilir.")
+      return
+    }
     
     // Vardiyasiz subelerde tek satir, vardiyali subelerde admin icin S ve A eklenir.
     const vardiyalarToAdd = isVardiyasizSube ? [""] : (isAdmin ? ["S", "A"] : [userVardiya || "S"])
+
+    if (!isAdmin && vardiyalarToAdd.some(vardiya => rows.some(row => row.tarih === today && row.vardiya === vardiya))) {
+      alert("Bugün için zaten bir satır var.")
+      return
+    }
     
     const newRowsToAdd: GelirRow[] = vardiyalarToAdd.map(vardiya => ({
       tarih: nextDate,
@@ -234,13 +247,21 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     })
     
     setRows(newRows)
+    markDirty()
   }
 
   function deleteRow(index: number) {
     const newRows = [...rows]
+    const deletedRow = newRows[index]
     newRows.splice(index, 1)
     setRows(newRows)
     markDirty()
+    logSecurityEvent("row_delete", {
+      table: "gelir_kayitlari",
+      sube_id: currentSube?.id,
+      tarih: deletedRow?.tarih,
+      vardiya: deletedRow?.vardiya,
+    })
   }
 
   function updateCell(rowIndex: number, column: string, value: string | number) {
@@ -268,6 +289,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     
     newRows[rowIndex] = row
     setRows(newRows)
+    markDirty()
   }
 
   async function saveData() {
@@ -281,6 +303,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     // Sadece düzenleyebildiğim vardiyaları filtrele
     // userVardiya null ise hepsini, değilse sadece kendi vardiyamı kaydedebilirim
     const editableRows = rows.filter(row => {
+      if (!isAdmin && row.tarih !== getLocalDateString()) return false
       // Admin veya vardiyası olmayan kullanıcı her şeyi kaydedebilir
       if (isVardiyasizSube || !userVardiya || isAdmin) return true
       // Sadece kendi vardiyamı kaydedebilirim
@@ -296,6 +319,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
 
     if (!isAdmin) {
       deleteQuery = deleteQuery.eq("user_id", user.id)
+      deleteQuery = deleteQuery.eq("tarih", getLocalDateString())
     }
     
     // Eğer kullanıcının belirli bir vardiyası varsa sadece o vardiyayı sil
@@ -362,7 +386,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   }
 
   // Sütun toplamları
-  const columnTotals = COLUMNS.reduce((acc, col) => {
+  const columnTotals = visibleColumns.reduce((acc, col) => {
     if (col !== "tarih" && col !== "durum" && col !== "vardiya") {
       acc[col] = rows.reduce((sum, row) => sum + (getCellValue(row, col) || 0), 0)
     }
@@ -403,7 +427,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
           <tbody>
             {rows.map((row, rowIndex) => {
               // Vardiya kontrolü: userVardiya null ise hepsini düzenleyebilir, değilse sadece kendi vardiyasını
-              const canEditVardiya = isVardiyasizSube || !userVardiya || userVardiya === row.vardiya || isAdmin
+              const canEditVardiya = isAdmin || (row.tarih === getLocalDateString() && (isVardiyasizSube || !userVardiya || userVardiya === row.vardiya))
               const canEdit = canEditVardiya
               
               return (

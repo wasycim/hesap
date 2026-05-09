@@ -7,20 +7,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TrendingUp, TrendingDown, Wallet, Soup } from "lucide-react"
 import Link from "next/link"
 import { useSube } from "@/contexts/sube-context"
-
-const months = [
-  "Ocak", "Subat", "Mart", "Nisan", "Mayis", "Haziran",
-  "Temmuz", "Agustos", "Eylul", "Ekim", "Kasim", "Aralik"
-]
-const START_YEAR = 2026
-const currentDate = new Date()
-const currentMonth = months[currentDate.getMonth()]
-const currentYear = currentDate.getFullYear()
-const years = Array.from({ length: Math.max(currentYear + 4, 2030) - START_YEAR + 1 }, (_, index) => START_YEAR + index)
+import {
+  MONTHS,
+  START_MONTH_INDEX,
+  getInitialEndYear,
+  getInitialMonth,
+  getInitialYear,
+  makeYears,
+} from "@/lib/date-navigation"
 
 export default function DashboardPage() {
-  const [month, setMonth] = useState(currentMonth)
-  const [year, setYear] = useState(currentYear)
+  const [month, setMonth] = useState(getInitialMonth())
+  const [year, setYear] = useState(getInitialYear())
+  const [endYear] = useState(getInitialEndYear())
+  const years = makeYears(endYear)
   const [stats, setStats] = useState({
     toplamGelir: 0,
     toplamGider: 0,
@@ -125,7 +125,7 @@ export default function DashboardPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {months.map(m => (
+              {MONTHS.filter((_, index) => year !== 2026 || index >= START_MONTH_INDEX).map(m => (
                 <SelectItem key={m} value={m}>{m}</SelectItem>
               ))}
             </SelectContent>

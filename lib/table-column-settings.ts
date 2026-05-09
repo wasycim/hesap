@@ -95,3 +95,4 @@ export function makeCustomColumnKey(label: string): string {
     .replace(/^_+|_+$/g, "")
   return `custom_${base || "sutun"}_${Date.now()}`
 }
+

@@ -19,6 +19,7 @@ import {
 } from "@/lib/table-column-settings"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
+import { logSecurityEvent } from "@/lib/audit-log"
 
 function createDefaultRows(tableType: TableType) {
   return getDefaultColumns(tableType).map(column => ({ ...column }))
@@ -112,6 +113,15 @@ export default function SutunAyarlarPage() {
   }
 
   function updateColumn(tableType: TableType, columnKey: string, patch: Partial<TableColumnSetting>) {
+    const current = columns[tableType].find(column => column.column_key === columnKey)
+    if (patch.aktif === false && current?.aktif) {
+      logSecurityEvent("column_hide", {
+        table_type: tableType,
+        column_key: columnKey,
+        label: current.label,
+        sube_id: currentSube?.id,
+      })
+    }
     updateColumns(tableType, items => items.map(column => (
       column.column_key === columnKey ? { ...column, ...patch } : column
     )))
@@ -153,6 +163,14 @@ export default function SutunAyarlarPage() {
   }
 
   function removeColumn(tableType: TableType, columnKey: string) {
+    const current = columns[tableType].find(column => column.column_key === columnKey)
+    logSecurityEvent("column_delete", {
+      table_type: tableType,
+      column_key: columnKey,
+      label: current?.label,
+      sube_id: currentSube?.id,
+      builtin: current?.builtin,
+    })
     updateColumns(tableType, items => items.flatMap(column => {
       if (column.column_key !== columnKey) return [column]
       return column.builtin ? [{ ...column, aktif: false }] : []
@@ -222,7 +240,7 @@ export default function SutunAyarlarPage() {
   }
 
   function renderColumnPreview(tableType: TableType) {
-    const items = columns[tableType].filter(column => column.aktif)
+    const items = columns[tableType]
 
     return (
       <div className="rounded-lg border bg-white">
@@ -286,13 +304,13 @@ export default function SutunAyarlarPage() {
             </thead>
             <tbody>
               {items.map((column, index) => (
-                <tr key={column.column_key} className="border-b">
+                <tr key={column.column_key} className={`border-b ${!column.aktif ? "bg-muted/40 opacity-70" : ""}`}>
                   <td className="p-3">
                     <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => moveColumn(tableType, column.column_key, -1)} disabled={index === 0}>
+                      <Button variant="ghost" size="icon" onClick={() => moveColumn(tableType, column.column_key, -1)} disabled={!column.aktif || index === 0}>
                         <ArrowUp className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => moveColumn(tableType, column.column_key, 1)} disabled={index === items.length - 1}>
+                      <Button variant="ghost" size="icon" onClick={() => moveColumn(tableType, column.column_key, 1)} disabled={!column.aktif || index === items.length - 1}>
                         <ArrowDown className="h-4 w-4" />
                       </Button>
                     </div>
@@ -332,6 +350,7 @@ export default function SutunAyarlarPage() {
                     >
                       {column.aktif ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                     </Button>
+                    {!column.aktif && <div className="mt-1 text-xs text-muted-foreground">Gizli</div>}
                   </td>
                   <td className="p-3 text-right">
                     <Button

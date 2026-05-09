@@ -11,44 +11,47 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ChevronLeft, ChevronRight, TrendingDown } from "lucide-react"
-
-const months = [
-  "Ocak", "Subat", "Mart", "Nisan", "Mayis", "Haziran",
-  "Temmuz", "Agustos", "Eylul", "Ekim", "Kasim", "Aralik"
-]
-
-const START_YEAR = 2026
-const currentDate = new Date()
-const currentMonth = months[currentDate.getMonth()]
-const currentYear = currentDate.getFullYear()
-const years = Array.from({ length: Math.max(currentYear + 4, 2030) - START_YEAR + 1 }, (_, index) => START_YEAR + index)
+import {
+  MONTHS,
+  START_MONTH_INDEX,
+  START_YEAR,
+  getInitialEndYear,
+  getInitialMonth,
+  getInitialYear,
+  makeYears,
+} from "@/lib/date-navigation"
 
 export default function GiderPage() {
-  const [month, setMonth] = useState(currentMonth)
-  const [year, setYear] = useState(currentYear)
+  const [month, setMonth] = useState(getInitialMonth())
+  const [year, setYear] = useState(getInitialYear())
+  const [endYear, setEndYear] = useState(getInitialEndYear())
+  const years = makeYears(endYear)
 
   const prevMonth = () => {
-    const currentIndex = months.indexOf(month)
+    const currentIndex = MONTHS.indexOf(month)
     if (currentIndex === 0) {
       if (year > START_YEAR) {
-        setMonth(months[11])
+        setMonth(MONTHS[11])
         setYear(year - 1)
       }
     } else {
-      if (year === START_YEAR && currentIndex <= 3) return
-      setMonth(months[currentIndex - 1])
+      if (year === START_YEAR && currentIndex <= START_MONTH_INDEX) return
+      setMonth(MONTHS[currentIndex - 1])
     }
   }
 
   const nextMonth = () => {
-    const currentIndex = months.indexOf(month)
+    const currentIndex = MONTHS.indexOf(month)
     if (currentIndex === 11) {
-      if (year < years[years.length - 1]) {
-        setMonth(months[0])
+      if (year >= endYear) {
+        setEndYear(endYear + 5)
+      }
+      if (year < endYear + 5) {
+        setMonth(MONTHS[0])
         setYear(year + 1)
       }
     } else {
-      setMonth(months[currentIndex + 1])
+      setMonth(MONTHS[currentIndex + 1])
     }
   }
 
@@ -75,7 +78,7 @@ export default function GiderPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {months.map(m => (
+              {MONTHS.filter((_, index) => year !== START_YEAR || index >= START_MONTH_INDEX).map(m => (
                 <SelectItem key={m} value={m}>{m}</SelectItem>
               ))}
             </SelectContent>

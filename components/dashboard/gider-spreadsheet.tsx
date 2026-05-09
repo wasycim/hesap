@@ -7,6 +7,8 @@ import { Plus, Save, Trash2 } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 import { TableColumnSetting, getColumnTextColor, mergeColumnSettings } from "@/lib/table-column-settings"
+import { getLocalDateString, getMonthIndex, getMonthYearFromDate } from "@/lib/date-navigation"
+import { logSecurityEvent } from "@/lib/audit-log"
 
 interface Ortak {
   id: string
@@ -219,8 +221,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
   }
 
   function getNextDate(): string {
-    const monthIndex = ["Ocak", "Subat", "Mart", "Nisan", "Mayis", "Haziran", 
-      "Temmuz", "Agustos", "Eylul", "Ekim", "Kasim", "Aralik"].indexOf(month)
+    const monthIndex = getMonthIndex(month)
     
     if (rows.length === 0) {
       return `${year}-${String(monthIndex + 1).padStart(2, "0")}-01`
@@ -254,10 +255,22 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
   }
 
   function addRow() {
-    const nextDate = getNextDate()
+    const today = getLocalDateString()
+    const todayMonthYear = getMonthYearFromDate(today)
+    const nextDate = isAdmin ? getNextDate() : today
+
+    if (!isAdmin && (month !== todayMonthYear.month || year !== todayMonthYear.year)) {
+      alert("Normal kullanıcılar sadece bugünün olduğu ayda satır ekleyebilir.")
+      return
+    }
     
     // Vardiyasiz subelerde tek satir, vardiyali subelerde admin icin S ve A eklenir.
     const vardiyalarToAdd = isVardiyasizSube ? [""] : (isAdmin ? ["S", "A"] : [userVardiya || "S"])
+
+    if (!isAdmin && vardiyalarToAdd.some(vardiya => rows.some(row => row.tarih === today && row.vardiya === vardiya))) {
+      alert("Bugün için zaten bir satır var.")
+      return
+    }
     
     const newRowsToAdd: GiderRow[] = vardiyalarToAdd.map(vardiya => ({
       tarih: nextDate,
@@ -294,13 +307,21 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     })
     
     setRows(newRows)
+    markDirty()
   }
 
   function deleteRow(index: number) {
     const newRows = [...rows]
+    const deletedRow = newRows[index]
     newRows.splice(index, 1)
     setRows(newRows)
     markDirty()
+    logSecurityEvent("row_delete", {
+      table: "gider_kayitlari",
+      sube_id: currentSube?.id,
+      tarih: deletedRow?.tarih,
+      vardiya: deletedRow?.vardiya,
+    })
   }
 
   function updateCell(rowIndex: number, key: string, value: number, type?: "ortak" | "personel") {
@@ -322,6 +343,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     
     newRows[rowIndex] = row
     setRows(newRows)
+    markDirty()
   }
 
   async function saveData() {
@@ -334,6 +356,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
 
     // Sadece düzenleyebildiğim vardiyaları filtrele
     const editableRows = rows.filter(row => {
+      if (!isAdmin && row.tarih !== getLocalDateString()) return false
       if (isVardiyasizSube || !userVardiya || isAdmin) return true
       return row.vardiya === userVardiya
     })
@@ -347,6 +370,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
 
     if (!isAdmin) {
       deleteQuery = deleteQuery.eq("user_id", user.id)
+      deleteQuery = deleteQuery.eq("tarih", getLocalDateString())
     }
     
     if (!isVardiyasizSube && userVardiya && !isAdmin) {
@@ -412,6 +436,9 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
         if (!isAdmin) {
           updateGelirQuery = updateGelirQuery.eq("user_id", user.id)
         }
+        if (!isVardiyasizSube) {
+          updateGelirQuery = updateGelirQuery.eq("vardiya", row.vardiya)
+        }
 
         await updateGelirQuery
       }
@@ -443,6 +470,20 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     ...personeller.map(p => ({ key: `personel_${p.id}`, label: p.ad.toUpperCase(), color: PERSONEL_COLOR, editable: true, type: "personel" as const })),
     ...configuredColumns.filter(col => col.key !== "tarih" && col.key !== "vardiya" && col.key !== "el_fisi_odeme"),
   ]
+
+  function getColumnValue(row: GiderRow, key: string) {
+    if (key.startsWith("ortak_")) return row.ortak_paylari[key.replace("ortak_", "")] || 0
+    if (key.startsWith("personel_")) return row.personel_paylari[key.replace("personel_", "")] || 0
+    if (key.startsWith("custom_")) return row.custom_values?.[key] || 0
+    return (row as any)[key] || 0
+  }
+
+  const columnTotals = allColumns.reduce((acc, col) => {
+    if (col.key !== "tarih" && col.key !== "vardiya") {
+      acc[col.key] = rows.reduce((sum, row) => sum + (Number(getColumnValue(row, col.key)) || 0), 0)
+    }
+    return acc
+  }, {} as Record<string, number>)
 
   if (loading) {
     return <div className="flex items-center justify-center h-64">Yükleniyor...</div>
@@ -484,7 +525,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
           <tbody>
             {rows.map((row, rowIndex) => {
               // Vardiya kontrolü: userVardiya null ise hepsini düzenleyebilir, değilse sadece kendi vardiyasını
-              const canEditVardiya = isVardiyasizSube || !userVardiya || userVardiya === row.vardiya || isAdmin
+              const canEditVardiya = isAdmin || (row.tarih === getLocalDateString() && (isVardiyasizSube || !userVardiya || userVardiya === row.vardiya))
               
               return (
               <tr key={rowIndex} className={`hover:bg-gray-50 ${!canEditVardiya ? "bg-gray-100/50 opacity-70" : ""}`}>
@@ -566,6 +607,21 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
               </tr>
             )}
           </tbody>
+          {rows.length > 0 && (
+            <tfoot>
+              <tr className="bg-gray-100 font-semibold">
+                <td className="p-2 border text-center">TOPLAM</td>
+                {allColumns.map(col => (
+                  <td key={col.key} className="p-2 border text-right">
+                    {col.key !== "tarih" && col.key !== "vardiya" && columnTotals[col.key] !== undefined
+                      ? `${formatNumber(columnTotals[col.key])} ₺`
+                      : ""}
+                  </td>
+                ))}
+                <td className="p-2 border"></td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </div>

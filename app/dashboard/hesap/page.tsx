@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Mail, Lock, User, CheckCircle, AlertCircle, Shield } from "lucide-react"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
+import { logSecurityEvent } from "@/lib/audit-log"
 
 export default function HesapAyarlariPage() {
   const [email, setEmail] = useState("")
@@ -147,6 +148,7 @@ export default function HesapAyarlariPage() {
     }
 
     setMessage({ type: "success", text: "Şifreniz başarıyla güncellendi." })
+    await logSecurityEvent("password_change")
     setCurrentPassword("")
     setNewPassword("")
     setConfirmPassword("")

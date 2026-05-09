@@ -8,6 +8,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Soup } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
+import {
+  MONTHS,
+  START_MONTH_INDEX,
+  START_YEAR,
+  getInitialEndYear,
+  getInitialMonth,
+  getInitialYear,
+  getLocalDateString,
+  getMonthYearFromDate,
+  makeYears,
+} from "@/lib/date-navigation"
+import { logSecurityEvent } from "@/lib/audit-log"
 
 interface Personel {
   id: string
@@ -21,26 +33,18 @@ interface CorbaRow {
   personel_values: Record<string, number>
 }
 
-const months = [
-  "Ocak", "Subat", "Mart", "Nisan", "Mayis", "Haziran",
-  "Temmuz", "Agustos", "Eylul", "Ekim", "Kasim", "Aralik"
-]
-const START_YEAR = 2026
-const currentDate = new Date()
-const currentMonth = months[currentDate.getMonth()]
-const currentYear = currentDate.getFullYear()
-const years = Array.from({ length: Math.max(currentYear + 4, 2030) - START_YEAR + 1 }, (_, index) => START_YEAR + index)
-
 export default function CorbalarPage() {
-  const [month, setMonth] = useState(currentMonth)
-  const [year, setYear] = useState(currentYear)
+  const [month, setMonth] = useState(getInitialMonth())
+  const [year, setYear] = useState(getInitialYear())
+  const [endYear, setEndYear] = useState(getInitialEndYear())
   const [personeller, setPersoneller] = useState<Personel[]>([])
   const [rows, setRows] = useState<CorbaRow[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
-  const { currentSube } = useSube()
+  const { currentSube, isAdmin } = useSube()
   const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
+  const years = makeYears(endYear)
   
   const ayYil = `${month}-${year}`
 
@@ -118,32 +122,35 @@ export default function CorbalarPage() {
   }
 
   const prevMonth = () => {
-    const currentIndex = months.indexOf(month)
+    const currentIndex = MONTHS.indexOf(month)
     if (currentIndex === 0) {
       if (year > START_YEAR) {
-        setMonth(months[11])
+        setMonth(MONTHS[11])
         setYear(year - 1)
       }
     } else {
-      if (year === START_YEAR && currentIndex <= 3) return
-      setMonth(months[currentIndex - 1])
+      if (year === START_YEAR && currentIndex <= START_MONTH_INDEX) return
+      setMonth(MONTHS[currentIndex - 1])
     }
   }
 
   const nextMonth = () => {
-    const currentIndex = months.indexOf(month)
+    const currentIndex = MONTHS.indexOf(month)
     if (currentIndex === 11) {
-      if (year < years[years.length - 1]) {
-        setMonth(months[0])
+      if (year >= endYear) {
+        setEndYear(endYear + 5)
+      }
+      if (year < endYear + 5) {
+        setMonth(MONTHS[0])
         setYear(year + 1)
       }
     } else {
-      setMonth(months[currentIndex + 1])
+      setMonth(MONTHS[currentIndex + 1])
     }
   }
 
   function getNextDate(): string {
-    const monthIndex = months.indexOf(month)
+    const monthIndex = MONTHS.indexOf(month)
     if (rows.length === 0) {
       return `${year}-${String(monthIndex + 1).padStart(2, "0")}-01`
     }
@@ -153,24 +160,51 @@ export default function CorbalarPage() {
   }
 
   function addRow() {
+    if (!isAdmin) {
+      const today = getLocalDateString()
+      const todayMonthYear = getMonthYearFromDate(today)
+
+      if (month !== todayMonthYear.month || year !== todayMonthYear.year) {
+        alert("Normal kullanıcılar sadece bugünün olduğu ayda satır ekleyebilir.")
+        return
+      }
+
+      if (rows.some(row => row.tarih === today)) {
+        alert("Bugün için zaten bir satır var.")
+        return
+      }
+
+      setRows([...rows, { tarih: today, personel_values: {} }].sort((a, b) => a.tarih.localeCompare(b.tarih)))
+      markDirty()
+      return
+    }
+
     const newRow: CorbaRow = {
       tarih: getNextDate(),
       personel_values: {},
     }
     setRows([...rows, newRow])
+    markDirty()
   }
 
   function deleteRow(index: number) {
     const newRows = [...rows]
+    const deletedRow = newRows[index]
     newRows.splice(index, 1)
     setRows(newRows)
     markDirty()
+    logSecurityEvent("row_delete", {
+      table: "corbalar",
+      sube_id: currentSube?.id,
+      tarih: deletedRow?.tarih,
+    })
   }
 
   function updateCell(rowIndex: number, personelId: string, value: number) {
     const newRows = [...rows]
     newRows[rowIndex].personel_values[personelId] = value
     setRows(newRows)
+    markDirty()
   }
 
   async function saveData() {
@@ -182,11 +216,19 @@ export default function CorbalarPage() {
     }
 
     // Bu ay için tüm çorba kayıtlarını sil
-    const { error: deleteError } = await supabase
+    const editableRows = isAdmin ? rows : rows.filter(row => row.tarih === getLocalDateString())
+
+    let deleteQuery = supabase
       .from("corbalar")
       .delete()
       .eq("sube_id", currentSube.id)
       .eq("ay_yil", ayYil)
+
+    if (!isAdmin) {
+      deleteQuery = deleteQuery.eq("user_id", user.id).eq("tarih", getLocalDateString())
+    }
+
+    const { error: deleteError } = await deleteQuery
 
     if (deleteError) {
       console.log("Çorba silme hatası:", deleteError)
@@ -196,7 +238,7 @@ export default function CorbalarPage() {
 
     // Yeni kayıtları ekle
     const insertData: any[] = []
-    rows.forEach(row => {
+    editableRows.forEach(row => {
       personeller.forEach(personel => {
         const miktar = row.personel_values[personel.id] || 0
         if (miktar > 0) {
@@ -264,7 +306,7 @@ export default function CorbalarPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {months.map(m => (
+                {MONTHS.filter((_, index) => year !== START_YEAR || index >= START_MONTH_INDEX).map(m => (
                   <SelectItem key={m} value={m}>{m}</SelectItem>
                 ))}
               </SelectContent>
@@ -337,7 +379,9 @@ export default function CorbalarPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row, rowIndex) => (
+                  {rows.map((row, rowIndex) => {
+                    const canEditRow = isAdmin || row.tarih === getLocalDateString()
+                    return (
                     <tr key={rowIndex} className="hover:bg-gray-50">
                       <td className="p-1 border text-center text-gray-500">{rowIndex + 1}</td>
                       <td className="p-0 border">
@@ -351,21 +395,24 @@ export default function CorbalarPage() {
                             type="number"
                             value={row.personel_values[personel.id] || ""}
                             onChange={(e) => updateCell(rowIndex, personel.id, Number(e.target.value) || 0)}
+                            disabled={!canEditRow}
                             className="w-full px-2 py-1 text-right focus:outline-none focus:bg-blue-50"
                             placeholder="0,00"
                           />
                         </td>
                       ))}
                       <td className="p-1 border">
-                        <button
-                          onClick={() => deleteRow(rowIndex)}
-                          className="p-1 text-red-500 hover:bg-red-50 rounded"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {canEditRow && (
+                          <button
+                            onClick={() => deleteRow(rowIndex)}
+                            className="p-1 text-red-500 hover:bg-red-50 rounded"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
-                  ))}
+                  )})}
                   {rows.length === 0 && (
                     <tr>
                       <td colSpan={personeller.length + 3} className="p-8 text-center text-gray-500">
