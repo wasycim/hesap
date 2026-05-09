@@ -153,15 +153,21 @@ function buildTrustedLoginIps(events: SecurityEvent[]) {
   return trusted
 }
 
-function buildDifferentLoginIpEvents(events: SecurityEvent[], trustedIpsByUser: Map<string, Set<string>>) {
+function buildDifferentLoginIpEvents(events: SecurityEvent[]) {
   const differentIpEvents = new Set<string>()
+  const ipsByUser = new Map<string, Set<string>>()
 
   events.forEach(event => {
     if (event.event_type !== "login" || !event.ip_address) return
-    const trustedIps = trustedIpsByUser.get(getUserKey(event))
-    if (trustedIps && trustedIps.size > 0 && !trustedIps.has(event.ip_address)) {
-      differentIpEvents.add(event.id)
-    }
+    const userKey = getUserKey(event)
+    const ips = ipsByUser.get(userKey) || new Set<string>()
+    ips.add(event.ip_address)
+    ipsByUser.set(userKey, ips)
+  })
+
+  events.forEach(event => {
+    if (event.event_type !== "login" || !event.ip_address) return
+    if ((ipsByUser.get(getUserKey(event))?.size || 0) > 1) differentIpEvents.add(event.id)
   })
 
   return differentIpEvents
@@ -241,8 +247,7 @@ export default function GuvenlikAyarlarPage() {
   const supabase = createClient()
 
   const passwordChangeCounts = useMemo(() => buildPasswordChangeCounts(events), [events])
-  const trustedLoginIps = useMemo(() => buildTrustedLoginIps(events), [events])
-  const differentIpEvents = useMemo(() => buildDifferentLoginIpEvents(events, trustedLoginIps), [events, trustedLoginIps])
+  const differentIpEvents = useMemo(() => buildDifferentLoginIpEvents(events), [events])
   const sharedIpEvents = useMemo(() => buildSharedLoginIpEvents(events), [events])
   const eventsWithSeverity = useMemo(() => events.map(event => {
     const passwordCount = passwordChangeCounts.get(event.id) || 0
