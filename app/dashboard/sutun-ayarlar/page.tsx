@@ -303,14 +303,14 @@ export default function SutunAyarlarPage() {
     })
 
     return (
-      <div className="rounded-lg border bg-white">
+      <div className="rounded-lg border bg-card">
         <div className="border-b px-4 py-3">
           <h3 className="font-semibold">Sütun Önizleme</h3>
           <p className="text-xs text-muted-foreground">Tabloda görünecek başlık sırası ve renkleri.</p>
         </div>
         <div className="overflow-x-auto p-3">
           <div className="flex min-w-max items-stretch">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-r-0 bg-gray-100 text-sm font-bold">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-r-0 bg-muted text-sm font-bold text-muted-foreground">
               #
             </div>
             {previewItems.map(column => (
@@ -371,7 +371,7 @@ export default function SutunAyarlarPage() {
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={() => dragColumn(tableType, column.column_key)}
                   onDragEnd={() => setDraggedColumnKey(null)}
-                  className={`border-b ${!column.aktif ? "bg-muted/40 opacity-70" : ""} ${draggedColumnKey === column.column_key ? "bg-blue-50" : ""}`}
+                  className={`border-b ${!column.aktif ? "bg-muted/40 opacity-70" : ""} ${draggedColumnKey === column.column_key ? "bg-blue-50 dark:bg-blue-500/15" : ""}`}
                 >
                   <td className="p-3">
                     <div className="flex items-center gap-1">
@@ -485,8 +485,8 @@ export default function SutunAyarlarPage() {
         <div
           className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
             saveMessage.type === "success"
-              ? "border-green-200 bg-green-50 text-green-700"
-              : "border-red-200 bg-red-50 text-red-700"
+              ? "border-green-200 bg-green-50 text-green-700 dark:border-green-500/30 dark:bg-green-500/15 dark:text-green-200"
+              : "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-200"
           }`}
         >
           {saveMessage.text}

@@ -15,6 +15,7 @@ import { logSecurityEvent } from "@/lib/audit-log"
 interface AdminUser {
   user_id: string
   email: string | null
+  display_name?: string | null
   is_admin: boolean
   sube_id: string | null
   vardiya: string | null
@@ -40,11 +41,13 @@ export default function AdminAyarlarPage() {
   const { subeler, isAdmin } = useSube()
   const [users, setUsers] = useState<AdminUser[]>([])
   const [email, setEmail] = useState("")
+  const [displayName, setDisplayName] = useState("")
   const [subeId, setSubeId] = useState("")
   const [role, setRole] = useState("user")
   const [vardiya, setVardiya] = useState("T")
   const [selectedUserId, setSelectedUserId] = useState("")
   const [editSubeId, setEditSubeId] = useState("")
+  const [editDisplayName, setEditDisplayName] = useState("")
   const [editRole, setEditRole] = useState("user")
   const [editVardiya, setEditVardiya] = useState("T")
   const [newSubeName, setNewSubeName] = useState("")
@@ -69,6 +72,7 @@ export default function AdminAyarlarPage() {
 
   useEffect(() => {
     if (!selectedUser) return
+    setEditDisplayName(selectedUser.display_name || "")
     setEditSubeId(selectedUser.sube_id || subeler[0]?.id || "")
     setEditRole(selectedUser.is_admin ? "admin" : "user")
     setEditVardiya(selectedUser.vardiya || "T")
@@ -93,6 +97,7 @@ export default function AdminAyarlarPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         email,
+        displayName,
         subeId,
         isAdmin: role === "admin",
         vardiya,
@@ -109,6 +114,7 @@ export default function AdminAyarlarPage() {
     }
 
     setEmail("")
+    setDisplayName("")
     setRole("user")
     setVardiya("T")
     setMessage("Kullanıcı oluşturuldu. İlk şifre: 123456")
@@ -130,6 +136,7 @@ export default function AdminAyarlarPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         userId: selectedUserId,
+        displayName: editDisplayName,
         subeId: editSubeId,
         isAdmin: editRole === "admin",
         vardiya: editVardiya,
@@ -269,6 +276,10 @@ export default function AdminAyarlarPage() {
               <Input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="test.kullanici@mail.com" />
             </div>
             <div className="space-y-2">
+              <Label>Görünen ad</Label>
+              <Input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Örn. Murat Yılmaz" />
+            </div>
+            <div className="space-y-2">
               <Label>Şube</Label>
               <Select value={subeId} onValueChange={setSubeId}>
                 <SelectTrigger>
@@ -332,11 +343,15 @@ export default function AdminAyarlarPage() {
                 <SelectContent>
                   {users.map(user => (
                     <SelectItem key={user.user_id} value={user.user_id}>
-                      {user.email || user.user_id}
+                      {user.display_name || user.email || user.user_id}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Görünen ad</Label>
+              <Input value={editDisplayName} onChange={(event) => setEditDisplayName(event.target.value)} placeholder="Sol menüde görünecek ad" disabled={!selectedUser} />
             </div>
             <div className="space-y-2">
               <Label>Şube</Label>
@@ -435,6 +450,7 @@ export default function AdminAyarlarPage() {
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="p-3 text-left">E-posta</th>
+                  <th className="p-3 text-left">Görünen ad</th>
                   <th className="p-3 text-left">Rol</th>
                   <th className="p-3 text-left">Şube</th>
                   <th className="p-3 text-left">Vardiya</th>
@@ -445,6 +461,7 @@ export default function AdminAyarlarPage() {
                 {users.map(user => (
                   <tr key={user.user_id} className="border-b">
                     <td className="p-3">{user.email || "-"}</td>
+                    <td className="p-3">{user.display_name || "-"}</td>
                     <td className="p-3">{user.is_admin ? "Yönetici" : "Kullanıcı"}</td>
                     <td className="p-3">{user.subeler?.ad || "-"}</td>
                     <td className="p-3">{formatVardiya(user.vardiya)}</td>

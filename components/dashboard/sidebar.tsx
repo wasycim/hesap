@@ -30,6 +30,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 
 interface SidebarProps {
   userEmail: string
+  displayName?: string
 }
 
 interface KargoFirma {
@@ -56,7 +57,7 @@ const bottomMenuItems = [
   { title: "Hesap Ayarları", href: "/dashboard/hesap", icon: UserCog, color: "text-purple-500" },
 ]
 
-export function DashboardSidebar({ userEmail }: SidebarProps) {
+export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -199,8 +200,11 @@ export function DashboardSidebar({ userEmail }: SidebarProps) {
                 {kargoOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               </button>
 
-              {kargoOpen && (
-                <ul className="ml-4 mt-1 space-y-1 border-l border-sidebar-border pl-4">
+              <div className={cn(
+                "grid transition-[grid-template-rows,opacity] duration-700 ease-out",
+                kargoOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+              )}>
+                <ul className="ml-4 mt-1 min-h-0 overflow-hidden border-l border-sidebar-border pl-4">
                   {isAdmin && (
                     <li>
                       <Link
@@ -245,7 +249,7 @@ export function DashboardSidebar({ userEmail }: SidebarProps) {
                     })
                   )}
                 </ul>
-              )}
+              </div>
             </li>
           )}
 
@@ -342,7 +346,10 @@ export function DashboardSidebar({ userEmail }: SidebarProps) {
         </ul>
 
         <div className="mb-3 flex items-center gap-2 rounded-lg bg-sidebar-accent/30 px-3 py-2">
-          <p className="min-w-0 flex-1 truncate text-xs font-medium text-sidebar-foreground/80">{userEmail}</p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-medium text-sidebar-foreground/90">{displayName || userEmail}</p>
+            {displayName && <p className="truncate text-[10px] text-sidebar-foreground/50">{userEmail}</p>}
+          </div>
           <ThemeToggle className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground" />
         </div>
         <Button

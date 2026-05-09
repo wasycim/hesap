@@ -20,7 +20,7 @@ export default async function DashboardLayout({
     <SubeProvider>
   <UnsavedChangesProvider>
     <div className="flex h-screen bg-background">
-      <DashboardSidebar userEmail={user.email ?? ""} />
+      <DashboardSidebar userEmail={user.email ?? ""} displayName={String(user.user_metadata?.display_name || "")} />
       <main className="flex-1 overflow-auto">
         {children}
       </main>

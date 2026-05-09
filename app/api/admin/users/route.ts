@@ -36,9 +36,11 @@ export async function GET() {
 
   const { data: authData } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
   const authEmailById = new Map((authData?.users || []).map(user => [user.id, user.email]))
+  const authDisplayNameById = new Map((authData?.users || []).map(user => [user.id, user.user_metadata?.display_name || ""]))
   const users = (data || []).map(profile => ({
     ...profile,
     email: profile.email || authEmailById.get(profile.user_id) || null,
+    display_name: authDisplayNameById.get(profile.user_id) || "",
   }))
 
   return NextResponse.json({ users })
@@ -53,6 +55,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => ({}))
   const email = String(body.email || "").trim().toLowerCase()
+  const displayName = String(body.displayName || "").trim()
   const subeId = String(body.subeId || "").trim()
   const isNewUserAdmin = Boolean(body.isAdmin)
   const vardiya = body.vardiya === "S" || body.vardiya === "A" || body.vardiya === "T" ? body.vardiya : "T"
@@ -66,6 +69,7 @@ export async function POST(request: NextRequest) {
     email,
     password: "123456",
     email_confirm: true,
+    user_metadata: { display_name: displayName },
   })
 
   if (authError || !authData.user) {
@@ -89,7 +93,7 @@ export async function POST(request: NextRequest) {
     user_id: actor.id,
     user_email: actor.email,
     event_type: "user_create",
-    details: { created_email: email, sube_id: subeId, is_admin: isNewUserAdmin, vardiya },
+    details: { created_email: email, display_name: displayName, sube_id: subeId, is_admin: isNewUserAdmin, vardiya },
   })
 
   return NextResponse.json({ ok: true })
@@ -104,6 +108,7 @@ export async function PATCH(request: NextRequest) {
 
   const body = await request.json().catch(() => ({}))
   const userId = String(body.userId || "").trim()
+  const displayName = String(body.displayName || "").trim()
   const subeId = String(body.subeId || "").trim()
   const nextIsAdmin = Boolean(body.isAdmin)
   const vardiya = body.vardiya === "S" || body.vardiya === "A" || body.vardiya === "T" ? body.vardiya : "T"
@@ -113,6 +118,14 @@ export async function PATCH(request: NextRequest) {
   }
 
   const admin = createAdminClient()
+  const { error: authUpdateError } = await admin.auth.admin.updateUserById(userId, {
+    user_metadata: { display_name: displayName },
+  })
+
+  if (authUpdateError) {
+    return NextResponse.json({ error: authUpdateError.message }, { status: 500 })
+  }
+
   const { error: profileError } = await admin
     .from("user_profiles")
     .update({
@@ -131,7 +144,7 @@ export async function PATCH(request: NextRequest) {
     user_id: actor.id,
     user_email: actor.email,
     event_type: "user_update",
-    details: { updated_user_id: userId, sube_id: subeId, is_admin: nextIsAdmin, vardiya },
+    details: { updated_user_id: userId, display_name: displayName, sube_id: subeId, is_admin: nextIsAdmin, vardiya },
   })
 
   return NextResponse.json({ ok: true })

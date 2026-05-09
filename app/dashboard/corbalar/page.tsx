@@ -329,7 +329,7 @@ export default function CorbalarPage() {
             <CardContent className="p-6 text-center">
               <Soup className="h-12 w-12 mx-auto mb-4 text-orange-400" />
               <h3 className="font-semibold mb-2">Personel Bulunamadı</h3>
-              <p className="text-gray-500 text-sm">
+              <p className="text-sm text-muted-foreground">
                 Çorba girişi yapabilmek için önce Ayarlar sayfasından personel eklemeniz gerekiyor.
               </p>
             </CardContent>
@@ -339,7 +339,7 @@ export default function CorbalarPage() {
             {/* Personel Toplam Kartlari */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
               {personeller.map(personel => (
-                <Card key={personel.id} className="bg-amber-50 border-amber-200 shadow-sm">
+                <Card key={personel.id} className="border-amber-200 bg-amber-50 shadow-sm dark:border-amber-500/30 dark:bg-amber-500/15">
                   <CardContent className="p-4">
                     <p className="text-xs font-semibold text-orange-600 uppercase truncate">{personel.ad}</p>
                     <p className="text-xl font-bold text-orange-600 mt-1">{formatNumber(personelTotals[personel.id] || 0)} TL</p>
@@ -359,28 +359,28 @@ export default function CorbalarPage() {
             </div>
 
             {/* Tablo */}
-            <div className="overflow-x-auto border rounded-lg">
+            <div className="overflow-x-auto rounded-lg border bg-card">
               <table className="w-full text-sm">
                 <thead>
                   <tr>
-                    <th className="p-2 border bg-gray-100 w-10">#</th>
+                    <th className="w-10 border bg-muted p-2 text-muted-foreground">#</th>
                     <th className="p-2 border bg-green-600 text-white font-semibold">TARİH</th>
                     {personeller.map(personel => (
                       <th key={personel.id} className="p-2 border bg-blue-600 text-white font-semibold whitespace-nowrap">
                         {personel.ad}
                       </th>
                     ))}
-                    <th className="p-2 border bg-gray-100 w-10"></th>
+                    <th className="w-10 border bg-muted p-2"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row, rowIndex) => {
                     const canEditRow = isAdmin || row.tarih === getLocalDateString()
                     return (
-                    <tr key={rowIndex} className="hover:bg-gray-50">
-                      <td className="p-1 border text-center text-gray-500">{rowIndex + 1}</td>
+                    <tr key={rowIndex} className="hover:bg-muted/50">
+                      <td className="border p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
                       <td className="p-0 border">
-                        <div className="px-2 py-1 bg-gray-100 text-center font-medium">
+                        <div className="bg-muted px-2 py-1 text-center font-medium text-foreground">
                           {formatDate(row.tarih)}
                         </div>
                       </td>
@@ -391,7 +391,7 @@ export default function CorbalarPage() {
                             value={row.personel_values[personel.id] || ""}
                             onChange={(e) => updateCell(rowIndex, personel.id, Number(e.target.value) || 0)}
                             disabled={!canEditRow}
-                            className="w-full px-2 py-1 text-right focus:outline-none focus:bg-blue-50"
+                            className="w-full bg-transparent px-2 py-1 text-right text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"
                             placeholder="0,00"
                           />
                         </td>
@@ -400,7 +400,7 @@ export default function CorbalarPage() {
                         {canEditRow && (
                           <button
                             onClick={() => deleteRow(rowIndex)}
-                            className="p-1 text-red-500 hover:bg-red-50 rounded"
+                            className="rounded p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/20"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -410,7 +410,7 @@ export default function CorbalarPage() {
                   )})}
                   {rows.length === 0 && (
                     <tr>
-                      <td colSpan={personeller.length + 3} className="p-8 text-center text-gray-500">
+                      <td colSpan={personeller.length + 3} className="p-8 text-center text-muted-foreground">
                         Henüz kayıt yok. &quot;Satır Ekle&quot; butonuna tıklayarak başlayın.
                       </td>
                     </tr>
@@ -418,7 +418,7 @@ export default function CorbalarPage() {
                 </tbody>
                 {rows.length > 0 && (
                   <tfoot>
-                    <tr className="bg-gray-100 font-semibold">
+                    <tr className="bg-muted font-semibold text-foreground">
                       <td className="p-2 border"></td>
                       <td className="p-2 border text-center">TOPLAM</td>
                       {personeller.map(personel => (
