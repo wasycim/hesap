@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { Building2, Plus, Trash2, UserCog, UserPlus } from "lucide-react"
+import { Building2, Plus, Trash2, UserCog, UserPlus, UserX } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -50,6 +50,7 @@ export default function AdminAyarlarPage() {
   const [newSubeName, setNewSubeName] = useState("")
   const [savingUser, setSavingUser] = useState(false)
   const [savingEdit, setSavingEdit] = useState(false)
+  const [deletingUser, setDeletingUser] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const supabase = createClient()
 
@@ -146,6 +147,39 @@ export default function AdminAyarlarPage() {
 
     toast.success("Değişiklikler kaydedildi ✅")
     setSavingEdit(false)
+    loadUsers()
+  }
+
+  async function deleteUser() {
+    if (!selectedUser) {
+      toast.error("Silinecek kullanıcı seçin.")
+      return
+    }
+
+    const userLabel = selectedUser.email || selectedUser.user_id
+    if (!confirm(`${userLabel} kullanıcısını silmek istediğinizden emin misiniz? Bu işlem kritik olarak kaydedilecek.`)) return
+
+    setDeletingUser(true)
+    setMessage(null)
+    const response = await fetch("/api/admin/users", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: selectedUser.user_id }),
+    })
+    const result = await response.json()
+
+    if (!response.ok) {
+      const text = result.error || "Kullanıcı silinemedi."
+      setMessage(text)
+      toast.error(text)
+      setDeletingUser(false)
+      return
+    }
+
+    setSelectedUserId("")
+    setMessage("Kullanıcı silindi.")
+    toast.success("Değişiklikler kaydedildi ✅")
+    setDeletingUser(false)
     loadUsers()
   }
 
@@ -348,6 +382,15 @@ export default function AdminAyarlarPage() {
               <UserCog className="h-4 w-4" />
               {savingEdit ? "Kaydediliyor..." : "Kullanıcıyı Güncelle"}
             </Button>
+            <Button
+              onClick={deleteUser}
+              disabled={!selectedUser || deletingUser}
+              variant="destructive"
+              className="w-full gap-2"
+            >
+              <UserX className="h-4 w-4" />
+              {deletingUser ? "Siliniyor..." : "Kullanıcıyı Sil"}
+            </Button>
           </CardContent>
         </Card>
 
@@ -395,6 +438,7 @@ export default function AdminAyarlarPage() {
                   <th className="p-3 text-left">Rol</th>
                   <th className="p-3 text-left">Şube</th>
                   <th className="p-3 text-left">Vardiya</th>
+                  <th className="p-3 text-right">İşlem</th>
                 </tr>
               </thead>
               <tbody>
@@ -404,6 +448,17 @@ export default function AdminAyarlarPage() {
                     <td className="p-3">{user.is_admin ? "Yönetici" : "Kullanıcı"}</td>
                     <td className="p-3">{user.subeler?.ad || "-"}</td>
                     <td className="p-3">{formatVardiya(user.vardiya)}</td>
+                    <td className="p-3 text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setSelectedUserId(user.user_id)}
+                        className="text-red-600 hover:text-red-700"
+                        title="Silmek için kullanıcıyı seç"
+                      >
+                        <UserX className="h-4 w-4" />
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

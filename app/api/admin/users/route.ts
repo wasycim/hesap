@@ -136,3 +136,52 @@ export async function PATCH(request: NextRequest) {
 
   return NextResponse.json({ ok: true })
 }
+
+export async function DELETE(request: NextRequest) {
+  const { user: actor, isAdmin } = await requireAdmin()
+
+  if (!actor || !isAdmin) {
+    return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
+  }
+
+  const body = await request.json().catch(() => ({}))
+  const userId = String(body.userId || "").trim()
+
+  if (!userId) {
+    return NextResponse.json({ error: "Silinecek kullanıcı zorunlu." }, { status: 400 })
+  }
+
+  if (userId === actor.id) {
+    return NextResponse.json({ error: "Kendi hesabınızı silemezsiniz." }, { status: 400 })
+  }
+
+  const admin = createAdminClient()
+  const { data: profile } = await admin
+    .from("user_profiles")
+    .select("email, is_admin, sube_id, vardiya")
+    .eq("user_id", userId)
+    .maybeSingle()
+
+  const { error: deleteError } = await admin.auth.admin.deleteUser(userId)
+
+  if (deleteError) {
+    return NextResponse.json({ error: deleteError.message }, { status: 500 })
+  }
+
+  await admin.from("user_profiles").delete().eq("user_id", userId)
+
+  await admin.from("security_events").insert({
+    user_id: actor.id,
+    user_email: actor.email,
+    event_type: "user_delete",
+    details: {
+      deleted_user_id: userId,
+      deleted_email: profile?.email || null,
+      was_admin: Boolean(profile?.is_admin),
+      sube_id: profile?.sube_id || null,
+      vardiya: profile?.vardiya || null,
+    },
+  })
+
+  return NextResponse.json({ ok: true })
+}

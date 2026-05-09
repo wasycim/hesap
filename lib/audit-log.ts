@@ -9,6 +9,7 @@ export type SecurityEventType =
   | "password_change"
   | "user_create"
   | "user_update"
+  | "user_delete"
   | "branch_create"
   | "branch_delete"
   | "branch_delete_failed"
