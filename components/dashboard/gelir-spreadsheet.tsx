@@ -87,6 +87,10 @@ function normalizeSubeName(name: string): string {
   return name.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\u0131/g, "i")
 }
 
+function getGiderTotalKey(tarih: string, vardiya: string, isTekVardiya: boolean) {
+  return isTekVardiya ? tarih : `${tarih}__${vardiya || "S"}`
+}
+
 export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   const [rows, setRows] = useState<GelirRow[]>([])
   const [columnSettings, setColumnSettings] = useState<TableColumnSetting[]>(mergeColumnSettings("gelir", []))
@@ -183,8 +187,8 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
         diger_komisyon: Number(row.diger_komisyon) || 0,
         kasa_gelen: Number(row.kasa_gelen) || 0,
         toplam: Number(row.toplam) || 0,
-        giderler: giderTotals.get(row.tarih) ?? (Number(row.giderler) || 0),
-        kalan: (Number(row.toplam) || 0) - (giderTotals.get(row.tarih) ?? (Number(row.giderler) || 0)),
+        giderler: giderTotals.get(getGiderTotalKey(row.tarih, row.vardiya || "S", isTekVardiya)) ?? (Number(row.giderler) || 0),
+        kalan: (Number(row.toplam) || 0) - (giderTotals.get(getGiderTotalKey(row.tarih, row.vardiya || "S", isTekVardiya)) ?? (Number(row.giderler) || 0)),
         durum: row.durum || "KONTROL EDİLMEDİ",
         custom_values: row.custom_values || {},
       })))
@@ -198,12 +202,13 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
 
     const { data } = await supabase
       .from("gider_kayitlari")
-      .select("tarih, genel_toplam")
+      .select("tarih, vardiya, genel_toplam")
       .eq("sube_id", currentSube.id)
       .eq("ay_yil", ayYil)
 
     ;(data || []).forEach(row => {
-      totalsByDate.set(row.tarih, (totalsByDate.get(row.tarih) || 0) + (Number(row.genel_toplam) || 0))
+      const key = getGiderTotalKey(row.tarih, row.vardiya || "S", isTekVardiya)
+      totalsByDate.set(key, (totalsByDate.get(key) || 0) + (Number(row.genel_toplam) || 0))
     })
 
     return totalsByDate
@@ -359,7 +364,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     // Yeni kayıtları ekle
     if (editableRows.length > 0) {
       const insertData = editableRows.map(row => {
-        const giderler = giderTotals.get(row.tarih) || 0
+        const giderler = giderTotals.get(getGiderTotalKey(row.tarih, row.vardiya || "S", isTekVardiya)) || 0
         return {
           user_id: row.user_id || user.id,
           sube_id: currentSube.id,
