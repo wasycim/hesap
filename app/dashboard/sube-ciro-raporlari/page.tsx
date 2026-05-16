@@ -1,10 +1,12 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { BarChart3, CalendarDays, Filter, TrendingUp } from "lucide-react"
+import { BarChart3, CalendarDays, ChevronDown, Filter } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSube } from "@/contexts/sube-context"
 import { getLocalDateString } from "@/lib/date-navigation"
@@ -38,10 +40,61 @@ function getMonthStart(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-01`
 }
 
+function parseLocalDate(value: string) {
+  if (!value) return undefined
+  const [year, month, day] = value.split("-").map(Number)
+  if (!year || !month || !day) return undefined
+  return new Date(year, month - 1, day)
+}
+
 function getShiftLabel(value: string | null) {
   if (value === "S") return "Sabah"
   if (value === "A") return "Akşam"
   return "Tek vardiya"
+}
+
+function DatePickerField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  const selectedDate = parseLocalDate(value)
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-10 min-w-[185px] justify-between gap-3 bg-background px-3 font-normal"
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="truncate">
+              {label}: {value ? formatDate(value) : "Tarih seç"}
+            </span>
+          </span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-auto p-0">
+        <Calendar
+          mode="single"
+          selected={selectedDate}
+          onSelect={(date) => {
+            if (date) onChange(getLocalDateString(date))
+          }}
+          weekStartsOn={1}
+          captionLayout="dropdown"
+          className="rounded-md border-0"
+        />
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 export default function SubeCiroRaporlariPage() {
@@ -209,8 +262,22 @@ export default function SubeCiroRaporlariPage() {
               <SelectItem value="custom">Tarih Seç</SelectItem>
             </SelectContent>
           </Select>
-          <input type="date" value={startDate} onChange={(event) => { setPeriod("custom"); setStartDate(event.target.value) }} className="h-10 rounded-md border bg-background px-3 text-sm" />
-          <input type="date" value={endDate} onChange={(event) => { setPeriod("custom"); setEndDate(event.target.value) }} className="h-10 rounded-md border bg-background px-3 text-sm" />
+          <DatePickerField
+            label="Başlangıç"
+            value={startDate}
+            onChange={(value) => {
+              setPeriod("custom")
+              setStartDate(value)
+            }}
+          />
+          <DatePickerField
+            label="Bitiş"
+            value={endDate}
+            onChange={(value) => {
+              setPeriod("custom")
+              setEndDate(value)
+            }}
+          />
           <Select value={selectedSubeId} onValueChange={setSelectedSubeId}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
