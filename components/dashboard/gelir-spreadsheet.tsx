@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Plus, Save, Trash2 } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
-import { TableColumnSetting, getColumnTextColor, mergeColumnSettings } from "@/lib/table-column-settings"
+import { FIRMALAR_GROUP_KEY, TableColumnSetting, getColumnTextColor, mergeColumnSettings } from "@/lib/table-column-settings"
 import { getLocalDateString, getMonthIndex, getMonthYearFromDate } from "@/lib/date-navigation"
 import { logSecurityEvent } from "@/lib/audit-log"
 
@@ -36,6 +36,12 @@ interface GelirRow {
 interface GelirSpreadsheetProps {
   month: string
   year: number
+}
+
+interface GelirFirma {
+  id: string
+  ad: string
+  color?: string
 }
 
 const HEADER_COLORS: Record<string, string> = {
@@ -94,6 +100,7 @@ function getGiderTotalKey(tarih: string, vardiya: string, isTekVardiya: boolean)
 export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   const [rows, setRows] = useState<GelirRow[]>([])
   const [columnSettings, setColumnSettings] = useState<TableColumnSetting[]>(mergeColumnSettings("gelir", []))
+  const [firmalar, setFirmalar] = useState<GelirFirma[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
@@ -106,9 +113,19 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     : false
   const isTekVardiya = isVardiyasizSube || (!isAdmin && (!userVardiya || userVardiya === "T"))
   const activeColumnSettings = columnSettings.filter(col => col.aktif && (!isTekVardiya || col.column_key !== "vardiya"))
-  const visibleColumns = activeColumnSettings.map(col => col.column_key)
-  const columnColorMap = Object.fromEntries(activeColumnSettings.map(col => [col.column_key, col.color]))
-  const columnLabelMap = Object.fromEntries(activeColumnSettings.map(col => [col.column_key, col.label]))
+  const visibleColumnItems = activeColumnSettings.flatMap(col => {
+    if (col.column_key === FIRMALAR_GROUP_KEY) {
+      return firmalar.map(firma => ({
+        column_key: `firma_${firma.id}`,
+        label: firma.ad.toUpperCase(),
+        color: firma.color || col.color,
+      }))
+    }
+    return [col]
+  })
+  const visibleColumns = visibleColumnItems.map(col => col.column_key)
+  const columnColorMap = Object.fromEntries(visibleColumnItems.map(col => [col.column_key, col.color]))
+  const columnLabelMap = Object.fromEntries(visibleColumnItems.map(col => [col.column_key, col.label]))
 
   useEffect(() => {
     // Şube değiştiğinde önce mevcut verileri temizle
@@ -157,6 +174,15 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       .order("sort_order", { ascending: true })
 
     setColumnSettings(mergeColumnSettings("gelir", settingsData as TableColumnSetting[] | null))
+
+    const { data: firmaData } = await supabase
+      .from("gelir_firmalar")
+      .select("id, ad, color")
+      .eq("sube_id", currentSube.id)
+      .eq("aktif", true)
+      .order("sira", { ascending: true })
+
+    setFirmalar(firmaData || [])
 
     // Şubeye göre kayıtları çek (admin tüm kullanıcıların kayıtlarını görür)
     let query = supabase
@@ -293,7 +319,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     const newRows = [...rows]
     const row = { ...newRows[rowIndex] }
     
-    const isCustomColumn = column.startsWith("custom_")
+    const isCustomColumn = column.startsWith("custom_") || column.startsWith("firma_")
 
     if (isCustomColumn) {
       row.custom_values = { ...row.custom_values, [column]: Number(value) || 0 }

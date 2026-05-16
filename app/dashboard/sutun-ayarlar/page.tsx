@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowDown, ArrowUp, Eye, EyeOff, GripVertical, Plus, Save, Trash2 } from "lucide-react"
 import {
   COLOR_OPTIONS,
+  FIRMALAR_GROUP_KEY,
   ORTAKLAR_GROUP_KEY,
   PERSONELLER_GROUP_KEY,
   TableColumnSetting,
@@ -35,6 +36,8 @@ function columnIdentity(column: Pick<TableColumnSetting, "table_type" | "column_
 interface DynamicColumnItem {
   id: string
   ad: string
+  color?: string
+  komisyon_orani?: number | null
 }
 
 export default function SutunAyarlarPage() {
@@ -52,6 +55,7 @@ export default function SutunAyarlarPage() {
   const [dragOverColumnKey, setDragOverColumnKey] = useState<string | null>(null)
   const [ortaklar, setOrtaklar] = useState<DynamicColumnItem[]>([])
   const [personeller, setPersoneller] = useState<DynamicColumnItem[]>([])
+  const [firmalar, setFirmalar] = useState<DynamicColumnItem[]>([])
   const supabase = createClient()
   const { currentSube } = useSube()
   const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
@@ -94,7 +98,7 @@ export default function SutunAyarlarPage() {
       return
     }
 
-    const [ortakRes, personelRes] = await Promise.all([
+    const [ortakRes, personelRes, firmaRes] = await Promise.all([
       supabase
         .from("ortaklar")
         .select("id, ad")
@@ -107,10 +111,17 @@ export default function SutunAyarlarPage() {
         .eq("sube_id", currentSube.id)
         .eq("aktif", true)
         .order("sira", { ascending: true }),
+      supabase
+        .from("gelir_firmalar")
+        .select("id, ad, color, komisyon_orani")
+        .eq("sube_id", currentSube.id)
+        .eq("aktif", true)
+        .order("sira", { ascending: true }),
     ])
 
     setOrtaklar(ortakRes.data || [])
     setPersoneller(personelRes.data || [])
+    setFirmalar(firmaRes.data || [])
 
     const saved = (data || []) as TableColumnSetting[]
     const getSavedColumns = (tableType: TableType) => {
@@ -285,6 +296,15 @@ export default function SutunAyarlarPage() {
   function renderColumnPreview(tableType: TableType) {
     const items = columns[tableType].filter(column => column.aktif)
     const previewItems = items.flatMap(column => {
+      if (tableType === "gelir" && column.column_key === FIRMALAR_GROUP_KEY) {
+        return firmalar.map(firma => ({
+          ...column,
+          column_key: `firma_${firma.id}`,
+          label: firma.ad.toUpperCase(),
+          color: firma.color || column.color,
+        }))
+      }
+
       if (tableType === "gider" && column.column_key === ORTAKLAR_GROUP_KEY) {
         return ortaklar.map(ortak => ({
           ...column,
@@ -414,6 +434,7 @@ export default function SutunAyarlarPage() {
                       disabled={
                         column.column_key === "tarih" ||
                         column.column_key === "vardiya" ||
+                        column.column_key === FIRMALAR_GROUP_KEY ||
                         column.column_key === ORTAKLAR_GROUP_KEY ||
                         column.column_key === PERSONELLER_GROUP_KEY
                       }
@@ -442,6 +463,9 @@ export default function SutunAyarlarPage() {
                     )}
                     {tableType === "gider" && column.column_key === PERSONELLER_GROUP_KEY && (
                       <div className="mt-1 text-xs text-muted-foreground">Ön izlemede personel adları görünür.</div>
+                    )}
+                    {tableType === "gelir" && column.column_key === FIRMALAR_GROUP_KEY && (
+                      <div className="mt-1 text-xs text-muted-foreground">On izlemede Ayarlar'daki firma renkleri gorunur.</div>
                     )}
                   </td>
                   <td className="p-3 text-center">
