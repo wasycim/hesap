@@ -137,6 +137,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   }
 
   function canSeeMenu(key: string) {
+    if (key === "maaslar") return isAdmin
     return isAdmin || menuVisibility[key] !== false
   }
 
