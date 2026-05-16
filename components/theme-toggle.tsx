@@ -28,9 +28,9 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
       onClick={() => setTheme(isDark ? "light" : "dark")}
       title={isDark ? "Açık moda geç" : "Koyu moda geç"}
       aria-label={isDark ? "Açık moda geç" : "Koyu moda geç"}
-      className={cn("text-muted-foreground hover:text-foreground", className)}
+      className={cn("theme-toggle-button text-muted-foreground hover:text-foreground", className)}
     >
-      {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      {isDark ? <Sun className="theme-icon-sun h-4 w-4" /> : <Moon className="theme-icon-moon h-4 w-4" />}
     </Button>
   )
 }

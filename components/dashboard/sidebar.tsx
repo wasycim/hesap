@@ -402,9 +402,9 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
         <Button
           variant="ghost"
           onClick={handleLogout}
-          className="w-full justify-start gap-3 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          className="sidebar-logout-button w-full justify-start gap-3 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="logout-icon h-4 w-4" />
           <span>Çıkış Yap</span>
         </Button>
       </div>
