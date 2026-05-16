@@ -212,10 +212,10 @@ export default function DashboardPage() {
           )}
 
           {/* Stats Grid */}
-          <div className={getDashboardGridClass(statsGridItemCount)}>
+          <div className={`${getDashboardGridClass(statsGridItemCount)} dashboard-stats-grid`}>
             {canSeeMenu("gelir") && (
             <Link href="/dashboard/gelir">
-              <Card className="h-full bg-emerald-50 border-emerald-200 hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer">
+              <Card className="dashboard-stat-card dashboard-stat-income h-full bg-emerald-50 border-emerald-200 hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between gap-4">
                     <div>
@@ -224,7 +224,7 @@ export default function DashboardPage() {
                         {formatCurrency(stats.toplamGelir)} <span className="text-base font-normal">TL</span>
                       </p>
                     </div>
-                    <div className="p-3 rounded-full bg-emerald-100">
+                    <div className="dashboard-stat-icon p-3 rounded-full bg-emerald-100">
                       <TrendingUp className="h-6 w-6 text-emerald-600" />
                     </div>
                   </div>
@@ -235,7 +235,7 @@ export default function DashboardPage() {
 
             {canSeeMenu("gider") && (
             <Link href="/dashboard/gider">
-              <Card className="h-full bg-red-50 border-red-200 hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer">
+              <Card className="dashboard-stat-card dashboard-stat-expense h-full bg-red-50 border-red-200 hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between gap-4">
                     <div>
@@ -244,7 +244,7 @@ export default function DashboardPage() {
                         {formatCurrency(stats.toplamGider)} <span className="text-base font-normal">TL</span>
                       </p>
                     </div>
-                    <div className="p-3 rounded-full bg-red-100">
+                    <div className="dashboard-stat-icon p-3 rounded-full bg-red-100">
                       <TrendingDown className="h-6 w-6 text-red-600" />
                     </div>
                   </div>
@@ -253,7 +253,7 @@ export default function DashboardPage() {
             </Link>
             )}
 
-            <Card className="h-full bg-blue-50 border-blue-200">
+            <Card className="dashboard-stat-card dashboard-stat-balance h-full bg-blue-50 border-blue-200">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between gap-4">
                   <div>
@@ -262,7 +262,7 @@ export default function DashboardPage() {
                       {formatCurrency(stats.kalan)} <span className="text-base font-normal">TL</span>
                     </p>
                   </div>
-                  <div className="p-3 rounded-full bg-blue-100">
+                  <div className="dashboard-stat-icon p-3 rounded-full bg-blue-100">
                     <Wallet className="h-6 w-6 text-blue-600" />
                   </div>
                 </div>
@@ -290,12 +290,12 @@ export default function DashboardPage() {
           </Card>
 
           {/* Quick Actions */}
-          <div className={getDashboardGridClass(quickActionCount)}>
+          <div className={`${getDashboardGridClass(quickActionCount)} dashboard-stats-grid`}>
             {canSeeMenu("gelir") && (
             <Link href="/dashboard/gelir">
-              <Card className="hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-none h-full">
+              <Card className="dashboard-stat-card dashboard-stat-income hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-none h-full">
                 <CardContent className="p-6">
-                  <TrendingUp className="h-8 w-8 mb-3 opacity-80" />
+                  <TrendingUp className="dashboard-stat-inline-icon h-8 w-8 mb-3 opacity-80" />
                   <h3 className="text-lg font-bold mb-1">Gelir Tablosu</h3>
                   <p className="text-emerald-100 text-sm">Günlük gelir kayıtları</p>
                 </CardContent>
@@ -304,9 +304,9 @@ export default function DashboardPage() {
             )}
             {canSeeMenu("gider") && (
             <Link href="/dashboard/gider">
-              <Card className="hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer bg-gradient-to-br from-red-500 to-red-600 text-white border-none h-full">
+              <Card className="dashboard-stat-card dashboard-stat-expense hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer bg-gradient-to-br from-red-500 to-red-600 text-white border-none h-full">
                 <CardContent className="p-6">
-                  <TrendingDown className="h-8 w-8 mb-3 opacity-80" />
+                  <TrendingDown className="dashboard-stat-inline-icon h-8 w-8 mb-3 opacity-80" />
                   <h3 className="text-lg font-bold mb-1">Gider Tablosu</h3>
                   <p className="text-red-100 text-sm">Günlük gider kayıtları</p>
                 </CardContent>
@@ -315,9 +315,9 @@ export default function DashboardPage() {
             )}
             {canSeeMenu("corbalar") && (
             <Link href="/dashboard/corbalar">
-              <Card className="hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer bg-gradient-to-br from-orange-500 to-orange-600 text-white border-none h-full">
+              <Card className="dashboard-stat-card dashboard-stat-soup hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer bg-gradient-to-br from-orange-500 to-orange-600 text-white border-none h-full">
                 <CardContent className="p-6">
-                  <Soup className="h-8 w-8 mb-3 opacity-80" />
+                  <Soup className="dashboard-stat-inline-icon h-8 w-8 mb-3 opacity-80" />
                   <h3 className="text-lg font-bold mb-1">Çorbalar</h3>
                   <p className="text-orange-100 text-sm">Personel çorba takibi</p>
                 </CardContent>
