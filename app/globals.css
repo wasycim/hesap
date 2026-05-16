@@ -319,7 +319,7 @@
 .sidebar-menu-item:hover .menu-icon-shield,
 .sidebar-menu-item:hover .menu-icon-security,
 .sidebar-menu-item:hover .menu-icon-admin {
-  animation: menu-shield-check 520ms ease both;
+  animation: menu-shield-check 900ms ease both;
 }
 
 .sidebar-menu-item:hover .menu-icon-slide {
@@ -339,7 +339,7 @@
 }
 
 .sidebar-menu-item:hover .menu-icon-columns {
-  animation: menu-columns-shuffle 520ms ease both;
+  animation: menu-columns-shuffle 900ms ease both;
 }
 
 .sidebar-menu-item:hover .menu-icon-eye {
@@ -347,7 +347,7 @@
 }
 
 .sidebar-menu-item:hover .menu-icon-cube {
-  animation: menu-cube-turn 560ms ease both;
+  animation: menu-cube-turn 980ms ease both;
 }
 
 .sidebar-menu-item:hover .menu-icon-wallet {
@@ -359,7 +359,7 @@
 }
 
 .sidebar-menu-item:hover .menu-icon-dashboard {
-  animation: menu-dashboard-grid 520ms ease both;
+  animation: none;
 }
 
 .sidebar-menu-item:hover .menu-icon-user {
@@ -370,6 +370,7 @@
 .sidebar-menu-item:hover .menu-icon-security,
 .sidebar-menu-item:hover .menu-icon-admin,
 .sidebar-menu-item:hover .menu-icon-columns,
+.sidebar-menu-item:hover .menu-icon-dashboard,
 .sidebar-menu-item:hover .menu-icon-salary,
 .sidebar-menu-item:hover .menu-icon-cube,
 .sidebar-menu-item:hover .menu-icon-wallet,
@@ -398,24 +399,40 @@
 }
 
 .sidebar-menu-item:hover .menu-icon-security > :first-child {
-  animation: icon-stroke-redraw 760ms ease both;
+  animation: icon-stroke-redraw 1100ms ease both;
 }
 
 .sidebar-menu-item:hover .menu-icon-admin > :nth-child(2),
 .sidebar-menu-item:hover .menu-icon-admin > :last-child {
-  animation: icon-stroke-redraw 560ms 120ms ease both;
+  animation: icon-stroke-redraw 900ms 160ms ease both;
 }
 
 .sidebar-menu-item:hover .menu-icon-columns > * {
-  animation: icon-stroke-redraw 620ms ease both;
+  animation: icon-stroke-redraw 980ms ease both;
 }
 
 .sidebar-menu-item:hover .menu-icon-columns > :nth-child(2) {
-  animation-delay: 90ms;
+  animation-delay: 140ms;
 }
 
 .sidebar-menu-item:hover .menu-icon-columns > :nth-child(3) {
-  animation-delay: 180ms;
+  animation-delay: 280ms;
+}
+
+.sidebar-menu-item:hover .menu-icon-dashboard > :nth-child(1) {
+  animation: dashboard-tile-swap-a 760ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-dashboard > :nth-child(2) {
+  animation: dashboard-tile-swap-b 760ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-dashboard > :nth-child(3) {
+  animation: dashboard-tile-swap-c 760ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-dashboard > :nth-child(4) {
+  animation: dashboard-tile-swap-d 760ms ease both;
 }
 
 .sidebar-menu-item:hover .menu-icon-salary > :nth-child(2) {
@@ -431,15 +448,15 @@
 }
 
 .sidebar-menu-item:hover .menu-icon-cube > * {
-  animation: package-wrap-line 720ms ease both;
+  animation: package-wrap-line 1180ms ease both;
 }
 
 .sidebar-menu-item:hover .menu-icon-cube > :nth-child(2) {
-  animation-delay: 100ms;
+  animation-delay: 180ms;
 }
 
 .sidebar-menu-item:hover .menu-icon-cube > :nth-child(3) {
-  animation-delay: 200ms;
+  animation-delay: 360ms;
 }
 
 .sidebar-menu-item:hover .menu-icon-wallet > :first-child {
@@ -499,6 +516,34 @@
   35% { transform: translateY(-4px) translateX(1px); opacity: 1; }
   70% { transform: translateY(-1px) translateX(-1px); opacity: 0.85; }
   100% { transform: translateY(-3px) translateX(0); opacity: 1; }
+}
+
+@keyframes dashboard-tile-swap-a {
+  0% { transform: translate(0, 0) scale(1); }
+  38% { transform: translate(8px, 0) scale(.92); }
+  72% { transform: translate(8px, 8px) scale(1.06); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes dashboard-tile-swap-b {
+  0% { transform: translate(0, 0) scale(1); }
+  38% { transform: translate(0, 8px) scale(1.06); }
+  72% { transform: translate(-8px, 8px) scale(.92); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes dashboard-tile-swap-c {
+  0% { transform: translate(0, 0) scale(1); }
+  38% { transform: translate(0, -8px) scale(.92); }
+  72% { transform: translate(8px, -8px) scale(1.06); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes dashboard-tile-swap-d {
+  0% { transform: translate(0, 0) scale(1); }
+  38% { transform: translate(-8px, 0) scale(1.06); }
+  72% { transform: translate(-8px, -8px) scale(.92); }
+  100% { transform: translate(0, 0) scale(1); }
 }
 
 .dashboard-stats-grid > * {
