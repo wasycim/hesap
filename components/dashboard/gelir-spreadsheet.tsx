@@ -439,7 +439,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   }
 
   function getCellValue(row: GelirRow, col: string) {
-    return col.startsWith("custom_") ? row.custom_values?.[col] : (row as any)[col]
+    return col.startsWith("custom_") || col.startsWith("firma_") ? row.custom_values?.[col] : (row as any)[col]
   }
 
   // Sütun toplamları

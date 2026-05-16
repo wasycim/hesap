@@ -69,6 +69,7 @@ export default function AyarlarPage() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [salaryDrafts, setSalaryDrafts] = useState<Record<string, string>>({})
   const [savingSalaries, setSavingSalaries] = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null)
   const supabase = createClient()
   const { currentSube } = useSube()
@@ -216,6 +217,38 @@ export default function AyarlarPage() {
     loadData()
   }
 
+  async function saveSettings() {
+    setSavingSettings(true)
+
+    for (const personel of personeller) {
+      const aylikMaas = Number(salaryDrafts[personel.id]) || 0
+      await supabase
+        .from("personeller")
+        .update({
+          aylik_maas: aylikMaas,
+          saatlik_mesai_ucreti: aylikMaas > 0 ? aylikMaas / 30 / 8 : 0,
+        })
+        .eq("id", personel.id)
+    }
+
+    for (const firma of gelirFirmalar) {
+      await supabase
+        .from("gelir_firmalar")
+        .update({
+          komisyon_orani: firma.komisyon_orani,
+          color: firma.color,
+          aktif: firma.aktif,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", firma.id)
+    }
+
+    setSavingSettings(false)
+    toast.success("Ayarlar kaydedildi.")
+    window.dispatchEvent(new Event("gelir-firmalar-changed"))
+    loadData()
+  }
+
   async function toggleKargoFirma(id: string, aktif: boolean) {
     await supabase.from("kargo_cari_firmalar").update({ aktif: !aktif }).eq("id", id)
     loadData()
@@ -223,20 +256,15 @@ export default function AyarlarPage() {
   }
 
   async function toggleGelirFirma(id: string, aktif: boolean) {
-    await supabase.from("gelir_firmalar").update({ aktif: !aktif }).eq("id", id)
-    loadData()
-    window.dispatchEvent(new Event("gelir-firmalar-changed"))
+    setGelirFirmalar(prev => prev.map(firma => (
+      firma.id === id ? { ...firma, aktif: !aktif } : firma
+    )))
   }
 
   async function updateGelirFirma(id: string, patch: Partial<Pick<GelirFirma, "komisyon_orani" | "color">>) {
-    await supabase.from("gelir_firmalar").update({
-      ...patch,
-      updated_at: new Date().toISOString(),
-    }).eq("id", id)
     setGelirFirmalar(prev => prev.map(firma => (
       firma.id === id ? { ...firma, ...patch } : firma
     )))
-    window.dispatchEvent(new Event("gelir-firmalar-changed"))
   }
 
   async function deleteOrtak(id: string) {
@@ -324,6 +352,13 @@ export default function AyarlarPage() {
         {currentSube?.ad ? `${currentSube.ad} şubesi için ayarlar` : "Şube seçimi bekleniyor"}
       </p>
       
+      <div className="mb-6 flex justify-end">
+        <Button onClick={saveSettings} disabled={savingSettings} className="gap-2">
+          <Save className="h-4 w-4" />
+          {savingSettings ? "Kaydediliyor..." : "Kaydet"}
+        </Button>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
         {/* Ortaklar Card */}
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
