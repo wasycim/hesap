@@ -164,6 +164,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       .order("vardiya", { ascending: true })
 
     const { data, error } = await query
+    const giderTotals = await loadGiderTotals()
 
     if (!error && data) {
       setRows(data.map(row => ({
@@ -182,13 +183,30 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
         diger_komisyon: Number(row.diger_komisyon) || 0,
         kasa_gelen: Number(row.kasa_gelen) || 0,
         toplam: Number(row.toplam) || 0,
-        giderler: Number(row.giderler) || 0,
-        kalan: (Number(row.toplam) || 0) - (Number(row.giderler) || 0),
+        giderler: giderTotals.get(row.tarih) ?? (Number(row.giderler) || 0),
+        kalan: (Number(row.toplam) || 0) - (giderTotals.get(row.tarih) ?? (Number(row.giderler) || 0)),
         durum: row.durum || "KONTROL EDİLMEDİ",
         custom_values: row.custom_values || {},
       })))
     }
     setLoading(false)
+  }
+
+  async function loadGiderTotals() {
+    const totalsByDate = new Map<string, number>()
+    if (!currentSube) return totalsByDate
+
+    const { data } = await supabase
+      .from("gider_kayitlari")
+      .select("tarih, genel_toplam")
+      .eq("sube_id", currentSube.id)
+      .eq("ay_yil", ayYil)
+
+    ;(data || []).forEach(row => {
+      totalsByDate.set(row.tarih, (totalsByDate.get(row.tarih) || 0) + (Number(row.genel_toplam) || 0))
+    })
+
+    return totalsByDate
   }
 
   function getNextDate(): string {
@@ -276,7 +294,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       row.custom_values = { ...row.custom_values, [column]: Number(value) || 0 }
     } else if (column === "durum") {
       row.durum = value as string
-    } else if (column !== "tarih" && column !== "toplam" && column !== "kalan") {
+    } else if (column !== "tarih" && column !== "toplam" && column !== "giderler" && column !== "kalan") {
       (row as any)[column] = Number(value) || 0
     }
     
@@ -336,29 +354,34 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       return false
     }
 
+    const giderTotals = await loadGiderTotals()
+
     // Yeni kayıtları ekle
     if (editableRows.length > 0) {
-      const insertData = editableRows.map(row => ({
-        user_id: row.user_id || user.id,
-        sube_id: currentSube.id,
-        ay_yil: ayYil,
-        tarih: row.tarih,
-        vardiya: row.vardiya,
-        pamukkale_turizm: row.pamukkale_turizm,
-        anadolu_ulasim: row.anadolu_ulasim,
-        inegol_seyahat: row.inegol_seyahat,
-        alasehir_turizm: row.alasehir_turizm,
-        unlu_1: row.unlu_1,
-        unlu_2: row.unlu_2,
-        pamukkale_kargo: row.pamukkale_kargo,
-        diger_komisyon: row.diger_komisyon,
-        kasa_gelen: row.kasa_gelen,
-        toplam: row.toplam,
-        giderler: row.giderler,
-        kalan: row.kalan,
-        durum: row.durum,
-        custom_values: row.custom_values || {},
-      }))
+      const insertData = editableRows.map(row => {
+        const giderler = giderTotals.get(row.tarih) || 0
+        return {
+          user_id: row.user_id || user.id,
+          sube_id: currentSube.id,
+          ay_yil: ayYil,
+          tarih: row.tarih,
+          vardiya: row.vardiya,
+          pamukkale_turizm: row.pamukkale_turizm,
+          anadolu_ulasim: row.anadolu_ulasim,
+          inegol_seyahat: row.inegol_seyahat,
+          alasehir_turizm: row.alasehir_turizm,
+          unlu_1: row.unlu_1,
+          unlu_2: row.unlu_2,
+          pamukkale_kargo: row.pamukkale_kargo,
+          diger_komisyon: row.diger_komisyon,
+          kasa_gelen: row.kasa_gelen,
+          toplam: row.toplam,
+          giderler,
+          kalan: row.toplam - giderler,
+          durum: row.durum,
+          custom_values: row.custom_values || {},
+        }
+      })
 
       const { error } = await supabase.from("gelir_kayitlari").insert(insertData)
       if (error) {

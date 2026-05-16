@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-import { Plus, Save, Trash2 } from "lucide-react"
+import { Plus, Save, Trash2, X } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 import {
@@ -375,6 +375,51 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     markDirty()
   }
 
+  function removeMesaiPersonel(rowIndex: number, personelId: string) {
+    const newRows = [...rows]
+    const row = { ...newRows[rowIndex] }
+    const nextDetails = { ...row.personel_mesai_detaylari }
+    delete nextDetails[personelId]
+    row.personel_mesai_detaylari = nextDetails
+    row.personel_mesai = calculateMesaiTotal(nextDetails)
+    row.genel_toplam = calculateTotal(row)
+    newRows[rowIndex] = row
+    setRows(newRows)
+    markDirty()
+  }
+
+  async function syncGelirGiderTotals() {
+    if (!currentSube) return
+
+    const { data: giderRows } = await supabase
+      .from("gider_kayitlari")
+      .select("tarih, genel_toplam")
+      .eq("sube_id", currentSube.id)
+      .eq("ay_yil", ayYil)
+
+    const totalsByDate = new Map<string, number>()
+    ;(giderRows || []).forEach(row => {
+      totalsByDate.set(row.tarih, (totalsByDate.get(row.tarih) || 0) + (Number(row.genel_toplam) || 0))
+    })
+
+    const { data: gelirRows } = await supabase
+      .from("gelir_kayitlari")
+      .select("id, tarih, toplam")
+      .eq("sube_id", currentSube.id)
+      .eq("ay_yil", ayYil)
+
+    for (const row of gelirRows || []) {
+      const giderler = totalsByDate.get(row.tarih) || 0
+      await supabase
+        .from("gelir_kayitlari")
+        .update({
+          giderler,
+          kalan: (Number(row.toplam) || 0) - giderler,
+        })
+        .eq("id", row.id)
+    }
+  }
+
   async function saveData() {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
@@ -453,26 +498,9 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
         return false
       }
 
-      // Gelir tablosundaki giderler sütununu güncelle (aynı tarihe göre)
-      for (const row of editableRows) {
-        let updateGelirQuery = supabase
-          .from("gelir_kayitlari")
-          .update({ 
-            giderler: row.genel_toplam,
-          })
-          .eq("sube_id", currentSube.id)
-          .eq("tarih", row.tarih)
-
-        if (!isAdmin) {
-          updateGelirQuery = updateGelirQuery.eq("user_id", user.id)
-        }
-        if (!isTekVardiya) {
-          updateGelirQuery = updateGelirQuery.eq("vardiya", row.vardiya)
-        }
-
-        await updateGelirQuery
-      }
     }
+
+    await syncGelirGiderTotals()
 
     setSaving(false)
     markClean()
@@ -646,6 +674,14 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
                                       className="h-7 w-14 bg-transparent text-right outline-none"
                                       placeholder="saat"
                                     />
+                                    <button
+                                      type="button"
+                                      onClick={() => removeMesaiPersonel(rowIndex, personelId)}
+                                      className="rounded p-0.5 text-red-600 hover:bg-red-100 dark:hover:bg-red-500/20"
+                                      title="Personeli mesai satırından kaldır"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
                                   </label>
                                 )
                               })}
