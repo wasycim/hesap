@@ -25,6 +25,7 @@ interface Ortak {
 interface Personel {
   id: string
   ad: string
+  saatlik_mesai_ucreti?: number
 }
 
 interface GiderRow {
@@ -37,6 +38,7 @@ interface GiderRow {
   ortak_paylari: Record<string, number>
   personel_paylari: Record<string, number>
   personel_mesai: number
+  personel_mesai_detaylari: Record<string, number>
   bil_iade: number
   inegol_donus: number
   yemek: number
@@ -184,6 +186,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       .order("sira", { ascending: true })
     
     if (personelData) setPersoneller(personelData)
+    const mesaiRates = new Map((personelData || []).map(personel => [personel.id, Number(personel.saatlik_mesai_ucreti) || 0]))
 
     // Şubeye göre gider kayıtlarını yükle
     const { data, error } = await supabase
@@ -195,7 +198,13 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       .order("vardiya", { ascending: true })
 
     if (!error && data) {
-      setRows(data.map(row => ({
+      setRows(data.map(row => {
+        const mesaiDetails = row.personel_mesai_detaylari || {}
+        const mesaiTotal = Object.entries(mesaiDetails).reduce((sum, [personelId, hours]) => (
+          sum + ((Number(hours) || 0) * (mesaiRates.get(personelId) || 0))
+        ), 0)
+
+        return ({
         id: row.id,
         user_id: row.user_id,
         sube_id: row.sube_id,
@@ -204,7 +213,8 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
         el_fisi_odeme: Number(row.el_fisi_odeme) || 0,
         ortak_paylari: row.ortak_pilarim || {},
         personel_paylari: row.personel_paylari || {},
-        personel_mesai: Number(row.personel_mesai) || 0,
+        personel_mesai: mesaiTotal || Number(row.personel_mesai) || 0,
+        personel_mesai_detaylari: mesaiDetails,
         bil_iade: Number(row.bil_iade) || 0,
         inegol_donus: Number(row.inegol_donus) || 0,
         yemek: Number(row.yemek) || 0,
@@ -223,7 +233,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
         bankaya_yatan: Number(row.bankaya_yatan) || 0,
         genel_toplam: Number(row.genel_toplam) || 0,
         custom_values: row.custom_values || {},
-      })))
+      })}))
     }
     setLoading(false)
   }
@@ -262,6 +272,13 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     return total
   }
 
+  function calculateMesaiTotal(details: Record<string, number>): number {
+    return Object.entries(details || {}).reduce((sum, [personelId, hours]) => {
+      const personel = personeller.find(item => item.id === personelId)
+      return sum + ((Number(hours) || 0) * (Number(personel?.saatlik_mesai_ucreti) || 0))
+    }, 0)
+  }
+
   function addRow() {
     const today = getLocalDateString()
     const todayMonthYear = getMonthYearFromDate(today)
@@ -287,6 +304,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       ortak_paylari: {},
       personel_paylari: {},
       personel_mesai: 0,
+      personel_mesai_detaylari: {},
       bil_iade: 0,
       inegol_donus: 0,
       yemek: 0,
@@ -332,7 +350,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     })
   }
 
-  function updateCell(rowIndex: number, key: string, value: number, type?: "ortak" | "personel") {
+  function updateCell(rowIndex: number, key: string, value: number, type?: "ortak" | "personel" | "mesai") {
     const newRows = [...rows]
     const row = { ...newRows[rowIndex] }
     
@@ -340,6 +358,9 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       row.ortak_paylari = { ...row.ortak_paylari, [key]: value }
     } else if (type === "personel") {
       row.personel_paylari = { ...row.personel_paylari, [key]: value }
+    } else if (type === "mesai") {
+      row.personel_mesai_detaylari = { ...row.personel_mesai_detaylari, [key]: value }
+      row.personel_mesai = calculateMesaiTotal(row.personel_mesai_detaylari)
     } else if (key.startsWith("custom_")) {
       row.custom_values = { ...row.custom_values, [key]: value }
     } else {
@@ -404,6 +425,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
         ortak_pilarim: row.ortak_paylari,
         personel_paylari: row.personel_paylari,
         personel_mesai: row.personel_mesai,
+        personel_mesai_detaylari: row.personel_mesai_detaylari,
         bil_iade: row.bil_iade,
         inegol_donus: row.inegol_donus,
         yemek: row.yemek,
@@ -588,6 +610,53 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
                         <div className="bg-red-100 px-2 py-1 text-right font-bold text-red-800 dark:bg-red-500/20 dark:text-red-200">
                           {formatNumber(row.genel_toplam)} ₺
                         </div>
+                      ) : col.key === "personel_mesai" ? (
+                        canEditVardiya ? (
+                          <div className="flex min-w-[260px] items-center gap-2 p-1">
+                            <select
+                              className="h-8 min-w-0 flex-1 rounded border bg-background px-2 text-foreground"
+                              defaultValue=""
+                              onChange={(event) => {
+                                const personelId = event.target.value
+                                if (!personelId) return
+                                if (row.personel_mesai_detaylari[personelId] === undefined) {
+                                  updateCell(rowIndex, personelId, 0, "mesai")
+                                }
+                                event.currentTarget.value = ""
+                              }}
+                            >
+                              <option value="">Personel seç</option>
+                              {personeller.map(personel => (
+                                <option key={personel.id} value={personel.id}>{personel.ad}</option>
+                              ))}
+                            </select>
+                            <div className="flex flex-wrap gap-1">
+                              {Object.entries(row.personel_mesai_detaylari || {}).map(([personelId, hours]) => {
+                                const personel = personeller.find(item => item.id === personelId)
+                                if (!personel) return null
+                                return (
+                                  <label key={personelId} className="flex items-center gap-1 rounded border bg-muted/40 px-1 py-0.5 text-xs">
+                                    <span className="max-w-16 truncate">{personel.ad}</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.5"
+                                      value={hours || ""}
+                                      onChange={(event) => updateCell(rowIndex, personelId, Number(event.target.value) || 0, "mesai")}
+                                      className="h-7 w-14 bg-transparent text-right outline-none"
+                                      placeholder="saat"
+                                    />
+                                  </label>
+                                )
+                              })}
+                            </div>
+                            <span className="min-w-20 text-right font-semibold">{formatNumber(row.personel_mesai)} TL</span>
+                          </div>
+                        ) : (
+                          <div className="px-2 py-1 text-right text-muted-foreground">
+                            {formatNumber(row.personel_mesai)} TL
+                          </div>
+                        )
                       ) : canEditVardiya ? (
                         <input
                           type="number"

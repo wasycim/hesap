@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, LockKeyhole, Mail } from "lucide-react"
+import { IdCard, Loader2, LockKeyhole, Mail } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,35 +14,66 @@ import { logSecurityEvent } from "@/lib/audit-log"
 
 export default function GirisPage() {
   const [email, setEmail] = useState("")
+  const [tcKimlik, setTcKimlik] = useState("")
   const [password, setPassword] = useState("")
+  const [loginMode, setLoginMode] = useState<"email" | "tc">("email")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault()
     setLoading(true)
     setError(null)
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
+    let loginEmail = email.trim().toLowerCase()
+    const cleanTc = tcKimlik.replace(/\D/g, "")
+
+    if (loginMode === "tc") {
+      const response = await fetch("/api/auth/tc-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tcKimlik: cleanTc }),
+      })
+      const result = await response.json()
+
+      if (!response.ok) {
+        await logSecurityEvent("failed_login", {
+          tc_kimlik: cleanTc,
+          reason: result.error || "TC ile giris basarisiz.",
+        })
+        setError(result.error || "TC ile giris basarisiz.")
+        setLoading(false)
+        return
+      }
+
+      loginEmail = String(result.email || "").trim().toLowerCase()
+    }
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: loginEmail,
       password,
     })
 
-    if (error) {
+    if (signInError) {
       await logSecurityEvent("failed_login", {
-        email: email.trim().toLowerCase(),
-        reason: error.message === "Invalid login credentials" ? "E-posta veya şifre hatalı." : error.message,
+        email: loginEmail,
+        tc_kimlik: loginMode === "tc" ? cleanTc : undefined,
+        reason: signInError.message === "Invalid login credentials" ? "E-posta/TC veya sifre hatali." : signInError.message,
       })
-      setError(error.message === "Invalid login credentials"
-        ? "E-posta veya şifre hatalı"
-        : error.message)
+      setError(signInError.message === "Invalid login credentials"
+        ? "E-posta/TC veya sifre hatali"
+        : signInError.message)
       setLoading(false)
       return
     }
 
-    await logSecurityEvent("login", { email: email.trim().toLowerCase() })
+    await logSecurityEvent("login", {
+      email: loginEmail,
+      login_method: loginMode,
+      tc_kimlik: loginMode === "tc" ? cleanTc : undefined,
+    })
     router.push("/dashboard")
     router.refresh()
   }
@@ -66,7 +97,7 @@ export default function GirisPage() {
             </div>
             <div className="relative space-y-3">
               <CardTitle className="text-3xl font-bold">Hesap Rapor Sistemi</CardTitle>
-              <CardDescription className="text-base">Hesabınıza giriş yapın.</CardDescription>
+              <CardDescription className="text-base">Hesabiniza giris yapin.</CardDescription>
             </div>
           </CardHeader>
 
@@ -78,33 +109,62 @@ export default function GirisPage() {
                 </Alert>
               )}
 
-              <div className="space-y-3">
-                <Label htmlFor="email">E-posta</Label>
-                <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="ornek@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="h-11 pl-10"
-                    autoComplete="email"
-                    required
-                  />
-                </div>
+              <div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/30 p-1">
+                <Button type="button" variant={loginMode === "email" ? "default" : "ghost"} onClick={() => setLoginMode("email")}>
+                  E-posta ile giris
+                </Button>
+                <Button type="button" variant={loginMode === "tc" ? "default" : "ghost"} onClick={() => setLoginMode("tc")}>
+                  TC ile giris
+                </Button>
               </div>
 
+              {loginMode === "email" ? (
+                <div className="space-y-3">
+                  <Label htmlFor="email">E-posta</Label>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="ornek@email.com"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      className="h-11 pl-10"
+                      autoComplete="email"
+                      required
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Label htmlFor="tc">TC Kimlik No</Label>
+                  <div className="relative">
+                    <IdCard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="tc"
+                      inputMode="numeric"
+                      maxLength={11}
+                      placeholder="11 haneli TC"
+                      value={tcKimlik}
+                      onChange={(event) => setTcKimlik(event.target.value.replace(/\D/g, "").slice(0, 11))}
+                      className="h-11 pl-10"
+                      autoComplete="username"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-3">
-                <Label htmlFor="password">Şifre</Label>
+                <Label htmlFor="password">Sifre</Label>
                 <div className="relative">
                   <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     id="password"
                     type="password"
-                    placeholder="••••••••"
+                    placeholder="********"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(event) => setPassword(event.target.value)}
                     className="h-11 pl-10"
                     autoComplete="current-password"
                     required
@@ -115,7 +175,7 @@ export default function GirisPage() {
             <CardFooter className="px-8 pb-8 md:px-10 md:pb-10">
               <Button type="submit" className="h-11 w-full" disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Giriş Yap
+                Giris Yap
               </Button>
             </CardFooter>
           </form>
