@@ -316,7 +316,9 @@
   animation: menu-spin 650ms ease both;
 }
 
-.sidebar-menu-item:hover .menu-icon-shield {
+.sidebar-menu-item:hover .menu-icon-shield,
+.sidebar-menu-item:hover .menu-icon-security,
+.sidebar-menu-item:hover .menu-icon-admin {
   animation: menu-shield-check 520ms ease both;
 }
 
@@ -362,6 +364,210 @@
 
 .sidebar-menu-item:hover .menu-icon-user {
   animation: menu-user-gear 520ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-report,
+.sidebar-menu-item:hover .menu-icon-security,
+.sidebar-menu-item:hover .menu-icon-admin,
+.sidebar-menu-item:hover .menu-icon-columns,
+.sidebar-menu-item:hover .menu-icon-salary,
+.sidebar-menu-item:hover .menu-icon-cube,
+.sidebar-menu-item:hover .menu-icon-wallet,
+.sidebar-menu-item:hover .menu-icon-soup {
+  animation: none;
+}
+
+.menu-icon-report > :first-child {
+  transform: none;
+}
+
+.sidebar-menu-item:hover .menu-icon-report > :first-child {
+  animation: none;
+}
+
+.sidebar-menu-item:hover .menu-icon-report > :nth-child(2) {
+  animation: report-bar-rise 620ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-report > :nth-child(3) {
+  animation: report-bar-rise 620ms 80ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-report > :nth-child(4) {
+  animation: report-bar-rise 620ms 160ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-security > :first-child {
+  animation: icon-stroke-redraw 760ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-admin > :nth-child(2),
+.sidebar-menu-item:hover .menu-icon-admin > :last-child {
+  animation: icon-stroke-redraw 560ms 120ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-columns > * {
+  animation: icon-stroke-redraw 620ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-columns > :nth-child(2) {
+  animation-delay: 90ms;
+}
+
+.sidebar-menu-item:hover .menu-icon-columns > :nth-child(3) {
+  animation-delay: 180ms;
+}
+
+.sidebar-menu-item:hover .menu-icon-salary > :nth-child(2) {
+  animation: salary-file-search 680ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-salary > :nth-child(3) {
+  animation: salary-file-search 680ms 90ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-salary > :nth-child(4) {
+  animation: salary-file-search 680ms 180ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-cube > * {
+  animation: package-wrap-line 720ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-cube > :nth-child(2) {
+  animation-delay: 100ms;
+}
+
+.sidebar-menu-item:hover .menu-icon-cube > :nth-child(3) {
+  animation-delay: 200ms;
+}
+
+.sidebar-menu-item:hover .menu-icon-wallet > :first-child {
+  animation: wallet-body-open 680ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-wallet > :nth-child(n+2) {
+  animation: icon-stroke-redraw 520ms 100ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-soup > :nth-child(-n+3) {
+  animation: soup-steam-wiggle 900ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-soup > :nth-child(2) {
+  animation-delay: 100ms;
+}
+
+.sidebar-menu-item:hover .menu-icon-soup > :nth-child(3) {
+  animation-delay: 200ms;
+}
+
+@keyframes report-bar-rise {
+  0% { transform: translateY(0) scaleY(1); }
+  35% { transform: translateY(-4px) scaleY(1.2); }
+  70% { transform: translateY(2px) scaleY(0.86); }
+  100% { transform: translateY(-1px) scaleY(1.05); }
+}
+
+@keyframes icon-stroke-redraw {
+  0% { stroke-dasharray: 1 90; stroke-dashoffset: 90; opacity: 0.25; }
+  65% { stroke-dasharray: 90 90; stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dasharray: 90 90; stroke-dashoffset: 0; opacity: 1; }
+}
+
+@keyframes salary-file-search {
+  0%, 100% { transform: translateY(0); }
+  35% { transform: translateY(-4px); }
+  70% { transform: translateY(2px); }
+}
+
+@keyframes package-wrap-line {
+  0% { stroke-dasharray: 1 80; stroke-dashoffset: 80; transform: scale(0.96); }
+  60% { stroke-dasharray: 80 80; stroke-dashoffset: 0; transform: scale(1.08); }
+  100% { stroke-dasharray: 80 80; stroke-dashoffset: 0; transform: scale(1.02); }
+}
+
+@keyframes wallet-body-open {
+  0% { transform: scaleX(1) rotate(0deg); }
+  45% { transform: scaleX(1.14) rotate(-5deg); }
+  75% { transform: scaleX(0.96) rotate(3deg); }
+  100% { transform: scaleX(1.04) rotate(0deg); }
+}
+
+@keyframes soup-steam-wiggle {
+  0% { transform: translateY(0) translateX(0); opacity: 0.75; }
+  35% { transform: translateY(-4px) translateX(1px); opacity: 1; }
+  70% { transform: translateY(-1px) translateX(-1px); opacity: 0.85; }
+  100% { transform: translateY(-3px) translateX(0); opacity: 1; }
+}
+
+.dashboard-stats-grid > * {
+  animation: dashboard-card-enter 620ms ease both;
+}
+
+.dashboard-stats-grid > :nth-child(2) {
+  animation-delay: 90ms;
+}
+
+.dashboard-stats-grid > :nth-child(3) {
+  animation-delay: 180ms;
+}
+
+.dashboard-stat-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.dashboard-stat-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 18%, rgba(255,255,255,.24) 45%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 650ms ease;
+}
+
+.dashboard-stat-card:hover::after {
+  transform: translateX(120%);
+}
+
+.dashboard-stat-card:hover .dashboard-stat-icon,
+.dashboard-stat-card:hover .dashboard-stat-inline-icon {
+  animation: icon-hover-pop 420ms ease both;
+}
+
+.dashboard-stat-income:hover .dashboard-stat-icon,
+.dashboard-stat-income:hover .dashboard-stat-inline-icon {
+  animation: menu-income-climb 520ms ease both;
+}
+
+.dashboard-stat-expense:hover .dashboard-stat-icon,
+.dashboard-stat-expense:hover .dashboard-stat-inline-icon {
+  animation: menu-expense-dive 520ms ease both;
+}
+
+.dashboard-stat-balance:hover .dashboard-stat-icon {
+  animation: wallet-body-open 650ms ease both;
+}
+
+.dashboard-stat-soup:hover .dashboard-stat-inline-icon {
+  animation: soup-steam-wiggle 650ms ease both;
+}
+
+@keyframes dashboard-card-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(.96);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .sidebar-menu-item:hover .menu-icon-pop {
