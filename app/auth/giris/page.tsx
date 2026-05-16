@@ -16,7 +16,7 @@ export default function GirisPage() {
   const [email, setEmail] = useState("")
   const [tcKimlik, setTcKimlik] = useState("")
   const [password, setPassword] = useState("")
-  const [loginMode, setLoginMode] = useState<"email" | "tc">("email")
+  const [loginMode, setLoginMode] = useState<"email" | "tc">("tc")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -110,11 +110,11 @@ export default function GirisPage() {
               )}
 
               <div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/30 p-1">
-                <Button type="button" variant={loginMode === "email" ? "default" : "ghost"} onClick={() => setLoginMode("email")}>
-                  E-posta ile giris
-                </Button>
                 <Button type="button" variant={loginMode === "tc" ? "default" : "ghost"} onClick={() => setLoginMode("tc")}>
                   TC ile giris
+                </Button>
+                <Button type="button" variant={loginMode === "email" ? "default" : "ghost"} onClick={() => setLoginMode("email")}>
+                  E-posta ile giris
                 </Button>
               </div>
 
