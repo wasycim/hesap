@@ -70,7 +70,8 @@ function getMenuIconMotion(href: string) {
   if (href === "/dashboard/corbalar") return "menu-icon-soup"
   if (href === "/dashboard/sube-ciro-raporlari") return "menu-icon-report"
   if (href === "/dashboard/ayarlar") return "menu-icon-spin"
-  if (href === "/dashboard/guvenlik-ayarlar" || href === "/dashboard/admin-ayarlar") return "menu-icon-shield"
+  if (href === "/dashboard/guvenlik-ayarlar") return "menu-icon-security"
+  if (href === "/dashboard/admin-ayarlar") return "menu-icon-admin"
   if (href.includes("sutun")) return "menu-icon-columns"
   if (href.includes("gorunum")) return "menu-icon-eye"
   if (href.includes("hesap")) return "menu-icon-user"
@@ -292,7 +293,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                   )}
                 >
-                  <Icon className={cn("sidebar-menu-icon menu-icon-wallet h-5 w-5", maasMenuItem.color)} />
+                  <Icon className={cn("sidebar-menu-icon menu-icon-salary h-5 w-5", maasMenuItem.color)} />
                   <span>{maasMenuItem.title}</span>
                 </Link>
               </li>
