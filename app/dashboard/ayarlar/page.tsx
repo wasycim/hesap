@@ -70,6 +70,9 @@ export default function AyarlarPage() {
   const [salaryDrafts, setSalaryDrafts] = useState<Record<string, string>>({})
   const [savingSalaries, setSavingSalaries] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
+  const [savingOrtaklar, setSavingOrtaklar] = useState(false)
+  const [savingGelirFirmalar, setSavingGelirFirmalar] = useState(false)
+  const [savingKargoFirmalar, setSavingKargoFirmalar] = useState(false)
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null)
   const supabase = createClient()
   const { currentSube } = useSube()
@@ -191,8 +194,9 @@ export default function AyarlarPage() {
   }
 
   async function toggleOrtak(id: string, aktif: boolean) {
-    await supabase.from("ortaklar").update({ aktif: !aktif }).eq("id", id)
-    loadData()
+    setOrtaklar(prev => prev.map(ortak => (
+      ortak.id === id ? { ...ortak, aktif: !aktif } : ortak
+    )))
   }
 
   async function togglePersonel(id: string, aktif: boolean) {
@@ -217,20 +221,21 @@ export default function AyarlarPage() {
     loadData()
   }
 
-  async function saveSettings() {
-    setSavingSettings(true)
-
-    for (const personel of personeller) {
-      const aylikMaas = Number(salaryDrafts[personel.id]) || 0
+  async function saveOrtaklar() {
+    setSavingOrtaklar(true)
+    for (const ortak of ortaklar) {
       await supabase
-        .from("personeller")
-        .update({
-          aylik_maas: aylikMaas,
-          saatlik_mesai_ucreti: aylikMaas > 0 ? aylikMaas / 30 / 8 : 0,
-        })
-        .eq("id", personel.id)
+        .from("ortaklar")
+        .update({ aktif: ortak.aktif })
+        .eq("id", ortak.id)
     }
+    setSavingOrtaklar(false)
+    toast.success("Ortaklar kaydedildi.")
+    loadData()
+  }
 
+  async function saveGelirFirmalar() {
+    setSavingGelirFirmalar(true)
     for (const firma of gelirFirmalar) {
       await supabase
         .from("gelir_firmalar")
@@ -242,17 +247,40 @@ export default function AyarlarPage() {
         })
         .eq("id", firma.id)
     }
-
-    setSavingSettings(false)
-    toast.success("Ayarlar kaydedildi.")
+    setSavingGelirFirmalar(false)
+    toast.success("Firmalar kaydedildi.")
     window.dispatchEvent(new Event("gelir-firmalar-changed"))
     loadData()
   }
 
-  async function toggleKargoFirma(id: string, aktif: boolean) {
-    await supabase.from("kargo_cari_firmalar").update({ aktif: !aktif }).eq("id", id)
-    loadData()
+  async function saveKargoFirmalar() {
+    setSavingKargoFirmalar(true)
+    for (const firma of kargoFirmalar) {
+      await supabase
+        .from("kargo_cari_firmalar")
+        .update({ aktif: firma.aktif })
+        .eq("id", firma.id)
+    }
+    setSavingKargoFirmalar(false)
+    toast.success("Kargo cari firmaları kaydedildi.")
     window.dispatchEvent(new Event("kargo-firmalar-changed"))
+    loadData()
+  }
+
+  async function saveSettings() {
+    setSavingSettings(true)
+    await saveOrtaklar()
+    await savePersonelSalaries()
+    await saveGelirFirmalar()
+    await saveKargoFirmalar()
+    setSavingSettings(false)
+    toast.success("Tüm ayarlar kaydedildi.")
+  }
+
+  async function toggleKargoFirma(id: string, aktif: boolean) {
+    setKargoFirmalar(prev => prev.map(firma => (
+      firma.id === id ? { ...firma, aktif: !aktif } : firma
+    )))
   }
 
   async function toggleGelirFirma(id: string, aktif: boolean) {
@@ -355,7 +383,7 @@ export default function AyarlarPage() {
       <div className="mb-6 flex justify-end">
         <Button onClick={saveSettings} disabled={savingSettings} className="gap-2">
           <Save className="h-4 w-4" />
-          {savingSettings ? "Kaydediliyor..." : "Kaydet"}
+          {savingSettings ? "Kaydediliyor..." : "Hepsini Kaydet"}
         </Button>
       </div>
 
@@ -388,6 +416,12 @@ export default function AyarlarPage() {
                 className="bg-amber-500 hover:bg-amber-600 text-white h-11 w-11 p-0"
               >
                 <Plus className="w-5 h-5" />
+              </Button>
+            </div>
+            <div className="mb-4 flex justify-end">
+              <Button onClick={saveOrtaklar} disabled={savingOrtaklar} className="gap-2 bg-amber-500 hover:bg-amber-600">
+                <Save className="h-4 w-4" />
+                {savingOrtaklar ? "Kaydediliyor..." : "Ortakları Kaydet"}
               </Button>
             </div>
             
@@ -561,6 +595,12 @@ export default function AyarlarPage() {
                 <Plus className="w-5 h-5" />
               </Button>
             </div>
+            <div className="mb-4 flex justify-end">
+              <Button onClick={saveGelirFirmalar} disabled={savingGelirFirmalar} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+                <Save className="h-4 w-4" />
+                {savingGelirFirmalar ? "Kaydediliyor..." : "Firmaları Kaydet"}
+              </Button>
+            </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {gelirFirmalar.length === 0 ? (
@@ -665,6 +705,12 @@ export default function AyarlarPage() {
                 className="bg-cyan-500 hover:bg-cyan-600 text-white h-11 w-11 p-0"
               >
                 <Plus className="w-5 h-5" />
+              </Button>
+            </div>
+            <div className="mb-4 flex justify-end">
+              <Button onClick={saveKargoFirmalar} disabled={savingKargoFirmalar} className="gap-2 bg-cyan-600 hover:bg-cyan-700">
+                <Save className="h-4 w-4" />
+                {savingKargoFirmalar ? "Kaydediliyor..." : "Kargo Cari Firmaları Kaydet"}
               </Button>
             </div>
             
