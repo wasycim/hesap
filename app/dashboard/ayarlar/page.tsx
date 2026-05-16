@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Plus, Trash2, Users, Package } from "lucide-react"
+import { Plus, Save, Trash2, Users, Package } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { logSecurityEvent } from "@/lib/audit-log"
 
@@ -54,6 +55,8 @@ export default function AyarlarPage() {
   const [yeniKargoFirma, setYeniKargoFirma] = useState("")
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [salaryDrafts, setSalaryDrafts] = useState<Record<string, string>>({})
+  const [savingSalaries, setSavingSalaries] = useState(false)
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null)
   const supabase = createClient()
   const { currentSube } = useSube()
@@ -88,7 +91,13 @@ export default function AyarlarPage() {
     ])
 
     if (ortakRes.data) setOrtaklar(ortakRes.data)
-    if (personelRes.data) setPersoneller(personelRes.data)
+    if (personelRes.data) {
+      setPersoneller(personelRes.data)
+      setSalaryDrafts(Object.fromEntries(personelRes.data.map(personel => [
+        personel.id,
+        String(Number(personel.aylik_maas || 0)),
+      ])))
+    }
     if (kargoRes.data) setKargoFirmalar(kargoRes.data)
     setLoading(false)
   }
@@ -157,15 +166,20 @@ export default function AyarlarPage() {
     loadData()
   }
 
-  async function updatePersonelSalary(id: string, value: string) {
-    const aylikMaas = Number(value) || 0
-    await supabase
-      .from("personeller")
-      .update({
-        aylik_maas: aylikMaas,
-        saatlik_mesai_ucreti: aylikMaas > 0 ? aylikMaas / 30 / 8 : 0,
-      })
-      .eq("id", id)
+  async function savePersonelSalaries() {
+    setSavingSalaries(true)
+    for (const personel of personeller) {
+      const aylikMaas = Number(salaryDrafts[personel.id]) || 0
+      await supabase
+        .from("personeller")
+        .update({
+          aylik_maas: aylikMaas,
+          saatlik_mesai_ucreti: aylikMaas > 0 ? aylikMaas / 30 / 8 : 0,
+        })
+        .eq("id", personel.id)
+    }
+    toast.success("Maaşlar kaydedildi.")
+    setSavingSalaries(false)
     loadData()
   }
 
@@ -357,6 +371,12 @@ export default function AyarlarPage() {
                 <Plus className="w-5 h-5" />
               </Button>
             </div>
+            <div className="mb-4 flex justify-end">
+              <Button onClick={savePersonelSalaries} disabled={savingSalaries} className="gap-2 bg-blue-600 hover:bg-blue-700">
+                <Save className="h-4 w-4" />
+                {savingSalaries ? "Kaydediliyor..." : "Maaşları Kaydet"}
+              </Button>
+            </div>
             
             <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
               {personeller.length === 0 ? (
@@ -381,8 +401,8 @@ export default function AyarlarPage() {
                         className="mt-2 h-8 w-32"
                         type="number"
                         min="0"
-                        defaultValue={Number(personel.aylik_maas || 0)}
-                        onBlur={(event) => updatePersonelSalary(personel.id, event.target.value)}
+                        value={salaryDrafts[personel.id] ?? String(Number(personel.aylik_maas || 0))}
+                        onChange={(event) => setSalaryDrafts(prev => ({ ...prev, [personel.id]: event.target.value }))}
                       />
                     </div>
                     <div className="flex items-center gap-2">

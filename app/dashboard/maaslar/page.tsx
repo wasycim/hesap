@@ -201,12 +201,16 @@ export default function MaaslarPage() {
           {personelSummaries.map(item => (
             <Card
               key={item.personel.id}
-              className="cursor-pointer border-emerald-200 bg-emerald-50 shadow-sm transition hover:border-emerald-400 dark:border-emerald-500/30 dark:bg-emerald-500/15"
+              className={`cursor-pointer shadow-sm transition ${
+                item.remaining < 0
+                  ? "border-red-200 bg-red-50 hover:border-red-400 dark:border-red-500/30 dark:bg-red-500/15"
+                  : "border-emerald-200 bg-emerald-50 hover:border-emerald-400 dark:border-emerald-500/30 dark:bg-emerald-500/15"
+              }`}
               onClick={() => setSelectedPersonelId(item.personel.id)}
             >
               <CardContent className="p-4">
-                <p className="truncate text-xs font-semibold uppercase text-emerald-700 dark:text-emerald-100">{item.personel.ad}</p>
-                <p className="mt-1 text-xl font-bold text-emerald-700 dark:text-emerald-100">{formatMoney(item.remaining)} TL</p>
+                <p className={`truncate text-xs font-semibold uppercase ${item.remaining < 0 ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"}`}>{item.personel.ad}</p>
+                <p className={`mt-1 text-xl font-bold ${item.remaining < 0 ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"}`}>{formatMoney(item.remaining)} TL</p>
                 <p className="mt-1 text-xs text-muted-foreground">Maaş {formatMoney(item.baseSalary)} - Avans {formatMoney(item.advanceTotal)}</p>
               </CardContent>
             </Card>
@@ -219,8 +223,8 @@ export default function MaaslarPage() {
               <CardTitle>{selectedPersonel.personel.ad} maaş detayı</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 lg:grid-cols-2">
-              <DetailList title="Alınan avanslar" items={selectedPersonel.advances} empty="Avans yok." />
-              <DetailList title={`Mesailer (${formatMoney(selectedPersonel.hourlyRate)} TL/saat)`} items={selectedPersonel.overtime} empty="Mesai yok." />
+              <DetailList title="Alınan avanslar" items={selectedPersonel.advances} empty="Avans yok." totalLabel="Toplam alınan avanslar" variant="expense" />
+              <DetailList title={`Mesailer (${formatMoney(selectedPersonel.hourlyRate)} TL/saat)`} items={selectedPersonel.overtime} empty="Mesai yok." totalLabel="Toplam mesailer" variant="income" />
             </CardContent>
           </Card>
         )}
@@ -235,15 +239,15 @@ export default function MaaslarPage() {
                 <button
                   key={item.ortak.id}
                   onClick={() => setSelectedOrtakId(item.ortak.id)}
-                  className="rounded-lg border bg-card p-4 text-left transition hover:border-amber-400"
+                  className="rounded-lg border border-red-200 bg-red-50 p-4 text-left transition hover:border-red-400 dark:border-red-500/30 dark:bg-red-500/15"
                 >
-                  <p className="truncate text-xs font-semibold uppercase text-amber-700 dark:text-amber-100">{item.ortak.ad}</p>
-                  <p className="mt-1 text-xl font-bold">{formatMoney(item.total)} TL</p>
+                  <p className="truncate text-xs font-semibold uppercase text-red-700 dark:text-red-100">{item.ortak.ad}</p>
+                  <p className="mt-1 text-xl font-bold text-red-700 dark:text-red-100">-{formatMoney(item.total)} TL</p>
                 </button>
               ))}
             </div>
             {selectedOrtak && (
-              <DetailList title={`${selectedOrtak.ortak.ad} ortak avansları`} items={selectedOrtak.advances} empty="Ortak avansı yok." />
+              <DetailList title={`${selectedOrtak.ortak.ad} ortak avansları`} items={selectedOrtak.advances} empty="Ortak avansı yok." totalLabel="Toplam ortak avansı" variant="expense" />
             )}
           </CardContent>
         </Card>
@@ -252,7 +256,23 @@ export default function MaaslarPage() {
   )
 }
 
-function DetailList({ title, items, empty }: { title: string; items: Detail[]; empty: string }) {
+function DetailList({
+  title,
+  items,
+  empty,
+  totalLabel,
+  variant,
+}: {
+  title: string
+  items: Detail[]
+  empty: string
+  totalLabel: string
+  variant: "expense" | "income"
+}) {
+  const total = items.reduce((sum, item) => sum + item.amount, 0)
+  const amountClass = variant === "expense" ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"
+  const prefix = variant === "expense" ? "-" : "+"
+
   return (
     <div className="rounded-lg border">
       <div className="border-b bg-muted/40 px-4 py-3 font-semibold">{title}</div>
@@ -266,10 +286,14 @@ function DetailList({ title, items, empty }: { title: string; items: Detail[]; e
                 <p className="font-medium">{formatDate(item.tarih)}</p>
                 <p className="text-xs text-muted-foreground">{item.description}</p>
               </div>
-              <p className="font-semibold">{formatMoney(item.amount)} TL</p>
+              <p className={`font-semibold ${amountClass}`}>{prefix}{formatMoney(item.amount)} TL</p>
             </div>
           ))
         )}
+      </div>
+      <div className="flex items-center justify-between border-t bg-muted/30 px-4 py-3 text-sm font-semibold">
+        <span>{totalLabel}</span>
+        <span className={amountClass}>{prefix}{formatMoney(total)} TL</span>
       </div>
     </div>
   )
