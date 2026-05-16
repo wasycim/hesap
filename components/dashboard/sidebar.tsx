@@ -64,10 +64,16 @@ const bottomMenuItems = [
 ]
 
 function getMenuIconMotion(href: string) {
+  if (href === "/dashboard") return "menu-icon-dashboard"
+  if (href === "/dashboard/gelir") return "menu-icon-income"
+  if (href === "/dashboard/gider") return "menu-icon-expense"
+  if (href === "/dashboard/corbalar") return "menu-icon-soup"
+  if (href === "/dashboard/sube-ciro-raporlari") return "menu-icon-report"
   if (href === "/dashboard/ayarlar") return "menu-icon-spin"
   if (href === "/dashboard/guvenlik-ayarlar" || href === "/dashboard/admin-ayarlar") return "menu-icon-shield"
-  if (href.includes("sutun")) return "menu-icon-slide"
-  if (href.includes("gelir") || href.includes("gider") || href.includes("sube-ciro")) return "menu-icon-trend"
+  if (href.includes("sutun")) return "menu-icon-columns"
+  if (href.includes("gorunum")) return "menu-icon-eye"
+  if (href.includes("hesap")) return "menu-icon-user"
   return "menu-icon-pop"
 }
 
@@ -209,7 +215,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                 )}
               >
                 <div className="flex items-center gap-3">
-                  <Package className="sidebar-menu-icon menu-icon-pop h-5 w-5 text-cyan-500" />
+                  <Package className="sidebar-menu-icon menu-icon-cube h-5 w-5 text-cyan-500" />
                   <span>Kargo Cari</span>
                 </div>
                 <ChevronDown className={cn("h-4 w-4 transition-transform duration-500", kargoOpen ? "rotate-0" : "-rotate-90")} />
@@ -235,7 +241,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                             : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                         )}
                       >
-                        <Wallet className="sidebar-menu-icon menu-icon-pop h-4 w-4 text-red-500" />
+                        <Wallet className="sidebar-menu-icon menu-icon-wallet h-4 w-4 text-red-500" />
                         <span>Borç Özeti</span>
                       </Link>
                     </li>
@@ -286,7 +292,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                   )}
                 >
-                  <Icon className={cn("sidebar-menu-icon menu-icon-pop h-5 w-5", maasMenuItem.color)} />
+                  <Icon className={cn("sidebar-menu-icon menu-icon-wallet h-5 w-5", maasMenuItem.color)} />
                   <span>{maasMenuItem.title}</span>
                 </Link>
               </li>

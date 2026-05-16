@@ -228,10 +228,74 @@
   100% { transform: translateX(0); }
 }
 
-@keyframes menu-trend {
+@keyframes menu-income-climb {
   0% { transform: translate(0, 0) scale(1); }
-  45% { transform: translate(3px, -3px) scale(1.08); }
-  100% { transform: translate(0, 0) scale(1.04); }
+  35% { transform: translate(2px, -5px) scale(1.12) rotate(-7deg); filter: drop-shadow(0 0 7px currentColor); }
+  70% { transform: translate(4px, -2px) scale(1.05) rotate(3deg); }
+  100% { transform: translate(3px, -4px) scale(1.08) rotate(0deg); }
+}
+
+@keyframes menu-expense-dive {
+  0% { transform: translate(0, 0) scale(1); }
+  35% { transform: translate(2px, 5px) scale(1.12) rotate(7deg); filter: drop-shadow(0 0 7px currentColor); }
+  70% { transform: translate(4px, 2px) scale(1.05) rotate(-3deg); }
+  100% { transform: translate(3px, 4px) scale(1.08) rotate(0deg); }
+}
+
+@keyframes menu-report-bars {
+  0% { transform: translateY(0) scale(1); filter: drop-shadow(0 0 0 transparent); }
+  25% { transform: translateY(-3px) scaleY(1.18) scaleX(0.96); }
+  50% { transform: translateY(2px) scaleY(0.9) scaleX(1.06); filter: drop-shadow(0 0 7px currentColor); }
+  75% { transform: translateY(-2px) scaleY(1.12) scaleX(0.98); }
+  100% { transform: translateY(0) scale(1.06); }
+}
+
+@keyframes menu-columns-shuffle {
+  0% { transform: translateX(0) scale(1); }
+  30% { transform: translateX(-3px) skewX(-6deg); }
+  60% { transform: translateX(3px) skewX(6deg); }
+  100% { transform: translateX(0) scale(1.06); }
+}
+
+@keyframes menu-eye-blink {
+  0% { transform: scaleY(1) scaleX(1); }
+  35% { transform: scaleY(0.28) scaleX(1.12); }
+  58% { transform: scaleY(1.14) scaleX(1.04); filter: drop-shadow(0 0 7px currentColor); }
+  100% { transform: scaleY(1) scaleX(1.08); }
+}
+
+@keyframes menu-cube-turn {
+  0% { transform: perspective(120px) rotateY(0deg) rotateX(0deg) scale(1); }
+  45% { transform: perspective(120px) rotateY(34deg) rotateX(-12deg) scale(1.12); filter: drop-shadow(0 0 7px currentColor); }
+  100% { transform: perspective(120px) rotateY(0deg) rotateX(0deg) scale(1.06); }
+}
+
+@keyframes menu-wallet-open {
+  0% { transform: rotate(0deg) scale(1); }
+  35% { transform: rotate(-10deg) scaleX(1.16) scaleY(0.92); }
+  70% { transform: rotate(5deg) translateY(-2px) scale(1.08); filter: drop-shadow(0 0 7px currentColor); }
+  100% { transform: rotate(0deg) scale(1.06); }
+}
+
+@keyframes menu-soup-steam {
+  0% { transform: rotate(0deg) translateY(0) scale(1); }
+  35% { transform: rotate(-5deg) translateY(-2px) scale(1.08); filter: drop-shadow(0 -3px 6px currentColor); }
+  70% { transform: rotate(4deg) translateY(1px) scale(1.04); }
+  100% { transform: rotate(0deg) translateY(-1px) scale(1.06); }
+}
+
+@keyframes menu-dashboard-grid {
+  0% { transform: scale(1) rotate(0deg); }
+  30% { transform: scale(1.12) rotate(-4deg); }
+  60% { transform: scale(0.96) rotate(3deg); }
+  100% { transform: scale(1.06) rotate(0deg); }
+}
+
+@keyframes menu-user-gear {
+  0% { transform: rotate(0deg) scale(1); }
+  40% { transform: rotate(10deg) scale(1.1); filter: drop-shadow(0 0 7px currentColor); }
+  75% { transform: rotate(-6deg) scale(1.04); }
+  100% { transform: rotate(0deg) scale(1.06); }
 }
 
 .icon-action svg,
@@ -260,8 +324,44 @@
   animation: menu-slide 430ms ease both;
 }
 
-.sidebar-menu-item:hover .menu-icon-trend {
-  animation: menu-trend 430ms ease both;
+.sidebar-menu-item:hover .menu-icon-income {
+  animation: menu-income-climb 520ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-expense {
+  animation: menu-expense-dive 520ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-report {
+  animation: menu-report-bars 650ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-columns {
+  animation: menu-columns-shuffle 520ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-eye {
+  animation: menu-eye-blink 520ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-cube {
+  animation: menu-cube-turn 560ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-wallet {
+  animation: menu-wallet-open 520ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-soup {
+  animation: menu-soup-steam 520ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-dashboard {
+  animation: menu-dashboard-grid 520ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-user {
+  animation: menu-user-gear 520ms ease both;
 }
 
 .sidebar-menu-item:hover .menu-icon-pop {
