@@ -298,6 +298,12 @@
   100% { transform: rotate(0deg) scale(1.06); }
 }
 
+@keyframes account-gear-spin {
+  0% { transform: rotate(0deg) scale(1); filter: drop-shadow(0 0 0 transparent); }
+  65% { transform: rotate(280deg) scale(1.12); filter: drop-shadow(0 0 7px currentColor); }
+  100% { transform: rotate(360deg) scale(1.04); filter: drop-shadow(0 0 4px currentColor); }
+}
+
 .icon-action svg,
 .sidebar-menu-icon {
   transform-origin: center;
@@ -452,11 +458,16 @@
   animation: menu-user-gear 520ms ease both;
 }
 
+.sidebar-menu-item:hover .menu-icon-account-settings {
+  animation: none;
+}
+
 .sidebar-menu-item:hover .menu-icon-report,
 .sidebar-menu-item:hover .menu-icon-security,
 .sidebar-menu-item:hover .menu-icon-admin,
 .sidebar-menu-item:hover .menu-icon-columns,
 .sidebar-menu-item:hover .menu-icon-dashboard,
+.sidebar-menu-item:hover .menu-icon-account-settings,
 .sidebar-menu-item:hover .menu-icon-salary,
 .sidebar-menu-item:hover .menu-icon-cube,
 .sidebar-menu-item:hover .menu-icon-wallet,
@@ -519,6 +530,11 @@
 
 .sidebar-menu-item:hover .menu-icon-dashboard > :nth-child(4) {
   animation: dashboard-tile-swap-d 760ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-account-settings > :nth-child(n+3) {
+  animation: account-gear-spin 900ms ease both;
+  transform-origin: center;
 }
 
 .sidebar-menu-item:hover .menu-icon-salary > :nth-child(2) {

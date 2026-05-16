@@ -74,7 +74,7 @@ function getMenuIconMotion(href: string) {
   if (href === "/dashboard/admin-ayarlar") return "menu-icon-admin"
   if (href.includes("sutun")) return "menu-icon-columns"
   if (href.includes("gorunum")) return "menu-icon-eye"
-  if (href.includes("hesap")) return "menu-icon-user"
+  if (href.includes("hesap")) return "menu-icon-account-settings"
   return "menu-icon-pop"
 }
 
