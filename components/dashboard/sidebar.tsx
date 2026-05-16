@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import {
+  BarChart3,
   Building2,
   ChevronDown,
   ChevronRight,
@@ -49,6 +50,7 @@ const menuItems = [
 
 const adminMenuItems = [
   { title: "Ayarlar", href: "/dashboard/ayarlar", icon: Settings, color: "text-gray-400" },
+  { title: "Sube Ciro Raporlari", href: "/dashboard/sube-ciro-raporlari", icon: BarChart3, color: "text-emerald-500" },
   { title: "Sütun Ayarları", href: "/dashboard/sutun-ayarlar", icon: Columns3, color: "text-sky-500" },
   { title: "Güvenlik Ayarları", href: "/dashboard/guvenlik-ayarlar", icon: Shield, color: "text-emerald-500" },
   { title: "Görünüm Ayarları", href: "/dashboard/gorunum-ayarlar", icon: Eye, color: "text-indigo-500" },

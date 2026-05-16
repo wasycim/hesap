@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,6 +19,7 @@ import {
 import { Plus, Save, Trash2, Users, Package } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { logSecurityEvent } from "@/lib/audit-log"
+import { COLOR_OPTIONS, getColumnTextColor } from "@/lib/table-column-settings"
 
 interface Ortak {
   id: string
@@ -39,6 +41,14 @@ interface KargoFirma {
   aktif: boolean
 }
 
+interface GelirFirma {
+  id: string
+  ad: string
+  komisyon_orani: number | null
+  color: string
+  aktif: boolean
+}
+
 interface ConfirmState {
   title: string
   description: string
@@ -49,10 +59,12 @@ export default function AyarlarPage() {
   const [ortaklar, setOrtaklar] = useState<Ortak[]>([])
   const [personeller, setPersoneller] = useState<Personel[]>([])
   const [kargoFirmalar, setKargoFirmalar] = useState<KargoFirma[]>([])
+  const [gelirFirmalar, setGelirFirmalar] = useState<GelirFirma[]>([])
   const [yeniOrtak, setYeniOrtak] = useState("")
   const [yeniPersonel, setYeniPersonel] = useState("")
   const [yeniPersonelMaas, setYeniPersonelMaas] = useState("")
   const [yeniKargoFirma, setYeniKargoFirma] = useState("")
+  const [yeniGelirFirma, setYeniGelirFirma] = useState("")
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const [salaryDrafts, setSalaryDrafts] = useState<Record<string, string>>({})
@@ -84,10 +96,11 @@ export default function AyarlarPage() {
       return
     }
 
-    const [ortakRes, personelRes, kargoRes] = await Promise.all([
+    const [ortakRes, personelRes, kargoRes, gelirRes] = await Promise.all([
       supabase.from("ortaklar").select("*").eq("sube_id", currentSube.id).order("sira"),
       supabase.from("personeller").select("*").eq("sube_id", currentSube.id).order("sira"),
       supabase.from("kargo_cari_firmalar").select("*").eq("sube_id", currentSube.id).order("sira"),
+      supabase.from("gelir_firmalar").select("*").eq("sube_id", currentSube.id).order("sira"),
     ])
 
     if (ortakRes.data) setOrtaklar(ortakRes.data)
@@ -99,6 +112,7 @@ export default function AyarlarPage() {
       ])))
     }
     if (kargoRes.data) setKargoFirmalar(kargoRes.data)
+    if (gelirRes.data) setGelirFirmalar(gelirRes.data)
     setLoading(false)
   }
 
@@ -156,6 +170,25 @@ export default function AyarlarPage() {
     window.dispatchEvent(new Event("kargo-firmalar-changed"))
   }
 
+  async function addGelirFirma() {
+    if (!yeniGelirFirma.trim()) return
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || !currentSube) return
+
+    await supabase.from("gelir_firmalar").insert({
+      user_id: user.id,
+      sube_id: currentSube.id,
+      ad: yeniGelirFirma.toUpperCase(),
+      komisyon_orani: 20,
+      color: "bg-yellow-500",
+      sira: gelirFirmalar.length,
+      aktif: true,
+    })
+    setYeniGelirFirma("")
+    loadData()
+    window.dispatchEvent(new Event("gelir-firmalar-changed"))
+  }
+
   async function toggleOrtak(id: string, aktif: boolean) {
     await supabase.from("ortaklar").update({ aktif: !aktif }).eq("id", id)
     loadData()
@@ -187,6 +220,23 @@ export default function AyarlarPage() {
     await supabase.from("kargo_cari_firmalar").update({ aktif: !aktif }).eq("id", id)
     loadData()
     window.dispatchEvent(new Event("kargo-firmalar-changed"))
+  }
+
+  async function toggleGelirFirma(id: string, aktif: boolean) {
+    await supabase.from("gelir_firmalar").update({ aktif: !aktif }).eq("id", id)
+    loadData()
+    window.dispatchEvent(new Event("gelir-firmalar-changed"))
+  }
+
+  async function updateGelirFirma(id: string, patch: Partial<Pick<GelirFirma, "komisyon_orani" | "color">>) {
+    await supabase.from("gelir_firmalar").update({
+      ...patch,
+      updated_at: new Date().toISOString(),
+    }).eq("id", id)
+    setGelirFirmalar(prev => prev.map(firma => (
+      firma.id === id ? { ...firma, ...patch } : firma
+    )))
+    window.dispatchEvent(new Event("gelir-firmalar-changed"))
   }
 
   async function deleteOrtak(id: string) {
@@ -227,6 +277,14 @@ export default function AyarlarPage() {
     })
   }
 
+  async function deleteGelirFirma(id: string) {
+    setConfirmState({
+      title: "Gelir firmasi silinsin mi?",
+      description: "Bu firmayi silerseniz gelir tablosundaki eski tutarlar raporda firma adi olmadan kalabilir.",
+      action: () => performDeleteGelirFirma(id),
+    })
+  }
+
   async function performDeleteKargoFirma(id: string) {
     const firma = kargoFirmalar.find(item => item.id === id)
     await supabase.from("kargo_cari_kayitlar").delete().eq("firma_id", id)
@@ -234,6 +292,14 @@ export default function AyarlarPage() {
     await logSecurityEvent("kargo_cari_delete", { id, label: firma?.ad, sube_id: currentSube?.id })
     loadData()
     window.dispatchEvent(new Event("kargo-firmalar-changed"))
+  }
+
+  async function performDeleteGelirFirma(id: string) {
+    const firma = gelirFirmalar.find(item => item.id === id)
+    await supabase.from("gelir_firmalar").delete().eq("id", id)
+    await logSecurityEvent("gelir_firma_delete", { id, label: firma?.ad, sube_id: currentSube?.id })
+    loadData()
+    window.dispatchEvent(new Event("gelir-firmalar-changed"))
   }
 
   if (loading) {
@@ -422,6 +488,112 @@ export default function AyarlarPage() {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Gelir Firmalar Card */}
+        <div className="lg:col-span-2 bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-emerald-500 to-green-600 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <Package className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="font-bold text-lg text-white">Firmalar</h2>
+                <p className="text-emerald-100 text-sm">Gelir tablosunda Firmalar bolumu ve komisyon oranlari</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-5">
+            <div className="flex gap-3 mb-5 max-w-md">
+              <Input
+                value={yeniGelirFirma}
+                onChange={(e) => setYeniGelirFirma(e.target.value)}
+                placeholder="Yeni gelir firmasi..."
+                className="flex-1 h-11"
+                onKeyDown={(e) => e.key === "Enter" && addGelirFirma()}
+              />
+              <Button
+                onClick={addGelirFirma}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white h-11 w-11 p-0"
+              >
+                <Plus className="w-5 h-5" />
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {gelirFirmalar.length === 0 ? (
+                <div className="col-span-full text-center py-8 text-muted-foreground">
+                  Henuz gelir firmasi eklenmemis. Yeni firma eklenince komisyon orani varsayilan %20 olur.
+                </div>
+              ) : (
+                gelirFirmalar.map((firma) => (
+                  <div
+                    key={firma.id}
+                    className={`rounded-lg border-l-4 p-3.5 transition-all ${
+                      firma.aktif
+                        ? "bg-emerald-50 border-emerald-400 dark:bg-emerald-500/15"
+                        : "bg-muted/50 border-muted-foreground/30 opacity-60"
+                    }`}
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <span className={`font-semibold ${firma.aktif ? "text-foreground" : "text-muted-foreground line-through"}`}>
+                        {firma.ad}
+                      </span>
+                      <div className={`rounded px-2 py-1 text-xs font-bold ${firma.color} ${getColumnTextColor(firma.color)}`}>
+                        SUTUN
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-[1fr_7rem] gap-2">
+                      <Select value={firma.color} onValueChange={(value) => updateGelirFirma(firma.id, { color: value })}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {COLOR_OPTIONS.map(option => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="% yok"
+                        value={firma.komisyon_orani ?? ""}
+                        onChange={(event) => updateGelirFirma(firma.id, {
+                          komisyon_orani: event.target.value === "" ? null : Number(event.target.value) || 0,
+                        })}
+                      />
+                    </div>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">
+                        Komisyon: {firma.komisyon_orani === null ? "Yok" : `%${firma.komisyon_orani}`}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => toggleGelirFirma(firma.id, firma.aktif)}
+                          className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                            firma.aktif
+                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-100"
+                              : "bg-muted text-muted-foreground hover:bg-muted/80"
+                          }`}
+                        >
+                          {firma.aktif ? "Aktif" : "Pasif"}
+                        </button>
+                        <button
+                          onClick={() => deleteGelirFirma(firma.id)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors dark:hover:bg-red-500/20"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))
