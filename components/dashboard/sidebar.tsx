@@ -54,7 +54,7 @@ const adminMenuItems = [
   { title: "Şube Ciro Raporları", href: "/dashboard/sube-ciro-raporlari", icon: BarChart3, color: "text-emerald-500" },
   { title: "Sütun Ayarları", href: "/dashboard/sutun-ayarlar", icon: Columns3, color: "text-sky-500" },
   { title: "Görünüm Ayarları", href: "/dashboard/gorunum-ayarlar", icon: Eye, color: "text-indigo-500" },
-  { title: "Ayarlar", href: "/dashboard/ayarlar", icon: Settings, color: "text-gray-400" },
+  { title: "Genel Ayarlar", href: "/dashboard/ayarlar", icon: Settings, color: "text-gray-400" },
   { title: "Güvenlik Ayarları", href: "/dashboard/guvenlik-ayarlar", icon: Shield, color: "text-emerald-500" },
   { title: "Admin Ayarları", href: "/dashboard/admin-ayarlar", icon: ShieldCheck, color: "text-amber-500" },
 ]
@@ -62,6 +62,14 @@ const adminMenuItems = [
 const bottomMenuItems = [
   { title: "Hesap Ayarları", href: "/dashboard/hesap", icon: UserCog, color: "text-purple-500" },
 ]
+
+function getMenuIconMotion(href: string) {
+  if (href === "/dashboard/ayarlar") return "menu-icon-spin"
+  if (href === "/dashboard/guvenlik-ayarlar" || href === "/dashboard/admin-ayarlar") return "menu-icon-shield"
+  if (href.includes("sutun")) return "menu-icon-slide"
+  if (href.includes("gelir") || href.includes("gider") || href.includes("sube-ciro")) return "menu-icon-trend"
+  return "menu-icon-pop"
+}
 
 export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   const pathname = usePathname()
@@ -176,13 +184,13 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                    "sidebar-menu-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                     isActive
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                   )}
                 >
-                  <item.icon className={cn("h-5 w-5", item.color)} />
+                  <item.icon className={cn("sidebar-menu-icon h-5 w-5", getMenuIconMotion(item.href), item.color)} />
                   <span>{item.title}</span>
                 </Link>
               </li>
@@ -194,14 +202,14 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
               <button
                 onClick={() => setKargoOpen(!kargoOpen)}
                 className={cn(
-                  "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                  "sidebar-menu-item flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                   pathname.startsWith("/dashboard/kargo-cari")
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 )}
               >
                 <div className="flex items-center gap-3">
-                  <Package className="h-5 w-5 text-cyan-500" />
+                  <Package className="sidebar-menu-icon menu-icon-pop h-5 w-5 text-cyan-500" />
                   <span>Kargo Cari</span>
                 </div>
                 <ChevronDown className={cn("h-4 w-4 transition-transform duration-500", kargoOpen ? "rotate-0" : "-rotate-90")} />
@@ -221,20 +229,20 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                         href="/dashboard/kargo-cari"
                         onClick={() => setMobileOpen(false)}
                         className={cn(
-                          "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                          "sidebar-menu-item flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
                           pathname === "/dashboard/kargo-cari"
                             ? "bg-sidebar-accent text-sidebar-accent-foreground"
                             : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                         )}
                       >
-                        <Wallet className="h-4 w-4 text-red-500" />
+                        <Wallet className="sidebar-menu-icon menu-icon-pop h-4 w-4 text-red-500" />
                         <span>Borç Özeti</span>
                       </Link>
                     </li>
                   )}
                   {kargoFirmalar.length === 0 ? (
                     <li className="px-3 py-2 text-xs text-sidebar-foreground/50">
-                      Firma yok. Ayarlar'dan ekleyin.
+                      Firma yok. Genel Ayarlar'dan ekleyin.
                     </li>
                   ) : (
                     kargoFirmalar.map((firma) => {
@@ -245,7 +253,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                             href={`/dashboard/kargo-cari/${firma.id}`}
                             onClick={() => setMobileOpen(false)}
                             className={cn(
-                              "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all",
+                              "sidebar-menu-item flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all",
                               isActive
                                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
                                 : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
@@ -272,13 +280,13 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                   href={maasMenuItem.href}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                    "sidebar-menu-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                     isActive
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                   )}
                 >
-                  <Icon className={cn("h-5 w-5", maasMenuItem.color)} />
+                  <Icon className={cn("sidebar-menu-icon menu-icon-pop h-5 w-5", maasMenuItem.color)} />
                   <span>{maasMenuItem.title}</span>
                 </Link>
               </li>
@@ -293,13 +301,13 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                    "sidebar-menu-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                     isActive
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                   )}
                 >
-                  <item.icon className={cn("h-5 w-5", item.color)} />
+                  <item.icon className={cn("sidebar-menu-icon h-5 w-5", getMenuIconMotion(item.href), item.color)} />
                   <span>{item.title}</span>
                 </Link>
               </li>
@@ -363,13 +371,13 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                    "sidebar-menu-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                     isActive
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                   )}
                 >
-                  <item.icon className={cn("h-5 w-5", item.color)} />
+                  <item.icon className={cn("sidebar-menu-icon h-5 w-5", getMenuIconMotion(item.href), item.color)} />
                   <span>{item.title}</span>
                 </Link>
               </li>

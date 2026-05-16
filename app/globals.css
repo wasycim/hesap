@@ -195,3 +195,88 @@
 .animate-modal-pop {
   animation: modal-pop 350ms ease-out both;
 }
+
+@keyframes icon-hover-pop {
+  0% { transform: translateY(0) scale(1) rotate(0deg); }
+  45% { transform: translateY(-2px) scale(1.12) rotate(-6deg); }
+  100% { transform: translateY(0) scale(1.04) rotate(0deg); }
+}
+
+@keyframes icon-click-tap {
+  0% { transform: scale(1); }
+  45% { transform: scale(0.78) rotate(8deg); }
+  100% { transform: scale(1.08) rotate(0deg); }
+}
+
+@keyframes menu-spin {
+  0% { transform: rotate(0deg) scale(1); }
+  70% { transform: rotate(280deg) scale(1.1); }
+  100% { transform: rotate(360deg) scale(1.04); }
+}
+
+@keyframes menu-shield-check {
+  0% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); }
+  35% { transform: scale(1.15) rotate(-5deg); filter: drop-shadow(0 0 8px currentColor); }
+  70% { transform: scale(1.02) rotate(4deg); }
+  100% { transform: scale(1.08) rotate(0deg); filter: drop-shadow(0 0 4px currentColor); }
+}
+
+@keyframes menu-slide {
+  0% { transform: translateX(0); }
+  35% { transform: translateX(3px); }
+  70% { transform: translateX(-2px); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes menu-trend {
+  0% { transform: translate(0, 0) scale(1); }
+  45% { transform: translate(3px, -3px) scale(1.08); }
+  100% { transform: translate(0, 0) scale(1.04); }
+}
+
+.icon-action svg,
+.sidebar-menu-icon {
+  transform-origin: center;
+  transition: transform 180ms ease, filter 180ms ease;
+}
+
+.icon-action:hover svg {
+  animation: icon-hover-pop 420ms ease both;
+}
+
+.icon-action:active svg {
+  animation: icon-click-tap 240ms cubic-bezier(.2, 1.4, .4, 1) both;
+}
+
+.sidebar-menu-item:hover .menu-icon-spin {
+  animation: menu-spin 650ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-shield {
+  animation: menu-shield-check 520ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-slide {
+  animation: menu-slide 430ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-trend {
+  animation: menu-trend 430ms ease both;
+}
+
+.sidebar-menu-item:hover .menu-icon-pop {
+  animation: icon-hover-pop 420ms ease both;
+}
+
+.sidebar-menu-item:active .sidebar-menu-icon {
+  animation: icon-click-tap 240ms cubic-bezier(.2, 1.4, .4, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-action:hover svg,
+  .icon-action:active svg,
+  .sidebar-menu-item:hover .sidebar-menu-icon,
+  .sidebar-menu-item:active .sidebar-menu-icon {
+    animation: none;
+  }
+}

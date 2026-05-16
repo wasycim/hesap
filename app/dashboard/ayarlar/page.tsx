@@ -375,7 +375,7 @@ export default function AyarlarPage() {
 
   return (
     <div className="p-4 sm:p-6">
-      <h1 className="text-2xl font-bold text-foreground mb-2">Ayarlar</h1>
+      <h1 className="text-2xl font-bold text-foreground mb-2">Genel Ayarlar</h1>
       <p className="text-sm text-muted-foreground mb-6">
         {currentSube?.ad ? `${currentSube.ad} şubesi için ayarlar` : "Şube seçimi bekleniyor"}
       </p>
