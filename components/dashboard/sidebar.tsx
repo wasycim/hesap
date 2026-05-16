@@ -16,6 +16,7 @@ import {
   Package,
   Settings,
   Shield,
+  ShieldCheck,
   Soup,
   TrendingDown,
   TrendingUp,
@@ -45,16 +46,17 @@ const menuItems = [
   { key: "gelir", title: "Gelir Tablosu", href: "/dashboard/gelir", icon: TrendingUp, color: "text-emerald-500" },
   { key: "gider", title: "Gider Tablosu", href: "/dashboard/gider", icon: TrendingDown, color: "text-red-500" },
   { key: "corbalar", title: "Çorbalar", href: "/dashboard/corbalar", icon: Soup, color: "text-orange-500" },
-  { key: "maaslar", title: "Maaşlar", href: "/dashboard/maaslar", icon: WalletCards, color: "text-emerald-500" },
 ]
 
+const maasMenuItem = { key: "maaslar", title: "Maaşlar", href: "/dashboard/maaslar", icon: WalletCards, color: "text-emerald-500" }
+
 const adminMenuItems = [
-  { title: "Ayarlar", href: "/dashboard/ayarlar", icon: Settings, color: "text-gray-400" },
   { title: "Şube Ciro Raporları", href: "/dashboard/sube-ciro-raporlari", icon: BarChart3, color: "text-emerald-500" },
   { title: "Sütun Ayarları", href: "/dashboard/sutun-ayarlar", icon: Columns3, color: "text-sky-500" },
-  { title: "Güvenlik Ayarları", href: "/dashboard/guvenlik-ayarlar", icon: Shield, color: "text-emerald-500" },
   { title: "Görünüm Ayarları", href: "/dashboard/gorunum-ayarlar", icon: Eye, color: "text-indigo-500" },
-  { title: "Admin Ayarları", href: "/dashboard/admin-ayarlar", icon: UserCog, color: "text-purple-500" },
+  { title: "Ayarlar", href: "/dashboard/ayarlar", icon: Settings, color: "text-gray-400" },
+  { title: "Güvenlik Ayarları", href: "/dashboard/guvenlik-ayarlar", icon: Shield, color: "text-emerald-500" },
+  { title: "Admin Ayarları", href: "/dashboard/admin-ayarlar", icon: ShieldCheck, color: "text-amber-500" },
 ]
 
 const bottomMenuItems = [
@@ -260,6 +262,28 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
               </div>
             </li>
           )}
+
+          {canSeeMenu(maasMenuItem.key) && (() => {
+            const isActive = pathname === maasMenuItem.href
+            const Icon = maasMenuItem.icon
+            return (
+              <li key={maasMenuItem.href}>
+                <Link
+                  href={maasMenuItem.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                    isActive
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                  )}
+                >
+                  <Icon className={cn("h-5 w-5", maasMenuItem.color)} />
+                  <span>{maasMenuItem.title}</span>
+                </Link>
+              </li>
+            )
+          })()}
 
           {isAdmin && adminMenuItems.map((item) => {
             const isActive = pathname === item.href

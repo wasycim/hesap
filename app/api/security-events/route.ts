@@ -69,6 +69,19 @@ export async function GET() {
     String(user.email || "").toLowerCase(),
     normalizeTrustedIps(user.user_metadata?.trusted_ips),
   ]))
+  const trustedIpOwners = new Map<string, Array<{ user_id: string; email: string | null; display_name: string }>>()
+  ;(authData?.users || []).forEach(user => {
+    const displayName = String(user.user_metadata?.display_name || user.email || "").trim()
+    normalizeTrustedIps(user.user_metadata?.trusted_ips).forEach(ip => {
+      const owners = trustedIpOwners.get(ip) || []
+      owners.push({
+        user_id: user.id,
+        email: user.email || null,
+        display_name: displayName,
+      })
+      trustedIpOwners.set(ip, owners)
+    })
+  })
   const { data: profiles } = await admin
     .from("user_profiles")
     .select("user_id, email, sube_id, subeler:sube_id(ad)")
@@ -86,12 +99,14 @@ export async function GET() {
     const details = event.details || {}
     const detailBranchId = details.sube_id || details.branch_id
     const trustedIps = trustedIpsById.get(event.user_id) || trustedIpsByEmail.get(email) || []
+    const matchingOwners = event.ip_address ? trustedIpOwners.get(event.ip_address) || [] : []
     return {
       ...event,
       user_display_name: displayNameById.get(event.user_id) || displayNameByEmail.get(email) || null,
       branch_name: branchById.get(detailBranchId) || details.sube_ad || details.branch_name || branchByUserId.get(event.user_id) || branchByEmail.get(email) || null,
       trusted_ips: trustedIps,
       is_trusted_ip: Boolean(event.ip_address && trustedIps.includes(event.ip_address)),
+      trusted_ip_owners: matchingOwners.filter(owner => owner.user_id !== event.user_id && String(owner.email || "").toLowerCase() !== email),
     }
   })
 
