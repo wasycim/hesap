@@ -17,6 +17,7 @@ interface SecurityEvent {
   ip_address: string | null
   user_agent: string | null
   trusted_ips?: string[]
+  trusted_ip_owners?: Array<{ user_id: string; email: string | null; display_name: string }>
   is_trusted_ip?: boolean
   details: Record<string, any>
   created_at: string
@@ -108,6 +109,17 @@ function getUserDisplay(event: SecurityEvent) {
 
 function getBranchDisplay(event: SecurityEvent) {
   return event.branch_name || event.details?.sube_ad || event.details?.branch_name || "-"
+}
+
+function getTrustedIpOwnerNote(event: SecurityEvent) {
+  if (!event.ip_address || !event.trusted_ip_owners?.length) return null
+  const ownerNames = event.trusted_ip_owners
+    .map(owner => owner.display_name || owner.email)
+    .filter(Boolean)
+
+  if (ownerNames.length === 0) return null
+  const ownerLabel = ownerNames.join(", ")
+  return `${ownerLabel} kullanıcısının ip adresi ${event.ip_address}`
 }
 
 function buildPasswordChangeCounts(events: SecurityEvent[]) {
@@ -422,6 +434,11 @@ export default function GuvenlikAyarlarPage() {
                       <td className="p-3">{formatDate(event.created_at)}</td>
                       <td className="p-3">
                         <div>{getSummary(event, passwordCount, isDifferentIp, isSharedIp)}</div>
+                        {getTrustedIpOwnerNote(event) && (
+                          <div className="mt-1 text-xs font-medium opacity-80">
+                            ({getTrustedIpOwnerNote(event)})
+                          </div>
+                        )}
                         {detailsOpen && (
                           <pre className="mt-2 max-w-xl overflow-x-auto rounded border bg-white/70 p-2 text-xs text-slate-800 dark:bg-black/30 dark:text-slate-100">
                             {JSON.stringify(event.details || {}, null, 2)}
