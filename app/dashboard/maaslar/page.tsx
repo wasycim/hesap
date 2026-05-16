@@ -48,13 +48,13 @@ export default function MaaslarPage() {
   const [selectedOrtakId, setSelectedOrtakId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
-  const { currentSube } = useSube()
+  const { currentSube, isAdmin, loading: subeLoading } = useSube()
   const years = makeYearWindow(year)
   const ayYil = `${month}-${year}`
 
   useEffect(() => {
-    if (currentSube) loadData()
-  }, [currentSube?.id, ayYil])
+    if (isAdmin && currentSube) loadData()
+  }, [isAdmin, currentSube?.id, ayYil])
 
   async function loadData() {
     if (!currentSube) return
@@ -153,6 +153,21 @@ export default function MaaslarPage() {
     } else {
       setMonth(MONTHS[currentIndex + 1])
     }
+  }
+
+  if (subeLoading) {
+    return <div className="flex h-64 items-center justify-center text-muted-foreground">Yukleniyor...</div>
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="text-center">
+          <h2 className="mb-2 text-xl font-semibold">Erisim engellendi</h2>
+          <p className="text-muted-foreground">Bu sayfaya sadece yoneticiler erisebilir.</p>
+        </div>
+      </div>
+    )
   }
 
   if (loading) {
