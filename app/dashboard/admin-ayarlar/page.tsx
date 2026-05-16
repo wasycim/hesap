@@ -25,6 +25,7 @@ import { logSecurityEvent } from "@/lib/audit-log"
 interface AdminUser {
   user_id: string
   email: string | null
+  tc_kimlik?: string | null
   display_name?: string | null
   trusted_ips?: string[]
   is_admin: boolean
@@ -58,6 +59,7 @@ export default function AdminAyarlarPage() {
   const { subeler, isAdmin } = useSube()
   const [users, setUsers] = useState<AdminUser[]>([])
   const [email, setEmail] = useState("")
+  const [tcKimlik, setTcKimlik] = useState("")
   const [displayName, setDisplayName] = useState("")
   const [subeId, setSubeId] = useState("")
   const [role, setRole] = useState("user")
@@ -65,6 +67,7 @@ export default function AdminAyarlarPage() {
   const [selectedUserId, setSelectedUserId] = useState("")
   const [editSubeId, setEditSubeId] = useState("")
   const [editDisplayName, setEditDisplayName] = useState("")
+  const [editTcKimlik, setEditTcKimlik] = useState("")
   const [editTrustedIps, setEditTrustedIps] = useState("")
   const [editRole, setEditRole] = useState("user")
   const [editVardiya, setEditVardiya] = useState("T")
@@ -92,6 +95,7 @@ export default function AdminAyarlarPage() {
   useEffect(() => {
     if (!selectedUser) return
     setEditDisplayName(selectedUser.display_name || "")
+    setEditTcKimlik(selectedUser.tc_kimlik || "")
     setEditTrustedIps((selectedUser.trusted_ips || []).join(", "))
     setEditSubeId(selectedUser.sube_id || subeler[0]?.id || "")
     setEditRole(selectedUser.is_admin ? "admin" : "user")
@@ -105,8 +109,8 @@ export default function AdminAyarlarPage() {
   }
 
   async function createUser() {
-    if (!email.trim() || !subeId) {
-      toast.error("E-posta ve şube zorunlu.")
+    if (!email.trim() || tcKimlik.replace(/\D/g, "").length !== 11 || !subeId) {
+      toast.error("E-posta, TC ve şube zorunlu.")
       return
     }
 
@@ -117,6 +121,7 @@ export default function AdminAyarlarPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         email,
+        tcKimlik,
         displayName,
         subeId,
         isAdmin: role === "admin",
@@ -134,6 +139,7 @@ export default function AdminAyarlarPage() {
     }
 
     setEmail("")
+    setTcKimlik("")
     setDisplayName("")
     setRole("user")
     setVardiya("T")
@@ -144,8 +150,8 @@ export default function AdminAyarlarPage() {
   }
 
   async function updateUser() {
-    if (!selectedUserId || !editSubeId) {
-      toast.error("Düzenlenecek kullanıcı ve şube zorunlu.")
+    if (!selectedUserId || editTcKimlik.replace(/\D/g, "").length !== 11 || !editSubeId) {
+      toast.error("Düzenlenecek kullanıcı, TC ve şube zorunlu.")
       return
     }
 
@@ -157,6 +163,7 @@ export default function AdminAyarlarPage() {
       body: JSON.stringify({
         userId: selectedUserId,
         displayName: editDisplayName,
+        tcKimlik: editTcKimlik,
         trustedIps: editTrustedIps,
         subeId: editSubeId,
         isAdmin: editRole === "admin",
@@ -313,6 +320,16 @@ export default function AdminAyarlarPage() {
               <Input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Örn. Murat Yılmaz" />
             </div>
             <div className="space-y-2">
+              <Label>TC Kimlik No</Label>
+              <Input
+                value={tcKimlik}
+                onChange={(event) => setTcKimlik(event.target.value.replace(/\D/g, "").slice(0, 11))}
+                placeholder="11 haneli TC"
+                inputMode="numeric"
+                maxLength={11}
+              />
+            </div>
+            <div className="space-y-2">
               <Label>Şube</Label>
               <Select value={subeId} onValueChange={setSubeId}>
                 <SelectTrigger>
@@ -385,6 +402,17 @@ export default function AdminAyarlarPage() {
             <div className="space-y-2">
               <Label>Görünen ad</Label>
               <Input value={editDisplayName} onChange={(event) => setEditDisplayName(event.target.value)} placeholder="Sol menüde görünecek ad" disabled={!selectedUser} />
+            </div>
+            <div className="space-y-2">
+              <Label>TC Kimlik No</Label>
+              <Input
+                value={editTcKimlik}
+                onChange={(event) => setEditTcKimlik(event.target.value.replace(/\D/g, "").slice(0, 11))}
+                placeholder="11 haneli TC"
+                inputMode="numeric"
+                maxLength={11}
+                disabled={!selectedUser}
+              />
             </div>
             <div className="space-y-2">
               <Label>Güvenilir IP</Label>
@@ -493,6 +521,7 @@ export default function AdminAyarlarPage() {
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="p-3 text-left">E-posta</th>
+                  <th className="p-3 text-left">TC</th>
                   <th className="p-3 text-left">Görünen ad</th>
                   <th className="p-3 text-left">Rol</th>
                   <th className="p-3 text-left">Şube</th>
@@ -504,6 +533,7 @@ export default function AdminAyarlarPage() {
                 {users.map(user => (
                   <tr key={user.user_id} className="border-b">
                     <td className="p-3">{user.email || "-"}</td>
+                    <td className="p-3">{user.tc_kimlik || "-"}</td>
                     <td className="p-3">{user.display_name || "-"}</td>
                     <td className="p-3">{user.is_admin ? "Yönetici" : "Kullanıcı"}</td>
                     <td className="p-3">{user.subeler?.ad || "-"}</td>
@@ -513,10 +543,9 @@ export default function AdminAyarlarPage() {
                         variant="ghost"
                         size="icon"
                         onClick={() => setSelectedUserId(user.user_id)}
-                        className="text-red-600 hover:text-red-700"
-                        title="Silmek için kullanıcıyı seç"
+                        title="Kullanıcıyı düzenle"
                       >
-                        <UserX className="h-4 w-4" />
+                        <UserCog className="h-4 w-4" />
                       </Button>
                     </td>
                   </tr>

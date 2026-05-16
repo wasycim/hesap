@@ -28,6 +28,8 @@ interface Personel {
   id: string
   ad: string
   aktif: boolean
+  aylik_maas?: number
+  saatlik_mesai_ucreti?: number
 }
 
 interface KargoFirma {
@@ -48,6 +50,7 @@ export default function AyarlarPage() {
   const [kargoFirmalar, setKargoFirmalar] = useState<KargoFirma[]>([])
   const [yeniOrtak, setYeniOrtak] = useState("")
   const [yeniPersonel, setYeniPersonel] = useState("")
+  const [yeniPersonelMaas, setYeniPersonelMaas] = useState("")
   const [yeniKargoFirma, setYeniKargoFirma] = useState("")
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -110,15 +113,20 @@ export default function AyarlarPage() {
     if (!yeniPersonel.trim()) return
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || !currentSube) return
+    const aylikMaas = Number(yeniPersonelMaas) || 0
+    const saatlikMesaiUcreti = aylikMaas > 0 ? aylikMaas / 30 / 8 : 0
 
     await supabase.from("personeller").insert({
       user_id: user.id,
       sube_id: currentSube.id,
       ad: yeniPersonel.toUpperCase(),
+      aylik_maas: aylikMaas,
+      saatlik_mesai_ucreti: saatlikMesaiUcreti,
       sira: personeller.length,
       aktif: true,
     })
     setYeniPersonel("")
+    setYeniPersonelMaas("")
     loadData()
   }
 
@@ -146,6 +154,18 @@ export default function AyarlarPage() {
 
   async function togglePersonel(id: string, aktif: boolean) {
     await supabase.from("personeller").update({ aktif: !aktif }).eq("id", id)
+    loadData()
+  }
+
+  async function updatePersonelSalary(id: string, value: string) {
+    const aylikMaas = Number(value) || 0
+    await supabase
+      .from("personeller")
+      .update({
+        aylik_maas: aylikMaas,
+        saatlik_mesai_ucreti: aylikMaas > 0 ? aylikMaas / 30 / 8 : 0,
+      })
+      .eq("id", id)
     loadData()
   }
 
@@ -314,13 +334,21 @@ export default function AyarlarPage() {
           </div>
           
           <div className="p-5">
-            <div className="flex gap-3 mb-5">
+            <div className="grid gap-3 mb-5 sm:grid-cols-[1fr_9rem_auto]">
               <Input
                 value={yeniPersonel}
                 onChange={(e) => setYeniPersonel(e.target.value)}
                 placeholder="Yeni personel adi..."
                 className="flex-1 h-11"
                 onKeyDown={(e) => e.key === "Enter" && addPersonel()}
+              />
+              <Input
+                value={yeniPersonelMaas}
+                onChange={(e) => setYeniPersonelMaas(e.target.value)}
+                placeholder="Maaş"
+                className="h-11"
+                type="number"
+                min="0"
               />
               <Button 
                 onClick={addPersonel} 
@@ -345,9 +373,18 @@ export default function AyarlarPage() {
                         : "bg-muted/50 border-l-4 border-muted-foreground/30 opacity-60"
                     }`}
                   >
-                    <span className={`font-semibold ${personel.aktif ? "text-foreground" : "text-muted-foreground line-through"}`}>
-                      {personel.ad}
-                    </span>
+                    <div className="min-w-0">
+                      <span className={`block font-semibold ${personel.aktif ? "text-foreground" : "text-muted-foreground line-through"}`}>
+                        {personel.ad}
+                      </span>
+                      <Input
+                        className="mt-2 h-8 w-32"
+                        type="number"
+                        min="0"
+                        defaultValue={Number(personel.aylik_maas || 0)}
+                        onBlur={(event) => updatePersonelSalary(personel.id, event.target.value)}
+                      />
+                    </div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => togglePersonel(personel.id, personel.aktif)}
