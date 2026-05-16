@@ -102,6 +102,10 @@ function normalizeSubeName(name: string): string {
   return name.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\u0131/g, "i")
 }
 
+function getGiderTotalKey(tarih: string, vardiya: string, isTekVardiya: boolean) {
+  return isTekVardiya ? tarih : `${tarih}__${vardiya || "S"}`
+}
+
 export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
   const [rows, setRows] = useState<GiderRow[]>([])
   const [ortaklar, setOrtaklar] = useState<Ortak[]>([])
@@ -393,23 +397,24 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
 
     const { data: giderRows } = await supabase
       .from("gider_kayitlari")
-      .select("tarih, genel_toplam")
+      .select("tarih, vardiya, genel_toplam")
       .eq("sube_id", currentSube.id)
       .eq("ay_yil", ayYil)
 
     const totalsByDate = new Map<string, number>()
     ;(giderRows || []).forEach(row => {
-      totalsByDate.set(row.tarih, (totalsByDate.get(row.tarih) || 0) + (Number(row.genel_toplam) || 0))
+      const key = getGiderTotalKey(row.tarih, row.vardiya || "S", isTekVardiya)
+      totalsByDate.set(key, (totalsByDate.get(key) || 0) + (Number(row.genel_toplam) || 0))
     })
 
     const { data: gelirRows } = await supabase
       .from("gelir_kayitlari")
-      .select("id, tarih, toplam")
+      .select("id, tarih, vardiya, toplam")
       .eq("sube_id", currentSube.id)
       .eq("ay_yil", ayYil)
 
     for (const row of gelirRows || []) {
-      const giderler = totalsByDate.get(row.tarih) || 0
+      const giderler = totalsByDate.get(getGiderTotalKey(row.tarih, row.vardiya || "S", isTekVardiya)) || 0
       await supabase
         .from("gelir_kayitlari")
         .update({
