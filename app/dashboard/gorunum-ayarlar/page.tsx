@@ -16,7 +16,6 @@ const MENU_OPTIONS = [
   { key: "gelir", label: "Gelir Tablosu" },
   { key: "gider", label: "Gider Tablosu" },
   { key: "corbalar", label: "Çorbalar" },
-  { key: "maaslar", label: "Maaşlar" },
   { key: "kargo_cari", label: "Kargo Cari" },
 ]
 

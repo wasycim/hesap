@@ -40,7 +40,7 @@ function getMonthStart(date: Date) {
 
 function getShiftLabel(value: string | null) {
   if (value === "S") return "Sabah"
-  if (value === "A") return "Aksam"
+  if (value === "A") return "Akşam"
   return "Tek vardiya"
 }
 
@@ -161,33 +161,33 @@ export default function SubeCiroRaporlariPage() {
   })), [reportRows, subeler, firmaMap])
 
   if (subeLoading) {
-    return <div className="flex h-64 items-center justify-center text-muted-foreground">Yukleniyor...</div>
+    return <div className="flex h-64 items-center justify-center text-muted-foreground">Yükleniyor...</div>
   }
 
   if (!isAdmin) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="text-center">
-          <h2 className="mb-2 text-xl font-semibold">Erisim engellendi</h2>
-          <p className="text-muted-foreground">Bu sayfaya sadece yoneticiler erisebilir.</p>
+          <h2 className="mb-2 text-xl font-semibold">Erişim engellendi</h2>
+          <p className="text-muted-foreground">Bu sayfaya sadece yöneticiler erişebilir.</p>
         </div>
       </div>
     )
   }
 
   if (loading) {
-    return <div className="flex h-64 items-center justify-center text-muted-foreground">Yukleniyor...</div>
+    return <div className="flex h-64 items-center justify-center text-muted-foreground">Yükleniyor...</div>
   }
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
+    <div data-unsaved-ignore="true" className="space-y-6 p-4 sm:p-6 lg:p-8">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
             <BarChart3 className="h-6 w-6 text-emerald-600" />
-            Sube Ciro Raporlari
+            Şube Ciro Raporları
           </h1>
-          <p className="text-sm text-muted-foreground">Firma satislari, komisyonlar, sube ve vardiya detaylari.</p>
+          <p className="text-sm text-muted-foreground">Firma satışları, komisyonlar, şube ve vardiya detayları.</p>
         </div>
         <Button onClick={loadData} className="gap-2">
           <Filter className="h-4 w-4" />
@@ -203,10 +203,10 @@ export default function SubeCiroRaporlariPage() {
           <Select value={period} onValueChange={(value) => setPeriod(value as Period)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="daily">Gunluk</SelectItem>
-              <SelectItem value="weekly">Haftalik</SelectItem>
-              <SelectItem value="monthly">Aylik</SelectItem>
-              <SelectItem value="custom">Tarih Sec</SelectItem>
+              <SelectItem value="daily">Günlük</SelectItem>
+              <SelectItem value="weekly">Haftalık</SelectItem>
+              <SelectItem value="monthly">Aylık</SelectItem>
+              <SelectItem value="custom">Tarih Seç</SelectItem>
             </SelectContent>
           </Select>
           <input type="date" value={startDate} onChange={(event) => { setPeriod("custom"); setStartDate(event.target.value) }} className="h-10 rounded-md border bg-background px-3 text-sm" />
@@ -214,14 +214,14 @@ export default function SubeCiroRaporlariPage() {
           <Select value={selectedSubeId} onValueChange={setSelectedSubeId}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tum subeler</SelectItem>
+              <SelectItem value="all">Tüm şubeler</SelectItem>
               {subeler.map(sube => <SelectItem key={sube.id} value={sube.id}>{sube.ad}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={selectedFirmaId} onValueChange={setSelectedFirmaId}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tum firmalar</SelectItem>
+              <SelectItem value="all">Tüm firmalar</SelectItem>
               {firmalar.map(firma => <SelectItem key={firma.id} value={firma.id}>{firma.ad}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -231,7 +231,7 @@ export default function SubeCiroRaporlariPage() {
       <div className="grid gap-3 md:grid-cols-3">
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Toplam Satis</p>
+            <p className="text-sm text-muted-foreground">Toplam Satış</p>
             <p className="mt-2 text-2xl font-bold">{formatMoney(totals.satis)} TL</p>
           </CardContent>
         </Card>
@@ -243,7 +243,7 @@ export default function SubeCiroRaporlariPage() {
         </Card>
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Rapor Araligi</p>
+            <p className="text-sm text-muted-foreground">Rapor Aralığı</p>
             <p className="mt-2 flex items-center gap-2 text-lg font-semibold">
               <CalendarDays className="h-5 w-5" />
               {formatDate(startDate)} - {formatDate(endDate)}
@@ -254,15 +254,15 @@ export default function SubeCiroRaporlariPage() {
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle>Sube Ozetleri</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Şube Özetleri</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {subeSummaries.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">Bu aralikta satis yok.</p>
+              <p className="py-6 text-center text-sm text-muted-foreground">Bu aralıkta satış yok.</p>
             ) : subeSummaries.map(item => (
               <div key={item.sube.id} className="flex items-center justify-between rounded-lg border p-3">
                 <div>
                   <p className="font-semibold">{item.sube.ad}</p>
-                  <p className="text-xs text-muted-foreground">Satis {formatMoney(item.satis)} TL</p>
+                  <p className="text-xs text-muted-foreground">Satış {formatMoney(item.satis)} TL</p>
                 </div>
                 <p className="font-bold text-emerald-700 dark:text-emerald-200">{formatMoney(item.komisyon)} TL</p>
               </div>
@@ -271,17 +271,17 @@ export default function SubeCiroRaporlariPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Firma Ozetleri</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Firma Özetleri</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {firmaSummaries.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">Bu aralikta firma satisi yok.</p>
+              <p className="py-6 text-center text-sm text-muted-foreground">Bu aralıkta firma satışı yok.</p>
             ) : firmaSummaries.map(item => (
               <button key={item.firma.id} onClick={() => setSelectedFirmaId(item.firma.id)} className="flex w-full items-center justify-between rounded-lg border p-3 text-left hover:bg-muted/50">
                 <div className="flex items-center gap-3">
                   <span className={`h-3 w-3 rounded-full ${item.firma.color}`} />
                   <div>
                     <p className="font-semibold">{item.firma.ad}</p>
-                    <p className="text-xs text-muted-foreground">Satis {formatMoney(item.satis)} TL - Oran {item.firma.komisyon_orani ?? 0}%</p>
+                    <p className="text-xs text-muted-foreground">Satış {formatMoney(item.satis)} TL - Oran {item.firma.komisyon_orani ?? 0}%</p>
                   </div>
                 </div>
                 <p className="font-bold text-emerald-700 dark:text-emerald-200">{formatMoney(item.komisyon)} TL</p>
@@ -293,7 +293,7 @@ export default function SubeCiroRaporlariPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Gunluk ve Vardiya Detayi</CardTitle>
+          <CardTitle>Günlük ve Vardiya Detayı</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="mobile-scroll visible-x-scroll overflow-x-auto rounded-lg border">
@@ -301,17 +301,17 @@ export default function SubeCiroRaporlariPage() {
               <thead className="bg-muted/50">
                 <tr>
                   <th className="p-3 text-left">Tarih</th>
-                  <th className="p-3 text-left">Sube</th>
+                  <th className="p-3 text-left">Şube</th>
                   <th className="p-3 text-left">Vardiya</th>
                   <th className="p-3 text-left">Firma</th>
-                  <th className="p-3 text-right">Satis</th>
+                  <th className="p-3 text-right">Satış</th>
                   <th className="p-3 text-right">Oran</th>
                   <th className="p-3 text-right">Komisyon</th>
                 </tr>
               </thead>
               <tbody>
                 {detailRows.length === 0 ? (
-                  <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">Detay bulunamadi.</td></tr>
+                  <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">Detay bulunamadı.</td></tr>
                 ) : detailRows.map((row, index) => (
                   <tr key={`${row.firma_id}-${row.tarih}-${row.vardiya}-${index}`} className="border-t">
                     <td className="p-3">{formatDate(row.tarih)}</td>
