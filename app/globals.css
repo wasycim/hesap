@@ -140,6 +140,32 @@
   display: none;
 }
 
+.visible-x-scroll {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted-foreground) var(--muted);
+}
+
+.visible-x-scroll::-webkit-scrollbar {
+  display: block;
+  height: 12px;
+}
+
+.visible-x-scroll::-webkit-scrollbar-track {
+  background: var(--muted);
+  border-radius: 999px;
+}
+
+.visible-x-scroll::-webkit-scrollbar-thumb {
+  background: var(--muted-foreground);
+  border: 3px solid var(--muted);
+  border-radius: 999px;
+}
+
+.visible-x-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground);
+}
+
 @keyframes page-enter {
   from {
     opacity: 0;

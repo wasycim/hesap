@@ -310,7 +310,7 @@ export default function SutunAyarlarPage() {
           <h3 className="font-semibold">Sütun Önizleme</h3>
           <p className="text-xs text-muted-foreground">Tabloda görünecek başlık sırası ve renkleri.</p>
         </div>
-        <div className="mobile-scroll overflow-x-auto p-3">
+        <div className="mobile-scroll visible-x-scroll overflow-x-auto p-3 pb-4">
           <div className="flex min-w-max items-stretch">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-r-0 bg-muted text-sm font-bold text-muted-foreground">
               #
