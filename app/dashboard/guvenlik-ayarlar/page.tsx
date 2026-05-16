@@ -98,6 +98,10 @@ function getUserKey(event: SecurityEvent) {
   return event.user_email || event.details?.email || event.user_agent || "unknown"
 }
 
+function getDeviceKey(event: SecurityEvent) {
+  return String(event.details?.device_id || event.user_agent || "unknown")
+}
+
 function getUserDisplay(event: SecurityEvent) {
   return event.user_display_name || event.details?.display_name || event.user_email || event.details?.email || "-"
 }
@@ -120,40 +124,6 @@ function buildPasswordChangeCounts(events: SecurityEvent[]) {
   })
 
   return eventCounts
-}
-
-function buildTrustedLoginIps(events: SecurityEvent[]) {
-  const chronological = [...events].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-  const ipRanges = new Map<string, Map<string, { first: number; last: number }>>()
-
-  chronological.forEach(event => {
-    if (event.event_type !== "login" || !event.ip_address) return
-    const key = getUserKey(event)
-    const userIps = ipRanges.get(key) || new Map<string, { first: number; last: number }>()
-    const time = new Date(event.created_at).getTime()
-    const range = userIps.get(event.ip_address)
-    if (range) {
-      range.last = time
-    } else {
-      userIps.set(event.ip_address, { first: time, last: time })
-    }
-    ipRanges.set(key, userIps)
-  })
-
-  const trusted = new Map<string, Set<string>>()
-  const threeDays = 3 * 24 * 60 * 60 * 1000
-
-  ipRanges.forEach((ips, userKey) => {
-    ips.forEach((range, ip) => {
-      if (range.last - range.first >= threeDays) {
-        const trustedIps = trusted.get(userKey) || new Set<string>()
-        trustedIps.add(ip)
-        trusted.set(userKey, trustedIps)
-      }
-    })
-  })
-
-  return trusted
 }
 
 function buildDifferentLoginIpEvents(events: SecurityEvent[]) {
@@ -184,12 +154,12 @@ function buildSharedLoginIpEvents(events: SecurityEvent[]) {
 
   chronological.forEach(event => {
     if (event.event_type !== "login" || !event.ip_address) return
-    const userKey = getUserKey(event)
+    const deviceKey = getDeviceKey(event)
     const users = usersByIp.get(event.ip_address) || new Set<string>()
-    if (users.size > 0 && !users.has(userKey)) {
+    if (users.size > 0 && !users.has(deviceKey)) {
       sharedIpEvents.add(event.id)
     }
-    users.add(userKey)
+    users.add(deviceKey)
     usersByIp.set(event.ip_address, users)
   })
 
@@ -252,21 +222,17 @@ export default function GuvenlikAyarlarPage() {
   const supabase = createClient()
 
   const passwordChangeCounts = useMemo(() => buildPasswordChangeCounts(events), [events])
-  const trustedLoginIps = useMemo(() => buildTrustedLoginIps(events), [events])
   const differentIpEvents = useMemo(() => buildDifferentLoginIpEvents(events), [events])
   const sharedIpEvents = useMemo(() => buildSharedLoginIpEvents(events), [events])
   const eventsWithSeverity = useMemo(() => events.map(event => {
     const passwordCount = passwordChangeCounts.get(event.id) || 0
-    const isTrustedIp = Boolean(
-      event.is_trusted_ip ||
-      (event.event_type === "login" && event.ip_address && trustedLoginIps.get(getUserKey(event))?.has(event.ip_address))
-    )
+    const isTrustedIp = Boolean(event.is_trusted_ip)
     const isDifferentIp = !isTrustedIp && differentIpEvents.has(event.id)
     const isSharedIp = sharedIpEvents.has(event.id)
     const severity = getSeverity(event, passwordCount, isDifferentIp, isSharedIp)
 
     return { event, passwordCount, isDifferentIp, isSharedIp, isTrustedIp, severity }
-  }), [events, passwordChangeCounts, trustedLoginIps, differentIpEvents, sharedIpEvents])
+  }), [events, passwordChangeCounts, differentIpEvents, sharedIpEvents])
   const branchOptions = useMemo(() => (
     Array.from(new Set(events.map(getBranchDisplay).filter(branch => branch !== "-"))).sort((a, b) => a.localeCompare(b, "tr"))
   ), [events])
