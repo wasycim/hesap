@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from("user_profiles")
-    .select("email")
+    .select("user_id, email")
     .eq("tc_kimlik", tcKimlik)
     .maybeSingle()
 
@@ -21,9 +21,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  if (!data?.email) {
-    return NextResponse.json({ error: "Bu TC ile kayitli kullanici bulunamadi." }, { status: 404 })
+  if (!data?.user_id) {
+    const { data: authData } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+    const matchedUser = (authData?.users || []).find(user => normalizeTcKimlik(user.user_metadata?.tc_kimlik) === tcKimlik)
+    const matchedEmail = matchedUser?.email
+
+    if (!matchedEmail) {
+      return NextResponse.json({ error: "Bu TC ile kayitli kullanici bulunamadi." }, { status: 404 })
+    }
+
+    return NextResponse.json({ email: matchedEmail })
   }
 
-  return NextResponse.json({ email: data.email })
+  if (data.email) {
+    return NextResponse.json({ email: data.email })
+  }
+
+  const { data: authUser, error: authError } = await admin.auth.admin.getUserById(data.user_id)
+
+  if (authError || !authUser.user?.email) {
+    return NextResponse.json({ error: "Bu TC ile kayitli kullanici e-postasi bulunamadi." }, { status: 404 })
+  }
+
+  return NextResponse.json({ email: authUser.user.email })
 }
