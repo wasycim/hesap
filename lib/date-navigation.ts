@@ -57,6 +57,52 @@ export function getMonthIndex(month: string) {
   return MONTHS.indexOf(month)
 }
 
+function parseDateParts(dateStr: string) {
+  const [dateYear, dateMonth, dateDay] = dateStr.split("-").map(Number)
+  if (!dateYear || !dateMonth || !dateDay) return null
+  return { dateYear, dateMonth, dateDay }
+}
+
+export function getMonthStartDate(month: string, year: number) {
+  const monthIndex = getMonthIndex(month)
+  const safeMonthIndex = monthIndex >= 0 ? monthIndex : 0
+  return `${year}-${String(safeMonthIndex + 1).padStart(2, "0")}-01`
+}
+
+export function getMonthEndDate(month: string, year: number) {
+  const monthIndex = getMonthIndex(month)
+  const safeMonthIndex = monthIndex >= 0 ? monthIndex : 0
+  const lastDay = new Date(year, safeMonthIndex + 1, 0).getDate()
+  return `${year}-${String(safeMonthIndex + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`
+}
+
+export function isDateInSelectedMonth(dateStr: string, month: string, year: number) {
+  const parts = parseDateParts(dateStr)
+  const monthIndex = getMonthIndex(month)
+  if (!parts || monthIndex < 0) return false
+  return parts.dateYear === year && parts.dateMonth === monthIndex + 1
+}
+
+export function getNextDateWithinMonth(existingDates: string[], month: string, year: number) {
+  const datesInMonth = existingDates
+    .filter(date => isDateInSelectedMonth(date, month, year))
+    .sort()
+
+  if (datesInMonth.length === 0) {
+    return getMonthStartDate(month, year)
+  }
+
+  const lastDate = datesInMonth[datesInMonth.length - 1]
+  const parts = parseDateParts(lastDate)
+  if (!parts) return getMonthStartDate(month, year)
+
+  const nextDate = new Date(parts.dateYear, parts.dateMonth - 1, parts.dateDay)
+  nextDate.setDate(nextDate.getDate() + 1)
+  const nextDateString = getLocalDateString(nextDate)
+
+  return isDateInSelectedMonth(nextDateString, month, year) ? nextDateString : null
+}
+
 export function getMonthYearFromDate(dateStr: string) {
   const [year, month] = dateStr.split("-").map(Number)
   return {

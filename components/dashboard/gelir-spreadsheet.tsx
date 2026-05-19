@@ -4,12 +4,13 @@ import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-import { Plus, Save, Trash2 } from "lucide-react"
+import { FileText, Plus, Save, Trash2 } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 import { FIRMALAR_GROUP_KEY, TableColumnSetting, getColumnTextColor, mergeColumnSettings } from "@/lib/table-column-settings"
-import { getLocalDateString, getMonthIndex, getMonthYearFromDate } from "@/lib/date-navigation"
+import { getLocalDateString, getMonthYearFromDate, getNextDateWithinMonth, isDateInSelectedMonth } from "@/lib/date-navigation"
 import { logSecurityEvent } from "@/lib/audit-log"
+import { openPdfReport } from "@/lib/pdf-report"
 
 interface GelirRow {
   id?: string
@@ -135,18 +136,20 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       loadData()
     }
 
-    // Realtime subscription
+    if (!currentSube) return
+
     const channel = supabase
-      .channel(`gelir_changes_${currentSube?.id || 'none'}`)
+      .channel(`gelir_changes_${currentSube.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'gelir_kayitlari',
+          filter: `sube_id=eq.${currentSube.id}`,
         },
         () => {
-          if (currentSube) loadData()
+          loadData()
         }
       )
       .subscribe()
@@ -197,7 +200,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     const giderTotals = await loadGiderTotals()
 
     if (!error && data) {
-      setRows(data.map(row => ({
+      setRows(data.filter(row => isDateInSelectedMonth(row.tarih, month, year)).map(row => ({
         id: row.id,
         user_id: row.user_id,
         sube_id: row.sube_id,
@@ -241,21 +244,18 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   }
 
   function getNextDate(): string {
-    const monthIndex = getMonthIndex(month)
-    
-    if (rows.length === 0) {
-      return `${year}-${String(monthIndex + 1).padStart(2, "0")}-01`
-    }
-    
-    const lastDate = new Date(rows[rows.length - 1].tarih)
-    lastDate.setDate(lastDate.getDate() + 1)
-    return lastDate.toISOString().split("T")[0]
+    return getNextDateWithinMonth(rows.map(row => row.tarih), month, year) || ""
   }
 
   function addRow() {
     const today = getLocalDateString()
     const todayMonthYear = getMonthYearFromDate(today)
     const nextDate = isAdmin ? getNextDate() : today
+
+    if (!nextDate || !isDateInSelectedMonth(nextDate, month, year)) {
+      toast.error(`${month} ${year} ayı için eklenecek yeni gün kalmadı.`)
+      return
+    }
 
     if (!isAdmin && (month !== todayMonthYear.month || year !== todayMonthYear.year)) {
       toast.error("Normal kullanıcılar sadece bugünün olduğu ayda satır ekleyebilir.")
@@ -361,6 +361,13 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       return row.vardiya === userVardiya
     })
 
+    const invalidDateIndex = editableRows.findIndex(row => !isDateInSelectedMonth(row.tarih, month, year))
+    if (invalidDateIndex !== -1) {
+      toast.error(`${invalidDateIndex + 1}. satır ${month} ${year} dışında olduğu için kaydedilemez.`)
+      setSaving(false)
+      return false
+    }
+
     // Önce kendi kayıtlarımı sil (sadece düzenleyebildiğim vardiyalardan)
     let deleteQuery = supabase
       .from("gelir_kayitlari")
@@ -450,6 +457,75 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     return acc
   }, {} as Record<string, number>)
 
+  function exportPdf() {
+    openPdfReport({
+      title: "Gelir Tablosu Raporu",
+      subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
+      orientation: "landscape",
+      metrics: [
+        { label: "Toplam Gelir", value: `${formatNumber(columnTotals.toplam || 0)} TL` },
+        { label: "Toplam Gider", value: `${formatNumber(columnTotals.giderler || 0)} TL` },
+        { label: "Kalan", value: `${formatNumber(columnTotals.kalan || 0)} TL` },
+      ],
+      tables: [{
+        title: "Aylık Gelir Detayı",
+        headers: visibleColumns.map(col => columnLabelMap[col] || HEADER_LABELS[col] || col),
+        firstColumnWidth: "58px",
+        rows: [
+          ...rows.map(row => visibleColumns.map(col => {
+            if (col === "tarih") return formatDate(row.tarih)
+            if (col === "vardiya") return row.vardiya || "Tek"
+            if (col === "durum") return row.durum
+            return `${formatNumber(Number(getCellValue(row, col)) || 0)} TL`
+          })),
+          visibleColumns.map(col => {
+            if (col === "tarih") return "TOPLAM"
+            if (col === "vardiya" || col === "durum") return ""
+            return `${formatNumber(columnTotals[col] || 0)} TL`
+          }),
+        ],
+      }],
+    })
+    return
+
+    const identityColumns = visibleColumns.filter(col => col === "tarih" || col === "vardiya")
+    const dataColumns = visibleColumns.filter(col => col !== "tarih" && col !== "vardiya")
+    const columnGroups = Array.from({ length: Math.ceil(dataColumns.length / 6) }, (_, index) => dataColumns.slice(index * 6, index * 6 + 6))
+    const tables = columnGroups.map((group, index) => {
+      const groupColumns = [...identityColumns, ...group]
+      return {
+        title: `Aylık Gelir Detayı ${columnGroups.length > 1 ? `(${index + 1}/${columnGroups.length})` : ""}`,
+        headers: groupColumns.map(col => columnLabelMap[col] || HEADER_LABELS[col] || col),
+        firstColumnWidth: "82px",
+        rows: [
+          ...rows.map(row => groupColumns.map(col => {
+            if (col === "tarih") return formatDate(row.tarih)
+            if (col === "vardiya") return row.vardiya || "Tek"
+            if (col === "durum") return row.durum
+            return `${formatNumber(Number(getCellValue(row, col)) || 0)} TL`
+          })),
+          groupColumns.map(col => {
+            if (col === "tarih") return "TOPLAM"
+            if (col === "vardiya" || col === "durum") return ""
+            return `${formatNumber(columnTotals[col] || 0)} TL`
+          }),
+        ],
+      }
+    })
+
+    openPdfReport({
+      title: "Gelir Tablosu Raporu",
+      subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
+      orientation: "landscape",
+      metrics: [
+        { label: "Toplam Gelir", value: `${formatNumber(columnTotals.toplam || 0)} TL` },
+        { label: "Toplam Gider", value: `${formatNumber(columnTotals.giderler || 0)} TL` },
+        { label: "Kalan", value: `${formatNumber(columnTotals.kalan || 0)} TL` },
+      ],
+      tables,
+    })
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center h-64">Yükleniyor...</div>
   }
@@ -462,6 +538,9 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
         </Button>
         <Button onClick={saveData} size="sm" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
           <Save className="w-4 h-4 mr-1" /> {saving ? "Kaydediliyor..." : "Kaydet"}
+        </Button>
+        <Button onClick={exportPdf} size="sm" variant="outline" disabled={rows.length === 0}>
+          <FileText className="w-4 h-4 mr-1" /> PDF
         </Button>
       </div>
 

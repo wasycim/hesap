@@ -34,19 +34,25 @@ async function getCurrentUserAndProfile() {
   return { user, profile }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const { profile } = await getCurrentUserAndProfile()
 
   if (!profile?.is_admin) {
     return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
   }
 
+  const searchParams = request.nextUrl.searchParams
+  const limit = Math.min(Math.max(Number(searchParams.get("limit")) || 100, 25), 250)
+  const page = Math.max(Number(searchParams.get("page")) || 1, 1)
+  const from = (page - 1) * limit
+  const to = from + limit - 1
+
   const admin = createAdminClient()
-  const { data, error } = await admin
+  const { data, error, count } = await admin
     .from("security_events")
-    .select("*")
+    .select("*", { count: "exact" })
     .order("created_at", { ascending: false })
-    .limit(500)
+    .range(from, to)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -110,7 +116,10 @@ export async function GET() {
     }
   })
 
-  return NextResponse.json({ events })
+  const total = count || 0
+  const totalPages = Math.max(1, Math.ceil(total / limit))
+
+  return NextResponse.json({ events, page, limit, total, totalPages, hasMore: page < totalPages })
 }
 
 export async function POST(request: NextRequest) {

@@ -1,13 +1,14 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { ChevronLeft, ChevronRight, Wallet } from "lucide-react"
+import { ChevronLeft, ChevronRight, FileText, Wallet } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSube } from "@/contexts/sube-context"
 import { MONTHS, START_MONTH_INDEX, START_YEAR, getInitialMonth, getInitialYear, makeYearWindow } from "@/lib/date-navigation"
+import { openPdfReport } from "@/lib/pdf-report"
 
 interface Personel {
   id: string
@@ -132,6 +133,92 @@ export default function MaaslarPage() {
 
   const selectedPersonel = personelSummaries.find(item => item.personel.id === selectedPersonelId) || null
   const selectedOrtak = ortakSummaries.find(item => item.ortak.id === selectedOrtakId) || null
+  const salaryTotals = useMemo(() => personelSummaries.reduce((acc, item) => ({
+    baseSalary: acc.baseSalary + item.baseSalary,
+    advances: acc.advances + item.advanceTotal,
+    overtime: acc.overtime + item.overtimeTotal,
+    remaining: acc.remaining + item.remaining,
+  }), { baseSalary: 0, advances: 0, overtime: 0, remaining: 0 }), [personelSummaries])
+  const ortakTotal = useMemo(() => ortakSummaries.reduce((sum, item) => sum + item.total, 0), [ortakSummaries])
+
+  function exportGeneralPdf() {
+    openPdfReport({
+      title: "Maaşlar Genel Raporu",
+      subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
+      orientation: "landscape",
+      metrics: [
+        { label: "Toplam Maaş", value: `${formatMoney(salaryTotals.baseSalary)} TL` },
+        { label: "Toplam Avans", value: `-${formatMoney(salaryTotals.advances)} TL` },
+        { label: "Toplam Mesai", value: `+${formatMoney(salaryTotals.overtime)} TL` },
+        { label: "Ortak Avans", value: `-${formatMoney(ortakTotal)} TL` },
+      ],
+      tables: [
+        {
+          title: "Personel Maaşları",
+          headers: ["Personel", "Maaş", "Avans", "Mesai", "Net Kalan"],
+          firstColumnWidth: "32%",
+          rows: personelSummaries.map(item => [
+            item.personel.ad,
+            `${formatMoney(item.baseSalary)} TL`,
+            `-${formatMoney(item.advanceTotal)} TL`,
+            `+${formatMoney(item.overtimeTotal)} TL`,
+            `${formatMoney(item.remaining)} TL`,
+          ]),
+        },
+        {
+          title: "Ortaklar Pay",
+          headers: ["Ortak", "Alınan Avans"],
+          firstColumnWidth: "55%",
+          rows: ortakSummaries.map(item => [item.ortak.ad, `-${formatMoney(item.total)} TL`]),
+        },
+      ],
+    })
+  }
+
+  function exportPersonelPdf(item = selectedPersonel) {
+    if (!item) return
+    openPdfReport({
+      title: `${item.personel.ad} Maaş Detayı`,
+      subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
+      orientation: "portrait",
+      metrics: [
+        { label: "Aylık Maaş", value: `${formatMoney(item.baseSalary)} TL` },
+        { label: "Saatlik Mesai", value: `${formatMoney(item.hourlyRate)} TL` },
+        { label: "Toplam Avans", value: `-${formatMoney(item.advanceTotal)} TL` },
+        { label: "Net Kalan", value: `${formatMoney(item.remaining)} TL` },
+      ],
+      tables: [
+        {
+          title: "Alınan Avanslar",
+          headers: ["Tarih", "Açıklama", "Tutar"],
+          firstColumnWidth: "28%",
+          rows: item.advances.map(detail => [formatDate(detail.tarih), detail.description, `-${formatMoney(detail.amount)} TL`]),
+        },
+        {
+          title: "Mesailer",
+          headers: ["Tarih", "Açıklama", "Tutar"],
+          firstColumnWidth: "28%",
+          rows: item.overtime.map(detail => [formatDate(detail.tarih), detail.description, `+${formatMoney(detail.amount)} TL`]),
+        },
+      ],
+    })
+  }
+
+  function exportOrtakPdf(item = selectedOrtak) {
+    if (!item) return
+    openPdfReport({
+      title: `${item.ortak.ad} Ortak Pay Detayı`,
+      subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
+      orientation: "portrait",
+      metrics: [{ label: "Toplam Alınan Avans", value: `-${formatMoney(item.total)} TL` }],
+      tables: [{
+        title: "Ortak Avansları",
+        headers: ["Tarih", "Açıklama", "Tutar"],
+        firstColumnWidth: "28%",
+        rows: item.advances.map(detail => [formatDate(detail.tarih), detail.description, `-${formatMoney(detail.amount)} TL`]),
+      }],
+    })
+  }
 
   const prevMonth = () => {
     const currentIndex = MONTHS.indexOf(month)
@@ -182,6 +269,10 @@ export default function MaaslarPage() {
           <h1 className="text-xl font-bold">Maaşlar</h1>
         </div>
         <div className="grid grid-cols-[auto_1fr_0.8fr_auto] items-center gap-2 sm:flex">
+          <Button variant="outline" onClick={exportGeneralPdf} className="col-span-full gap-2 border-emerald-500 bg-white/10 text-white hover:bg-emerald-800 sm:col-span-1">
+            <FileText className="h-4 w-4" />
+            Genel PDF
+          </Button>
           <Button variant="ghost" size="icon" onClick={prevMonth} className="text-white hover:bg-emerald-800">
             <ChevronLeft className="h-5 w-5" />
           </Button>
@@ -235,7 +326,13 @@ export default function MaaslarPage() {
         {selectedPersonel && (
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>{selectedPersonel.personel.ad} maaş detayı</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle>{selectedPersonel.personel.ad} maaş detayı</CardTitle>
+                <Button variant="outline" size="sm" onClick={() => exportPersonelPdf(selectedPersonel)} className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  Personel PDF
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="grid gap-4 lg:grid-cols-2">
               <DetailList title="Alınan avanslar" items={selectedPersonel.advances} empty="Avans yok." totalLabel="Toplam alınan avanslar" variant="expense" />
@@ -262,7 +359,15 @@ export default function MaaslarPage() {
               ))}
             </div>
             {selectedOrtak && (
-              <DetailList title={`${selectedOrtak.ortak.ad} ortak avansları`} items={selectedOrtak.advances} empty="Ortak avansı yok." totalLabel="Toplam ortak avansı" variant="expense" />
+              <div className="space-y-3">
+                <div className="flex justify-end">
+                  <Button variant="outline" size="sm" onClick={() => exportOrtakPdf(selectedOrtak)} className="gap-2">
+                    <FileText className="h-4 w-4" />
+                    Ortak PDF
+                  </Button>
+                </div>
+                <DetailList title={`${selectedOrtak.ortak.ad} ortak avansları`} items={selectedOrtak.advances} empty="Ortak avansı yok." totalLabel="Toplam ortak avansı" variant="expense" />
+              </div>
             )}
           </CardContent>
         </Card>

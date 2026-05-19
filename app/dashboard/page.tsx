@@ -12,6 +12,7 @@ import {
   START_MONTH_INDEX,
   getInitialMonth,
   getInitialYear,
+  getLocalDateString,
   makeYearWindow,
 } from "@/lib/date-navigation"
 
@@ -31,6 +32,8 @@ export default function DashboardPage() {
   const { currentSube, refreshKey, isAdmin } = useSube()
 
   const ayYil = `${month}-${year}`
+  const today = getLocalDateString()
+  const summaryScope = isAdmin ? "monthly" : "daily"
 
   useEffect(() => {
     if (currentSube) {
@@ -45,19 +48,26 @@ export default function DashboardPage() {
       setShiftWarnings([])
     }
 
-    // Realtime subscription - birden fazla tablo
+    if (!currentSube) return
+
     const gelirChannel = supabase
-      .channel(`dashboard_gelir_${currentSube?.id || 'none'}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'gelir_kayitlari' }, () => {
-        if (currentSube) fetchStats()
-      })
+      .channel(`dashboard_gelir_${currentSube.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'gelir_kayitlari',
+        filter: `sube_id=eq.${currentSube.id}`,
+      }, fetchStats)
       .subscribe()
 
     const giderChannel = supabase
-      .channel(`dashboard_gider_${currentSube?.id || 'none'}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'gider_kayitlari' }, () => {
-        if (currentSube) fetchStats()
-      })
+      .channel(`dashboard_gider_${currentSube.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'gider_kayitlari',
+        filter: `sube_id=eq.${currentSube.id}`,
+      }, fetchStats)
       .subscribe()
 
     return () => {
@@ -95,19 +105,43 @@ export default function DashboardPage() {
       return
     }
 
-    // Şubeye göre gelir kayıtlarını çek
-    const { data: gelirData } = await supabase
+    if (isAdmin) {
+      const { data: summaryData, error: summaryError } = await supabase
+        .from("v_dashboard_monthly_totals")
+        .select("toplam_gelir, toplam_gider, kalan")
+        .eq("sube_id", currentSube.id)
+        .eq("ay_yil", ayYil)
+        .maybeSingle()
+
+      if (!summaryError && summaryData) {
+        setStats({
+          toplamGelir: Number(summaryData.toplam_gelir) || 0,
+          toplamGider: Number(summaryData.toplam_gider) || 0,
+          kalan: Number(summaryData.kalan) || 0,
+        })
+        setLoading(false)
+        return
+      }
+    }
+
+    let gelirQuery = supabase
       .from("gelir_kayitlari")
       .select("toplam")
       .eq("sube_id", currentSube.id)
       .eq("ay_yil", ayYil)
 
-    // Şubeye göre gider kayıtlarını çek
-    const { data: giderData } = await supabase
+    let giderQuery = supabase
       .from("gider_kayitlari")
       .select("genel_toplam")
       .eq("sube_id", currentSube.id)
       .eq("ay_yil", ayYil)
+
+    if (!isAdmin) {
+      gelirQuery = gelirQuery.eq("tarih", today)
+      giderQuery = giderQuery.eq("tarih", today)
+    }
+
+    const [{ data: gelirData }, { data: giderData }] = await Promise.all([gelirQuery, giderQuery])
 
     let toplamGelir = 0
     let toplamKalan = 0
@@ -161,11 +195,11 @@ export default function DashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Genel Bakış</h1>
-          <p className="text-muted-foreground mt-1">Aylık hesap özeti</p>
+          <p className="text-muted-foreground mt-1">{summaryScope === "monthly" ? "Aylık hesap özeti" : "Günlük hesap özeti"}</p>
         </div>
         
         {/* Ay/Yıl Seçimi */}
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+        {isAdmin && <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
           <Select value={month} onValueChange={setMonth}>
             <SelectTrigger className="w-full sm:w-32">
               <SelectValue />
@@ -186,7 +220,7 @@ export default function DashboardPage() {
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </div>}
       </div>
 
       {loading ? (

@@ -4,15 +4,18 @@ import { useState, useEffect, use } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Save, Trash2, ChevronLeft, ChevronRight } from "lucide-react"
+import { FileText, Plus, Save, Trash2, ChevronLeft, ChevronRight } from "lucide-react"
+import { toast } from "sonner"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 import {
   MONTHS,
   START_MONTH_INDEX,
   START_YEAR,
+  isDateInSelectedMonth,
   makeYearWindow,
 } from "@/lib/date-navigation"
+import { openPdfReport } from "@/lib/pdf-report"
 
 interface KargoRow {
   id?: string
@@ -76,15 +79,15 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     if (firma) {
       loadData()
 
-      // Realtime subscription
       const channel = supabase
-        .channel(`kargo_cari_changes_${currentSube?.id || 'none'}_${firma.id}`)
+        .channel(`kargo_cari_changes_${currentSube?.id || "none"}_${firma.id}`)
         .on(
           'postgres_changes',
           {
             event: '*',
             schema: 'public',
             table: 'kargo_cari_kayitlar',
+            filter: `firma_id=eq.${firma.id}`,
           },
           () => {
             loadData()
@@ -147,7 +150,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
       .order("tarih", { ascending: true })
 
     if (!error && data) {
-      setRows(data.map(row => ({
+      setRows(data.filter(row => isDateInSelectedMonth(row.tarih, month, year)).map(row => ({
         id: row.id,
         tarih: row.tarih,
         fis_no: row.fis_no || "",
@@ -228,10 +231,23 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
 
     newRows[rowIndex] = row
     setRows(newRows)
+    markDirty()
   }
 
   async function saveData() {
     if (!firma) return
+
+    const invalidDateIndex = rows.findIndex(row => !isDateInSelectedMonth(row.tarih, month, year))
+    if (invalidDateIndex !== -1) {
+      toast.error(`${invalidDateIndex + 1}. satır ${month} ${year} dışında olduğu için kaydedilemez.`)
+      return false
+    }
+
+    const missingFisIndex = rows.findIndex(row => !row.fis_no?.trim())
+    if (missingFisIndex !== -1) {
+      toast.error(`${missingFisIndex + 1}. satır için fiş no zorunludur.`)
+      return false
+    }
     
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
@@ -250,7 +266,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
 
     if (deleteError) {
       console.log("Kargo cari silme hatası:", deleteError)
-      alert("Kargo cari silinemedi: " + deleteError.message)
+      toast.error("Kargo cari silinemedi: " + deleteError.message)
       setSaving(false)
       return false
     }
@@ -274,7 +290,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
 
       if (insertError) {
         console.log("Kargo cari kaydetme hatası:", insertError)
-        alert("Kargo cari kaydedilemedi: " + insertError.message)
+        toast.error("Kargo cari kaydedilemedi: " + insertError.message)
         setSaving(false)
         return false
       }
@@ -283,6 +299,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     setSaving(false)
     markClean()
     loadData()
+    toast.success("Kargo cari kaydedildi.")
     return true
   }
 
@@ -316,6 +333,44 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
 
   function formatNumber(num: number): string {
     return num.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  }
+
+  function exportPdf() {
+    if (!firma) return
+
+    openPdfReport({
+      title: `${firma.ad} Kargo Cari Raporu`,
+      subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
+      orientation: "landscape",
+      metrics: [
+        { label: "Toplam Alınan", value: `${formatNumber(columnTotals.alinan_tutar)} TL` },
+        { label: "Toplam Satılan", value: `${formatNumber(columnTotals.satilan_tutar)} TL` },
+        { label: "Kalan Kar", value: `${formatNumber(columnTotals.kalan_kar)} TL` },
+      ],
+      tables: [{
+        title: "Aylık Firma Detayı",
+        headers: ["Tarih", "Fiş No", "Gönderilen Yer", "Alınan Tutar", "Satılan Tutar", "Kalan Kar"],
+        firstColumnWidth: "82px",
+        rows: [
+          ...rows.map(row => [
+            formatDate(row.tarih),
+            row.fis_no || "-",
+            row.gonderilen_yer || "-",
+            `${formatNumber(row.alinan_tutar)} TL`,
+            `${formatNumber(row.satilan_tutar)} TL`,
+            `${formatNumber(row.kalan_kar)} TL`,
+          ]),
+          [
+            "TOPLAM",
+            "",
+            "",
+            `${formatNumber(columnTotals.alinan_tutar)} TL`,
+            `${formatNumber(columnTotals.satilan_tutar)} TL`,
+            `${formatNumber(columnTotals.kalan_kar)} TL`,
+          ],
+        ],
+      }],
+    })
   }
 
   // Sütun toplamları
@@ -381,6 +436,9 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         <Button onClick={saveData} size="sm" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
           <Save className="w-4 h-4 mr-1" /> {saving ? "Kaydediliyor..." : "Kaydet"}
         </Button>
+        <Button onClick={exportPdf} size="sm" variant="outline" disabled={rows.length === 0}>
+          <FileText className="w-4 h-4 mr-1" /> PDF
+        </Button>
       </div>
 
       {/* Table */}
@@ -443,9 +501,14 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                           const padded = val.padStart(6, "0")
                           updateCell(rowIndex, col, padded)
                         }}
-                        className="w-full bg-transparent px-2 py-1 text-center font-mono text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"
+                        className={`w-full bg-transparent px-2 py-1 text-center font-mono text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20 ${
+                          !row.fis_no?.trim() ? "bg-red-50 text-red-700 placeholder:text-red-300 dark:bg-red-500/10 dark:text-red-200" : ""
+                        }`}
                         placeholder="000000"
                         maxLength={6}
+                        required
+                        aria-invalid={!row.fis_no?.trim()}
+                        aria-label="Fiş no"
                         />
                       ) : col === "gonderilen_yer" ? (
                         <input

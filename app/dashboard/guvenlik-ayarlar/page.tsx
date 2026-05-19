@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { AlertTriangle, Code2, Columns3, KeyRound, Monitor, Shield, Trash2, UserPlus } from "lucide-react"
+import { AlertTriangle, Code2, Columns3, FileText, KeyRound, Monitor, Shield, Trash2, UserPlus } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { openPdfReport } from "@/lib/pdf-report"
 
 interface SecurityEvent {
   id: string
@@ -231,6 +232,10 @@ export default function GuvenlikAyarlarPage() {
   const [branchFilter, setBranchFilter] = useState("all")
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(false)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalEvents, setTotalEvents] = useState(0)
   const supabase = createClient()
 
   const passwordChangeCounts = useMemo(() => buildPasswordChangeCounts(events), [events])
@@ -261,7 +266,7 @@ export default function GuvenlikAyarlarPage() {
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [page])
 
   async function loadData() {
     setLoading(true)
@@ -283,10 +288,57 @@ export default function GuvenlikAyarlarPage() {
       return
     }
 
-    const response = await fetch("/api/security-events")
+    const response = await fetch(`/api/security-events?page=${page}&limit=100`)
     const result = await response.json()
     setEvents(result.events || [])
+    setHasMore(Boolean(result.hasMore))
+    setTotalPages(Math.max(Number(result.totalPages) || 1, 1))
+    setTotalEvents(Number(result.total) || 0)
     setLoading(false)
+  }
+
+  function getPageNumbers() {
+    if (totalPages <= 1) return [1]
+    if (totalPages === 2) return [1, 2]
+
+    const pages = new Set<number>([1, totalPages, page - 1, page, page + 1])
+    if (page <= 2 && totalPages >= 3) pages.add(3)
+    if (page >= totalPages - 1 && totalPages >= 3) pages.add(totalPages - 2)
+
+    return Array.from(pages)
+      .filter(item => item >= 1 && item <= totalPages)
+      .sort((a, b) => a - b)
+  }
+
+  function exportPdf() {
+    openPdfReport({
+      title: "Güvenlik Kayıtları Raporu",
+      subtitle: `Sayfa ${page} / ${totalPages} - Filtrelenmiş ${filteredEvents.length} kayıt`,
+      orientation: "landscape",
+      metrics: [
+        { label: "Toplam Kayıt", value: String(totalEvents || events.length) },
+        { label: "Bu Sayfadaki Kayıt", value: String(filteredEvents.length) },
+        { label: "Giriş Kaydı", value: String(loginEvents.length) },
+        { label: "Şifre Değişimi", value: String(passwordEvents.length) },
+      ],
+      tables: [{
+        title: "İşlem Kayıtları",
+        headers: ["İşlem", "Kullanıcı", "IP Adresi", "Zaman", "Açıklama", "Şube", "Derece"],
+        firstColumnWidth: "13%",
+        rows: filteredEvents.map(({ event, passwordCount, isDifferentIp, isSharedIp, severity }) => [
+          EVENT_LABELS[event.event_type] || event.event_type,
+          getUserDisplay(event),
+          event.ip_address || "-",
+          formatDate(event.created_at),
+          [
+            getSummary(event, passwordCount, isDifferentIp, isSharedIp),
+            getTrustedIpOwnerNote(event) ? `(${getTrustedIpOwnerNote(event)})` : "",
+          ].filter(Boolean).join(" "),
+          getBranchDisplay(event),
+          severity,
+        ]),
+      }],
+    })
   }
 
   if (loading) {
@@ -309,9 +361,15 @@ export default function GuvenlikAyarlarPage() {
 
   return (
     <div className="space-y-6 p-4 sm:p-6 lg:p-8">
-      <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
         <h1 className="text-2xl font-bold">Güvenlik Ayarları</h1>
         <p className="text-sm text-muted-foreground">Girişler, silme işlemleri ve hesap güvenliği kayıtları.</p>
+        </div>
+        <Button type="button" variant="outline" onClick={exportPdf} disabled={filteredEvents.length === 0} className="gap-2">
+          <FileText className="h-4 w-4" />
+          PDF
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -320,7 +378,7 @@ export default function GuvenlikAyarlarPage() {
             <Shield className="h-8 w-8 text-emerald-600" />
             <div>
               <p className="text-sm text-muted-foreground">Toplam kayıt</p>
-              <p className="text-2xl font-bold">{events.length}</p>
+              <p className="text-2xl font-bold">{totalEvents || events.length}</p>
             </div>
           </CardContent>
         </Card>
@@ -376,7 +434,44 @@ export default function GuvenlikAyarlarPage() {
                 </Button>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground">{filteredEvents.length} kayıt gösteriliyor.</p>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-background px-3 py-2">
+              <div>
+                <p className="text-sm font-medium">Sayfa {page} / {totalPages}</p>
+                <p className="text-xs text-muted-foreground">Toplam {totalEvents} kayıt, bu sayfada {filteredEvents.length} kayıt gösteriliyor.</p>
+              </div>
+              {totalPages > 1 && (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button type="button" size="sm" variant="outline" disabled={page === 1 || loading} onClick={() => setPage(1)}>
+                  İlk
+                </Button>
+                <Button type="button" size="sm" variant="outline" disabled={page === 1 || loading} onClick={() => setPage(prev => Math.max(1, prev - 1))}>
+                  Önceki
+                </Button>
+                <div className="flex items-center gap-1">
+                  {getPageNumbers().map((pageNumber, index, pages) => (
+                    <div key={pageNumber} className="flex items-center gap-1">
+                      {index > 0 && pageNumber - pages[index - 1] > 1 && (
+                        <span className="px-1 text-sm text-muted-foreground">...</span>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={page === pageNumber ? "default" : "outline"}
+                        disabled={loading}
+                        className="h-8 min-w-8 px-2"
+                        onClick={() => setPage(pageNumber)}
+                      >
+                        {pageNumber}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <Button type="button" size="sm" variant="outline" disabled={!hasMore || loading} onClick={() => setPage(prev => prev + 1)}>
+                  Sonraki
+                </Button>
+              </div>
+              )}
+            </div>
           </div>
             <div className="max-w-xs">
               <Select value={branchFilter} onValueChange={setBranchFilter}>

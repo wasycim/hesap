@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Soup } from "lucide-react"
+import { FileText, Plus, Save, Trash2, ChevronLeft, ChevronRight, Soup } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 import {
@@ -17,9 +17,12 @@ import {
   getInitialYear,
   getLocalDateString,
   getMonthYearFromDate,
+  getNextDateWithinMonth,
+  isDateInSelectedMonth,
   makeYearWindow,
 } from "@/lib/date-navigation"
 import { logSecurityEvent } from "@/lib/audit-log"
+import { openPdfReport } from "@/lib/pdf-report"
 
 interface Personel {
   id: string
@@ -50,15 +53,17 @@ export default function CorbalarPage() {
   useEffect(() => {
     if (currentSube) loadData()
 
-    // Realtime subscription
+    if (!currentSube) return
+
     const channel = supabase
-      .channel('corbalar_changes')
+      .channel(`corbalar_changes_${currentSube.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'corbalar',
+          filter: `sube_id=eq.${currentSube.id}`,
         },
         () => {
           loadData()
@@ -106,7 +111,7 @@ export default function CorbalarPage() {
       // Tarihe gore grupla
       const rowMap = new Map<string, CorbaRow>()
       
-      corbaData.forEach(corba => {
+      corbaData.filter(corba => isDateInSelectedMonth(corba.tarih, month, year)).forEach(corba => {
         const tarih = corba.tarih
         if (!rowMap.has(tarih)) {
           rowMap.set(tarih, { tarih, personel_values: {} })
@@ -144,13 +149,17 @@ export default function CorbalarPage() {
   }
 
   function getNextDate(): string {
+    const existingDates = new Set(rows.map(row => row.tarih))
     const monthIndex = MONTHS.indexOf(month)
-    if (rows.length === 0) {
-      return `${year}-${String(monthIndex + 1).padStart(2, "0")}-01`
+    if (monthIndex < 0) return ""
+
+    const lastDay = new Date(year, monthIndex + 1, 0).getDate()
+    for (let day = 1; day <= lastDay; day += 1) {
+      const date = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+      if (!existingDates.has(date)) return date
     }
-    const lastDate = new Date(rows[rows.length - 1].tarih)
-    lastDate.setDate(lastDate.getDate() + 1)
-    return lastDate.toISOString().split("T")[0]
+
+    return getNextDateWithinMonth(rows.map(row => row.tarih), month, year) || ""
   }
 
   function addRow() {
@@ -173,11 +182,17 @@ export default function CorbalarPage() {
       return
     }
 
+    const nextDate = getNextDate()
+    if (!nextDate || !isDateInSelectedMonth(nextDate, month, year)) {
+      toast.error(`${month} ${year} ayı için eklenecek yeni gün kalmadı.`)
+      return
+    }
+
     const newRow: CorbaRow = {
-      tarih: getNextDate(),
+      tarih: nextDate,
       personel_values: {},
     }
-    setRows([...rows, newRow])
+    setRows([...rows, newRow].sort((a, b) => a.tarih.localeCompare(b.tarih)))
     markDirty()
   }
 
@@ -212,6 +227,13 @@ export default function CorbalarPage() {
     // Bu ay için tüm çorba kayıtlarını sil
     const editableRows = isAdmin ? rows : rows.filter(row => row.tarih === getLocalDateString())
 
+    const invalidDateIndex = editableRows.findIndex(row => !isDateInSelectedMonth(row.tarih, month, year))
+    if (invalidDateIndex !== -1) {
+      toast.error(`${invalidDateIndex + 1}. satır ${month} ${year} dışında olduğu için kaydedilemez.`)
+      setSaving(false)
+      return false
+    }
+
     let deleteQuery = supabase
       .from("corbalar")
       .delete()
@@ -233,9 +255,11 @@ export default function CorbalarPage() {
     // Yeni kayıtları ekle
     const insertData: any[] = []
     editableRows.forEach(row => {
+      let hasValue = false
       personeller.forEach(personel => {
         const miktar = row.personel_values[personel.id] || 0
         if (miktar > 0) {
+          hasValue = true
           insertData.push({
             user_id: user.id,
             sube_id: currentSube.id,
@@ -246,6 +270,17 @@ export default function CorbalarPage() {
           })
         }
       })
+
+      if (!hasValue && personeller[0]) {
+        insertData.push({
+          user_id: user.id,
+          sube_id: currentSube.id,
+          ay_yil: ayYil,
+          tarih: row.tarih,
+          personel_id: personeller[0].id,
+          miktar: 0,
+        })
+      }
     })
 
     if (insertData.length > 0) {
@@ -271,6 +306,41 @@ export default function CorbalarPage() {
 
   function formatNumber(num: number): string {
     return num.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  }
+
+  function exportPdf(personelId?: string) {
+    const selectedPersonel = personelId ? personeller.find(personel => personel.id === personelId) : null
+    const reportPersoneller = selectedPersonel ? [selectedPersonel] : personeller
+
+    openPdfReport({
+      title: selectedPersonel ? `${selectedPersonel.ad} Çorba Raporu` : "Çorbalar Raporu",
+      subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
+      orientation: "landscape",
+      metrics: reportPersoneller.map(personel => ({
+        label: personel.ad,
+        value: `${formatNumber(personelTotals[personel.id] || 0)} TL`,
+      })).slice(0, 4),
+      tables: [{
+        title: selectedPersonel ? "Kişiye Özel Detay" : "Aylık Çorba Detayı",
+        headers: ["Tarih", ...reportPersoneller.map(personel => personel.ad), "Gün Toplamı"],
+        firstColumnWidth: "82px",
+        rows: [
+          ...rows.map(row => {
+            const values = reportPersoneller.map(personel => row.personel_values[personel.id] || 0)
+            return [
+              formatDate(row.tarih),
+              ...values.map(value => `${formatNumber(value)} TL`),
+              `${formatNumber(values.reduce((sum, value) => sum + value, 0))} TL`,
+            ]
+          }),
+          [
+            "TOPLAM",
+            ...reportPersoneller.map(personel => `${formatNumber(personelTotals[personel.id] || 0)} TL`),
+            `${formatNumber(reportPersoneller.reduce((sum, personel) => sum + (personelTotals[personel.id] || 0), 0))} TL`,
+          ],
+        ],
+      }],
+    })
   }
 
   // Personel bazinda toplamlar
@@ -343,6 +413,16 @@ export default function CorbalarPage() {
                   <CardContent className="p-4">
                     <p className="text-xs font-semibold text-orange-600 uppercase truncate">{personel.ad}</p>
                     <p className="text-xl font-bold text-orange-600 mt-1">{formatNumber(personelTotals[personel.id] || 0)} TL</p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => exportPdf(personel.id)}
+                      className="mt-3 h-8 w-full gap-1 bg-white/70"
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      Kişi PDF
+                    </Button>
                   </CardContent>
                 </Card>
               ))}
@@ -355,6 +435,9 @@ export default function CorbalarPage() {
               </Button>
               <Button onClick={saveData} size="sm" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
                 <Save className="w-4 h-4 mr-1" /> {saving ? "Kaydediliyor..." : "Kaydet"}
+              </Button>
+              <Button onClick={() => exportPdf()} size="sm" variant="outline" disabled={rows.length === 0}>
+                <FileText className="w-4 h-4 mr-1" /> PDF
               </Button>
             </div>
 

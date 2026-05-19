@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSube } from "@/contexts/sube-context"
 import { getLocalDateString } from "@/lib/date-navigation"
+import { openPdfReport } from "@/lib/pdf-report"
 
 interface Firma {
   id: string
@@ -51,6 +52,10 @@ function getShiftLabel(value: string | null) {
   if (value === "S") return "Sabah"
   if (value === "A") return "Akşam"
   return "Tek vardiya"
+}
+
+function escapeCsvValue(value: unknown) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`
 }
 
 function DatePickerField({
@@ -213,6 +218,182 @@ export default function SubeCiroRaporlariPage() {
     firma: firmaMap.get(row.firma_id),
   })), [reportRows, subeler, firmaMap])
 
+  function exportCsv() {
+    const lines: unknown[][] = [
+      ["Şube Ciro Raporları"],
+      ["Rapor Aralığı", `${formatDate(startDate)} - ${formatDate(endDate)}`],
+      ["Toplam Satış", `${formatMoney(totals.satis)} TL`],
+      ["Toplam Komisyon", `${formatMoney(totals.komisyon)} TL`],
+      [],
+      ["Şube Özetleri"],
+      ["Şube", "Toplam Satış", "Toplam Komisyon"],
+      ...subeSummaries.map(item => [item.sube.ad, `${formatMoney(item.satis)} TL`, `${formatMoney(item.komisyon)} TL`]),
+      [],
+      ["Firma Özetleri"],
+      ["Firma", "Toplam Satış", "Toplam Komisyon"],
+      ...firmaSummaries.map(item => [item.firma.ad, `${formatMoney(item.satis)} TL`, `${formatMoney(item.komisyon)} TL`]),
+      [],
+      ["Detaylar"],
+      ["Tarih", "Vardiya", "Şube", "Firma", "Toplam Satış", "Komisyon"],
+      ...detailRows.map(row => [
+        formatDate(row.tarih),
+        getShiftLabel(row.vardiya),
+        row.subeAd,
+        row.firma?.ad || "-",
+        `${formatMoney(row.satis)} TL`,
+        `${formatMoney(row.komisyon)} TL`,
+      ]),
+    ]
+    const csv = lines
+      .map(line => line.map(escapeCsvValue).join(";"))
+      .join("\n")
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `sube-ciro-raporu-${startDate}-${endDate}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function exportPdf() {
+    openPdfReport({
+      title: "Şube Ciro Raporları",
+      subtitle: `${formatDate(startDate)} - ${formatDate(endDate)}`,
+      orientation: "landscape",
+      metrics: [
+        { label: "Toplam Satış", value: `${formatMoney(totals.satis)} TL` },
+        { label: "Toplam Komisyon", value: `${formatMoney(totals.komisyon)} TL` },
+        { label: "Kayıt Sayısı", value: String(detailRows.length) },
+      ],
+      tables: [
+        {
+          title: "Şube Özetleri",
+          headers: ["Şube", "Toplam Satış", "Toplam Komisyon"],
+          firstColumnWidth: "45%",
+          rows: subeSummaries.map(item => [
+            item.sube.ad,
+            `${formatMoney(item.satis)} TL`,
+            `${formatMoney(item.komisyon)} TL`,
+          ]),
+        },
+        {
+          title: "Firma Özetleri",
+          headers: ["Firma", "Toplam Satış", "Toplam Komisyon"],
+          firstColumnWidth: "45%",
+          rows: firmaSummaries.map(item => [
+            item.firma.ad,
+            `${formatMoney(item.satis)} TL`,
+            `${formatMoney(item.komisyon)} TL`,
+          ]),
+        },
+        {
+          title: "Günlük ve Vardiya Detayı",
+          headers: ["Tarih", "Vardiya", "Şube", "Firma", "Satış", "Komisyon"],
+          firstColumnWidth: "82px",
+          rows: detailRows.map(row => [
+            formatDate(row.tarih),
+            getShiftLabel(row.vardiya),
+            row.subeAd,
+            row.firma?.ad || "-",
+            `${formatMoney(row.satis)} TL`,
+            `${formatMoney(row.komisyon)} TL`,
+          ]),
+        },
+      ],
+    })
+    return
+
+    const detailHtml = detailRows.map(row => `
+      <tr>
+        <td>${formatDate(row.tarih)}</td>
+        <td>${getShiftLabel(row.vardiya)}</td>
+        <td>${row.subeAd}</td>
+        <td>${row.firma?.ad || "-"}</td>
+        <td class="money">${formatMoney(row.satis)} TL</td>
+        <td class="money">${formatMoney(row.komisyon)} TL</td>
+      </tr>
+    `).join("")
+    const subeHtml = subeSummaries.map(item => `
+      <tr><td>${item.sube.ad}</td><td class="money">${formatMoney(item.satis)} TL</td><td class="money">${formatMoney(item.komisyon)} TL</td></tr>
+    `).join("")
+    const firmaHtml = firmaSummaries.map(item => `
+      <tr><td>${item.firma.ad}</td><td class="money">${formatMoney(item.satis)} TL</td><td class="money">${formatMoney(item.komisyon)} TL</td></tr>
+    `).join("")
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Şube Ciro Raporları</title>
+          <style>
+            @page { size: A4 landscape; margin: 10mm; }
+            * { box-sizing: border-box; }
+            body { font-family: Arial, Helvetica, sans-serif; color: #111827; margin: 0; background: #fff; }
+            .sheet { width: 100%; }
+            .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; border-bottom: 4px solid #0f766e; padding-bottom: 12px; margin-bottom: 14px; }
+            .brand { display: flex; align-items: center; gap: 14px; }
+            .logoWrap { display: grid; place-items: center; width: 54px; height: 54px; border: 1px solid #d1fae5; border-radius: 14px; background: #ecfdf5; }
+            .logo { width: 38px; height: 38px; object-fit: contain; }
+            h1 { margin: 0; font-size: 23px; line-height: 1.15; color: #0f172a; }
+            .muted { color: #64748b; font-size: 11px; margin-top: 4px; }
+            .badge { border-radius: 999px; background: #ccfbf1; color: #115e59; padding: 7px 12px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+            .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+            .card { border: 1px solid #dbe3ee; border-left: 5px solid #0f766e; border-radius: 10px; padding: 11px 13px; background: #f8fafc; min-height: 68px; }
+            .card .label { color: #64748b; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+            .card .value { margin-top: 7px; font-size: 19px; font-weight: 800; color: #0f172a; }
+            .section { break-inside: avoid; margin-top: 12px; }
+            h2 { margin: 0 0 7px; font-size: 14px; color: #0f172a; }
+            table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 10px; margin-bottom: 10px; border: 1px solid #dbe3ee; border-radius: 8px; overflow: hidden; }
+            th { background: #0f172a; color: white; text-align: left; padding: 7px 8px; font-size: 9px; letter-spacing: .03em; text-transform: uppercase; }
+            td { border-top: 1px solid #e2e8f0; padding: 7px 8px; vertical-align: middle; overflow-wrap: anywhere; }
+            tr:nth-child(even) td { background: #f8fafc; }
+            .money { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 700; }
+            .summaryTable th:first-child, .summaryTable td:first-child { width: 46%; }
+            .detailTable th:nth-child(1), .detailTable td:nth-child(1) { width: 12%; }
+            .detailTable th:nth-child(2), .detailTable td:nth-child(2) { width: 10%; }
+            .detailTable th:nth-child(3), .detailTable td:nth-child(3) { width: 14%; }
+            .detailTable th:nth-child(4), .detailTable td:nth-child(4) { width: 26%; }
+            .detailTable th:nth-child(5), .detailTable td:nth-child(5) { width: 19%; }
+            .detailTable th:nth-child(6), .detailTable td:nth-child(6) { width: 19%; }
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              .section { page-break-inside: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          <main class="sheet">
+          <div class="header">
+            <div>
+              <h1>Şube Ciro Raporları</h1>
+              <div class="muted">${formatDate(startDate)} - ${formatDate(endDate)}</div>
+            </div>
+            <div class="logoWrap"><img class="logo" src="${window.location.origin}/w-logo.svg" /></div>
+          </div>
+          <div class="cards">
+            <div class="card"><div class="label">Toplam Satış</div><div class="value">${formatMoney(totals.satis)} TL</div></div>
+            <div class="card"><div class="label">Toplam Komisyon</div><div class="value">${formatMoney(totals.komisyon)} TL</div></div>
+            <div class="card"><div class="label">Kayıt Sayısı</div><div class="value">${detailRows.length}</div></div>
+          </div>
+          <h2>Şube Özetleri</h2>
+          <table class="summaryTable"><thead><tr><th>Şube</th><th class="money">Toplam Satış</th><th class="money">Toplam Komisyon</th></tr></thead><tbody>${subeHtml}</tbody></table>
+          <h2>Firma Özetleri</h2>
+          <table class="summaryTable"><thead><tr><th>Firma</th><th class="money">Toplam Satış</th><th class="money">Toplam Komisyon</th></tr></thead><tbody>${firmaHtml}</tbody></table>
+          <h2>Detaylar</h2>
+          <table class="detailTable"><thead><tr><th>Tarih</th><th>Vardiya</th><th>Şube</th><th>Firma</th><th class="money">Satış</th><th class="money">Komisyon</th></tr></thead><tbody>${detailHtml}</tbody></table>
+          </main>
+          <script>window.onload = () => setTimeout(() => window.print(), 250)</script>
+        </body>
+      </html>
+    `
+    const printWindow = window.open("", "_blank")
+    if (!printWindow) return
+    printWindow?.document.open()
+    printWindow?.document.write(html)
+    printWindow?.document.close()
+  }
+
   if (subeLoading) {
     return <div className="flex h-64 items-center justify-center text-muted-foreground">Yükleniyor...</div>
   }
@@ -242,10 +423,15 @@ export default function SubeCiroRaporlariPage() {
           </h1>
           <p className="text-sm text-muted-foreground">Firma satışları, komisyonlar, şube ve vardiya detayları.</p>
         </div>
-        <Button onClick={loadData} className="gap-2">
-          <Filter className="h-4 w-4" />
-          Raporu Yenile
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={exportPdf} variant="outline" className="gap-2" disabled={detailRows.length === 0}>
+            PDF
+          </Button>
+          <Button onClick={loadData} className="gap-2">
+            <Filter className="h-4 w-4" />
+            Raporu Yenile
+          </Button>
+        </div>
       </div>
 
       <Card>

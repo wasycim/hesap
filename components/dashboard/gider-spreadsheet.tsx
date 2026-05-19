@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-import { Plus, Save, Trash2, X } from "lucide-react"
+import { FileText, Plus, Save, Trash2, X } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 import {
@@ -14,8 +14,9 @@ import {
   getColumnTextColor,
   mergeColumnSettings,
 } from "@/lib/table-column-settings"
-import { getLocalDateString, getMonthIndex, getMonthYearFromDate } from "@/lib/date-navigation"
+import { getLocalDateString, getMonthYearFromDate, getNextDateWithinMonth, isDateInSelectedMonth } from "@/lib/date-navigation"
 import { logSecurityEvent } from "@/lib/audit-log"
+import { openPdfReport } from "@/lib/pdf-report"
 
 interface Ortak {
   id: string
@@ -131,18 +132,20 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       loadData()
     }
 
-    // Realtime subscription
+    if (!currentSube) return
+
     const channel = supabase
-      .channel(`gider_changes_${currentSube?.id || 'none'}`)
+      .channel(`gider_changes_${currentSube.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'gider_kayitlari',
+          filter: `sube_id=eq.${currentSube.id}`,
         },
         () => {
-          if (currentSube) loadData()
+          loadData()
         }
       )
       .subscribe()
@@ -202,7 +205,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       .order("vardiya", { ascending: true })
 
     if (!error && data) {
-      setRows(data.map(row => {
+      setRows(data.filter(row => isDateInSelectedMonth(row.tarih, month, year)).map(row => {
         const mesaiDetails = row.personel_mesai_detaylari || {}
         const mesaiTotal = Object.entries(mesaiDetails).reduce((sum, [personelId, hours]) => (
           sum + ((Number(hours) || 0) * (mesaiRates.get(personelId) || 0))
@@ -243,15 +246,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
   }
 
   function getNextDate(): string {
-    const monthIndex = getMonthIndex(month)
-    
-    if (rows.length === 0) {
-      return `${year}-${String(monthIndex + 1).padStart(2, "0")}-01`
-    }
-    
-    const lastDate = new Date(rows[rows.length - 1].tarih)
-    lastDate.setDate(lastDate.getDate() + 1)
-    return lastDate.toISOString().split("T")[0]
+    return getNextDateWithinMonth(rows.map(row => row.tarih), month, year) || ""
   }
 
   function calculateTotal(row: GiderRow): number {
@@ -287,6 +282,11 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     const today = getLocalDateString()
     const todayMonthYear = getMonthYearFromDate(today)
     const nextDate = isAdmin ? getNextDate() : today
+
+    if (!nextDate || !isDateInSelectedMonth(nextDate, month, year)) {
+      toast.error(`${month} ${year} ayı için eklenecek yeni gün kalmadı.`)
+      return
+    }
 
     if (!isAdmin && (month !== todayMonthYear.month || year !== todayMonthYear.year)) {
       toast.error("Normal kullanıcılar sadece bugünün olduğu ayda satır ekleyebilir.")
@@ -440,6 +440,13 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       return row.vardiya === userVardiya
     })
 
+    const invalidDateIndex = editableRows.findIndex(row => !isDateInSelectedMonth(row.tarih, month, year))
+    if (invalidDateIndex !== -1) {
+      toast.error(`${invalidDateIndex + 1}. satır ${month} ${year} dışında olduğu için kaydedilemez.`)
+      setSaving(false)
+      return false
+    }
+
     // Önce bu ay/yıl için kendi kayıtlarımı sil (sadece düzenleyebildiğim vardiyalardan)
     let deleteQuery = supabase
       .from("gider_kayitlari")
@@ -553,6 +560,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
   })
 
   function getColumnValue(row: GiderRow, key: string) {
+    if (key === "personel_mesai") return row.personel_mesai || 0
     if (key.startsWith("ortak_")) return row.ortak_paylari[key.replace("ortak_", "")] || 0
     if (key.startsWith("personel_")) return row.personel_paylari[key.replace("personel_", "")] || 0
     if (key.startsWith("custom_")) return row.custom_values?.[key] || 0
@@ -566,6 +574,75 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     return acc
   }, {} as Record<string, number>)
 
+  function exportPdf() {
+    openPdfReport({
+      title: "Gider Tablosu Raporu",
+      subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
+      orientation: "landscape",
+      metrics: [
+        { label: "Genel Toplam", value: `${formatNumber(columnTotals.genel_toplam || 0)} TL` },
+        { label: "Bakiye Bilet", value: `${formatNumber(columnTotals.bakiye_bilet || 0)} TL` },
+        { label: "Personel Mesai", value: `${formatNumber(columnTotals.personel_mesai || 0)} TL` },
+        { label: "Kargo Cari", value: `${formatNumber(columnTotals.kargo_cari || 0)} TL` },
+      ],
+      tables: [{
+        title: "Aylık Gider Detayı",
+        headers: allColumns.map(col => col.label),
+        firstColumnWidth: "58px",
+        rows: [
+          ...rows.map(row => allColumns.map(col => {
+            if (col.key === "tarih") return formatDate(row.tarih)
+            if (col.key === "vardiya") return row.vardiya || "Tek"
+            return `${formatNumber(Number(getColumnValue(row, col.key)) || 0)} TL`
+          })),
+          allColumns.map(col => {
+            if (col.key === "tarih") return "TOPLAM"
+            if (col.key === "vardiya") return ""
+            return `${formatNumber(columnTotals[col.key] || 0)} TL`
+          }),
+        ],
+      }],
+    })
+    return
+
+    const identityColumns = allColumns.filter(col => col.key === "tarih" || col.key === "vardiya")
+    const dataColumns = allColumns.filter(col => col.key !== "tarih" && col.key !== "vardiya")
+    const columnGroups = Array.from({ length: Math.ceil(dataColumns.length / 6) }, (_, index) => dataColumns.slice(index * 6, index * 6 + 6))
+    const tables = columnGroups.map((group, index) => {
+      const groupColumns = [...identityColumns, ...group]
+      return {
+        title: `Aylık Gider Detayı ${columnGroups.length > 1 ? `(${index + 1}/${columnGroups.length})` : ""}`,
+        headers: groupColumns.map(col => col.label),
+        firstColumnWidth: "82px",
+        rows: [
+          ...rows.map(row => groupColumns.map(col => {
+            if (col.key === "tarih") return formatDate(row.tarih)
+            if (col.key === "vardiya") return row.vardiya || "Tek"
+            return `${formatNumber(Number(getColumnValue(row, col.key)) || 0)} TL`
+          })),
+          groupColumns.map(col => {
+            if (col.key === "tarih") return "TOPLAM"
+            if (col.key === "vardiya") return ""
+            return `${formatNumber(columnTotals[col.key] || 0)} TL`
+          }),
+        ],
+      }
+    })
+
+    openPdfReport({
+      title: "Gider Tablosu Raporu",
+      subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
+      orientation: "landscape",
+      metrics: [
+        { label: "Genel Toplam", value: `${formatNumber(columnTotals.genel_toplam || 0)} TL` },
+        { label: "Bakiye Bilet", value: `${formatNumber(columnTotals.bakiye_bilet || 0)} TL` },
+        { label: "Personel Mesai", value: `${formatNumber(columnTotals.personel_mesai || 0)} TL` },
+        { label: "Kargo Cari", value: `${formatNumber(columnTotals.kargo_cari || 0)} TL` },
+      ],
+      tables,
+    })
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center h-64">Yükleniyor...</div>
   }
@@ -578,6 +655,9 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
         </Button>
         <Button onClick={saveData} size="sm" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
           <Save className="w-4 h-4 mr-1" /> {saving ? "Kaydediliyor..." : "Kaydet"}
+        </Button>
+        <Button onClick={exportPdf} size="sm" variant="outline" disabled={rows.length === 0}>
+          <FileText className="w-4 h-4 mr-1" /> PDF
         </Button>
       </div>
 
@@ -613,7 +693,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
                 <td className="sticky left-0 border bg-card p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
                 {allColumns.map(col => {
                   const isOrtak = col.key.startsWith("ortak_")
-                  const isPersonel = col.key.startsWith("personel_")
+                  const isPersonel = col.key.startsWith("personel_") && col.key !== "personel_mesai"
                   const id = isOrtak ? col.key.replace("ortak_", "") : isPersonel ? col.key.replace("personel_", "") : null
                   
                   let value: number = 0

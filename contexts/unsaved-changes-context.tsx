@@ -30,6 +30,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
       const target = event.target as HTMLElement | null
       if (!target) return
       if (target.closest("[data-unsaved-ignore='true']")) return
+      if (!saveHandlerRef.current) return
       if (target.closest("input, textarea, select")) {
         markDirty()
       }
@@ -41,6 +42,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
       const button = target.closest("button") as HTMLButtonElement | null
       if (!button) return
       if (button.closest("[data-unsaved-ignore='true']")) return
+      if (!saveHandlerRef.current) return
 
       const text = (button.textContent || "").toLocaleLowerCase("tr-TR")
       const isAddButton = text.includes("satır ekle") || text.includes("satir ekle")
@@ -65,6 +67,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const interceptLinks = (event: MouseEvent) => {
       if (!isDirty) return
+      if (!saveHandlerRef.current) return
 
       const target = event.target as HTMLElement | null
       const link = target?.closest("a") as HTMLAnchorElement | null
@@ -105,6 +108,11 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  function cancelNavigation() {
+    setShowPopup(false)
+    setPendingUrl(null)
+  }
+
   return (
     <UnsavedChangesContext.Provider value={{ isDirty, markDirty, markClean, registerSaveHandler }}>
       {children}
@@ -118,6 +126,12 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
             </p>
 
             <div className="flex justify-end gap-3">
+              <button
+                onClick={cancelNavigation}
+                className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
+              >
+                Vazgeç
+              </button>
               <button
                 onClick={leaveWithoutSaving}
                 className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
