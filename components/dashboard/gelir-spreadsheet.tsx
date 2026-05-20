@@ -262,7 +262,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       return
     }
     
-    // Vardiyasiz subelerde tek satir, vardiyali subelerde admin icin S ve A eklenir.
+    // Vardiyasız şubelerde tek satır, vardiyalı şubelerde admin için S ve A eklenir.
     const vardiyalarToAdd = isTekVardiya ? [""] : (isAdmin ? ["S", "A"] : [userVardiya || "S"])
 
     if (!isAdmin && vardiyalarToAdd.some(vardiya => rows.some(row => row.tarih === today && row.vardiya === vardiya))) {
@@ -387,7 +387,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     
     const { error: deleteError } = await deleteQuery
     if (deleteError) {
-      console.log("[v0] Gelir silme hatasi:", deleteError)
+      console.log("[v0] Gelir silme hatası:", deleteError)
       setSaving(false)
       return false
     }
@@ -423,7 +423,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
 
       const { error } = await supabase.from("gelir_kayitlari").insert(insertData)
       if (error) {
-        console.log("[v0] Gelir kaydetme hatasi:", error)
+        console.log("[v0] Gelir kaydetme hatası:", error)
         setSaving(false)
         return false
       }

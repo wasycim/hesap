@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Plus, Save, Trash2, Users, Package } from "lucide-react"
+import { ArrowDown, ArrowUp, GripVertical, Plus, Save, Trash2, Users, Package } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { logSecurityEvent } from "@/lib/audit-log"
 import { COLOR_OPTIONS, getColumnTextColor } from "@/lib/table-column-settings"
@@ -47,6 +47,7 @@ interface GelirFirma {
   komisyon_orani: number | null
   color: string
   aktif: boolean
+  sira: number
 }
 
 interface ConfirmState {
@@ -74,6 +75,8 @@ export default function AyarlarPage() {
   const [savingGelirFirmalar, setSavingGelirFirmalar] = useState(false)
   const [savingKargoFirmalar, setSavingKargoFirmalar] = useState(false)
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null)
+  const [draggedGelirFirmaId, setDraggedGelirFirmaId] = useState<string | null>(null)
+  const [dragOverGelirFirmaId, setDragOverGelirFirmaId] = useState<string | null>(null)
   const supabase = createClient()
   const { currentSube } = useSube()
 
@@ -235,14 +238,21 @@ export default function AyarlarPage() {
   }
 
   async function saveGelirFirmalar() {
+    if (gelirFirmalar.some(firma => !firma.ad.trim())) {
+      toast.error("Firma adları boş bırakılamaz.")
+      return
+    }
+
     setSavingGelirFirmalar(true)
-    for (const firma of gelirFirmalar) {
+    for (const [index, firma] of gelirFirmalar.entries()) {
       await supabase
         .from("gelir_firmalar")
         .update({
+          ad: firma.ad.trim().toUpperCase(),
           komisyon_orani: firma.komisyon_orani,
           color: firma.color,
           aktif: firma.aktif,
+          sira: index,
           updated_at: new Date().toISOString(),
         })
         .eq("id", firma.id)
@@ -289,10 +299,37 @@ export default function AyarlarPage() {
     )))
   }
 
-  async function updateGelirFirma(id: string, patch: Partial<Pick<GelirFirma, "komisyon_orani" | "color">>) {
+  async function updateGelirFirma(id: string, patch: Partial<Pick<GelirFirma, "ad" | "komisyon_orani" | "color">>) {
     setGelirFirmalar(prev => prev.map(firma => (
       firma.id === id ? { ...firma, ...patch } : firma
     )))
+  }
+
+  function moveGelirFirma(id: string, direction: -1 | 1) {
+    setGelirFirmalar(prev => {
+      const index = prev.findIndex(firma => firma.id === id)
+      const nextIndex = index + direction
+      if (index < 0 || nextIndex < 0 || nextIndex >= prev.length) return prev
+      const next = [...prev]
+      const current = next[index]
+      next[index] = next[nextIndex]
+      next[nextIndex] = current
+      return next.map((firma, sira) => ({ ...firma, sira }))
+    })
+  }
+
+  function dragGelirFirma(targetId: string) {
+    if (!draggedGelirFirmaId || draggedGelirFirmaId === targetId) return
+    setGelirFirmalar(prev => {
+      const fromIndex = prev.findIndex(firma => firma.id === draggedGelirFirmaId)
+      const toIndex = prev.findIndex(firma => firma.id === targetId)
+      if (fromIndex < 0 || toIndex < 0) return prev
+      const next = [...prev]
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, moved)
+      return next.map((firma, sira) => ({ ...firma, sira }))
+    })
+    setDragOverGelirFirmaId(null)
   }
 
   async function deleteOrtak(id: string) {
@@ -335,8 +372,8 @@ export default function AyarlarPage() {
 
   async function deleteGelirFirma(id: string) {
     setConfirmState({
-      title: "Gelir firmasi silinsin mi?",
-      description: "Bu firmayi silerseniz gelir tablosundaki eski tutarlar raporda firma adi olmadan kalabilir.",
+      title: "Gelir firması silinsin mi?",
+      description: "Bu firmayı silerseniz gelir tablosundaki eski tutarlar raporda firma adı olmadan kalabilir.",
       action: () => performDeleteGelirFirma(id),
     })
   }
@@ -407,7 +444,7 @@ export default function AyarlarPage() {
               <Input
                 value={yeniOrtak}
                 onChange={(e) => setYeniOrtak(e.target.value)}
-                placeholder="Yeni ortak adi..."
+                placeholder="Yeni ortak adı..."
                 className="flex-1 h-11"
                 onKeyDown={(e) => e.key === "Enter" && addOrtak()}
               />
@@ -487,7 +524,7 @@ export default function AyarlarPage() {
               <Input
                 value={yeniPersonel}
                 onChange={(e) => setYeniPersonel(e.target.value)}
-                placeholder="Yeni personel adi..."
+                placeholder="Yeni personel adı..."
                 className="flex-1 h-11"
                 onKeyDown={(e) => e.key === "Enter" && addPersonel()}
               />
@@ -574,7 +611,7 @@ export default function AyarlarPage() {
               </div>
               <div>
                 <h2 className="font-bold text-lg text-white">Firmalar</h2>
-                <p className="text-emerald-100 text-sm">Gelir tablosunda Firmalar bolumu ve komisyon oranlari</p>
+                <p className="text-emerald-100 text-sm">Gelir tablosunda Firmalar bölümü ve komisyon oranları</p>
               </div>
             </div>
           </div>
@@ -584,7 +621,7 @@ export default function AyarlarPage() {
               <Input
                 value={yeniGelirFirma}
                 onChange={(e) => setYeniGelirFirma(e.target.value)}
-                placeholder="Yeni gelir firmasi..."
+                placeholder="Yeni gelir firması..."
                 className="flex-1 h-11"
                 onKeyDown={(e) => e.key === "Enter" && addGelirFirma()}
               />
@@ -605,26 +642,51 @@ export default function AyarlarPage() {
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {gelirFirmalar.length === 0 ? (
                 <div className="col-span-full text-center py-8 text-muted-foreground">
-                  Henuz gelir firmasi eklenmemis. Yeni firma eklenince komisyon orani varsayilan %20 olur.
+                  Henüz gelir firması eklenmemiş. Yeni firma eklenince komisyon oranı varsayılan %20 olur.
                 </div>
               ) : (
-                gelirFirmalar.map((firma) => (
+                gelirFirmalar.map((firma, index) => (
                   <div
                     key={firma.id}
-                    className={`rounded-lg border-l-4 p-3.5 transition-all ${
+                    draggable
+                    onDragStart={() => setDraggedGelirFirmaId(firma.id)}
+                    onDragEnd={() => {
+                      setDraggedGelirFirmaId(null)
+                      setDragOverGelirFirmaId(null)
+                    }}
+                    onDragOver={(event) => {
+                      event.preventDefault()
+                      setDragOverGelirFirmaId(firma.id)
+                    }}
+                    onDragLeave={() => setDragOverGelirFirmaId(prev => prev === firma.id ? null : prev)}
+                    onDrop={(event) => {
+                      event.preventDefault()
+                      dragGelirFirma(firma.id)
+                    }}
+                    className={`cursor-grab rounded-lg border-l-4 p-3.5 transition-all active:cursor-grabbing ${
+                      dragOverGelirFirmaId === firma.id && draggedGelirFirmaId !== firma.id
+                        ? "scale-[1.01] ring-2 ring-emerald-500 ring-offset-2"
+                        : ""
+                    } ${
                       firma.aktif
                         ? "bg-emerald-50 border-emerald-400 dark:bg-emerald-500/15"
                         : "bg-muted/50 border-muted-foreground/30 opacity-60"
                     }`}
                   >
                     <div className="mb-3 flex items-center justify-between gap-2">
-                      <span className={`font-semibold ${firma.aktif ? "text-foreground" : "text-muted-foreground line-through"}`}>
-                        {firma.ad}
-                      </span>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      </div>
                       <div className={`rounded px-2 py-1 text-xs font-bold ${firma.color} ${getColumnTextColor(firma.color)}`}>
-                        SUTUN
+                        SÜTUN
                       </div>
                     </div>
+                    <Input
+                      value={firma.ad}
+                      onChange={(event) => updateGelirFirma(firma.id, { ad: event.target.value })}
+                      className={`mb-3 h-9 font-semibold ${firma.aktif ? "" : "text-muted-foreground line-through"}`}
+                      placeholder="Firma adı"
+                    />
                     <div className="grid grid-cols-[1fr_7rem] gap-2">
                       <Select value={firma.color} onValueChange={(value) => updateGelirFirma(firma.id, { color: value })}>
                         <SelectTrigger>
@@ -652,6 +714,26 @@ export default function AyarlarPage() {
                         Komisyon: {firma.komisyon_orani === null ? "Yok" : `%${firma.komisyon_orani}`}
                       </span>
                       <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          onClick={() => moveGelirFirma(firma.id, -1)}
+                          disabled={index === 0}
+                          title="Yukarı taşı"
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          onClick={() => moveGelirFirma(firma.id, 1)}
+                          disabled={index === gelirFirmalar.length - 1}
+                          title="Aşağı taşı"
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                        </Button>
                         <button
                           onClick={() => toggleGelirFirma(firma.id, firma.aktif)}
                           className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
@@ -674,6 +756,38 @@ export default function AyarlarPage() {
                 ))
               )}
             </div>
+
+            {gelirFirmalar.length > 0 && (
+              <div className="mt-5 rounded-lg border bg-muted/20 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold">Firma Ön İzleme</h3>
+                    <p className="text-xs text-muted-foreground">Gelir tablosunda Firmalar kategorisi içindeki görünüm.</p>
+                  </div>
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100">
+                    {gelirFirmalar.filter(firma => firma.aktif).length} aktif
+                  </span>
+                </div>
+                <div className="visible-x-scroll overflow-x-auto pb-2">
+                  <div className="flex min-w-max overflow-hidden rounded-lg border">
+                    {gelirFirmalar.map((firma, index) => (
+                      <div
+                        key={firma.id}
+                        className={`min-w-40 border-r px-4 py-3 text-center last:border-r-0 ${firma.aktif ? firma.color : "bg-muted"} ${firma.aktif ? getColumnTextColor(firma.color) : "text-muted-foreground"}`}
+                      >
+                        <div className="text-[10px] font-bold uppercase opacity-80">#{index + 1}</div>
+                        <div className={`mt-1 truncate text-sm font-extrabold ${firma.aktif ? "" : "line-through"}`}>
+                          {firma.ad}
+                        </div>
+                        <div className="mt-1 text-[11px] font-semibold opacity-90">
+                          {firma.komisyon_orani === null ? "Komisyon yok" : `%${firma.komisyon_orani} komisyon`}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -696,7 +810,7 @@ export default function AyarlarPage() {
               <Input
                 value={yeniKargoFirma}
                 onChange={(e) => setYeniKargoFirma(e.target.value)}
-                placeholder="Yeni firma adi..."
+                placeholder="Yeni firma adı..."
                 className="flex-1 h-11"
                 onKeyDown={(e) => e.key === "Enter" && addKargoFirma()}
               />

@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
   const tcKimlik = normalizeTcKimlik(body.tcKimlik)
 
   if (!isValidTcKimlik(tcKimlik)) {
-    return NextResponse.json({ error: "TC kimlik numarasi hatali." }, { status: 400 })
+    return NextResponse.json({ error: "TC kimlik numarası hatalı." }, { status: 400 })
   }
 
   const admin = createAdminClient()
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const matchedEmail = matchedUser?.email
 
     if (!matchedEmail) {
-      return NextResponse.json({ error: "Bu TC ile kayitli kullanici bulunamadi." }, { status: 404 })
+      return NextResponse.json({ error: "Bu TC ile kayıtlı kullanıcı bulunamadı." }, { status: 404 })
     }
 
     return NextResponse.json({ email: matchedEmail })
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
   const { data: authUser, error: authError } = await admin.auth.admin.getUserById(data.user_id)
 
   if (authError || !authUser.user?.email) {
-    return NextResponse.json({ error: "Bu TC ile kayitli kullanici e-postasi bulunamadi." }, { status: 404 })
+    return NextResponse.json({ error: "Bu TC ile kayıtlı kullanıcı e-postası bulunamadı." }, { status: 404 })
   }
 
   return NextResponse.json({ email: authUser.user.email })

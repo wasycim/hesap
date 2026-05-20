@@ -250,8 +250,8 @@ export default function MaaslarPage() {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="text-center">
-          <h2 className="mb-2 text-xl font-semibold">Erisim engellendi</h2>
-          <p className="text-muted-foreground">Bu sayfaya sadece yoneticiler erisebilir.</p>
+          <h2 className="mb-2 text-xl font-semibold">Erişim engellendi</h2>
+          <p className="text-muted-foreground">Bu sayfaya sadece yöneticiler erişebilir.</p>
         </div>
       </div>
     )

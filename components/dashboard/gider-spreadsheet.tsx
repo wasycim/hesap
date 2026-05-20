@@ -293,7 +293,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       return
     }
     
-    // Vardiyasiz subelerde tek satir, vardiyali subelerde admin icin S ve A eklenir.
+    // Vardiyasız şubelerde tek satır, vardiyalı şubelerde admin için S ve A eklenir.
     const vardiyalarToAdd = isTekVardiya ? [""] : (isAdmin ? ["S", "A"] : [userVardiya || "S"])
 
     if (!isAdmin && vardiyalarToAdd.some(vardiya => rows.some(row => row.tarih === today && row.vardiya === vardiya))) {
@@ -465,7 +465,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     
     const { error: deleteError } = await deleteQuery
     if (deleteError) {
-      console.log("[v0] Gider silme hatasi:", deleteError)
+      console.log("[v0] Gider silme hatası:", deleteError)
       setSaving(false)
       return false
     }
@@ -505,7 +505,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
 
       const { error } = await supabase.from("gider_kayitlari").insert(insertData)
       if (error) {
-        console.log("[v0] Gider kaydetme hatasi:", error)
+        console.log("[v0] Gider kaydetme hatası:", error)
         setSaving(false)
         return false
       }

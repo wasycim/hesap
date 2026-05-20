@@ -41,9 +41,9 @@ export default function GirisPage() {
       if (!response.ok) {
         await logSecurityEvent("failed_login", {
           tc_kimlik: cleanTc,
-          reason: result.error || "TC ile giris basarisiz.",
+          reason: result.error || "TC ile giriş başarısız.",
         })
-        setError(result.error || "TC ile giris basarisiz.")
+        setError(result.error || "TC ile giriş başarısız.")
         setLoading(false)
         return
       }
@@ -60,10 +60,10 @@ export default function GirisPage() {
       await logSecurityEvent("failed_login", {
         email: loginEmail,
         tc_kimlik: loginMode === "tc" ? cleanTc : undefined,
-        reason: signInError.message === "Invalid login credentials" ? "E-posta/TC veya sifre hatali." : signInError.message,
+        reason: signInError.message === "Invalid login credentials" ? "E-posta/TC veya şifre hatalı." : signInError.message,
       })
       setError(signInError.message === "Invalid login credentials"
-        ? "E-posta/TC veya sifre hatali"
+        ? "E-posta/TC veya şifre hatalı"
         : signInError.message)
       setLoading(false)
       return
@@ -97,7 +97,7 @@ export default function GirisPage() {
             </div>
             <div className="relative space-y-3">
               <CardTitle className="text-3xl font-bold">Hesap Rapor Sistemi</CardTitle>
-              <CardDescription className="text-base">Hesabiniza giris yapin.</CardDescription>
+              <CardDescription className="text-base">Hesabınıza giriş yapın.</CardDescription>
             </div>
           </CardHeader>
 
@@ -111,10 +111,10 @@ export default function GirisPage() {
 
               <div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/30 p-1">
                 <Button type="button" variant={loginMode === "tc" ? "default" : "ghost"} onClick={() => setLoginMode("tc")}>
-                  TC ile giris
+                  TC ile giriş
                 </Button>
                 <Button type="button" variant={loginMode === "email" ? "default" : "ghost"} onClick={() => setLoginMode("email")}>
-                  E-posta ile giris
+                  E-posta ile giriş
                 </Button>
               </div>
 
@@ -156,7 +156,7 @@ export default function GirisPage() {
               )}
 
               <div className="space-y-3">
-                <Label htmlFor="password">Sifre</Label>
+                <Label htmlFor="password">Şifre</Label>
                 <div className="relative">
                   <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -175,7 +175,7 @@ export default function GirisPage() {
             <CardFooter className="px-8 pb-8 md:px-10 md:pb-10">
               <Button type="submit" className="h-11 w-full" disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Giris Yap
+                Giriş Yap
               </Button>
             </CardFooter>
           </form>

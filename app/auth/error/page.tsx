@@ -13,14 +13,14 @@ export default function AuthErrorPage() {
               <AlertTriangle className="w-6 h-6 text-destructive" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Bir Hata Olustu</CardTitle>
+          <CardTitle className="text-2xl font-bold">Bir Hata Oluştu</CardTitle>
           <CardDescription>
-            Kimlik dogrulama sirasinda bir sorun olustu. Lutfen tekrar deneyin.
+            Kimlik doğrulama sırasında bir sorun oluştu. Lütfen tekrar deneyin.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground text-center">
-            Bu hata genellikle dogrulama linkinin suresi doldugunda veya gecersiz oldugunda olusur.
+            Bu hata genellikle doğrulama linkinin süresi dolduğunda veya geçersiz olduğunda oluşur.
           </p>
         </CardContent>
         <CardFooter className="flex flex-col gap-2">
@@ -28,7 +28,7 @@ export default function AuthErrorPage() {
             <Button className="w-full">Giriş Sayfasına Dön</Button>
           </Link>
           <Link href="/auth/kayit" className="w-full">
-            <Button variant="outline" className="w-full">Yeniden Kayit Ol</Button>
+            <Button variant="outline" className="w-full">Yeniden Kayıt Ol</Button>
           </Link>
         </CardFooter>
       </Card>

@@ -33,7 +33,7 @@ export async function logSecurityEvent(eventType: SecurityEventType, details: Re
       }),
     })
   } catch (error) {
-    console.warn("Guvenlik kaydi olusturulamadi", error)
+    console.warn("Güvenlik kaydı oluşturulamadı", error)
   }
 }
 

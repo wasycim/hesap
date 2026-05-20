@@ -27,7 +27,7 @@ export async function GET() {
   const { isAdmin } = await requireAdmin()
 
   if (!isAdmin) {
-    return NextResponse.json({ error: "Yetkisiz islem." }, { status: 403 })
+    return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
   }
 
   const admin = createAdminClient()
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
   const { user: actor, isAdmin } = await requireAdmin()
 
   if (!actor || !isAdmin) {
-    return NextResponse.json({ error: "Yetkisiz islem." }, { status: 403 })
+    return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
   }
 
   const body = await request.json().catch(() => ({}))
@@ -73,11 +73,11 @@ export async function POST(request: NextRequest) {
   const trustedIps = normalizeTrustedIps(body.trustedIps)
 
   if (!email || !tcKimlik || !subeId) {
-    return NextResponse.json({ error: "E-posta, TC ve sube zorunlu." }, { status: 400 })
+    return NextResponse.json({ error: "E-posta, TC ve şube zorunlu." }, { status: 400 })
   }
 
   if (!isValidTcKimlik(tcKimlik)) {
-    return NextResponse.json({ error: "TC kimlik numarasi matematiksel kurallara uygun degil." }, { status: 400 })
+    return NextResponse.json({ error: "TC kimlik numarası matematiksel kurallara uygun değil." }, { status: 400 })
   }
 
   const admin = createAdminClient()
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle()
 
   if (existingTc) {
-    return NextResponse.json({ error: "Bu TC ile kayitli bir kullanici var." }, { status: 400 })
+    return NextResponse.json({ error: "Bu TC ile kayıtlı bir kullanıcı var." }, { status: 400 })
   }
 
   const { data: authData, error: authError } = await admin.auth.admin.createUser({
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
   })
 
   if (authError || !authData.user) {
-    return NextResponse.json({ error: authError?.message || "Kullanici olusturulamadi." }, { status: 500 })
+    return NextResponse.json({ error: authError?.message || "Kullanıcı oluşturulamadı." }, { status: 500 })
   }
 
   const { error: profileError } = await admin.from("user_profiles").upsert({
@@ -130,7 +130,7 @@ export async function PATCH(request: NextRequest) {
   const { user: actor, isAdmin } = await requireAdmin()
 
   if (!actor || !isAdmin) {
-    return NextResponse.json({ error: "Yetkisiz islem." }, { status: 403 })
+    return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
   }
 
   const body = await request.json().catch(() => ({}))
@@ -143,11 +143,11 @@ export async function PATCH(request: NextRequest) {
   const trustedIps = normalizeTrustedIps(body.trustedIps)
 
   if (!userId || !tcKimlik || !subeId) {
-    return NextResponse.json({ error: "Kullanici, TC ve sube zorunlu." }, { status: 400 })
+    return NextResponse.json({ error: "Kullanıcı, TC ve şube zorunlu." }, { status: 400 })
   }
 
   if (!isValidTcKimlik(tcKimlik)) {
-    return NextResponse.json({ error: "TC kimlik numarasi matematiksel kurallara uygun degil." }, { status: 400 })
+    return NextResponse.json({ error: "TC kimlik numarası matematiksel kurallara uygun değil." }, { status: 400 })
   }
 
   const admin = createAdminClient()
@@ -159,7 +159,7 @@ export async function PATCH(request: NextRequest) {
     .maybeSingle()
 
   if (existingTc) {
-    return NextResponse.json({ error: "Bu TC ile kayitli baska bir kullanici var." }, { status: 400 })
+    return NextResponse.json({ error: "Bu TC ile kayıtlı başka bir kullanıcı var." }, { status: 400 })
   }
 
   const { error: authUpdateError } = await admin.auth.admin.updateUserById(userId, {
@@ -199,14 +199,14 @@ export async function DELETE(request: NextRequest) {
   const { user: actor, isAdmin } = await requireAdmin()
 
   if (!actor || !isAdmin) {
-    return NextResponse.json({ error: "Yetkisiz islem." }, { status: 403 })
+    return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
   }
 
   const body = await request.json().catch(() => ({}))
   const userId = String(body.userId || "").trim()
 
   if (!userId) {
-    return NextResponse.json({ error: "Silinecek kullanici zorunlu." }, { status: 400 })
+    return NextResponse.json({ error: "Silinecek kullanıcı zorunlu." }, { status: 400 })
   }
 
   if (userId === actor.id) {
