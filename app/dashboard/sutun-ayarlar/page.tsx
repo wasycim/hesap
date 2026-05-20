@@ -372,8 +372,8 @@ export default function SutunAyarlarPage() {
           </Button>
         </div>
 
-        <div className="mobile-scroll overflow-x-auto rounded-lg border">
-          <table className="w-full min-w-[820px] text-sm">
+        <div className="sticky-table-scroll rounded-lg border">
+          <table className="sticky-table w-full min-w-[820px] text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
                 <th className="p-3 text-left">Sıra</th>

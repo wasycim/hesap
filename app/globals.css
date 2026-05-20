@@ -166,6 +166,67 @@
   background: var(--foreground);
 }
 
+.sticky-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.sticky-table-scroll {
+  max-height: min(72dvh, calc(100dvh - 180px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted-foreground) var(--muted);
+}
+
+.sticky-table-scroll::-webkit-scrollbar {
+  display: block;
+  width: 10px;
+  height: 10px;
+}
+
+.sticky-table-scroll::-webkit-scrollbar-track {
+  background: var(--muted);
+  border-radius: 999px;
+}
+
+.sticky-table-scroll::-webkit-scrollbar-thumb {
+  background: var(--muted-foreground);
+  border: 2px solid var(--muted);
+  border-radius: 999px;
+}
+
+.sticky-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground);
+}
+
+.sticky-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  box-shadow: 0 1px 0 var(--border), 0 8px 14px rgba(15, 23, 42, 0.08);
+}
+
+.sticky-table thead th:first-child {
+  z-index: 40;
+}
+
+.sticky-table .sticky {
+  z-index: 20;
+}
+
+.sticky-table thead .sticky,
+.sticky-table thead th.sticky {
+  z-index: 50;
+}
+
+@media (max-width: 1023px) {
+  .sticky-table-scroll {
+    max-height: min(68dvh, calc(100dvh - 220px));
+  }
+}
+
 @keyframes page-enter {
   from {
     opacity: 0;

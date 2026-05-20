@@ -486,8 +486,8 @@ export default function GuvenlikAyarlarPage() {
                 </SelectContent>
               </Select>
             </div>
-          <div className="mobile-scroll overflow-x-auto rounded-lg border">
-            <table className="w-full min-w-[1080px] text-sm">
+          <div className="sticky-table-scroll rounded-lg border">
+            <table className="sticky-table w-full min-w-[1080px] text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="p-3 text-left">İşlem</th>

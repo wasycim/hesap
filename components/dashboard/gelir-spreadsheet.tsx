@@ -544,8 +544,8 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border bg-card">
-        <table className="min-w-max text-sm">
+      <div className="sticky-table-scroll rounded-lg border bg-card">
+        <table className="sticky-table min-w-max text-sm">
           <thead>
             <tr>
               <th className="w-10 border bg-muted p-2 text-muted-foreground">#</th>

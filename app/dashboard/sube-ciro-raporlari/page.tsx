@@ -549,8 +549,8 @@ export default function SubeCiroRaporlariPage() {
           <CardTitle>Günlük ve Vardiya Detayı</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="mobile-scroll visible-x-scroll overflow-x-auto rounded-lg border">
-            <table className="min-w-[860px] w-full text-sm">
+          <div className="sticky-table-scroll rounded-lg border">
+            <table className="sticky-table min-w-[860px] w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
                   <th className="p-3 text-left">Tarih</th>

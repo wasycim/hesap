@@ -393,8 +393,8 @@ export default function KargoCariOzetPage() {
               Henüz firma eklenmemiş. Ayarlar sayfasından firma ekleyebilirsiniz.
             </div>
           ) : (
-            <div className="mobile-scroll overflow-x-auto">
-              <table className="w-full min-w-[700px] text-sm">
+            <div className="sticky-table-scroll">
+              <table className="sticky-table w-full min-w-[700px] text-sm">
                 <thead>
                   <tr className="border-b bg-slate-950 text-white dark:bg-slate-900">
                     <th className="bg-muted p-3 text-left font-semibold text-foreground">FİRMA ADI</th>
