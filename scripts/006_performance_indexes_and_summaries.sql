@@ -40,7 +40,8 @@ create index if not exists idx_ortaklar_sube_aktif_sira
 create index if not exists idx_gelir_firmalar_sube_aktif_sira
   on public.gelir_firmalar (sube_id, aktif, sira);
 
-create or replace view public.v_dashboard_monthly_totals as
+create or replace view public.v_dashboard_monthly_totals
+with (security_invoker = true) as
 select
   coalesce(g.sube_id, d.sube_id) as sube_id,
   coalesce(g.ay_yil, d.ay_yil) as ay_yil,
@@ -58,7 +59,8 @@ full outer join (
   group by sube_id, ay_yil
 ) d on d.sube_id = g.sube_id and d.ay_yil = g.ay_yil;
 
-create or replace view public.v_gider_daily_shift_totals as
+create or replace view public.v_gider_daily_shift_totals
+with (security_invoker = true) as
 select
   sube_id,
   ay_yil,

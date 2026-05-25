@@ -29,6 +29,8 @@ interface GelirKaydi {
 
 type Period = "daily" | "weekly" | "monthly" | "custom"
 
+const VARDIYA_SIRASI: Record<string, number> = { S: 0, A: 1, "": 2 }
+
 function formatMoney(value: number) {
   return value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
@@ -52,6 +54,12 @@ function getShiftLabel(value: string | null) {
   if (value === "S") return "Sabah"
   if (value === "A") return "Akşam"
   return "Tek vardiya"
+}
+
+function compareDateVardiya(a: Pick<GelirKaydi, "tarih" | "vardiya">, b: Pick<GelirKaydi, "tarih" | "vardiya">) {
+  const dateCompare = a.tarih.localeCompare(b.tarih)
+  if (dateCompare !== 0) return dateCompare
+  return (VARDIYA_SIRASI[a.vardiya || ""] ?? 99) - (VARDIYA_SIRASI[b.vardiya || ""] ?? 99)
 }
 
 function escapeCsvValue(value: unknown) {
@@ -162,7 +170,7 @@ export default function SubeCiroRaporlariPage() {
     setRows((gelirRes.data || []).map(row => ({
       ...row,
       custom_values: row.custom_values || {},
-    })))
+    })).sort(compareDateVardiya))
     setLoading(false)
   }
 

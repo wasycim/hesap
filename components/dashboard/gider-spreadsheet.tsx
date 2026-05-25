@@ -42,6 +42,7 @@ interface GiderRow {
   personel_mesai_detaylari: Record<string, number>
   bil_iade: number
   inegol_donus: number
+  pk_kredi_karti: number
   yemek: number
   yanmaz_bilet: number
   diger: number
@@ -105,6 +106,12 @@ function normalizeSubeName(name: string): string {
 
 function getGiderTotalKey(tarih: string, vardiya: string, isTekVardiya: boolean) {
   return isTekVardiya ? tarih : `${tarih}__${vardiya || "S"}`
+}
+
+function compareDateVardiya(a: Pick<GiderRow, "tarih" | "vardiya">, b: Pick<GiderRow, "tarih" | "vardiya">) {
+  const dateCompare = a.tarih.localeCompare(b.tarih)
+  if (dateCompare !== 0) return dateCompare
+  return (VARDIYA_SIRASI[a.vardiya] ?? 99) - (VARDIYA_SIRASI[b.vardiya] ?? 99)
 }
 
 export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
@@ -224,6 +231,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
         personel_mesai_detaylari: mesaiDetails,
         bil_iade: Number(row.bil_iade) || 0,
         inegol_donus: Number(row.inegol_donus) || 0,
+        pk_kredi_karti: Number(row.pk_kredi_karti) || 0,
         yemek: Number(row.yemek) || 0,
         yanmaz_bilet: Number(row.yanmaz_bilet) || 0,
         diger: Number(row.diger) || 0,
@@ -240,7 +248,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
         bankaya_yatan: Number(row.bankaya_yatan) || 0,
         genel_toplam: Number(row.genel_toplam) || 0,
         custom_values: row.custom_values || {},
-      })}))
+      })}).sort(compareDateVardiya))
     }
     setLoading(false)
   }
@@ -251,7 +259,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
 
   function calculateTotal(row: GiderRow): number {
     let total = row.el_fisi_odeme + row.personel_mesai + row.bil_iade + 
-      row.inegol_donus + row.yemek + row.yanmaz_bilet + row.diger +
+      row.inegol_donus + row.pk_kredi_karti + row.yemek + row.yanmaz_bilet + row.diger +
       row.ziraat_bankasi + row.is_bankasi + row.kuveyt_turk +
       row.bakiye_bilet + row.kargo_cari + row.hesaba_gelen +
       row.on_dort_noya_giden + row.carsi_bilet + row.darica_bilet +
@@ -311,6 +319,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       personel_mesai_detaylari: {},
       bil_iade: 0,
       inegol_donus: 0,
+      pk_kredi_karti: 0,
       yemek: 0,
       yanmaz_bilet: 0,
       diger: 0,
@@ -329,12 +338,8 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       custom_values: {},
     }))
     
-    // Yeni satırı ekle ve tarihe + vardiyaya göre sırala
-    const newRows = [...rows, ...newRowsToAdd].sort((a, b) => {
-      const dateCompare = a.tarih.localeCompare(b.tarih)
-      if (dateCompare !== 0) return dateCompare
-      return (VARDIYA_SIRASI[a.vardiya] ?? 99) - (VARDIYA_SIRASI[b.vardiya] ?? 99)
-    })
+    // Yeni satırı ekle ve tarihe + vardiyaya göre sırala (S önce, A sonra)
+    const newRows = [...rows, ...newRowsToAdd].sort(compareDateVardiya)
     
     setRows(newRows)
     markDirty()
@@ -485,6 +490,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
         personel_mesai_detaylari: row.personel_mesai_detaylari,
         bil_iade: row.bil_iade,
         inegol_donus: row.inegol_donus,
+        pk_kredi_karti: row.pk_kredi_karti,
         yemek: row.yemek,
         yanmaz_bilet: row.yanmaz_bilet,
         diger: row.diger,

@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Columns3,
   Eye,
+  Landmark,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -63,12 +64,19 @@ const bottomMenuItems = [
   { title: "Hesap Ayarları", href: "/dashboard/hesap", icon: UserCog, color: "text-purple-500" },
 ]
 
+const onDortNoSubMenuItems = [
+  { title: "Gelir Kalemleri", href: "/dashboard/14-no-hesap/gelir-kalemleri" },
+  { title: "14 No Kalemleri", href: "/dashboard/14-no-hesap/14-no-kalemleri" },
+  { title: "Banka ve Kalan", href: "/dashboard/14-no-hesap/banka-ve-kalan" },
+]
+
 function getMenuIconMotion(href: string) {
   if (href === "/dashboard") return "menu-icon-dashboard"
   if (href === "/dashboard/gelir") return "menu-icon-income"
   if (href === "/dashboard/gider") return "menu-icon-expense"
   if (href === "/dashboard/corbalar") return "menu-icon-soup"
   if (href === "/dashboard/sube-ciro-raporlari") return "menu-icon-report"
+  if (href === "/dashboard/14-no-hesap") return "menu-icon-bank"
   if (href === "/dashboard/ayarlar") return "menu-icon-spin"
   if (href === "/dashboard/guvenlik-ayarlar") return "menu-icon-security"
   if (href === "/dashboard/admin-ayarlar") return "menu-icon-admin"
@@ -85,6 +93,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   const { subeler, currentSube, setCurrentSube, isAdmin: subeIsAdmin, userSube } = useSube()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [kargoOpen, setKargoOpen] = useState(false)
+  const [onDortNoOpen, setOnDortNoOpen] = useState(false)
   const [kargoFirmalar, setKargoFirmalar] = useState<KargoFirma[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [subeMenuOpen, setSubeMenuOpen] = useState(false)
@@ -112,6 +121,9 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   useEffect(() => {
     if (pathname.startsWith("/dashboard/kargo-cari")) {
       setKargoOpen(true)
+    }
+    if (pathname.startsWith("/dashboard/14-no-hesap")) {
+      setOnDortNoOpen(true)
     }
   }, [pathname])
 
@@ -207,7 +219,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
           {canSeeMenu("kargo_cari") && (
             <li>
               <button
-                onClick={() => setKargoOpen(!kargoOpen)}
+                onClick={() => setKargoOpen(prev => !prev)}
                 className={cn(
                   "sidebar-menu-item flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                   pathname.startsWith("/dashboard/kargo-cari")
@@ -222,16 +234,11 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                 <ChevronDown className={cn("h-4 w-4 transition-transform duration-500", kargoOpen ? "rotate-0" : "-rotate-90")} />
               </button>
 
-              <div className={cn(
-                "grid overflow-hidden transition-[grid-template-rows,opacity,transform] duration-700 ease-out",
-                kargoOpen ? "grid-rows-[1fr] translate-y-0 opacity-100" : "grid-rows-[0fr] -translate-y-2 opacity-0"
-              )}>
-                <ul className={cn(
-                  "ml-4 mt-1 min-h-0 overflow-hidden border-l border-sidebar-border pl-4 transition-all duration-700 ease-out",
-                  kargoOpen ? "translate-y-0 blur-0" : "-translate-y-2 blur-[1px]"
-                )}>
+              {kargoOpen && (
+                <div className="sidebar-submenu-enter overflow-hidden">
+                  <ul className="ml-4 mt-1 overflow-hidden border-l border-sidebar-border pl-4">
                   {isAdmin && (
-                    <li>
+                    <li className="sidebar-submenu-row-in">
                       <Link
                         href="/dashboard/kargo-cari"
                         onClick={() => setMobileOpen(false)}
@@ -252,10 +259,10 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                       Firma yok. Genel Ayarlar'dan ekleyin.
                     </li>
                   ) : (
-                    kargoFirmalar.map((firma) => {
+                    kargoFirmalar.map((firma, index) => {
                       const isActive = pathname === `/dashboard/kargo-cari/${firma.id}`
                       return (
-                        <li key={firma.id}>
+                        <li key={firma.id} className="sidebar-submenu-row-in" style={{ animationDelay: `${80 + index * 60}ms` }}>
                           <Link
                             href={`/dashboard/kargo-cari/${firma.id}`}
                             onClick={() => setMobileOpen(false)}
@@ -273,8 +280,56 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                       )
                     })
                   )}
-                </ul>
-              </div>
+                  </ul>
+                </div>
+              )}
+            </li>
+          )}
+
+          {isAdmin && (
+            <li>
+              <button
+                onClick={() => setOnDortNoOpen(prev => !prev)}
+                className={cn(
+                  "sidebar-menu-item flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                  pathname.startsWith("/dashboard/14-no-hesap")
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <Landmark className="sidebar-menu-icon menu-icon-bank h-5 w-5 text-lime-500" />
+                  <span>14 No Hesap</span>
+                </div>
+                <ChevronDown className={cn("h-4 w-4 transition-transform duration-500", onDortNoOpen ? "rotate-0" : "-rotate-90")} />
+              </button>
+
+              {onDortNoOpen && (
+                <div className="sidebar-submenu-enter overflow-hidden">
+                  <ul className="ml-4 mt-1 overflow-hidden border-l border-sidebar-border pl-4">
+                  {onDortNoSubMenuItems.map((item, index) => {
+                    const isActive = pathname === item.href
+                    return (
+                      <li key={item.href} className="sidebar-submenu-row-in" style={{ animationDelay: `${80 + index * 70}ms` }}>
+                        <Link
+                          href={item.href}
+                          onClick={() => setMobileOpen(false)}
+                          className={cn(
+                            "sidebar-menu-item flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all",
+                            isActive
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                          )}
+                        >
+                          <div className="h-2 w-2 rounded-full bg-lime-500" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                  </ul>
+                </div>
+              )}
             </li>
           )}
 

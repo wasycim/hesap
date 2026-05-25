@@ -4,7 +4,7 @@
 CREATE TABLE IF NOT EXISTS kolon_ayarlari (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sube_id UUID REFERENCES subeler(id) ON DELETE CASCADE,
-  table_type TEXT NOT NULL CHECK (table_type IN ('gelir', 'gider')),
+  table_type TEXT NOT NULL CHECK (table_type IN ('gelir', 'gider', 'on_dort_no_hesap')),
   column_key TEXT NOT NULL,
   label TEXT NOT NULL,
   color TEXT NOT NULL DEFAULT 'bg-blue-600',

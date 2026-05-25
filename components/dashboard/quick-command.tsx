@@ -7,6 +7,7 @@ import {
   ChevronDown,
   Columns3,
   Eye,
+  Landmark,
   LayoutDashboard,
   Package,
   Search,
@@ -41,6 +42,12 @@ const NAV_ITEMS = [
   { title: "Hesap Ayarları", href: "/dashboard/hesap", adminOnly: false, icon: UserCog, color: "text-purple-500" },
 ]
 
+const ON_DORT_NO_ITEMS = [
+  { title: "Gelir Kalemleri", href: "/dashboard/14-no-hesap/gelir-kalemleri" },
+  { title: "14 No Kalemleri", href: "/dashboard/14-no-hesap/14-no-kalemleri" },
+  { title: "Banka ve Kalan", href: "/dashboard/14-no-hesap/banka-ve-kalan" },
+]
+
 function normalize(value: string) {
   return value.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
 }
@@ -50,6 +57,7 @@ export function QuickCommand() {
   const supabase = createClient()
   const [open, setOpen] = useState(false)
   const [kargoOpen, setKargoOpen] = useState(false)
+  const [onDortNoOpen, setOnDortNoOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [kargoFirmalar, setKargoFirmalar] = useState<Array<{ id: string; ad: string }>>([])
 
@@ -98,6 +106,14 @@ export function QuickCommand() {
   const showKargoGroup = !cleanQuery || normalize("Kargo Cari").includes(cleanQuery) || kargoFirmalar.some(firma => normalize(firma.ad).includes(cleanQuery))
   const shouldOpenKargo = kargoOpen || Boolean(cleanQuery)
   const visibleKargoFirmalar = kargoFirmalar.filter(firma => !cleanQuery || normalize("Kargo Cari").includes(cleanQuery) || normalize(firma.ad).includes(cleanQuery))
+  const visibleOnDortNoItems = ON_DORT_NO_ITEMS.filter(item => (
+    !cleanQuery ||
+    normalize("14 No Hesap").includes(cleanQuery) ||
+    normalize(item.title).includes(cleanQuery) ||
+    normalize(`14 No Hesap ${item.title}`).includes(cleanQuery)
+  ))
+  const showOnDortNoGroup = isAdmin && visibleOnDortNoItems.length > 0
+  const shouldOpenOnDortNo = onDortNoOpen || Boolean(cleanQuery)
 
   if (!open) return null
 
@@ -172,7 +188,37 @@ export function QuickCommand() {
               )}
             </div>
           )}
-          {results.length === 0 && !showKargoGroup && (
+          {showOnDortNoGroup && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setOnDortNoOpen(prev => !prev)}
+                className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+              >
+                <span className="flex items-center gap-2">
+                  <Landmark className="h-4 w-4 text-lime-500" />
+                  14 No Hesap
+                </span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${shouldOpenOnDortNo ? "rotate-0" : "-rotate-90"}`} />
+              </button>
+              {shouldOpenOnDortNo && (
+                <div className="ml-6 mt-1 space-y-1 border-l pl-3">
+                  {visibleOnDortNoItems.map(item => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setOpen(false)}
+                      className="block rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <Landmark className="mr-2 inline h-4 w-4 text-lime-500" />
+                      {item.title}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {results.length === 0 && !showKargoGroup && !showOnDortNoGroup && (
             <div className="px-3 py-8 text-center text-sm text-muted-foreground">Sonuç bulunamadı.</div>
           )}
         </div>

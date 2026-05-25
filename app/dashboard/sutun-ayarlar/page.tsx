@@ -45,6 +45,7 @@ export default function SutunAyarlarPage() {
   const [columns, setColumns] = useState<Record<TableType, TableColumnSetting[]>>({
     gelir: createDefaultRows("gelir"),
     gider: createDefaultRows("gider"),
+    on_dort_no_hesap: createDefaultRows("on_dort_no_hesap"),
   })
   const [newLabel, setNewLabel] = useState("")
   const [loading, setLoading] = useState(true)
@@ -140,6 +141,7 @@ export default function SutunAyarlarPage() {
     setColumns({
       gelir: mergeColumnSettings("gelir", getSavedColumns("gelir")),
       gider: mergeColumnSettings("gider", getSavedColumns("gider")),
+      on_dort_no_hesap: mergeColumnSettings("on_dort_no_hesap", getSavedColumns("on_dort_no_hesap")),
     })
     setLoading(false)
   }
@@ -233,7 +235,7 @@ export default function SutunAyarlarPage() {
   async function saveColumns() {
     if (!currentSube) return false
     setSaving(true)
-    const rows = [...columns.gelir, ...columns.gider].map((column) => ({
+    const rows = Object.values(columns).flat().map((column) => ({
       sube_id: currentSube.id,
       table_type: column.table_type,
       column_key: column.column_key,
@@ -260,7 +262,7 @@ export default function SutunAyarlarPage() {
       .from("kolon_ayarlari")
       .select("id, sube_id, table_type, column_key")
       .or(`sube_id.eq.${currentSube.id},sube_id.is.null`)
-      .in("table_type", ["gelir", "gider"])
+      .in("table_type", ["gelir", "gider", "on_dort_no_hesap"])
 
     if (existingError) {
       setSaving(false)
@@ -520,7 +522,7 @@ export default function SutunAyarlarPage() {
         <div>
           <h1 className="text-2xl font-bold">Sütun Ayarları</h1>
           <p className="text-sm text-muted-foreground">
-            {currentSube?.ad ? `${currentSube.ad} şubesi için gelir ve gider sütun ayarları.` : "Şube seçimi bekleniyor."}
+            {currentSube?.ad ? `${currentSube.ad} şubesi için gelir, gider ve 14 numara hesap sütun ayarları.` : "Şube seçimi bekleniyor."}
           </p>
         </div>
         <Button onClick={saveColumns} disabled={saving} className="gap-2">
@@ -549,12 +551,16 @@ export default function SutunAyarlarPage() {
             <TabsList>
               <TabsTrigger value="gelir">Gelir Tablosu</TabsTrigger>
               <TabsTrigger value="gider">Gider Tablosu</TabsTrigger>
+              <TabsTrigger value="on_dort_no_hesap">14 Numara Hesap</TabsTrigger>
             </TabsList>
             <TabsContent value="gelir" className="pt-4">
               {renderTableSettings("gelir")}
             </TabsContent>
             <TabsContent value="gider" className="pt-4">
               {renderTableSettings("gider")}
+            </TabsContent>
+            <TabsContent value="on_dort_no_hesap" className="pt-4">
+              {renderTableSettings("on_dort_no_hesap")}
             </TabsContent>
           </Tabs>
         </CardContent>

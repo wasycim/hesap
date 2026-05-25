@@ -98,6 +98,12 @@ function getGiderTotalKey(tarih: string, vardiya: string, isTekVardiya: boolean)
   return isTekVardiya ? tarih : `${tarih}__${vardiya || "S"}`
 }
 
+function compareDateVardiya(a: Pick<GelirRow, "tarih" | "vardiya">, b: Pick<GelirRow, "tarih" | "vardiya">) {
+  const dateCompare = a.tarih.localeCompare(b.tarih)
+  if (dateCompare !== 0) return dateCompare
+  return (VARDIYA_SIRASI[a.vardiya] ?? 99) - (VARDIYA_SIRASI[b.vardiya] ?? 99)
+}
+
 export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   const [rows, setRows] = useState<GelirRow[]>([])
   const [columnSettings, setColumnSettings] = useState<TableColumnSetting[]>(mergeColumnSettings("gelir", []))
@@ -220,7 +226,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
         kalan: (Number(row.toplam) || 0) - (giderTotals.get(getGiderTotalKey(row.tarih, row.vardiya || "S", isTekVardiya)) ?? (Number(row.giderler) || 0)),
         durum: row.durum || "KONTROL EDİLMEDİ",
         custom_values: row.custom_values || {},
-      })))
+      })).sort(compareDateVardiya))
     }
     setLoading(false)
   }
@@ -290,12 +296,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     }))
     
     // Yeni satırı ekle ve tarihe + vardiyaya göre sırala (S önce, A sonra)
-    const newRows = [...rows, ...newRowsToAdd].sort((a, b) => {
-      const dateCompare = a.tarih.localeCompare(b.tarih)
-      if (dateCompare !== 0) return dateCompare
-      // Aynı tarihte S önce A sonra
-      return (VARDIYA_SIRASI[a.vardiya] ?? 99) - (VARDIYA_SIRASI[b.vardiya] ?? 99)
-    })
+    const newRows = [...rows, ...newRowsToAdd].sort(compareDateVardiya)
     
     setRows(newRows)
     markDirty()

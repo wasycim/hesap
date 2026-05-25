@@ -1,4 +1,4 @@
-export type TableType = "gelir" | "gider"
+export type TableType = "gelir" | "gider" | "on_dort_no_hesap"
 
 export interface TableColumnSetting {
   id?: string
@@ -80,8 +80,26 @@ export const GIDER_DEFAULT_COLUMNS: TableColumnSetting[] = [
   { table_type: "gider", column_key: "genel_toplam", label: "GENEL TOPLAM", color: "bg-red-700", sort_order: 22, aktif: true, builtin: true },
 ]
 
+export const ON_DORT_NO_HESAP_DEFAULT_COLUMNS: TableColumnSetting[] = [
+  { table_type: "on_dort_no_hesap", column_key: "pamukkale_turizm", label: "PAMUKKALE TURİZM", color: "bg-yellow-500", sort_order: 0, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "anadolu_turizm", label: "ANADOLU TURİZM", color: "bg-yellow-500", sort_order: 1, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "inegol_seyahat", label: "İNEGÖL SEYAHAT", color: "bg-yellow-500", sort_order: 2, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "on_dort_no_giden", label: "14 NO GİDEN", color: "bg-orange-500", sort_order: 3, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "diger_kasa", label: "DİĞER - KASA", color: "bg-purple-600", sort_order: 4, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "gelir_toplam", label: "TOPLAM", color: "bg-green-600", sort_order: 5, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "kredi_karti_14_no", label: "14 NO KREDİ KARTI", color: "bg-blue-500", sort_order: 6, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "teslim", label: "TESLİM", color: "bg-blue-500", sort_order: 7, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "diger", label: "DİĞER", color: "bg-gray-500", sort_order: 8, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "gider_toplam", label: "TOPLAM", color: "bg-red-600", sort_order: 9, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "bankaya_gonderilen", label: "BANKAYA GÖNDERİLEN", color: "bg-blue-700", sort_order: 10, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "kontur_yukleme", label: "KONTÜR YÜKLEME", color: "bg-orange-500", sort_order: 11, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "kalan", label: "KALAN", color: "bg-gray-700", sort_order: 12, aktif: true, builtin: true },
+]
+
 export function getDefaultColumns(tableType: TableType): TableColumnSetting[] {
-  return tableType === "gelir" ? GELIR_DEFAULT_COLUMNS : GIDER_DEFAULT_COLUMNS
+  if (tableType === "gelir") return GELIR_DEFAULT_COLUMNS
+  if (tableType === "gider") return GIDER_DEFAULT_COLUMNS
+  return ON_DORT_NO_HESAP_DEFAULT_COLUMNS
 }
 
 export function mergeColumnSettings(tableType: TableType, saved: TableColumnSetting[] | null | undefined): TableColumnSetting[] {
