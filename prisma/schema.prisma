@@ -1,0 +1,81 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas   = ["public", "auth"]
+}
+
+enum Role {
+  ADMIN
+  PERSONNEL
+
+  @@schema("public")
+}
+
+enum AttendanceStatus {
+  OPEN
+  CLOSED
+
+  @@schema("public")
+}
+
+model User {
+  id           Int             @id @default(autoincrement())
+  tcKimlik     String          @unique @map("tc_kimlik") @db.VarChar(11)
+  name         String          @db.VarChar(120)
+  passwordHash String          @map("password_hash")
+  role         Role            @default(PERSONNEL)
+  qrToken      String          @unique @map("qr_token") @db.VarChar(128)
+  shiftId      Int?            @map("shift_id")
+  isActive     Boolean         @default(true) @map("is_active")
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  shift        Shift?          @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  logs         AttendanceLog[]
+
+  @@index([role])
+  @@index([shiftId])
+  @@map("users")
+  @@schema("public")
+}
+
+model Shift {
+  id          Int             @id @default(autoincrement())
+  name        String          @unique @db.VarChar(80)
+  startMinute Int             @map("start_minute")
+  endMinute   Int             @map("end_minute")
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  users       User[]
+  logs        AttendanceLog[]
+
+  @@map("shifts")
+  @@schema("public")
+}
+
+model AttendanceLog {
+  id              Int              @id @default(autoincrement())
+  userId          Int              @map("user_id")
+  shiftId         Int?             @map("shift_id")
+  checkInAt       DateTime         @map("check_in_at") @db.Timestamptz(6)
+  checkOutAt      DateTime?        @map("check_out_at") @db.Timestamptz(6)
+  workDate        DateTime         @map("work_date") @db.Date
+  status          AttendanceStatus @default(OPEN)
+  lateMinutes     Int              @default(0) @map("late_minutes")
+  overtimeMinutes Int              @default(0) @map("overtime_minutes")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shift           Shift?           @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([workDate])
+  @@index([shiftId])
+  @@map("attendance_logs")
+  @@schema("public")
+}

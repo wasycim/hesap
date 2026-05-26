@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import {
   BarChart3,
   Building2,
+  CalendarDays,
   ChevronDown,
   ChevronRight,
   Columns3,
@@ -46,6 +47,7 @@ const menuItems = [
   { key: "dashboard", title: "Genel Bakış", href: "/dashboard", icon: LayoutDashboard },
   { key: "gelir", title: "Gelir Tablosu", href: "/dashboard/gelir", icon: TrendingUp, color: "text-emerald-500" },
   { key: "gider", title: "Gider Tablosu", href: "/dashboard/gider", icon: TrendingDown, color: "text-red-500" },
+  { key: "mesai_takip", title: "Vardiya", href: "/dashboard/vardiya", icon: CalendarDays, color: "text-violet-500" },
   { key: "corbalar", title: "Çorbalar", href: "/dashboard/corbalar", icon: Soup, color: "text-orange-500" },
 ]
 
@@ -168,6 +170,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   }
 
   function canSeeMenu(key: string) {
+    if (key === "mesai_takip") return isAdmin
     if (key === "maaslar") return isAdmin
     return isAdmin || menuVisibility[key] !== false
   }

@@ -112,7 +112,7 @@ export default function KargoCariOzetPage() {
         .select("odenen, ay_yil")
         .eq("sube_id", currentSube.id)
         .eq("firma_id", firma.id)
-
+ 
       if (scope === "monthly") {
         odemeQuery = odemeQuery.eq("ay_yil", ayYil)
       }
