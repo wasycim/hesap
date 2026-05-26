@@ -344,6 +344,17 @@ export default function VardiyaPage() {
     setCustomTo(dateKey(range.from))
   }
 
+  function selectPreset(nextMode: FilterMode) {
+    const today = new Date()
+    setFilterMode(nextMode)
+    setAnchorDate(dateKey(today))
+    if (nextMode === "custom") {
+      setCustomFrom(dateKey(startOfMonth(today)))
+      setCustomTo(dateKey(endOfMonth(today)))
+    }
+    setDatePickerOpen(false)
+  }
+
   const hasChanges = Object.keys(dirtyAssignments).length > 0 || Object.keys(dirtyFixedShifts).length > 0
 
   if (isAdmin === false) {
@@ -371,57 +382,74 @@ export default function VardiyaPage() {
 
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="hidden sm:inline-flex">{personeller.length} personel</Badge>
-            <Tabs value={filterMode} onValueChange={(value) => setFilterMode(value as FilterMode)}>
-              <TabsList className="h-8">
-                <TabsTrigger value="day" className="px-2 text-xs">Gunluk</TabsTrigger>
-                <TabsTrigger value="week" className="px-2 text-xs">Haftalik</TabsTrigger>
-                <TabsTrigger value="month" className="px-2 text-xs">Aylik</TabsTrigger>
-                <TabsTrigger value="custom" className="px-2 text-xs">Tarih</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-              <PopoverTrigger asChild>
-                <Button type="button" variant="outline" className="h-8 min-w-[180px] justify-start gap-2 px-2.5 text-xs font-semibold">
-                  <CalendarDays className="h-3.5 w-3.5 text-violet-500" />
-                  <span className="truncate">{selectedRange.label}</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-auto rounded-xl p-0 shadow-xl">
-                <div className="border-b px-3 py-2">
-                  <div className="text-xs font-semibold">Tarih secimi</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {filterMode === "custom" ? "Baslangic ve bitis gununu sec." : "Gun sec, gorunum modu araligi belirler."}
+            <div className="flex flex-wrap items-center gap-1.5 rounded-xl border bg-card/90 p-1 shadow-sm">
+              <Tabs value={filterMode} onValueChange={(value) => setFilterMode(value as FilterMode)}>
+                <TabsList className="h-9 rounded-lg bg-muted/60 p-1">
+                  <TabsTrigger value="day" className="rounded-md px-3 text-xs">Gunluk</TabsTrigger>
+                  <TabsTrigger value="week" className="rounded-md px-3 text-xs">Haftalik</TabsTrigger>
+                  <TabsTrigger value="month" className="rounded-md px-3 text-xs">Aylik</TabsTrigger>
+                  <TabsTrigger value="custom" className="rounded-md px-3 text-xs">Aralik</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-lg" aria-label="Onceki tarih" onClick={() => moveRange(-1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="ghost" className="h-9 min-w-[220px] justify-start gap-2 rounded-lg px-3 text-left">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-emerald-500/12 text-emerald-700 dark:text-emerald-300">
+                      <CalendarDays className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[10px] font-semibold uppercase leading-none text-muted-foreground">{selectedRange.title}</span>
+                      <span className="block truncate text-xs font-bold leading-4">{selectedRange.label}</span>
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-auto overflow-hidden rounded-2xl border bg-card p-0 shadow-2xl">
+                  <div className="bg-slate-950 px-4 py-3 text-white">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="text-sm font-bold">Tarih sec</div>
+                        <div className="mt-0.5 text-xs text-white/65">{selectedRange.label}</div>
+                      </div>
+                      <div className="grid h-9 w-9 place-items-center rounded-lg bg-white/10">
+                        <CalendarDays className="h-4 w-4" />
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-4 gap-1 rounded-lg bg-white/8 p-1">
+                      <button type="button" onClick={() => selectPreset("day")} className="rounded-md px-2 py-1.5 text-[11px] font-semibold text-white/80 hover:bg-white/12">Bugun</button>
+                      <button type="button" onClick={() => selectPreset("week")} className="rounded-md px-2 py-1.5 text-[11px] font-semibold text-white/80 hover:bg-white/12">Hafta</button>
+                      <button type="button" onClick={() => selectPreset("month")} className="rounded-md px-2 py-1.5 text-[11px] font-semibold text-white/80 hover:bg-white/12">Ay</button>
+                      <button type="button" onClick={() => selectPreset("custom")} className="rounded-md px-2 py-1.5 text-[11px] font-semibold text-white/80 hover:bg-white/12">Aralik</button>
+                    </div>
                   </div>
-                </div>
-                {filterMode === "custom" ? (
-                  <Calendar
-                    mode="range"
-                    selected={{ from: selectedRange.from, to: selectedRange.to }}
-                    onSelect={selectDateRange}
-                    numberOfMonths={2}
-                    locale={tr}
-                    className="p-3"
-                  />
-                ) : (
-                  <Calendar
-                    mode="single"
-                    selected={parseISO(anchorDate)}
-                    onSelect={selectSingleDate}
-                    locale={tr}
-                    className="p-3"
-                  />
-                )}
-              </PopoverContent>
-            </Popover>
-            <Button type="button" variant="outline" size="icon" className="h-8 w-8" aria-label="Onceki tarih" onClick={() => moveRange(-1)}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="grid h-8 min-w-40 place-items-center rounded-md border bg-card px-3 text-xs font-semibold">
-              {selectedRange.label}
+                  <div className="p-2">
+                    {filterMode === "custom" ? (
+                      <Calendar
+                        mode="range"
+                        selected={{ from: selectedRange.from, to: selectedRange.to }}
+                        onSelect={selectDateRange}
+                        numberOfMonths={2}
+                        locale={tr}
+                        className="rounded-xl p-2 [--cell-size:--spacing(9)]"
+                      />
+                    ) : (
+                      <Calendar
+                        mode="single"
+                        selected={parseISO(anchorDate)}
+                        onSelect={selectSingleDate}
+                        locale={tr}
+                        className="rounded-xl p-2 [--cell-size:--spacing(9)]"
+                      />
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-lg" aria-label="Sonraki tarih" onClick={() => moveRange(1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
-            <Button type="button" variant="outline" size="icon" className="h-8 w-8" aria-label="Sonraki tarih" onClick={() => moveRange(1)}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
             <Button type="button" variant="outline" size="sm" className="h-8 gap-2" onClick={exportPdf} disabled={!personeller.length}>
               <FileText className="h-3.5 w-3.5" />
               PDF
