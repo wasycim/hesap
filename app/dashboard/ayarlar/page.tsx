@@ -20,6 +20,7 @@ import { ArrowDown, ArrowUp, GripVertical, Plus, Save, Trash2, Users, Package } 
 import { useSube } from "@/contexts/sube-context"
 import { logSecurityEvent } from "@/lib/audit-log"
 import { COLOR_OPTIONS, getColumnTextColor } from "@/lib/table-column-settings"
+import { VardiyaSettingsCard } from "@/components/dashboard/vardiya-settings-card"
 
 interface Ortak {
   id: string
@@ -790,6 +791,9 @@ export default function AyarlarPage() {
             )}
           </div>
         </div>
+
+        {/* Kargo Cari Firmalar Card - Tam genislik */}
+        <VardiyaSettingsCard />
 
         {/* Kargo Cari Firmalar Card - Tam genislik */}
         <div className="lg:col-span-2 bg-card rounded-xl border border-border shadow-sm overflow-hidden">
