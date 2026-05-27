@@ -20,7 +20,6 @@ import {
   Shield,
   ShieldCheck,
   Soup,
-  TimerReset,
   TrendingDown,
   TrendingUp,
   UserCog,
@@ -49,7 +48,7 @@ const menuItems = [
   { key: "gelir", title: "Gelir Tablosu", href: "/dashboard/gelir", icon: TrendingUp, color: "text-emerald-500" },
   { key: "gider", title: "Gider Tablosu", href: "/dashboard/gider", icon: TrendingDown, color: "text-red-500" },
   { key: "vardiya", title: "Vardiya", href: "/dashboard/vardiya", icon: CalendarDays, color: "text-violet-500" },
-  { key: "mesai_takip", title: "Mesai Takip", href: "/dashboard/mesai-takip", icon: TimerReset, color: "text-amber-500" },
+  { key: "mesai_takip", title: "Mesai Takip", href: "/dashboard/mesai-takip", icon: CalendarDays, color: "text-amber-500" },
   { key: "corbalar", title: "Çorbalar", href: "/dashboard/corbalar", icon: Soup, color: "text-orange-500" },
 ]
 
@@ -129,6 +128,45 @@ function AnimatedShiftMenuIcon() {
           45% { opacity: .92; transform: rotateX(68deg) translateY(1px); }
           58% { opacity: 0; transform: rotateX(88deg) translateY(4px); }
           76% { opacity: 0; transform: rotateX(0deg) translateY(-4px); }
+        }
+      `}</style>
+    </span>
+  )
+}
+
+function AnimatedMesaiTakipIcon() {
+  return (
+    <span className="relative grid h-5 w-5 shrink-0 place-items-center text-amber-500">
+      <svg viewBox="0 0 24 24" className="h-5 w-5 overflow-visible" aria-hidden="true">
+        <path d="M10 2h4" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+        <path d="M12 14v-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+        <g className="mesai-tracker-arrow">
+          <path
+            d="M4 13a8 8 0 0 1 8-7 8 8 0 1 1-5.3 14L4 17.6"
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+          />
+          <path d="M9 17H4v5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+        </g>
+      </svg>
+      <style jsx>{`
+        .mesai-tracker-arrow {
+          transform-box: view-box;
+          transform-origin: 12px 14px;
+        }
+
+        :global(.sidebar-menu-item:hover) .mesai-tracker-arrow,
+        :global(.sidebar-menu-item:focus-visible) .mesai-tracker-arrow {
+          animation: mesai-arrow-spin 900ms linear infinite;
+        }
+
+        @keyframes mesai-arrow-spin {
+          to {
+            transform: rotate(360deg);
+          }
         }
       `}</style>
     </span>
@@ -261,6 +299,8 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                 >
                   {item.href === "/dashboard/vardiya" ? (
                     <AnimatedShiftMenuIcon />
+                  ) : item.href === "/dashboard/mesai-takip" ? (
+                    <AnimatedMesaiTakipIcon />
                   ) : (
                     <item.icon className={cn("sidebar-menu-icon h-5 w-5", getMenuIconMotion(item.href), item.color)} />
                   )}
