@@ -1,6 +1,7 @@
 import "server-only"
 
 import bcrypt from "bcryptjs"
+import crypto from "crypto"
 import jwt from "jsonwebtoken"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
@@ -25,10 +26,22 @@ export type AuthSession = {
 
 export function jwtSecret() {
   const secret = process.env.JWT_SECRET
-  if (!secret || secret.length < 32) {
-    throw new Error("JWT_SECRET en az 32 karakter olmalı.")
+  if (secret && secret.length >= 32) {
+    return secret
   }
-  return secret
+
+  const fallbackSecret =
+    process.env.AUTH_SECRET ||
+    process.env.NEXTAUTH_SECRET ||
+    process.env.SUPABASE_JWT_SECRET ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY
+
+  if (fallbackSecret) {
+    return crypto.createHash("sha256").update(fallbackSecret).digest("hex")
+  }
+
+  throw new Error("JWT_SECRET veya server-side fallback secret tanimli olmali.")
 }
 
 export async function verifyPassword(password: string, hash: string) {
@@ -106,3 +119,4 @@ export async function getFreshAuthUser() {
     },
   })
 }
+

@@ -88,6 +88,7 @@ function roleLabel(role: User["role"]) {
 export function AdminAttendanceDashboard({ adminName }: DashboardProps) {
   const router = useRouter()
   const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
   const [users, setUsers] = useState<User[]>([])
   const [logs, setLogs] = useState<Log[]>([])
   const [shifts, setShifts] = useState<Shift[]>([])
@@ -100,6 +101,10 @@ export function AdminAttendanceDashboard({ adminName }: DashboardProps) {
   const [query, setQuery] = useState("")
   const [loading, setLoading] = useState(true)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   async function loadStaticData() {
     const userParams = new URLSearchParams()
@@ -212,7 +217,7 @@ export function AdminAttendanceDashboard({ adminName }: DashboardProps) {
           </div>
           <div className="flex items-center gap-2">
             <Button type="button" variant="outline" size="icon" aria-label="Tema değiştir" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {mounted && theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
             <Button type="button" variant="outline" className="gap-2" onClick={() => router.push("/terminal")}>
               <QrCode className="h-4 w-4" />
