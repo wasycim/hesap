@@ -15,4 +15,7 @@ next.user-config.*
 # Common ignores
 node_modules
 .next/
+desktop/release/
+desktop/build/icon.ico
+desktop/build/icon.png
 .DS_Store
