@@ -17,6 +17,16 @@ export default async function DashboardLayout({
     redirect("/auth/giris")
   }
 
+  const { data: profile } = await supabase
+    .from("user_profiles")
+    .select("dashboard_access")
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  if (profile?.dashboard_access === false) {
+    redirect("/login")
+  }
+
   return (
     <SubeProvider>
   <UnsavedChangesProvider>

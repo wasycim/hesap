@@ -329,7 +329,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
               </button>
 
               {kargoOpen && (
-                <div className="sidebar-submenu-enter overflow-hidden">
+                <div className="mt-1 overflow-hidden">
                   <ul className="ml-4 mt-1 overflow-hidden border-l border-sidebar-border pl-4">
                   {isAdmin && (
                     <li className="sidebar-submenu-row-in">
@@ -399,7 +399,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
               </button>
 
               {onDortNoOpen && (
-                <div className="sidebar-submenu-enter overflow-hidden">
+                <div className="mt-1 overflow-hidden">
                   <ul className="ml-4 mt-1 overflow-hidden border-l border-sidebar-border pl-4">
                   {onDortNoSubMenuItems.map((item, index) => {
                     const isActive = pathname === item.href
