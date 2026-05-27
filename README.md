@@ -497,6 +497,36 @@ Domain alias gerekiyorsa:
 npx vercel alias set <deployment-url> pamukkaleturizm.info
 ```
 
+## Windows .exe Uygulamasi
+
+Proje Electron ile Windows masaustu uygulamasi olarak da paketlenebilir. Masaustu uygulamasi `https://pamukkaleturizm.info` adresini yukleyen guvenli bir kabuk olarak calisir; bu sayede web sitesindeki normal guncellemeler kullanici uygulamayi actiginda otomatik gorunur.
+
+`.exe` olusturmak:
+
+```bash
+npm run desktop:dist
+```
+
+Installer su klasore cikar:
+
+```text
+desktop/release/
+```
+
+Lokal Next.js sunucusunu masaustu uygulamasinda denemek:
+
+```powershell
+$env:HESAP_DESKTOP_URL="http://localhost:3000"; npm run desktop:dev
+```
+
+Masaustu kabugunun kendisi guncellenecekse `package.json` icindeki `version` artirilir ve GitHub Releases'a publish edilir:
+
+```powershell
+$env:GH_TOKEN="github_token_degeri"; npm run desktop:publish
+```
+
+Kullanici uygulamayi actiginda yeni release varsa "Yeni guncelleme var" mesaji gorur. "Guncelle" butonuna tikladiginda installer indirilir, uygulama yeniden baslar ve yeni surum otomatik kurulur.
+
 ## Test ve Dogrulama
 
 Degisikliklerden sonra minimum kontroller:

@@ -2,15 +2,76 @@
   "name": "my-project",
   "version": "0.1.0",
   "private": true,
+  "description": "Hesap web ve QR mesai takip sistemi",
+  "main": "electron/main.js",
+  "author": "wasycim",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wasycim/hesap.git"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint .",
+    "desktop:icons": "node scripts/create-desktop-icon.js",
+    "desktop:dev": "npm run desktop:icons && electron .",
+    "desktop:pack": "npm run desktop:icons && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --x64 --dir",
+    "desktop:dist": "npm run desktop:icons && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win nsis --x64 --publish never",
+    "desktop:publish": "npm run desktop:icons && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win nsis --x64 --publish always",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:seed": "prisma db seed"
+  },
+  "build": {
+    "appId": "info.pamukkaleturizm.hesap",
+    "productName": "Hesap",
+    "copyright": "Copyright © 2026 Hesap",
+    "artifactName": "Hesap-Setup-${version}.${ext}",
+    "toolsets": {
+      "winCodeSign": "1.1.0"
+    },
+    "directories": {
+      "buildResources": "desktop/build",
+      "output": "desktop/release"
+    },
+    "files": [
+      "electron/**/*",
+      "desktop/build/icon.ico",
+      "desktop/build/icon.png",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "win": {
+      "icon": "desktop/build/icon.ico",
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Hesap"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "wasycim",
+        "repo": "hesap"
+      }
+    ]
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -55,6 +116,7 @@
     "clsx": "^2.1.1",
     "cmdk": "1.1.1",
     "date-fns": "4.1.0",
+    "electron-updater": "^6.8.3",
     "embla-carousel-react": "8.6.0",
     "html5-qrcode": "^2.3.8",
     "input-otp": "1.4.2",
@@ -83,6 +145,10 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^10.1.0",
+    "electron": "^42.3.0",
+    "electron-builder": "^26.8.1",
+    "png-to-ico": "^3.0.1",
     "postcss": "^8.5",
     "tailwindcss": "^4.2.0",
     "tw-animate-css": "1.3.3",
