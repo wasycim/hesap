@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Role } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
-import { getAuthSession } from "@/lib/qr-attendance/auth"
+import { requireAnyMesaiAdmin } from "@/lib/qr-attendance/admin"
 import { getShiftLabel } from "@/lib/qr-attendance/time"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 function dateParam(value: string | null) {
   if (!value) return null
@@ -11,20 +12,39 @@ function dateParam(value: string | null) {
 }
 
 export async function GET(request: NextRequest) {
-  const session = await getAuthSession()
+  const session = await requireAnyMesaiAdmin()
 
-  if (!session || session.role !== Role.ADMIN) {
+  if (!session.ok) {
     return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
   }
 
   const searchParams = request.nextUrl.searchParams
   const from = dateParam(searchParams.get("from"))
   const to = dateParam(searchParams.get("to"))
-  const shiftId = Number(searchParams.get("shiftId") || 0)
+  const shiftId = searchParams.get("shiftId") || "all"
+  const subeId = searchParams.get("subeId")
   const status = searchParams.get("status")
+  const tcKimlikList: string[] = []
+
+  if (subeId && subeId !== "all") {
+    const admin = createAdminClient()
+    const { data: profiles, error } = await admin
+      .from("user_profiles")
+      .select("tc_kimlik")
+      .eq("sube_id", subeId)
+      .not("tc_kimlik", "is", null)
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    tcKimlikList.push(...(profiles || []).map((profile) => profile.tc_kimlik).filter(Boolean))
+  }
 
   const logs = await prisma.attendanceLog.findMany({
     where: {
+      user: { isActive: true, role: Role.PERSONNEL },
+      ...(subeId && subeId !== "all" ? { user: { isActive: true, role: Role.PERSONNEL, tcKimlik: { in: tcKimlikList } } } : {}),
       ...(from || to
         ? {
             workDate: {
@@ -33,7 +53,7 @@ export async function GET(request: NextRequest) {
             },
           }
         : {}),
-      ...(shiftId ? { shiftId } : {}),
+      ...(shiftId !== "all" ? { shift: { name: { contains: shiftId } } } : {}),
       ...(status === "late" ? { lateMinutes: { gt: 0 } } : {}),
       ...(status === "overtime" ? { overtimeMinutes: { gt: 0 } } : {}),
       ...(status === "open" ? { checkOutAt: null } : {}),

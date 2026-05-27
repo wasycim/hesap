@@ -1,8 +1,8 @@
-import { PersonnelDynamicQr } from "@/components/mesai/personnel-dynamic-qr"
+import { PersonnelTerminalScanner } from "@/components/mesai/personnel-terminal-scanner"
 import { requireAuth } from "@/lib/qr-attendance/auth"
 
 export default async function MesaiQrPage() {
-  await requireAuth()
+  const session = await requireAuth()
 
-  return <PersonnelDynamicQr />
+  return <PersonnelTerminalScanner userName={session.name} />
 }
