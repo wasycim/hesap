@@ -48,6 +48,27 @@ export function PersonnelTerminalScanner({ userName }: PersonnelTerminalScannerP
   const [message, setMessage] = useState("Terminal QR'ini okutun")
   const [detail, setDetail] = useState("Kamerayi sabit /terminal ekranindaki QR koda tutun.")
   const [cameraError, setCameraError] = useState("")
+  const [cameraActive, setCameraActive] = useState(false)
+
+  const stopScanner = useCallback(async (updateState = true) => {
+    const scanner = scannerRef.current
+    scannerRef.current = null
+    if (updateState) setCameraActive(false)
+
+    if (!scanner) return
+
+    try {
+      await scanner.stop()
+    } catch {
+      // Kamera zaten durduysa devam et.
+    }
+
+    try {
+      await scanner.clear()
+    } catch {
+      // Temizleme desteklenmiyorsa islem basarili sayilir.
+    }
+  }, [])
 
   const reset = useCallback(() => {
     lockedRef.current = false
@@ -79,13 +100,16 @@ export function PersonnelTerminalScanner({ userName }: PersonnelTerminalScannerP
       const checkText = payload.action === "CHECK_IN" ? "GIRIS ALINDI" : "CIKIS ALINDI"
       setState("success")
       setMessage(checkText)
-      setDetail(`${payload.user?.name ?? userName} - ${payload.shift?.label ?? "Vardiya yok"}`)
+      setDetail(`${payload.user?.name ?? userName} - ${payload.shift?.label ?? "Vardiya yok"} - Kamera kapatildi.`)
       playTone("success")
+      await stopScanner()
     }
 
     if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
-    resetTimerRef.current = setTimeout(reset, 2800)
-  }, [reset, userName])
+    if (!response.ok) {
+      resetTimerRef.current = setTimeout(reset, 2800)
+    }
+  }, [reset, stopScanner, userName])
 
   useEffect(() => {
     let mounted = true
@@ -111,8 +135,9 @@ export function PersonnelTerminalScanner({ userName }: PersonnelTerminalScannerP
           handleScan,
           () => undefined,
         )
+        if (mounted) setCameraActive(true)
       } catch {
-        setCameraError("Kamera baslatilamadi. Tarayici kamera iznini kontrol edin.")
+        if (mounted) setCameraError("Kamera baslatilamadi. Tarayici kamera iznini kontrol edin.")
       }
     }
 
@@ -121,11 +146,18 @@ export function PersonnelTerminalScanner({ userName }: PersonnelTerminalScannerP
     return () => {
       mounted = false
       if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
-      const scanner = scannerRef.current
-      scannerRef.current = null
-      scanner?.stop().then(() => scanner.clear()).catch(() => undefined)
+      stopScanner(false)
     }
-  }, [handleScan])
+  }, [handleScan, stopScanner])
+
+  function handleManualReset() {
+    if (!cameraActive && typeof window !== "undefined") {
+      window.location.reload()
+      return
+    }
+
+    reset()
+  }
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" })
@@ -150,7 +182,7 @@ export function PersonnelTerminalScanner({ userName }: PersonnelTerminalScannerP
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button type="button" variant="secondary" size="icon" aria-label="Sifirla" onClick={reset}>
+            <Button type="button" variant="secondary" size="icon" aria-label="Sifirla" onClick={handleManualReset}>
               <RotateCcw className="h-4 w-4" />
             </Button>
             <Button type="button" variant="secondary" size="icon" aria-label="Cikis" onClick={logout}>
@@ -185,6 +217,11 @@ export function PersonnelTerminalScanner({ userName }: PersonnelTerminalScannerP
             <p className="mt-4 text-base text-white/65">{detail}</p>
             {cameraError ? (
               <p className="mt-5 rounded-lg border border-red-400/40 bg-red-500/10 p-3 text-sm text-red-100">{cameraError}</p>
+            ) : null}
+            {!cameraActive && state === "success" ? (
+              <p className="mt-5 rounded-lg border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-100">
+                Islem tamamlandi. Guvenlik icin kamera otomatik kapatildi.
+              </p>
             ) : null}
           </aside>
         </section>
