@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { Building2, Plus, Trash2, UserCog, UserPlus, UserX } from "lucide-react"
+import { Building2, KeyRound, Plus, Trash2, UserCog, UserPlus, UserX } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -29,6 +29,7 @@ interface AdminUser {
   display_name?: string | null
   trusted_ips?: string[]
   is_admin: boolean
+  dashboard_access?: boolean
   sube_id: string | null
   vardiya: string | null
   subeler?: { ad?: string } | null
@@ -46,6 +47,11 @@ function formatVardiya(value: string | null) {
   return "Tek vardiya"
 }
 
+function formatAccountType(user: AdminUser) {
+  if (user.dashboard_access === false) return "Sadece Mesai"
+  return user.is_admin ? "Yönetici" : "Kullanıcı"
+}
+
 function getBranchDeleteErrorMessage(error: { code?: string; message?: string }) {
   const message = error.message || ""
   if (error.code === "23503" || message.includes("user_profiles_sube_id_fkey")) {
@@ -60,6 +66,7 @@ export default function AdminAyarlarPage() {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [email, setEmail] = useState("")
   const [tcKimlik, setTcKimlik] = useState("")
+  const [password, setPassword] = useState("")
   const [displayName, setDisplayName] = useState("")
   const [subeId, setSubeId] = useState("")
   const [role, setRole] = useState("user")
@@ -98,7 +105,7 @@ export default function AdminAyarlarPage() {
     setEditTcKimlik(selectedUser.tc_kimlik || "")
     setEditTrustedIps((selectedUser.trusted_ips || []).join(", "))
     setEditSubeId(selectedUser.sube_id || subeler[0]?.id || "")
-    setEditRole(selectedUser.is_admin ? "admin" : "user")
+    setEditRole(selectedUser.dashboard_access === false ? "attendance_only" : selectedUser.is_admin ? "admin" : "user")
     setEditVardiya(selectedUser.vardiya || "T")
   }, [selectedUser, subeler])
 
@@ -109,8 +116,8 @@ export default function AdminAyarlarPage() {
   }
 
   async function createUser() {
-    if (!email.trim() || tcKimlik.replace(/\D/g, "").length !== 11 || !subeId) {
-      toast.error("E-posta, TC ve şube zorunlu.")
+    if (tcKimlik.replace(/\D/g, "").length !== 11 || !subeId || !displayName.trim() || password.length < 6) {
+      toast.error("İsim soyisim, TC, şifre ve şube zorunlu.")
       return
     }
 
@@ -123,8 +130,10 @@ export default function AdminAyarlarPage() {
         email,
         tcKimlik,
         displayName,
+        password,
         subeId,
         isAdmin: role === "admin",
+        dashboardAccess: role !== "attendance_only",
         vardiya,
       }),
     })
@@ -140,17 +149,18 @@ export default function AdminAyarlarPage() {
 
     setEmail("")
     setTcKimlik("")
+    setPassword("")
     setDisplayName("")
     setRole("user")
     setVardiya("T")
-    setMessage("Kullanıcı oluşturuldu. İlk şifre: 123456")
+    setMessage("Kullanıcı oluşturuldu.")
     toast.success("Değişiklikler kaydedildi ✅")
     setSavingUser(false)
     loadUsers()
   }
 
   async function updateUser() {
-    if (!selectedUserId || editTcKimlik.replace(/\D/g, "").length !== 11 || !editSubeId) {
+    if (!selectedUserId || editTcKimlik.replace(/\D/g, "").length !== 11 || !editSubeId || !editDisplayName.trim()) {
       toast.error("Düzenlenecek kullanıcı, TC ve şube zorunlu.")
       return
     }
@@ -167,6 +177,7 @@ export default function AdminAyarlarPage() {
         trustedIps: editTrustedIps,
         subeId: editSubeId,
         isAdmin: editRole === "admin",
+        dashboardAccess: editRole !== "attendance_only",
         vardiya: editVardiya,
       }),
     })
@@ -312,7 +323,7 @@ export default function AdminAyarlarPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>E-posta</Label>
+              <Label>E-posta (opsiyonel)</Label>
               <Input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="test.kullanici@mail.com" />
             </div>
             <div className="space-y-2">
@@ -328,6 +339,20 @@ export default function AdminAyarlarPage() {
                 inputMode="numeric"
                 maxLength={11}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Şifre</Label>
+              <div className="relative">
+                <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="pl-9"
+                  type="password"
+                  placeholder="En az 6 karakter"
+                  autoComplete="new-password"
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Şube</Label>
@@ -352,6 +377,7 @@ export default function AdminAyarlarPage() {
                   <SelectContent>
                     <SelectItem value="user">Kullanıcı</SelectItem>
                     <SelectItem value="admin">Yönetici</SelectItem>
+                    <SelectItem value="attendance_only">Sadece Mesai</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -447,6 +473,7 @@ export default function AdminAyarlarPage() {
                   <SelectContent>
                     <SelectItem value="user">Kullanıcı</SelectItem>
                     <SelectItem value="admin">Yönetici</SelectItem>
+                    <SelectItem value="attendance_only">Sadece Mesai</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -517,7 +544,7 @@ export default function AdminAyarlarPage() {
         </CardHeader>
         <CardContent>
           <div className="mobile-scroll overflow-x-auto rounded-lg border">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[780px] text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="p-3 text-left">E-posta</th>
@@ -525,6 +552,7 @@ export default function AdminAyarlarPage() {
                   <th className="p-3 text-left">Görünen ad</th>
                   <th className="p-3 text-left">Rol</th>
                   <th className="p-3 text-left">Şube</th>
+                  <th className="p-3 text-left">Erişim</th>
                   <th className="p-3 text-left">Vardiya</th>
                   <th className="p-3 text-right">İşlem</th>
                 </tr>
@@ -535,8 +563,9 @@ export default function AdminAyarlarPage() {
                     <td className="p-3">{user.email || "-"}</td>
                     <td className="p-3">{user.tc_kimlik || "-"}</td>
                     <td className="p-3">{user.display_name || "-"}</td>
-                    <td className="p-3">{user.is_admin ? "Yönetici" : "Kullanıcı"}</td>
+                    <td className="p-3">{formatAccountType(user)}</td>
                     <td className="p-3">{user.subeler?.ad || "-"}</td>
+                    <td className="p-3">{user.dashboard_access === false ? "Sadece Mesai" : "Dashboard"}</td>
                     <td className="p-3">{formatVardiya(user.vardiya)}</td>
                     <td className="p-3 text-right">
                       <Button

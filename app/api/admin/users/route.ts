@@ -11,16 +11,24 @@ async function requireAdmin() {
 
   const { data: profile } = await supabase
     .from("user_profiles")
-    .select("is_admin")
+    .select("is_admin, dashboard_access")
     .eq("user_id", user.id)
     .single()
 
-  return { user, isAdmin: Boolean(profile?.is_admin) }
+  return { user, isAdmin: Boolean(profile?.is_admin && profile.dashboard_access !== false) }
 }
 
 function normalizeTrustedIps(value: unknown) {
   const rawItems = Array.isArray(value) ? value : String(value || "").split(/[\n,; ]+/)
   return Array.from(new Set(rawItems.map(item => String(item).trim()).filter(Boolean)))
+}
+
+function syntheticEmailForTc(tcKimlik: string) {
+  return `personel-${tcKimlik}@pamukkaleturizm.info`
+}
+
+function normalizeDashboardAccess(value: unknown) {
+  return value !== false
 }
 
 export async function GET() {
@@ -33,7 +41,7 @@ export async function GET() {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from("user_profiles")
-    .select("user_id, email, tc_kimlik, is_admin, sube_id, vardiya, created_at, subeler:sube_id(ad)")
+    .select("user_id, email, display_name, tc_kimlik, is_admin, dashboard_access, sube_id, vardiya, created_at, subeler:sube_id(ad)")
     .order("created_at", { ascending: false })
 
   if (error) {
@@ -45,11 +53,13 @@ export async function GET() {
   const authDisplayNameById = new Map((authData?.users || []).map(user => [user.id, user.user_metadata?.display_name || ""]))
   const authTcById = new Map((authData?.users || []).map(user => [user.id, normalizeTcKimlik(user.user_metadata?.tc_kimlik)]))
   const authTrustedIpsById = new Map((authData?.users || []).map(user => [user.id, normalizeTrustedIps(user.user_metadata?.trusted_ips)]))
+
   const users = (data || []).map(profile => ({
     ...profile,
     email: profile.email || authEmailById.get(profile.user_id) || null,
-    display_name: authDisplayNameById.get(profile.user_id) || "",
+    display_name: profile.display_name || authDisplayNameById.get(profile.user_id) || "",
     tc_kimlik: normalizeTcKimlik(profile.tc_kimlik) || authTcById.get(profile.user_id) || "",
+    dashboard_access: profile.dashboard_access !== false,
     trusted_ips: authTrustedIpsById.get(profile.user_id) || [],
   }))
 
@@ -64,16 +74,22 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => ({}))
-  const email = String(body.email || "").trim().toLowerCase()
   const tcKimlik = normalizeTcKimlik(body.tcKimlik)
+  const email = String(body.email || "").trim().toLowerCase() || syntheticEmailForTc(tcKimlik)
+  const password = String(body.password || "123456")
   const displayName = String(body.displayName || "").trim()
   const subeId = String(body.subeId || "").trim()
-  const isNewUserAdmin = Boolean(body.isAdmin)
+  const dashboardAccess = normalizeDashboardAccess(body.dashboardAccess)
+  const isNewUserAdmin = dashboardAccess && Boolean(body.isAdmin)
   const vardiya = body.vardiya === "S" || body.vardiya === "A" || body.vardiya === "T" ? body.vardiya : "T"
   const trustedIps = normalizeTrustedIps(body.trustedIps)
 
-  if (!email || !tcKimlik || !subeId) {
-    return NextResponse.json({ error: "E-posta, TC ve şube zorunlu." }, { status: 400 })
+  if (!tcKimlik || !subeId || !displayName) {
+    return NextResponse.json({ error: "TC, isim soyisim ve şube zorunlu." }, { status: 400 })
+  }
+
+  if (password.length < 6) {
+    return NextResponse.json({ error: "Şifre en az 6 karakter olmalı." }, { status: 400 })
   }
 
   if (!isValidTcKimlik(tcKimlik)) {
@@ -93,9 +109,14 @@ export async function POST(request: NextRequest) {
 
   const { data: authData, error: authError } = await admin.auth.admin.createUser({
     email,
-    password: "123456",
+    password,
     email_confirm: true,
-    user_metadata: { display_name: displayName, tc_kimlik: tcKimlik, trusted_ips: trustedIps },
+    user_metadata: {
+      display_name: displayName,
+      tc_kimlik: tcKimlik,
+      trusted_ips: trustedIps,
+      dashboard_access: dashboardAccess,
+    },
   })
 
   if (authError || !authData.user) {
@@ -105,8 +126,10 @@ export async function POST(request: NextRequest) {
   const { error: profileError } = await admin.from("user_profiles").upsert({
     user_id: authData.user.id,
     email,
+    display_name: displayName,
     tc_kimlik: tcKimlik,
     is_admin: isNewUserAdmin,
+    dashboard_access: dashboardAccess,
     sube_id: subeId,
     vardiya,
     updated_at: new Date().toISOString(),
@@ -120,7 +143,16 @@ export async function POST(request: NextRequest) {
     user_id: actor.id,
     user_email: actor.email,
     event_type: "user_create",
-    details: { created_email: email, display_name: displayName, tc_kimlik: tcKimlik, sube_id: subeId, is_admin: isNewUserAdmin, vardiya, trusted_ips: trustedIps },
+    details: {
+      created_email: email,
+      display_name: displayName,
+      tc_kimlik: tcKimlik,
+      sube_id: subeId,
+      is_admin: isNewUserAdmin,
+      dashboard_access: dashboardAccess,
+      vardiya,
+      trusted_ips: trustedIps,
+    },
   })
 
   return NextResponse.json({ ok: true })
@@ -138,12 +170,17 @@ export async function PATCH(request: NextRequest) {
   const tcKimlik = normalizeTcKimlik(body.tcKimlik)
   const displayName = String(body.displayName || "").trim()
   const subeId = String(body.subeId || "").trim()
-  const nextIsAdmin = Boolean(body.isAdmin)
+  const nextDashboardAccess = normalizeDashboardAccess(body.dashboardAccess)
+  const nextIsAdmin = nextDashboardAccess && Boolean(body.isAdmin)
   const vardiya = body.vardiya === "S" || body.vardiya === "A" || body.vardiya === "T" ? body.vardiya : "T"
   const trustedIps = normalizeTrustedIps(body.trustedIps)
 
-  if (!userId || !tcKimlik || !subeId) {
-    return NextResponse.json({ error: "Kullanıcı, TC ve şube zorunlu." }, { status: 400 })
+  if (!userId || !tcKimlik || !subeId || !displayName) {
+    return NextResponse.json({ error: "Kullanıcı, TC, isim soyisim ve şube zorunlu." }, { status: 400 })
+  }
+
+  if (userId === actor.id && (!nextDashboardAccess || !nextIsAdmin)) {
+    return NextResponse.json({ error: "Kendi yönetici/dashboard yetkinizi kapatamazsınız." }, { status: 400 })
   }
 
   if (!isValidTcKimlik(tcKimlik)) {
@@ -163,7 +200,12 @@ export async function PATCH(request: NextRequest) {
   }
 
   const { error: authUpdateError } = await admin.auth.admin.updateUserById(userId, {
-    user_metadata: { display_name: displayName, tc_kimlik: tcKimlik, trusted_ips: trustedIps },
+    user_metadata: {
+      display_name: displayName,
+      tc_kimlik: tcKimlik,
+      trusted_ips: trustedIps,
+      dashboard_access: nextDashboardAccess,
+    },
   })
 
   if (authUpdateError) {
@@ -173,8 +215,10 @@ export async function PATCH(request: NextRequest) {
   const { error: profileError } = await admin
     .from("user_profiles")
     .update({
+      display_name: displayName,
       tc_kimlik: tcKimlik,
       is_admin: nextIsAdmin,
+      dashboard_access: nextDashboardAccess,
       sube_id: subeId,
       vardiya,
       updated_at: new Date().toISOString(),
@@ -189,7 +233,16 @@ export async function PATCH(request: NextRequest) {
     user_id: actor.id,
     user_email: actor.email,
     event_type: "user_update",
-    details: { updated_user_id: userId, display_name: displayName, tc_kimlik: tcKimlik, sube_id: subeId, is_admin: nextIsAdmin, vardiya, trusted_ips: trustedIps },
+    details: {
+      updated_user_id: userId,
+      display_name: displayName,
+      tc_kimlik: tcKimlik,
+      sube_id: subeId,
+      is_admin: nextIsAdmin,
+      dashboard_access: nextDashboardAccess,
+      vardiya,
+      trusted_ips: trustedIps,
+    },
   })
 
   return NextResponse.json({ ok: true })
@@ -210,13 +263,13 @@ export async function DELETE(request: NextRequest) {
   }
 
   if (userId === actor.id) {
-    return NextResponse.json({ error: "Kendi hesabinizi silemezsiniz." }, { status: 400 })
+    return NextResponse.json({ error: "Kendi hesabınızı silemezsiniz." }, { status: 400 })
   }
 
   const admin = createAdminClient()
   const { data: profile } = await admin
     .from("user_profiles")
-    .select("email, tc_kimlik, is_admin, sube_id, vardiya")
+    .select("email, display_name, tc_kimlik, is_admin, dashboard_access, sube_id, vardiya")
     .eq("user_id", userId)
     .maybeSingle()
 
@@ -235,8 +288,10 @@ export async function DELETE(request: NextRequest) {
     details: {
       deleted_user_id: userId,
       deleted_email: profile?.email || null,
+      display_name: profile?.display_name || null,
       tc_kimlik: profile?.tc_kimlik || null,
       was_admin: Boolean(profile?.is_admin),
+      dashboard_access: profile?.dashboard_access !== false,
       sube_id: profile?.sube_id || null,
       vardiya: profile?.vardiya || null,
     },

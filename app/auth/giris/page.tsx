@@ -69,6 +69,37 @@ export default function GirisPage() {
       return
     }
 
+    const { data: { user: signedUser } } = await supabase.auth.getUser()
+    const { data: profile } = signedUser
+      ? await supabase
+        .from("user_profiles")
+        .select("dashboard_access")
+        .eq("user_id", signedUser.id)
+        .maybeSingle()
+      : { data: null }
+
+    if (profile?.dashboard_access === false) {
+      await supabase.auth.signOut()
+
+      if (loginMode === "tc") {
+        const mesaiResponse = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tcKimlik: cleanTc, password }),
+        })
+
+        if (mesaiResponse.ok) {
+          router.push("/mesai-qr")
+          router.refresh()
+          return
+        }
+      }
+
+      setError("Bu kullanici sadece mesai giris cikis icin yetkili.")
+      setLoading(false)
+      return
+    }
+
     await logSecurityEvent("login", {
       email: loginEmail,
       login_method: loginMode,
