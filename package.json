@@ -1,7 +1,8 @@
 {
   "name": "my-project",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
+  "license": "UNLICENSED",
   "description": "Hesap web ve QR mesai takip sistemi",
   "main": "electron/main.js",
   "author": "wasycim",

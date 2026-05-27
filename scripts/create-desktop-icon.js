@@ -5,7 +5,7 @@ const pngToIco = pngToIcoModule.default || pngToIcoModule
 
 async function main() {
   const root = path.resolve(__dirname, "..")
-  const sourcePng = path.join(root, "public", "apple-icon.png")
+  const sourcePng = path.join(root, "public", "iconw.png")
   const outputDir = path.join(root, "desktop", "build")
   const outputPng = path.join(outputDir, "icon.png")
   const outputIco = path.join(outputDir, "icon.ico")

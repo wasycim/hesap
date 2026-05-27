@@ -12,7 +12,6 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: 'Hesap Rapor Sistemi',
   description: 'Hesap ve finansal rapor yönetim sistemi',
-  generator: 'v0.app',
   manifest: '/manifest.webmanifest',
   applicationName: 'Hesap Rapor',
   appleWebApp: {
@@ -26,21 +25,12 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: '/w-logo-light.svg',
-        media: '(prefers-color-scheme: light)',
-        type: 'image/svg+xml',
-      },
-      {
-        url: '/w-logo-dark.svg',
-        media: '(prefers-color-scheme: dark)',
-        type: 'image/svg+xml',
-      },
-      {
-        url: '/w-logo-light.svg',
-        type: 'image/svg+xml',
+        url: '/iconw.png',
+        sizes: '1024x1024',
+        type: 'image/png',
       },
     ],
-    shortcut: '/w-logo-light.svg',
+    shortcut: '/iconw.png',
     apple: '/iconw.png',
   },
 }

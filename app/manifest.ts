@@ -13,28 +13,18 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: "portrait",
     icons: [
       {
-        src: "/w-logo-light.svg",
-        sizes: "any",
-        type: "image/svg+xml",
-      },
-      {
-        src: "/w-logo-dark.svg",
-        sizes: "any",
-        type: "image/svg+xml",
-      },
-      {
         src: "/iconw.png",
         sizes: "1024x1024",
         type: "image/png",
       },
       {
-        src: "/iconw2.png",
+        src: "/iconw.png",
         sizes: "1024x1024",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/iconw2.png",
+        src: "/iconw.png",
         sizes: "1024x1024",
         type: "image/png",
         purpose: "maskable",
