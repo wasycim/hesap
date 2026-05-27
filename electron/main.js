@@ -34,6 +34,33 @@ function isAllowedUrl(value) {
   }
 }
 
+function isInternalBlankWindow(value) {
+  return !value || value === "about:blank" || value.startsWith("about:blank")
+}
+
+function getPopupWindowOptions() {
+  return {
+    width: 1100,
+    height: 780,
+    minWidth: 900,
+    minHeight: 640,
+    title: "Hesap PDF",
+    parent: mainWindow || undefined,
+    modal: false,
+    icon: getIconPath(),
+    backgroundColor: "#f8fafc",
+    show: true,
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      webSecurity: true,
+      spellcheck: false,
+    },
+  }
+}
+
 function sendUpdateStatus(status, payload = {}) {
   if (!mainWindow || mainWindow.isDestroyed()) return
   mainWindow.webContents.send("desktop:update-status", {
@@ -77,13 +104,19 @@ function createWindow() {
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isInternalBlankWindow(url)) {
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: getPopupWindowOptions(),
+      }
+    }
     if (isAllowedUrl(url)) return { action: "allow" }
     shell.openExternal(url)
     return { action: "deny" }
   })
 
   mainWindow.webContents.on("will-navigate", (event, url) => {
-    if (isAllowedUrl(url)) return
+    if (isAllowedUrl(url) || isInternalBlankWindow(url)) return
     event.preventDefault()
     shell.openExternal(url)
   })
