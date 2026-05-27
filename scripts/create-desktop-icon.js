@@ -1,6 +1,7 @@
 const fs = require("fs")
 const path = require("path")
 const pngToIcoModule = require("png-to-ico")
+const sharp = require("sharp")
 const pngToIco = pngToIcoModule.default || pngToIcoModule
 
 async function main() {
@@ -17,11 +18,21 @@ async function main() {
   }
 
   fs.mkdirSync(outputDir, { recursive: true })
-  fs.copyFileSync(sourcePng, outputPng)
-  fs.copyFileSync(sourcePng, appIcon)
-  fs.copyFileSync(sourcePng, appAppleIcon)
 
-  const ico = await pngToIco(sourcePng)
+  const iconBuffer = await sharp(sourcePng)
+    .extract({ left: 202, top: 250, width: 620, height: 620 })
+    .resize(1024, 1024, {
+      fit: "cover",
+      kernel: "lanczos3",
+    })
+    .png()
+    .toBuffer()
+
+  fs.writeFileSync(outputPng, iconBuffer)
+  fs.writeFileSync(appIcon, iconBuffer)
+  fs.writeFileSync(appAppleIcon, iconBuffer)
+
+  const ico = await pngToIco(iconBuffer)
   fs.writeFileSync(outputIco, ico)
 
   console.log(`Desktop icon olusturuldu: ${outputIco}`)
