@@ -36,7 +36,7 @@ Bu dokuman projeyi calistirmak, veritabani yapisini kurmak, QR mesai akisini anl
 | Auth | Supabase Auth, JWT, HTTP-only cookie |
 | QR | `qrcode`, `html5-qrcode` |
 | Sifreleme | bcrypt password hash |
-| Raporlama | Tarayici uzerinden PDF cikti akisi |
+| Raporlama | Tarayici ve masaustu uygulama icinden PDF cikti akisi |
 | Deployment | Vercel |
 | Tema | Responsive tasarim, dark mode |
 
@@ -473,6 +473,8 @@ Tarih filtreleri:
 
 PDF raporlar aktif filtreye gore hazirlanir. Ornegin haftalik filtre seciliyse sadece o haftanin vardiya veya mesai verileri yazdirilir.
 
+Masaustu `.exe` icinde PDF butonlari uygulamanin kendi yazdirma penceresini acar. PDF akisi `about:blank` penceresini Windows'a dis baglanti olarak gondermez; bu nedenle "Bu uygulama baglantisini acmak icin 'about' edinin" hatasi beklenmez.
+
 ## Deployment
 
 Production deploy Vercel uzerinden yapilir.
@@ -544,6 +546,10 @@ $env:GH_TOKEN="github_token_degeri"; npm run desktop:publish
 ```
 
 Kullanici uygulamayi actiginda yeni release varsa "Yeni guncelleme var" mesaji gorur. "Guncelle" butonuna tikladiginda installer indirilir, uygulama yeniden baslar ve yeni surum otomatik kurulur.
+
+Normal web sitesi degisiklikleri icin kullanicinin `.exe` dosyasini tekrar kurmasi gerekmez; uygulama siteyi actigi anda son web surumunu gorur. Electron kabugu, ikon, otomatik guncelleme veya PDF pencere davranisi gibi masaustu tarafina ait degisikliklerde yeni installer release edilir ve uygulama acilista bunu otomatik kontrol eder.
+
+Otomatik guncelleme GitHub Release uzerinden calisir. Repo private oldugunda release dosyalari yalnizca yetkili GitHub erisimi veya proje sahibinin kapali dagitim kanali ile indirilebilir.
 
 ## Test ve Dogrulama
 
@@ -709,6 +715,10 @@ Kontrol edin:
 - Baslangic tarihi ve bitis tarihi ayri secildi mi?
 - Gunluk, haftalik, aylik veya manuel filtre aktif mi?
 - PDF almadan once filtre UI'i guncellendi mi?
+
+### `.exe` PDF butonunda "about edinin" penceresi aciyor
+
+Bu hata eski masaustu kabugunda PDF icin acilan `about:blank` yazdirma penceresinin Windows'a dis baglanti gibi gonderilmesinden kaynaklanir. Cozum: `v0.1.4` veya daha yeni masaustu surumune guncelleyin. Bu surum PDF penceresini uygulama icinde acar.
 
 ## Operasyon Rehberi
 
