@@ -17,16 +17,24 @@ type DashboardProps = {
 }
 
 type Shift = {
-  id: number
+  id: string
   name: string
+  symbol?: string
   label: string
 }
 
+type Branch = {
+  id: string
+  ad: string
+  kod: string
+}
+
 type User = {
-  id: number
+  id: string
   tcKimlik: string
   name: string
   role: "ADMIN" | "PERSONNEL"
+  branch: Branch | null
   shift: Shift | null
 }
 
@@ -73,14 +81,20 @@ function minutes(value: number) {
   return hours ? `${hours} sa ${rest} dk` : `${rest} dk`
 }
 
+function roleLabel(role: User["role"]) {
+  return role === "PERSONNEL" ? "PERSONEL" : "ADMIN"
+}
+
 export function AdminAttendanceDashboard({ adminName }: DashboardProps) {
   const router = useRouter()
   const { theme, setTheme } = useTheme()
   const [users, setUsers] = useState<User[]>([])
   const [logs, setLogs] = useState<Log[]>([])
   const [shifts, setShifts] = useState<Shift[]>([])
+  const [branches, setBranches] = useState<Branch[]>([])
   const [from, setFrom] = useState(today())
   const [to, setTo] = useState(today())
+  const [branchId, setBranchId] = useState("all")
   const [shiftId, setShiftId] = useState("all")
   const [status, setStatus] = useState("all")
   const [query, setQuery] = useState("")
@@ -88,14 +102,25 @@ export function AdminAttendanceDashboard({ adminName }: DashboardProps) {
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
 
   async function loadStaticData() {
-    const [usersResponse, shiftsResponse] = await Promise.all([
-      fetch("/api/personel-mesai/users"),
-      fetch("/api/personel-mesai/shifts"),
+    const userParams = new URLSearchParams()
+    userParams.set("date", from)
+    if (branchId !== "all") userParams.set("subeId", branchId)
+
+    const shiftParams = new URLSearchParams()
+    if (branchId !== "all") shiftParams.set("subeId", branchId)
+
+    const [usersResponse, shiftsResponse, branchesResponse] = await Promise.all([
+      fetch(`/api/personel-mesai/users?${userParams.toString()}`),
+      fetch(`/api/personel-mesai/shifts?${shiftParams.toString()}`),
+      fetch("/api/personel-mesai/branches"),
     ])
-    const usersPayload = await usersResponse.json()
-    const shiftsPayload = await shiftsResponse.json()
+
+    const usersPayload = await usersResponse.json().catch(() => ({}))
+    const shiftsPayload = await shiftsResponse.json().catch(() => ({}))
+    const branchesPayload = await branchesResponse.json().catch(() => ({}))
     setUsers(usersPayload.users ?? [])
     setShifts(shiftsPayload.shifts ?? [])
+    setBranches(branchesPayload.branches ?? [])
   }
 
   async function loadLogs() {
@@ -103,29 +128,31 @@ export function AdminAttendanceDashboard({ adminName }: DashboardProps) {
     const params = new URLSearchParams()
     if (from) params.set("from", from)
     if (to) params.set("to", to)
+    if (branchId !== "all") params.set("subeId", branchId)
     if (shiftId !== "all") params.set("shiftId", shiftId)
     if (status !== "all") params.set("status", status)
 
     const response = await fetch(`/api/personel-mesai/logs?${params.toString()}`)
-    const payload = await response.json()
+    const payload = await response.json().catch(() => ({}))
     setLogs(payload.logs ?? [])
     setLoading(false)
   }
 
   useEffect(() => {
     loadStaticData()
-  }, [])
+  }, [from, branchId])
 
   useEffect(() => {
     loadLogs()
-  }, [from, to, shiftId, status])
+  }, [from, to, branchId, shiftId, status])
 
   const filteredUsers = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("tr-TR")
     if (!normalized) return users
     return users.filter((user) => (
       user.name.toLocaleLowerCase("tr-TR").includes(normalized) ||
-      user.tcKimlik.includes(normalized)
+      user.tcKimlik.includes(normalized) ||
+      Boolean(user.branch?.ad.toLocaleLowerCase("tr-TR").includes(normalized))
     ))
   }, [query, users])
 
@@ -143,9 +170,10 @@ export function AdminAttendanceDashboard({ adminName }: DashboardProps) {
   }
 
   function exportPdf() {
+    const branchName = branches.find((branch) => branch.id === branchId)?.ad || "Tüm şubeler"
     openPdfReport({
       title: "Personel Mesai Raporu",
-      subtitle: `${from} - ${to}`,
+      subtitle: `${branchName} / ${from} - ${to}`,
       orientation: "landscape",
       metrics: [
         { label: "Kayıt", value: String(logs.length) },
@@ -245,7 +273,7 @@ export function AdminAttendanceDashboard({ adminName }: DashboardProps) {
             <CardContent className="space-y-4">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={query} onChange={(event) => setQuery(event.target.value)} className="pl-9" placeholder="Ad veya TC ara" />
+                <Input value={query} onChange={(event) => setQuery(event.target.value)} className="pl-9" placeholder="Ad, TC veya şube ara" />
               </div>
               <div className="grid max-h-[560px] gap-2 overflow-auto pr-1">
                 {filteredUsers.map((user) => (
@@ -258,11 +286,11 @@ export function AdminAttendanceDashboard({ adminName }: DashboardProps) {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="font-semibold">{user.name}</p>
-                        <p className="text-xs text-muted-foreground">{user.tcKimlik}</p>
+                        <p className="text-xs text-muted-foreground">{user.branch?.ad ?? "Şube yok"}{user.tcKimlik !== "-" ? ` / ${user.tcKimlik}` : ""}</p>
                       </div>
-                      <Badge variant={user.role === "ADMIN" ? "default" : "secondary"}>{user.role}</Badge>
+                      <Badge variant={user.role === "ADMIN" ? "default" : "secondary"}>{roleLabel(user.role)}</Badge>
                     </div>
-                    <p className="mt-2 text-xs text-muted-foreground">{user.shift?.label ?? "Vardiya atanmamış"}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">{user.shift ? `${user.shift.symbol ? `${user.shift.symbol} - ` : ""}${user.shift.label}` : "Vardiya atanmamış"}</p>
                   </button>
                 ))}
               </div>
@@ -278,13 +306,19 @@ export function AdminAttendanceDashboard({ adminName }: DashboardProps) {
                   PDF
                 </Button>
               </div>
-              <div className="grid gap-3 md:grid-cols-4">
+              <div className="grid gap-3 md:grid-cols-5">
                 <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
                 <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+                <select value={branchId} onChange={(event) => setBranchId(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="all">Tüm şubeler</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>{branch.ad}</option>
+                  ))}
+                </select>
                 <select value={shiftId} onChange={(event) => setShiftId(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
                   <option value="all">Tüm vardiyalar</option>
                   {shifts.map((shift) => (
-                    <option key={shift.id} value={shift.id}>{shift.label}</option>
+                    <option key={`${shift.id}-${shift.label}`} value={shift.id}>{shift.symbol ? `${shift.symbol} - ` : ""}{shift.label}</option>
                   ))}
                 </select>
                 <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
@@ -350,12 +384,16 @@ export function AdminAttendanceDashboard({ adminName }: DashboardProps) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{selectedUser?.name}</DialogTitle>
-            <DialogDescription>Güvenlik için kalıcı QR kaldırıldı. Personel kendi TC ve şifresiyle giriş yapıp `/mesai-qr` ekranındaki yenilenen QR kodu terminale okutmalı.</DialogDescription>
+            <DialogDescription>Personel TC ve şifresiyle giriş yapar; kendi kamerasıyla /terminal ekranındaki 30 saniyede bir yenilenen QR kodu okutur.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 rounded-md border bg-muted/40 p-4 text-sm">
             <div className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">Şube</span>
+              <span className="font-medium">{selectedUser?.branch?.ad ?? "-"}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
               <span className="text-muted-foreground">TC</span>
-              <span className="font-medium">{selectedUser?.tcKimlik}</span>
+              <span className="font-medium">{selectedUser?.tcKimlik ?? "-"}</span>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-muted-foreground">Vardiya</span>

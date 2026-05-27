@@ -1,9 +1,10 @@
-import { Role } from "@prisma/client"
 import { AdminAttendanceDashboard } from "@/components/mesai/admin-attendance-dashboard"
-import { requireAuth } from "@/lib/qr-attendance/auth"
+import { requireAnyMesaiAdmin } from "@/lib/qr-attendance/admin"
+import { redirect } from "next/navigation"
 
 export default async function PersonelMesaiPage() {
-  const session = await requireAuth([Role.ADMIN])
+  const session = await requireAnyMesaiAdmin()
+  if (!session.ok) redirect("/login")
 
   return <AdminAttendanceDashboard adminName={session.name} />
 }

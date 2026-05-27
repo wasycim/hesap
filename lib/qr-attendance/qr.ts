@@ -8,6 +8,11 @@ export type QrPayload = {
   token: string
 }
 
+export type TerminalQrPayload = {
+  terminalId: string
+  token: string
+}
+
 type DynamicQrClaims = {
   sub: string
   typ: "attendance-qr"
@@ -18,6 +23,7 @@ type DynamicQrClaims = {
 const qrIssuer = "hesap-mesai"
 const qrAudience = "hesap-mesai-terminal"
 export const dynamicQrTtlSeconds = 25
+export const terminalQrTtlSeconds = 30
 
 export function createQrToken() {
   return crypto.randomBytes(32).toString("base64url")
@@ -42,6 +48,28 @@ export function parseQrPayload(value: unknown): QrPayload | null {
     return {
       userId: userId as number,
       token,
+    }
+  } catch {
+    return null
+  }
+}
+
+export function parseTerminalQrPayload(value: unknown): TerminalQrPayload | null {
+  if (typeof value !== "string") return null
+
+  try {
+    const payload = JSON.parse(value) as Partial<TerminalQrPayload>
+    if (payload.terminalId !== "fixed-terminal" || typeof payload.token !== "string") {
+      return null
+    }
+
+    if (payload.token.length < 32 || payload.token.length > 2048) {
+      return null
+    }
+
+    return {
+      terminalId: payload.terminalId,
+      token: payload.token,
     }
   } catch {
     return null
@@ -75,6 +103,45 @@ export function createDynamicQrPayload(user: Pick<User, "id" | "qrToken">) {
     expiresAt,
     ttlSeconds: dynamicQrTtlSeconds,
     qr: JSON.stringify({ userId: user.id, token }),
+  }
+}
+
+export function createTerminalQrPayload() {
+  const expiresAt = new Date(Date.now() + terminalQrTtlSeconds * 1000)
+  const token = jwt.sign(
+    {
+      typ: "terminal-attendance-qr",
+      nonce: crypto.randomBytes(16).toString("base64url"),
+    },
+    jwtSecret(),
+    {
+      subject: "fixed-terminal",
+      expiresIn: terminalQrTtlSeconds,
+      issuer: qrIssuer,
+      audience: "hesap-mesai-personnel",
+    },
+  )
+
+  return {
+    terminalId: "fixed-terminal",
+    token,
+    expiresAt,
+    ttlSeconds: terminalQrTtlSeconds,
+    qr: JSON.stringify({ terminalId: "fixed-terminal", token }),
+  }
+}
+
+export function verifyTerminalQrPayload(payload: TerminalQrPayload) {
+  try {
+    const claims = jwt.verify(payload.token, jwtSecret(), {
+      subject: "fixed-terminal",
+      issuer: qrIssuer,
+      audience: "hesap-mesai-personnel",
+    }) as { typ?: string }
+
+    return payload.terminalId === "fixed-terminal" && claims.typ === "terminal-attendance-qr"
+  } catch {
+    return false
   }
 }
 

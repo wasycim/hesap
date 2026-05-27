@@ -1,8 +1,5 @@
-import { TerminalScanner } from "@/components/mesai/terminal-scanner"
-import { requireAuth } from "@/lib/qr-attendance/auth"
+import { TerminalDynamicQr } from "@/components/mesai/terminal-dynamic-qr"
 
 export default async function TerminalPage() {
-  const session = await requireAuth()
-
-  return <TerminalScanner operatorName={session.name} operatorRole={session.role} />
+  return <TerminalDynamicQr />
 }

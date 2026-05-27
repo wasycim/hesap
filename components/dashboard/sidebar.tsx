@@ -20,6 +20,7 @@ import {
   Shield,
   ShieldCheck,
   Soup,
+  TimerReset,
   TrendingDown,
   TrendingUp,
   UserCog,
@@ -47,7 +48,8 @@ const menuItems = [
   { key: "dashboard", title: "Genel Bakış", href: "/dashboard", icon: LayoutDashboard },
   { key: "gelir", title: "Gelir Tablosu", href: "/dashboard/gelir", icon: TrendingUp, color: "text-emerald-500" },
   { key: "gider", title: "Gider Tablosu", href: "/dashboard/gider", icon: TrendingDown, color: "text-red-500" },
-  { key: "mesai_takip", title: "Vardiya", href: "/dashboard/vardiya", icon: CalendarDays, color: "text-violet-500" },
+  { key: "vardiya", title: "Vardiya", href: "/dashboard/vardiya", icon: CalendarDays, color: "text-violet-500" },
+  { key: "mesai_takip", title: "Mesai Takip", href: "/dashboard/mesai-takip", icon: TimerReset, color: "text-amber-500" },
   { key: "corbalar", title: "Çorbalar", href: "/dashboard/corbalar", icon: Soup, color: "text-orange-500" },
 ]
 
@@ -76,6 +78,7 @@ function getMenuIconMotion(href: string) {
   if (href === "/dashboard") return "menu-icon-dashboard"
   if (href === "/dashboard/gelir") return "menu-icon-income"
   if (href === "/dashboard/gider") return "menu-icon-expense"
+  if (href === "/dashboard/mesai-takip") return "menu-icon-pop"
   if (href === "/dashboard/corbalar") return "menu-icon-soup"
   if (href === "/dashboard/sube-ciro-raporlari") return "menu-icon-report"
   if (href === "/dashboard/14-no-hesap") return "menu-icon-bank"
@@ -89,38 +92,43 @@ function getMenuIconMotion(href: string) {
 }
 
 function AnimatedShiftMenuIcon() {
+  const [dateParts, setDateParts] = useState({ day: "", month: "" })
+
+  useEffect(() => {
+    const updateDate = () => {
+      const now = new Date()
+      setDateParts({
+        day: new Intl.DateTimeFormat("tr-TR", { day: "2-digit", timeZone: "Europe/Istanbul" }).format(now),
+        month: new Intl.DateTimeFormat("tr-TR", { month: "short", timeZone: "Europe/Istanbul" }).format(now).replace(".", ""),
+      })
+    }
+
+    updateDate()
+    const timer = window.setInterval(updateDate, 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
   return (
-    <span className="relative grid h-5 w-5 shrink-0 place-items-center text-violet-500">
-      <span className="absolute inset-x-0 bottom-0 h-3.5 rounded-[3px] border border-current/70 bg-current/10" />
-      <span className="absolute left-1 top-0 h-1 w-0.5 rounded-full bg-current" />
-      <span className="absolute right-1 top-0 h-1 w-0.5 rounded-full bg-current" />
-      <span className="absolute top-1.5 h-3.5 w-4 origin-top rounded-[3px] border border-current/80 bg-sidebar shadow-sm animate-[shift-page-one_2.8s_ease-in-out_infinite]" />
-      <span className="absolute top-1.5 h-3.5 w-4 origin-top rounded-[3px] border border-current/70 bg-sidebar shadow-sm animate-[shift-page-two_2.8s_ease-in-out_infinite]" />
-      <span className="absolute top-2 grid w-3 grid-cols-3 gap-[2px]">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <span
-            key={index}
-            className="h-0.5 w-0.5 rounded-full bg-current/35 animate-[shift-date-dot_2.8s_ease-in-out_infinite]"
-            style={{ animationDelay: `${index * 120}ms` }}
-          />
-        ))}
+    <span className="relative grid h-6 w-6 shrink-0 place-items-center text-violet-500 [perspective:90px]">
+      <span className="absolute left-[3px] right-[3px] top-[5px] h-[17px] rounded-[5px] border border-current/70 bg-sidebar shadow-sm" />
+      <span className="absolute left-[3px] right-[3px] top-[5px] h-[6px] rounded-t-[5px] bg-current" />
+      <span className="absolute left-[7px] top-[2px] h-[6px] w-[2px] rounded-full bg-current" />
+      <span className="absolute right-[7px] top-[2px] h-[6px] w-[2px] rounded-full bg-current" />
+      <span className="absolute left-[5px] right-[5px] top-[11px] grid h-[9px] place-items-center rounded-[3px] bg-current/8">
+        <span className="text-[8px] font-black leading-none text-current">{dateParts.day || "--"}</span>
+      </span>
+      <span className="absolute bottom-[2px] text-[4.5px] font-bold uppercase leading-none text-current/70">
+        {dateParts.month || "---"}
+      </span>
+      <span className="absolute left-[5px] right-[5px] top-[11px] h-[9px] origin-top rounded-[3px] border border-current/35 bg-sidebar group-hover:animate-[shift-calendar-flip_1.15s_ease-in-out_1] group-focus-visible:animate-[shift-calendar-flip_1.15s_ease-in-out_1]">
+        <span className="grid h-full place-items-center text-[8px] font-black leading-none text-current">{dateParts.day || "--"}</span>
       </span>
       <style jsx>{`
-        @keyframes shift-page-one {
-          0%, 20%, 100% { opacity: .95; transform: rotateX(0deg) translateY(0); }
-          38%, 52% { opacity: .5; transform: rotateX(72deg) translateY(1px); }
-          58% { opacity: 0; transform: rotateX(96deg) translateY(3px); }
-          70% { opacity: 0; transform: rotateX(0deg) translateY(-3px); }
-          82% { opacity: .95; transform: rotateX(0deg) translateY(0); }
-        }
-        @keyframes shift-page-two {
-          0%, 42%, 100% { transform: translateY(0) rotate(0deg); }
-          55% { transform: translateY(1px) rotate(-2deg); }
-          72% { transform: translateY(0) rotate(0deg); }
-        }
-        @keyframes shift-date-dot {
-          0%, 100% { opacity: .3; transform: scale(.8); }
-          35% { opacity: 1; transform: scale(1.35); }
+        @keyframes shift-calendar-flip {
+          0%, 28%, 100% { opacity: 1; transform: rotateX(0deg) translateY(0); }
+          45% { opacity: .92; transform: rotateX(68deg) translateY(1px); }
+          58% { opacity: 0; transform: rotateX(88deg) translateY(4px); }
+          76% { opacity: 0; transform: rotateX(0deg) translateY(-4px); }
         }
       `}</style>
     </span>
@@ -209,7 +217,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   }
 
   function canSeeMenu(key: string) {
-    if (key === "mesai_takip") return isAdmin
+    if (key === "vardiya" || key === "mesai_takip") return isAdmin
     if (key === "maaslar") return isAdmin
     return isAdmin || menuVisibility[key] !== false
   }
@@ -245,7 +253,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    "sidebar-menu-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                    "sidebar-menu-item group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                     isActive
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
@@ -267,7 +275,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
               <button
                 onClick={() => setKargoOpen(prev => !prev)}
                 className={cn(
-                  "sidebar-menu-item flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                    "sidebar-menu-item group flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                   pathname.startsWith("/dashboard/kargo-cari")
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
@@ -289,7 +297,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                         href="/dashboard/kargo-cari"
                         onClick={() => setMobileOpen(false)}
                         className={cn(
-                          "sidebar-menu-item flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                          "sidebar-menu-item group flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
                           pathname === "/dashboard/kargo-cari"
                             ? "bg-sidebar-accent text-sidebar-accent-foreground"
                             : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
@@ -313,7 +321,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                             href={`/dashboard/kargo-cari/${firma.id}`}
                             onClick={() => setMobileOpen(false)}
                             className={cn(
-                              "sidebar-menu-item flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all",
+                              "sidebar-menu-item group flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all",
                               isActive
                                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
                                 : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
@@ -337,7 +345,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
               <button
                 onClick={() => setOnDortNoOpen(prev => !prev)}
                 className={cn(
-                  "sidebar-menu-item flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                  "sidebar-menu-item group flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                   pathname.startsWith("/dashboard/14-no-hesap")
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
@@ -361,7 +369,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                           href={item.href}
                           onClick={() => setMobileOpen(false)}
                           className={cn(
-                            "sidebar-menu-item flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all",
+                            "sidebar-menu-item group flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all",
                             isActive
                               ? "bg-sidebar-accent text-sidebar-accent-foreground"
                               : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
@@ -388,7 +396,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                   href={maasMenuItem.href}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    "sidebar-menu-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                    "sidebar-menu-item group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                     isActive
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
@@ -409,7 +417,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    "sidebar-menu-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                    "sidebar-menu-item group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                     isActive
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
@@ -479,7 +487,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    "sidebar-menu-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                    "sidebar-menu-item group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                     isActive
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"

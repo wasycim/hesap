@@ -75,7 +75,7 @@ export function LoginForm() {
                   className="pl-9"
                   inputMode="numeric"
                   autoComplete="username"
-                  placeholder="10000000146"
+                  placeholder="11 haneli TC"
                   required
                 />
               </div>
@@ -92,7 +92,7 @@ export function LoginForm() {
                   className="pl-9"
                   type="password"
                   autoComplete="current-password"
-                  placeholder="123456"
+                  placeholder="********"
                   required
                 />
               </div>

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { addDays, endOfMonth, endOfWeek, format, getDay, parseISO, startOfMonth, startOfWeek } from "date-fns"
 import { tr } from "date-fns/locale"
-import type { DateRange } from "react-day-picker"
 import { toast } from "sonner"
 import { CalendarDays, ChevronLeft, ChevronRight, FileText, Save, Sparkles } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -61,6 +60,7 @@ type ShiftOption = {
 }
 
 type FilterMode = "day" | "week" | "month" | "custom"
+type RangeEditing = "from" | "to"
 
 const defaultShifts: ShiftOption[] = [
   { id: "S", label: "Sabah", short: "S", time: "06:00 - 16:00", className: "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-100" },
@@ -133,6 +133,7 @@ export default function VardiyaPage() {
   const [customFrom, setCustomFrom] = useState(() => dateKey(startOfMonth(new Date())))
   const [customTo, setCustomTo] = useState(() => dateKey(endOfMonth(new Date())))
   const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const [rangeEditing, setRangeEditing] = useState<RangeEditing>("from")
   const [personeller, setPersoneller] = useState<Personel[]>([])
   const [fixedShifts, setFixedShifts] = useState<FixedShiftDefinition[]>([])
   const [customShifts, setCustomShifts] = useState<CustomShift[]>([])
@@ -151,8 +152,10 @@ export default function VardiyaPage() {
       return { from, to, label: rangeLabel(from, to), title: "Haftalik Plan" }
     }
     if (filterMode === "custom") {
-      const from = parseISO(customFrom)
-      const to = parseISO(customTo >= customFrom ? customTo : customFrom)
+      const first = parseISO(customFrom)
+      const last = parseISO(customTo)
+      const from = customFrom <= customTo ? first : last
+      const to = customFrom <= customTo ? last : first
       return { from, to, label: rangeLabel(from, to), title: "Secili Tarih Araligi" }
     }
 
@@ -333,15 +336,16 @@ export default function VardiyaPage() {
     setDatePickerOpen(false)
   }
 
-  function selectDateRange(range?: DateRange) {
-    if (!range?.from) return
-    setCustomFrom(dateKey(range.from))
-    if (range.to) {
-      setCustomTo(dateKey(range.to))
-      setDatePickerOpen(false)
-      return
+  function selectRangeEndpoint(date?: Date) {
+    if (!date) return
+    const next = dateKey(date)
+
+    if (rangeEditing === "from") {
+      setCustomFrom(next)
+      setRangeEditing("to")
+    } else {
+      setCustomTo(next)
     }
-    setCustomTo(dateKey(range.from))
   }
 
   function selectPreset(nextMode: FilterMode) {
@@ -351,6 +355,7 @@ export default function VardiyaPage() {
     if (nextMode === "custom") {
       setCustomFrom(dateKey(startOfMonth(today)))
       setCustomTo(dateKey(endOfMonth(today)))
+      setRangeEditing("from")
     }
     setDatePickerOpen(false)
   }
@@ -426,14 +431,37 @@ export default function VardiyaPage() {
                   </div>
                   <div className="p-2">
                     {filterMode === "custom" ? (
-                      <Calendar
-                        mode="range"
-                        selected={{ from: selectedRange.from, to: selectedRange.to }}
-                        onSelect={selectDateRange}
-                        numberOfMonths={2}
-                        locale={tr}
-                        className="rounded-xl p-2 [--cell-size:--spacing(9)]"
-                      />
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-2 gap-2 px-1">
+                          <button
+                            type="button"
+                            onClick={() => setRangeEditing("from")}
+                            className={`rounded-lg border px-3 py-2 text-left transition ${rangeEditing === "from" ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-muted/35 hover:bg-muted"}`}
+                          >
+                            <span className="block text-[10px] font-semibold uppercase text-muted-foreground">Baslangic</span>
+                            <span className="block text-xs font-bold">{format(parseISO(customFrom), "d MMM yyyy", { locale: tr })}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRangeEditing("to")}
+                            className={`rounded-lg border px-3 py-2 text-left transition ${rangeEditing === "to" ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-muted/35 hover:bg-muted"}`}
+                          >
+                            <span className="block text-[10px] font-semibold uppercase text-muted-foreground">Bitis</span>
+                            <span className="block text-xs font-bold">{format(parseISO(customTo), "d MMM yyyy", { locale: tr })}</span>
+                          </button>
+                        </div>
+                        <Calendar
+                          mode="single"
+                          selected={parseISO(rangeEditing === "from" ? customFrom : customTo)}
+                          onSelect={selectRangeEndpoint}
+                          numberOfMonths={2}
+                          locale={tr}
+                          className="rounded-xl p-2 [--cell-size:--spacing(9)]"
+                        />
+                        <div className="px-2 pb-1 text-[11px] text-muted-foreground">
+                          {rangeEditing === "from" ? "Baslangic tarihini sec; sonra otomatik bitise gececek." : "Bitis tarihini sec veya baslangici duzenlemek icin soldaki alana tikla."}
+                        </div>
+                      </div>
                     ) : (
                       <Calendar
                         mode="single"

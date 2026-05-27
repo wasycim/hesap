@@ -9,18 +9,7 @@ async function main() {
   })
 
   if (!personnel) {
-    throw new Error("Seed personeli bulunamadı.")
-  }
-
-  const operatorLogin = await fetch("http://localhost:3000/api/auth/login", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ tcKimlik: "10000000146", password: "123456" }),
-  })
-  const operatorCookie = operatorLogin.headers.get("set-cookie")
-
-  if (!operatorLogin.ok || !operatorCookie) {
-    throw new Error(`Operatör login başarısız: ${operatorLogin.status}`)
+    throw new Error("Seed personeli bulunamadi.")
   }
 
   const personnelLogin = await fetch("http://localhost:3000/api/auth/login", {
@@ -31,26 +20,24 @@ async function main() {
   const personnelCookie = personnelLogin.headers.get("set-cookie")
 
   if (!personnelLogin.ok || !personnelCookie) {
-    throw new Error(`Personel login başarısız: ${personnelLogin.status}`)
+    throw new Error(`Personel login basarisiz: ${personnelLogin.status}`)
   }
 
-  const dynamicQr = await fetch("http://localhost:3000/api/personel/qr", {
-    headers: { cookie: personnelCookie },
-  })
-  const dynamicQrPayload = await dynamicQr.json()
+  const terminalQr = await fetch("http://localhost:3000/api/terminal/qr")
+  const terminalQrPayload = await terminalQr.json()
 
-  if (!dynamicQr.ok || !dynamicQrPayload.qr) {
-    throw new Error(`Dinamik QR alınamadı: ${dynamicQr.status}`)
+  if (!terminalQr.ok || !terminalQrPayload.qr) {
+    throw new Error(`Terminal QR alinamadi: ${terminalQr.status}`)
   }
 
-  const scan = await fetch("http://localhost:3000/api/terminal/scan", {
+  const scan = await fetch("http://localhost:3000/api/personel/scan-terminal", {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      cookie: operatorCookie,
+      cookie: personnelCookie,
     },
     body: JSON.stringify({
-      qr: dynamicQrPayload.qr,
+      qr: terminalQrPayload.qr,
     }),
   })
 

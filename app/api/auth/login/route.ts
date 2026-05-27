@@ -1,32 +1,37 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
-import { prisma } from "@/lib/prisma"
-import { authCookieName, signAuthToken, verifyPassword } from "@/lib/qr-attendance/auth"
+import { authCookieName, signAuthToken } from "@/lib/qr-attendance/auth"
+import { getRealProfileByTc, syncRealProfileToAttendanceUser, verifyRealUserPassword } from "@/lib/qr-attendance/sync-users"
 
 const loginSchema = z.object({
-  tcKimlik: z.string().regex(/^\d{11}$/, "TC kimlik 11 haneli olmalı."),
-  password: z.string().min(4, "Şifre çok kısa."),
+  tcKimlik: z.string().regex(/^\d{11}$/, "TC kimlik 11 haneli olmali."),
+  password: z.string().min(4, "Sifre cok kisa."),
 })
 
 export async function POST(request: NextRequest) {
   const parsed = loginSchema.safeParse(await request.json().catch(() => ({})))
 
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Geçersiz giriş." }, { status: 400 })
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Gecersiz giris." }, { status: 400 })
   }
 
-  const user = await prisma.user.findUnique({
-    where: { tcKimlik: parsed.data.tcKimlik },
-  })
+  const realUser = await getRealProfileByTc(parsed.data.tcKimlik)
+  const email = realUser?.profile.email || realUser?.authUser?.email || ""
 
-  if (!user || !user.isActive) {
-    return NextResponse.json({ error: "TC veya şifre hatalı." }, { status: 401 })
+  if (!realUser || !email) {
+    return NextResponse.json({ error: "TC veya sifre hatali." }, { status: 401 })
   }
 
-  const validPassword = await verifyPassword(parsed.data.password, user.passwordHash)
+  const validPassword = await verifyRealUserPassword(email, parsed.data.password)
 
   if (!validPassword) {
-    return NextResponse.json({ error: "TC veya şifre hatalı." }, { status: 401 })
+    return NextResponse.json({ error: "TC veya sifre hatali." }, { status: 401 })
+  }
+
+  const user = await syncRealProfileToAttendanceUser(realUser.profile, realUser.authUser)
+
+  if (!user || !user.isActive) {
+    return NextResponse.json({ error: "Kullanici mesai sistemine aktarilamadi." }, { status: 500 })
   }
 
   const token = signAuthToken(user)
