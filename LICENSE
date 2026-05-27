@@ -1,21 +1,23 @@
-MIT License
+Proprietary License
 
-Copyright (c) 2026 wasycim
+Copyright (c) 2026 wasycim. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This software, source code, desktop installer, update metadata, database
+schema, documentation, visual assets, logos, and all related files are private
+and proprietary.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+No person or organization may copy, download, install, use, modify, publish,
+redistribute, sublicense, sell, host, reverse engineer, or create derivative
+works from this project without explicit written permission from the copyright
+holder.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Permission to receive or download the desktop installer does not transfer
+ownership of the software and does not grant any right to redistribute it.
+
+Authorized users may use the software only for the purpose and duration
+approved by the copyright holder. Access may be revoked at any time.
+
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT HOLDER SHALL NOT
+BE LIABLE FOR ANY CLAIM, DAMAGE, LOSS, OR OTHER LIABILITY ARISING FROM USE OF
+THE SOFTWARE.

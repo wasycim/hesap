@@ -17,6 +17,7 @@ Bu dokuman projeyi calistirmak, veritabani yapisini kurmak, QR mesai akisini anl
 - [Veritabani Kurulumu](#veritabani-kurulumu)
 - [Calistirma Komutlari](#calistirma-komutlari)
 - [Guvenlik](#guvenlik)
+- [Lisans ve Dagitim](#lisans-ve-dagitim)
 - [PDF ve Raporlama](#pdf-ve-raporlama)
 - [Deployment](#deployment)
 - [Test ve Dogrulama](#test-ve-dogrulama)
@@ -438,6 +439,21 @@ RLS kapali olursa Supabase guvenlik paneli kritik uyari verir. Bu durumda migrat
 supabase/migrations/20260527130000_enable_rls_for_attendance_and_shifts.sql
 ```
 
+## Lisans ve Dagitim
+
+Bu proje kapali kaynak ve ozel lisanslidir. Kod, installer, guncelleme dosyalari, veritabani semasi, dokumantasyon ve logo dosyalari proje sahibinden yazili izin alinmadan kopyalanamaz, indirilemez, kullanilamaz, paylasilamaz veya yeniden dagitilamaz.
+
+Uygulama paketinde lisans degeri `UNLICENSED` olarak tutulur ve `LICENSE` dosyasi tum haklarin sakli oldugunu belirtir.
+
+Indirme kontrolu icin onemli kural:
+
+- GitHub reposu veya GitHub Release public kalirsa `.exe` dosyasini teknik olarak herkes indirebilir.
+- Yetkisiz indirmeyi engellemek icin repo private olmali veya installer dosyasi sadece yetkili kisilere verilen kapali bir depoda tutulmalidir.
+- Uygulamayi kullanacak kisiye installer dosyasini proje sahibi paylasir; kullanici bu dosyayi baska kisiye dagitamaz.
+- Masaustu otomatik guncelleme private release kullaniyorsa GitHub yetkisi olan kullanicilar veya proje sahibinin belirledigi dagitim kanali uzerinden calistirilmalidir.
+
+Mevcut yasal lisans bu projeyi izinsiz kullanima ve dagitima kapatir. Gercek anlamda kisi bazli aktivasyon istenirse ayrica lisans anahtari sunucusu ve uygulama acilisinda online dogrulama katmani eklenmelidir.
+
 ## PDF ve Raporlama
 
 CSV export yerine PDF cikti akisi tercih edilir.
@@ -500,6 +516,8 @@ npx vercel alias set <deployment-url> pamukkaleturizm.info
 ## Windows .exe Uygulamasi
 
 Proje Electron ile Windows masaustu uygulamasi olarak da paketlenebilir. Masaustu uygulamasi `https://pamukkaleturizm.info` adresini yukleyen guvenli bir kabuk olarak calisir; bu sayede web sitesindeki normal guncellemeler kullanici uygulamayi actiginda otomatik gorunur.
+
+Masaustu ve web ikon kaynagi `public/iconw.png` dosyasidir. `npm run desktop:icons` komutu bu logodan `desktop/build/icon.ico`, `desktop/build/icon.png`, `app/icon.png` ve `app/apple-icon.png` dosyalarini uretir. Windows installer ve `Hesap.exe` ikonu paket sonunda ayni W logosuyla islenir.
 
 `.exe` olusturmak:
 
@@ -719,4 +737,4 @@ Kontrol edin:
 
 ## Lisans
 
-Bu proje ozel is akisi icin gelistirilmis bir uygulamadir. Lisans ve kullanim haklari icin proje sahibinin talimatlari esas alinir.
+Bu proje kapali kaynak/proprietary lisanslidir. Izinsiz indirme, kullanim, kopyalama, degistirme, yayinlama ve yeniden dagitim yasaktir. Detaylar icin `LICENSE` dosyasina bakin.
