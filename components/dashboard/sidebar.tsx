@@ -88,6 +88,45 @@ function getMenuIconMotion(href: string) {
   return "menu-icon-pop"
 }
 
+function AnimatedShiftMenuIcon() {
+  return (
+    <span className="relative grid h-5 w-5 shrink-0 place-items-center text-violet-500">
+      <span className="absolute inset-x-0 bottom-0 h-3.5 rounded-[3px] border border-current/70 bg-current/10" />
+      <span className="absolute left-1 top-0 h-1 w-0.5 rounded-full bg-current" />
+      <span className="absolute right-1 top-0 h-1 w-0.5 rounded-full bg-current" />
+      <span className="absolute top-1.5 h-3.5 w-4 origin-top rounded-[3px] border border-current/80 bg-sidebar shadow-sm animate-[shift-page-one_2.8s_ease-in-out_infinite]" />
+      <span className="absolute top-1.5 h-3.5 w-4 origin-top rounded-[3px] border border-current/70 bg-sidebar shadow-sm animate-[shift-page-two_2.8s_ease-in-out_infinite]" />
+      <span className="absolute top-2 grid w-3 grid-cols-3 gap-[2px]">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <span
+            key={index}
+            className="h-0.5 w-0.5 rounded-full bg-current/35 animate-[shift-date-dot_2.8s_ease-in-out_infinite]"
+            style={{ animationDelay: `${index * 120}ms` }}
+          />
+        ))}
+      </span>
+      <style jsx>{`
+        @keyframes shift-page-one {
+          0%, 20%, 100% { opacity: .95; transform: rotateX(0deg) translateY(0); }
+          38%, 52% { opacity: .5; transform: rotateX(72deg) translateY(1px); }
+          58% { opacity: 0; transform: rotateX(96deg) translateY(3px); }
+          70% { opacity: 0; transform: rotateX(0deg) translateY(-3px); }
+          82% { opacity: .95; transform: rotateX(0deg) translateY(0); }
+        }
+        @keyframes shift-page-two {
+          0%, 42%, 100% { transform: translateY(0) rotate(0deg); }
+          55% { transform: translateY(1px) rotate(-2deg); }
+          72% { transform: translateY(0) rotate(0deg); }
+        }
+        @keyframes shift-date-dot {
+          0%, 100% { opacity: .3; transform: scale(.8); }
+          35% { opacity: 1; transform: scale(1.35); }
+        }
+      `}</style>
+    </span>
+  )
+}
+
 export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
@@ -212,7 +251,11 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                   )}
                 >
-                  <item.icon className={cn("sidebar-menu-icon h-5 w-5", getMenuIconMotion(item.href), item.color)} />
+                  {item.href === "/dashboard/vardiya" ? (
+                    <AnimatedShiftMenuIcon />
+                  ) : (
+                    <item.icon className={cn("sidebar-menu-icon h-5 w-5", getMenuIconMotion(item.href), item.color)} />
+                  )}
                   <span>{item.title}</span>
                 </Link>
               </li>
