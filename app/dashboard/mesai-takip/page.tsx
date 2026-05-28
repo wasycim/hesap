@@ -20,6 +20,7 @@ type BranchSummary = {
   personelCount: number
   logCount: number
   openCount: number
+  beforeShiftMinutes: number
   earlyMinutes: number
   lateMinutes: number
   afterShiftMinutes: number
@@ -34,6 +35,7 @@ type PersonelSummary = {
   branch: Branch | null
   logCount: number
   openCount: number
+  beforeShiftMinutes: number
   earlyMinutes: number
   lateMinutes: number
   afterShiftMinutes: number
@@ -50,6 +52,7 @@ type Detail = {
   checkInAt: string
   checkOutAt: string | null
   workedMinutes: number
+  beforeShiftMinutes: number
   earlyMinutes: number
   lateMinutes: number
   afterShiftMinutes: number
@@ -97,22 +100,29 @@ function minutes(value: number) {
 }
 
 function WarningBadges({
+  beforeShiftMinutes,
   earlyMinutes,
   lateMinutes,
   afterShiftMinutes,
   overtimeMinutes,
 }: {
+  beforeShiftMinutes: number
   earlyMinutes: number
   lateMinutes: number
   afterShiftMinutes: number
   overtimeMinutes: number
 }) {
-  if (!earlyMinutes && !lateMinutes && !afterShiftMinutes && !overtimeMinutes) {
+  if (!beforeShiftMinutes && !earlyMinutes && !lateMinutes && !afterShiftMinutes && !overtimeMinutes) {
     return <span className="text-muted-foreground">Sorun yok</span>
   }
 
   return (
     <div className="flex flex-wrap gap-1.5">
+      {beforeShiftMinutes > 0 && (
+        <Badge variant="outline" className="border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
+          Vardiya öncesi {minutes(beforeShiftMinutes)}
+        </Badge>
+      )}
       {earlyMinutes > 0 && (
         <Badge variant="outline" className="border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300">
           Erken {minutes(earlyMinutes)}
@@ -211,11 +221,12 @@ export default function MesaiTakipPage() {
       tables: [
         {
           title: "Şube Özeti",
-          headers: ["Şube", "Personel", "Açık", "Erken Giriş", "Geç Kalma", "Mesai Sonrası", "Net Fazla", "Çalışma"],
+          headers: ["Şube", "Personel", "Açık", "Vardiya Öncesi", "Erken Giriş", "Geç Kalma", "Mesai Sonrası", "Net Fazla", "Çalışma"],
           rows: payload.branchSummaries.map((item) => [
             item.branch.ad,
             item.personelCount,
             item.openCount,
+            minutes(item.beforeShiftMinutes),
             minutes(item.earlyMinutes),
             minutes(item.lateMinutes),
             minutes(item.afterShiftMinutes),
@@ -225,11 +236,12 @@ export default function MesaiTakipPage() {
         },
         {
           title: "Personel Özeti",
-          headers: ["Personel", "Şube", "Açık", "Erken Giriş", "Geç Kalma", "Mesai Sonrası", "Net Fazla", "Çalışma"],
+          headers: ["Personel", "Şube", "Açık", "Vardiya Öncesi", "Erken Giriş", "Geç Kalma", "Mesai Sonrası", "Net Fazla", "Çalışma"],
           rows: payload.personelSummaries.map((item) => [
             item.name,
             item.branch?.ad || "-",
             item.openCount,
+            minutes(item.beforeShiftMinutes),
             minutes(item.earlyMinutes),
             minutes(item.lateMinutes),
             minutes(item.afterShiftMinutes),
@@ -249,6 +261,7 @@ export default function MesaiTakipPage() {
             formatTime(item.checkOutAt),
             minutes(item.workedMinutes),
             [
+              item.beforeShiftMinutes > 0 ? `Vardiya oncesi: ${minutes(item.beforeShiftMinutes)}` : "",
               item.earlyMinutes > 0 ? `Erken: ${minutes(item.earlyMinutes)}` : "",
               item.lateMinutes > 0 ? `Gec: ${minutes(item.lateMinutes)}` : "",
               item.afterShiftMinutes > 0 ? `Mesai sonrasi: ${minutes(item.afterShiftMinutes)}` : "",
@@ -448,6 +461,7 @@ export default function MesaiTakipPage() {
                     <td className="p-3 font-semibold">{minutes(item.workedMinutes)}</td>
                     <td className="p-3">
                       <WarningBadges
+                        beforeShiftMinutes={item.beforeShiftMinutes}
                         earlyMinutes={item.earlyMinutes}
                         lateMinutes={item.lateMinutes}
                         afterShiftMinutes={item.afterShiftMinutes}
