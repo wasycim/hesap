@@ -20,7 +20,9 @@ type BranchSummary = {
   personelCount: number
   logCount: number
   openCount: number
+  earlyMinutes: number
   lateMinutes: number
+  afterShiftMinutes: number
   overtimeMinutes: number
   workedMinutes: number
 }
@@ -32,7 +34,9 @@ type PersonelSummary = {
   branch: Branch | null
   logCount: number
   openCount: number
+  earlyMinutes: number
   lateMinutes: number
+  afterShiftMinutes: number
   overtimeMinutes: number
   workedMinutes: number
 }
@@ -46,7 +50,9 @@ type Detail = {
   checkInAt: string
   checkOutAt: string | null
   workedMinutes: number
+  earlyMinutes: number
   lateMinutes: number
+  afterShiftMinutes: number
   overtimeMinutes: number
   status: "OPEN" | "CLOSED"
   shift: { id: string; name: string; label: string } | null
@@ -90,21 +96,41 @@ function minutes(value: number) {
   return rest ? `${hours} sa ${rest} dk` : `${hours} sa`
 }
 
-function WarningBadges({ lateMinutes, overtimeMinutes }: { lateMinutes: number; overtimeMinutes: number }) {
-  if (!lateMinutes && !overtimeMinutes) {
+function WarningBadges({
+  earlyMinutes,
+  lateMinutes,
+  afterShiftMinutes,
+  overtimeMinutes,
+}: {
+  earlyMinutes: number
+  lateMinutes: number
+  afterShiftMinutes: number
+  overtimeMinutes: number
+}) {
+  if (!earlyMinutes && !lateMinutes && !afterShiftMinutes && !overtimeMinutes) {
     return <span className="text-muted-foreground">Sorun yok</span>
   }
 
   return (
     <div className="flex flex-wrap gap-1.5">
+      {earlyMinutes > 0 && (
+        <Badge variant="outline" className="border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300">
+          Erken {minutes(earlyMinutes)}
+        </Badge>
+      )}
       {lateMinutes > 0 && (
         <Badge variant="outline" className="border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300">
           Geç {minutes(lateMinutes)}
         </Badge>
       )}
+      {afterShiftMinutes > 0 && afterShiftMinutes !== overtimeMinutes && (
+        <Badge variant="outline" className="border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300">
+          Mesai sonrası {minutes(afterShiftMinutes)}
+        </Badge>
+      )}
       {overtimeMinutes > 0 && (
         <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
-          Fazla {minutes(overtimeMinutes)}
+          Net fazla {minutes(overtimeMinutes)}
         </Badge>
       )}
     </div>
@@ -185,24 +211,28 @@ export default function MesaiTakipPage() {
       tables: [
         {
           title: "Şube Özeti",
-          headers: ["Şube", "Personel", "Açık", "Geç Kalma", "Fazla Mesai", "Çalışma"],
+          headers: ["Şube", "Personel", "Açık", "Erken Giriş", "Geç Kalma", "Mesai Sonrası", "Net Fazla", "Çalışma"],
           rows: payload.branchSummaries.map((item) => [
             item.branch.ad,
             item.personelCount,
             item.openCount,
+            minutes(item.earlyMinutes),
             minutes(item.lateMinutes),
+            minutes(item.afterShiftMinutes),
             minutes(item.overtimeMinutes),
             minutes(item.workedMinutes),
           ]),
         },
         {
           title: "Personel Özeti",
-          headers: ["Personel", "Şube", "Açık", "Geç Kalma", "Fazla Mesai", "Çalışma"],
+          headers: ["Personel", "Şube", "Açık", "Erken Giriş", "Geç Kalma", "Mesai Sonrası", "Net Fazla", "Çalışma"],
           rows: payload.personelSummaries.map((item) => [
             item.name,
             item.branch?.ad || "-",
             item.openCount,
+            minutes(item.earlyMinutes),
             minutes(item.lateMinutes),
+            minutes(item.afterShiftMinutes),
             minutes(item.overtimeMinutes),
             minutes(item.workedMinutes),
           ]),
@@ -219,8 +249,10 @@ export default function MesaiTakipPage() {
             formatTime(item.checkOutAt),
             minutes(item.workedMinutes),
             [
+              item.earlyMinutes > 0 ? `Erken: ${minutes(item.earlyMinutes)}` : "",
               item.lateMinutes > 0 ? `Gec: ${minutes(item.lateMinutes)}` : "",
-              item.overtimeMinutes > 0 ? `Fazla: ${minutes(item.overtimeMinutes)}` : "",
+              item.afterShiftMinutes > 0 ? `Mesai sonrasi: ${minutes(item.afterShiftMinutes)}` : "",
+              item.overtimeMinutes > 0 ? `Net fazla: ${minutes(item.overtimeMinutes)}` : "",
             ].filter(Boolean).join(" / ") || "-",
             item.status === "OPEN" ? "Cikis bekliyor" : "Tamamlandi",
           ]),
@@ -414,7 +446,12 @@ export default function MesaiTakipPage() {
                     </td>
                     <td className="p-3 font-semibold">{minutes(item.workedMinutes)}</td>
                     <td className="p-3">
-                      <WarningBadges lateMinutes={item.lateMinutes} overtimeMinutes={item.overtimeMinutes} />
+                      <WarningBadges
+                        earlyMinutes={item.earlyMinutes}
+                        lateMinutes={item.lateMinutes}
+                        afterShiftMinutes={item.afterShiftMinutes}
+                        overtimeMinutes={item.overtimeMinutes}
+                      />
                     </td>
                     <td className="p-3">
                       <DetailStatusBadge status={item.status} />
