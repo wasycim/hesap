@@ -139,8 +139,6 @@ export default function VardiyaPage() {
   const [customShifts, setCustomShifts] = useState<CustomShift[]>([])
   const [assignments, setAssignments] = useState<Record<string, string>>({})
   const [dirtyAssignments, setDirtyAssignments] = useState<Record<string, string>>({})
-  const [fixedShiftDrafts, setFixedShiftDrafts] = useState<Record<string, string>>({})
-  const [dirtyFixedShifts, setDirtyFixedShifts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const selectedRange = useMemo(() => {
@@ -183,6 +181,20 @@ export default function VardiyaPage() {
   ], [customShifts, fixedShifts])
 
   const shiftById = useMemo(() => new Map(shiftOptions.map((shift) => [shift.id, shift])), [shiftOptions])
+  const rangeBulkShifts = useMemo(() => {
+    const result: Record<string, string> = {}
+
+    for (const personel of personeller) {
+      const values = days.map((day) => {
+        const key = `${dateKey(day)}__${personel.id}`
+        return dirtyAssignments[key] ?? assignments[key] ?? ""
+      })
+      const first = values[0] || ""
+      result[personel.id] = first && values.every((value) => value === first) ? first : ""
+    }
+
+    return result
+  }, [assignments, days, dirtyAssignments, personeller])
 
   useEffect(() => {
     async function checkAdmin() {
@@ -231,22 +243,17 @@ export default function VardiyaPage() {
     setPersoneller(payload.personeller || [])
     setFixedShifts(payload.fixedShiftDefinitions || [])
     setCustomShifts(payload.shiftDefinitions || [])
-    setFixedShiftDrafts(Object.fromEntries((payload.personeller || []).map((personel: Personel) => [
-      personel.id,
-      personel.sabit_vardiya || "",
-    ])))
     setAssignments(Object.fromEntries((payload.assignments || []).map((assignment: Assignment) => [
       `${assignment.tarih}__${assignment.personel_id}`,
       assignment.vardiya,
     ])))
     setDirtyAssignments({})
-    setDirtyFixedShifts({})
     setLoading(false)
   }
 
   function getAssignment(day: Date, personelId: string) {
     const key = `${dateKey(day)}__${personelId}`
-    return dirtyAssignments[key] ?? assignments[key] ?? fixedShiftDrafts[personelId] ?? ""
+    return dirtyAssignments[key] ?? assignments[key] ?? ""
   }
 
   function setAssignment(day: Date, personelId: string, vardiya: string) {
@@ -254,9 +261,14 @@ export default function VardiyaPage() {
     setDirtyAssignments((current) => ({ ...current, [key]: vardiya }))
   }
 
-  function setFixedShift(personelId: string, vardiya: string) {
-    setFixedShiftDrafts((current) => ({ ...current, [personelId]: vardiya }))
-    setDirtyFixedShifts((current) => ({ ...current, [personelId]: vardiya }))
+  function applyBulkShift(personelId: string, vardiya: string) {
+    setDirtyAssignments((current) => {
+      const next = { ...current }
+      for (const day of days) {
+        next[`${dateKey(day)}__${personelId}`] = vardiya
+      }
+      return next
+    })
   }
 
   async function saveSchedule() {
@@ -272,10 +284,6 @@ export default function VardiyaPage() {
           const [tarih, personel_id] = key.split("__")
           return { tarih, personel_id, vardiya }
         }),
-        fixedShifts: Object.entries(dirtyFixedShifts).map(([personel_id, sabit_vardiya]) => ({
-          personel_id,
-          sabit_vardiya,
-        })),
       }),
     })
     const payload = await response.json().catch(() => ({}))
@@ -307,7 +315,7 @@ export default function VardiyaPage() {
           headers: ["Personel", "Sabit", ...days.map((day) => format(day, "d"))],
           rows: personeller.map((personel) => [
             personel.ad,
-            shiftById.get(fixedShiftDrafts[personel.id] || "")?.label || "-",
+            shiftById.get(rangeBulkShifts[personel.id] || "")?.label || "-",
             ...days.map((day) => {
               const shift = shiftById.get(getAssignment(day, personel.id))
               return shift ? shift.short : "-"
@@ -360,7 +368,7 @@ export default function VardiyaPage() {
     setDatePickerOpen(false)
   }
 
-  const hasChanges = Object.keys(dirtyAssignments).length > 0 || Object.keys(dirtyFixedShifts).length > 0
+  const hasChanges = Object.keys(dirtyAssignments).length > 0
 
   if (isAdmin === false) {
     return (
@@ -503,7 +511,7 @@ export default function VardiyaPage() {
               <thead>
                 <tr className="bg-muted/50">
                   <th className="sticky left-0 z-20 w-44 border-b border-r bg-muted/95 px-2 py-2 text-left font-semibold">Personel</th>
-                  <th className="w-28 border-b border-r px-2 py-2 text-left font-semibold">Sabit</th>
+                  <th className="w-32 border-b border-r px-2 py-2 text-left font-semibold">Sabit</th>
                   {days.map((day) => {
                     const weekend = getDay(day) === 0 || getDay(day) === 6
                     return (
@@ -522,7 +530,7 @@ export default function VardiyaPage() {
                       <span className="block truncate" title={personel.ad}>{personel.ad}</span>
                     </td>
                     <td className="border-b border-r px-1 py-1">
-                      <Select value={fixedShiftDrafts[personel.id] || "none"} onValueChange={(next) => setFixedShift(personel.id, next === "none" ? "" : next)}>
+                      <Select value={rangeBulkShifts[personel.id] || "none"} onValueChange={(next) => applyBulkShift(personel.id, next === "none" ? "" : next)}>
                         <SelectTrigger className="h-7 w-full px-2 text-[11px]">
                           <SelectValue placeholder="-" />
                         </SelectTrigger>
@@ -569,7 +577,7 @@ export default function VardiyaPage() {
               {shift.short} · {shift.label} {shift.time !== "-" ? shift.time : ""}
             </span>
           ))}
-          <span className="ml-auto hidden sm:inline">Sabit sütunu bu sayfadan yönetilir.</span>
+          <span className="ml-auto hidden sm:inline">Sabit sütunu sadece seçili tarih aralığındaki tüm günleri doldurur.</span>
         </div>
       </div>
     </div>
