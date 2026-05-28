@@ -170,6 +170,8 @@ export async function GET(request: NextRequest) {
 
   const details = logs
     .filter((log) => {
+      if (log.checkOutAt && minutesBetween(log.checkInAt, log.checkOutAt) === 0) return false
+
       const profile = profileByTc.get(log.user.tcKimlik)
       if (!profile?.sube_id) return false
       if (subeId !== "all" && profile.sube_id !== subeId) return false
