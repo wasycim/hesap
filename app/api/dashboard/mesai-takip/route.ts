@@ -40,23 +40,30 @@ function calculateTiming(log: {
 }) {
   const workedMinutes = minutesBetween(log.checkInAt, log.checkOutAt)
   if (!log.shift) {
-    return { workedMinutes, earlyMinutes: 0, lateMinutes: 0, afterShiftMinutes: 0, overtimeMinutes: 0 }
+    return { workedMinutes, beforeShiftMinutes: 0, earlyMinutes: 0, lateMinutes: 0, afterShiftMinutes: 0, overtimeMinutes: 0 }
   }
 
   const crossesMidnight = log.shift.endMinute <= log.shift.startMinute
   const startsAt = shiftBoundary(log.workDate, log.shift.startMinute)
   const endsAt = shiftBoundary(log.workDate, log.shift.endMinute, crossesMidnight)
   const scheduledMinutes = shiftDurationMinutes(log.shift)
+  const beforeShiftMinutes = log.checkOutAt && log.checkOutAt <= startsAt ? workedMinutes : 0
   const earlyMinutes = Math.max(0, Math.floor((startsAt.getTime() - log.checkInAt.getTime()) / 60000))
   const lateMinutes = Math.max(0, Math.floor((log.checkInAt.getTime() - startsAt.getTime()) / 60000))
   const afterShiftMinutes = log.checkOutAt
     ? Math.max(0, Math.floor((log.checkOutAt.getTime() - endsAt.getTime()) / 60000))
     : 0
-  const overtimeMinutes = log.checkOutAt
-    ? Math.max(0, workedMinutes - scheduledMinutes)
-    : 0
+  const overtimeMinutes = beforeShiftMinutes > 0
+    ? beforeShiftMinutes
+    : log.checkOutAt
+      ? Math.max(0, workedMinutes - scheduledMinutes)
+      : 0
 
-  return { workedMinutes, earlyMinutes, lateMinutes, afterShiftMinutes, overtimeMinutes }
+  if (beforeShiftMinutes > 0) {
+    return { workedMinutes, beforeShiftMinutes, earlyMinutes: 0, lateMinutes: 0, afterShiftMinutes: 0, overtimeMinutes }
+  }
+
+  return { workedMinutes, beforeShiftMinutes, earlyMinutes, lateMinutes, afterShiftMinutes, overtimeMinutes }
 }
 
 async function requireDashboardAdmin() {
@@ -143,6 +150,7 @@ export async function GET(request: NextRequest) {
     branch: { id: string; ad: string; kod: string } | null
     logCount: number
     openCount: number
+    beforeShiftMinutes: number
     earlyMinutes: number
     lateMinutes: number
     afterShiftMinutes: number
@@ -160,6 +168,7 @@ export async function GET(request: NextRequest) {
       branch,
       logCount: 0,
       openCount: 0,
+      beforeShiftMinutes: 0,
       earlyMinutes: 0,
       lateMinutes: 0,
       afterShiftMinutes: 0,
@@ -195,6 +204,7 @@ export async function GET(request: NextRequest) {
       if (summary) {
         summary.logCount += 1
         summary.openCount += log.checkOutAt ? 0 : 1
+        summary.beforeShiftMinutes += timing.beforeShiftMinutes
         summary.earlyMinutes += timing.earlyMinutes
         summary.lateMinutes += timing.lateMinutes
         summary.afterShiftMinutes += timing.afterShiftMinutes
@@ -212,6 +222,7 @@ export async function GET(request: NextRequest) {
         checkInAt: log.checkInAt,
         checkOutAt: log.checkOutAt,
         workedMinutes: timing.workedMinutes,
+        beforeShiftMinutes: timing.beforeShiftMinutes,
         earlyMinutes: timing.earlyMinutes,
         lateMinutes: timing.lateMinutes,
         afterShiftMinutes: timing.afterShiftMinutes,
@@ -231,6 +242,7 @@ export async function GET(request: NextRequest) {
         personelCount: people.length,
         logCount: people.reduce((sum, item) => sum + item.logCount, 0),
         openCount: people.reduce((sum, item) => sum + item.openCount, 0),
+        beforeShiftMinutes: people.reduce((sum, item) => sum + item.beforeShiftMinutes, 0),
         earlyMinutes: people.reduce((sum, item) => sum + item.earlyMinutes, 0),
         lateMinutes: people.reduce((sum, item) => sum + item.lateMinutes, 0),
         afterShiftMinutes: people.reduce((sum, item) => sum + item.afterShiftMinutes, 0),
