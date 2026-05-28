@@ -314,7 +314,7 @@ export default function MesaiTakipPage() {
           <label className="grid gap-1.5 text-xs font-semibold text-muted-foreground">
             İşlem
             <Button type="button" variant="secondary" className="h-11 rounded-xl gap-2 shadow-sm" onClick={loadData} disabled={loading}>
-              <RefreshCw className={`h-4 w-4 shrink-0 animate-[mesai-refresh-spin_1.4s_linear_infinite] ${loading ? "text-emerald-600" : ""}`} />
+              <RefreshCw className={`h-4 w-4 shrink-0 ${loading ? "animate-[mesai-refresh-spin_700ms_linear_infinite] text-emerald-600" : ""}`} />
               Yenile
             </Button>
           </label>
