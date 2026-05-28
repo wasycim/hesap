@@ -273,6 +273,7 @@ export default function MesaiTakipPage() {
 
   return (
     <main className="space-y-5 p-4 sm:p-6 lg:p-8">
+      <RefreshAnimationStyle />
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-normal">Mesai Takip</h1>
@@ -313,7 +314,7 @@ export default function MesaiTakipPage() {
           <label className="grid gap-1.5 text-xs font-semibold text-muted-foreground">
             İşlem
             <Button type="button" variant="secondary" className="h-11 rounded-xl gap-2 shadow-sm" onClick={loadData} disabled={loading}>
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-4 w-4 shrink-0 animate-[mesai-refresh-spin_1.4s_linear_infinite] ${loading ? "text-emerald-600" : ""}`} />
               Yenile
             </Button>
           </label>
@@ -515,6 +516,21 @@ function DatePicker({ label, value, onChange }: { label: string; value: string; 
         </PopoverContent>
       </Popover>
     </label>
+  )
+}
+
+function RefreshAnimationStyle() {
+  return (
+    <style jsx global>{`
+      @keyframes mesai-refresh-spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    `}</style>
   )
 }
 
