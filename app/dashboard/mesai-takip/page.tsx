@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { CalendarDays, FileText, Filter, TimerReset, UsersRound } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -68,11 +69,11 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeZone: "Europe/Istanbul" }).format(new Date(value))
 }
 
-function formatDateTime(value: string | null) {
+function formatTime(value: string | null) {
   if (!value) return "-"
   return new Intl.DateTimeFormat("tr-TR", {
-    dateStyle: "short",
-    timeStyle: "short",
+    hour: "2-digit",
+    minute: "2-digit",
     timeZone: "Europe/Istanbul",
   }).format(new Date(value))
 }
@@ -83,6 +84,43 @@ function minutes(value: number) {
   const rest = value % 60
   if (!hours) return `${rest} dk`
   return rest ? `${hours} sa ${rest} dk` : `${hours} sa`
+}
+
+function WarningBadges({ lateMinutes, overtimeMinutes }: { lateMinutes: number; overtimeMinutes: number }) {
+  if (!lateMinutes && !overtimeMinutes) {
+    return <span className="text-muted-foreground">Sorun yok</span>
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {lateMinutes > 0 && (
+        <Badge variant="outline" className="border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300">
+          Geç {minutes(lateMinutes)}
+        </Badge>
+      )}
+      {overtimeMinutes > 0 && (
+        <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+          Fazla {minutes(overtimeMinutes)}
+        </Badge>
+      )}
+    </div>
+  )
+}
+
+function DetailStatusBadge({ status }: { status: "OPEN" | "CLOSED" }) {
+  if (status === "OPEN") {
+    return (
+      <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+        Devam ediyor
+      </Badge>
+    )
+  }
+
+  return (
+    <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+      Tamamlandı
+    </Badge>
+  )
 }
 
 export default function MesaiTakipPage() {
@@ -166,18 +204,21 @@ export default function MesaiTakipPage() {
           ]),
         },
         {
-          title: "Giriş Çıkış Detayı",
-          headers: ["Tarih", "Şube", "Personel", "Vardiya", "Giriş", "Çıkış", "Geç", "Fazla", "Durum"],
+          title: "Gunluk Giris Cikis Listesi",
+          headers: ["Tarih", "Personel", "Sube", "Vardiya", "Giris Saati", "Cikis Saati", "Calisma", "Uyari", "Sonuc"],
           rows: payload.details.map((item) => [
             formatDate(item.workDate),
-            item.branch?.ad || "-",
             item.personel,
+            item.branch?.ad || "-",
             item.shift?.label || "-",
-            formatDateTime(item.checkInAt),
-            formatDateTime(item.checkOutAt),
-            minutes(item.lateMinutes),
-            minutes(item.overtimeMinutes),
-            item.status === "OPEN" ? "Açık" : "Kapalı",
+            formatTime(item.checkInAt),
+            formatTime(item.checkOutAt),
+            minutes(item.workedMinutes),
+            [
+              item.lateMinutes > 0 ? `Gec: ${minutes(item.lateMinutes)}` : "",
+              item.overtimeMinutes > 0 ? `Fazla: ${minutes(item.overtimeMinutes)}` : "",
+            ].filter(Boolean).join(" / ") || "-",
+            item.status === "OPEN" ? "Cikis bekliyor" : "Tamamlandi",
           ]),
         },
       ],
@@ -307,7 +348,10 @@ export default function MesaiTakipPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Giriş Çıkış Detayı</CardTitle>
+          <CardTitle>Günlük Giriş Çıkış Listesi</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Her satır bir personelin o günkü giriş-çıkış durumunu gösterir. Açık mesai satırlarında çıkış beklenir.
+          </p>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-lg border">
@@ -315,32 +359,55 @@ export default function MesaiTakipPage() {
               <thead className="bg-muted/70 text-left">
                 <tr>
                   <th className="p-3">Tarih</th>
-                  <th className="p-3">Şube</th>
                   <th className="p-3">Personel</th>
-                  <th className="p-3">Vardiya</th>
+                  <th className="p-3">Planlanan Vardiya</th>
                   <th className="p-3">Giriş</th>
                   <th className="p-3">Çıkış</th>
-                  <th className="p-3">Geç</th>
-                  <th className="p-3">Fazla</th>
-                  <th className="p-3">Durum</th>
+                  <th className="p-3">Çalışma</th>
+                  <th className="p-3">Uyarı</th>
+                  <th className="p-3">Sonuç</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={9} className="p-6 text-center text-muted-foreground">Yükleniyor</td></tr>
+                  <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">Yükleniyor</td></tr>
                 ) : (payload?.details || []).length === 0 ? (
-                  <tr><td colSpan={9} className="p-6 text-center text-muted-foreground">Kayıt bulunamadı</td></tr>
+                  <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">Seçili aralıkta giriş çıkış bulunamadı</td></tr>
                 ) : payload?.details.map((item) => (
-                  <tr key={item.id} className="border-t">
-                    <td className="p-3">{formatDate(item.workDate)}</td>
-                    <td className="p-3">{item.branch?.ad || "-"}</td>
-                    <td className="p-3 font-medium">{item.personel}</td>
-                    <td className="p-3">{item.shift?.label || "-"}</td>
-                    <td className="p-3">{formatDateTime(item.checkInAt)}</td>
-                    <td className="p-3">{formatDateTime(item.checkOutAt)}</td>
-                    <td className="p-3">{minutes(item.lateMinutes)}</td>
-                    <td className="p-3 font-semibold">{minutes(item.overtimeMinutes)}</td>
-                    <td className="p-3">{item.status === "OPEN" ? "Açık" : "Kapalı"}</td>
+                  <tr key={item.id} className={`border-t ${item.status === "OPEN" ? "bg-amber-500/5" : ""}`}>
+                    <td className="whitespace-nowrap p-3 text-muted-foreground">{formatDate(item.workDate)}</td>
+                    <td className="p-3">
+                      <div className="font-medium">{item.personel}</div>
+                      <div className="text-xs text-muted-foreground">{item.branch?.ad || "Şube yok"}</div>
+                    </td>
+                    <td className="p-3">
+                      <span className="whitespace-nowrap rounded-md bg-muted px-2 py-1 text-xs font-medium">
+                        {item.shift?.label || "Vardiya yok"}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <div className="font-semibold text-emerald-600 dark:text-emerald-400">{formatTime(item.checkInAt)}</div>
+                      <div className="text-xs text-muted-foreground">Giriş yapıldı</div>
+                    </td>
+                    <td className="p-3">
+                      {item.checkOutAt ? (
+                        <>
+                          <div className="font-semibold text-sky-600 dark:text-sky-400">{formatTime(item.checkOutAt)}</div>
+                          <div className="text-xs text-muted-foreground">Çıkış yapıldı</div>
+                        </>
+                      ) : (
+                        <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                          Çıkış bekliyor
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="p-3 font-semibold">{minutes(item.workedMinutes)}</td>
+                    <td className="p-3">
+                      <WarningBadges lateMinutes={item.lateMinutes} overtimeMinutes={item.overtimeMinutes} />
+                    </td>
+                    <td className="p-3">
+                      <DetailStatusBadge status={item.status} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
