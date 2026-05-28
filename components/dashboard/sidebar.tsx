@@ -175,6 +175,62 @@ function AnimatedMesaiTakipIcon() {
   )
 }
 
+function AnimatedMesaiCameraIcon() {
+  return (
+    <span className="relative grid h-5 w-5 shrink-0 place-items-center text-amber-500">
+      <svg viewBox="0 0 24 24" className="h-5 w-5 overflow-visible" aria-hidden="true">
+        <path
+          d="M7.4 7.4 9 5.2h5.2l1.6 2.2H18a2.6 2.6 0 0 1 2.6 2.6v6.4A2.6 2.6 0 0 1 18 19H6a2.6 2.6 0 0 1-2.6-2.6V10A2.6 2.6 0 0 1 6 7.4h1.4Z"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+        />
+        <circle cx="12" cy="13.2" r="3.1" fill="none" stroke="currentColor" strokeWidth="2" />
+        <circle cx="17.4" cy="10.2" r="0.7" fill="currentColor" />
+        <g className="mesai-camera-flash" transform="translate(18 6)">
+          <path d="M0-4v-2.2" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+          <path d="M2.8-2.8 4.3-4.3" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+          <path d="M4 0h2.2" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+          <circle cx="0" cy="0" r="3.7" fill="currentColor" opacity="0.14" />
+        </g>
+      </svg>
+      <style jsx>{`
+        .mesai-camera-flash {
+          opacity: 0;
+          transform-box: fill-box;
+          transform-origin: center;
+        }
+
+        :global(.sidebar-menu-item:hover) .mesai-camera-flash,
+        :global(.sidebar-menu-item:focus-visible) .mesai-camera-flash {
+          animation: mesai-camera-flash-pop 950ms ease-out infinite;
+        }
+
+        @keyframes mesai-camera-flash-pop {
+          0%, 100% {
+            opacity: 0;
+            transform: scale(0.72);
+          }
+          12% {
+            opacity: 1;
+            transform: scale(1.15);
+          }
+          28% {
+            opacity: 0.65;
+            transform: scale(1);
+          }
+          42% {
+            opacity: 0;
+            transform: scale(1.28);
+          }
+        }
+      `}</style>
+    </span>
+  )
+}
+
 export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
@@ -301,6 +357,8 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                 >
                   {item.href === "/dashboard/vardiya" ? (
                     <AnimatedShiftMenuIcon />
+                  ) : item.href === "/dashboard/mesai" ? (
+                    <AnimatedMesaiCameraIcon />
                   ) : item.href === "/dashboard/mesai-takip" ? (
                     <AnimatedMesaiTakipIcon />
                   ) : (
