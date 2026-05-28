@@ -7,7 +7,16 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSube } from "@/contexts/sube-context"
-import { MONTHS, START_MONTH_INDEX, START_YEAR, getInitialMonth, getInitialYear, makeYearWindow } from "@/lib/date-navigation"
+import {
+  MONTHS,
+  START_MONTH_INDEX,
+  START_YEAR,
+  getInitialMonth,
+  getInitialYear,
+  getMonthEndDate,
+  getMonthStartDate,
+  makeYearWindow,
+} from "@/lib/date-navigation"
 import { openPdfReport } from "@/lib/pdf-report"
 
 interface Personel {
@@ -30,6 +39,18 @@ interface GiderRow {
 }
 
 type Detail = { tarih: string; amount: number; description: string }
+type OvertimeDetail = Detail & { hours: number; rate: number; minutes: number; source: "attendance" | "manual" }
+
+type AttendanceDetail = {
+  id: number
+  personelId: string | null
+  workDate: string
+  overtimeMinutes: number
+}
+
+type AttendancePayload = {
+  details: AttendanceDetail[]
+}
 
 function formatMoney(value: number) {
   return value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -39,12 +60,17 @@ function formatDate(value: string) {
   return new Date(value).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" })
 }
 
+function formatHours(value: number) {
+  return value.toLocaleString("tr-TR", { minimumFractionDigits: value % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })
+}
+
 export default function MaaslarPage() {
   const [month, setMonth] = useState(getInitialMonth())
   const [year, setYear] = useState(getInitialYear())
   const [personeller, setPersoneller] = useState<Personel[]>([])
   const [ortaklar, setOrtaklar] = useState<Ortak[]>([])
   const [rows, setRows] = useState<GiderRow[]>([])
+  const [attendanceOvertime, setAttendanceOvertime] = useState<AttendanceDetail[]>([])
   const [selectedPersonelId, setSelectedPersonelId] = useState<string | null>(null)
   const [selectedOrtakId, setSelectedOrtakId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -61,7 +87,10 @@ export default function MaaslarPage() {
     if (!currentSube) return
     setLoading(true)
 
-    const [personelRes, ortakRes, giderRes] = await Promise.all([
+    const from = getMonthStartDate(month, year)
+    const to = getMonthEndDate(month, year)
+
+    const [personelRes, ortakRes, giderRes, attendanceRes] = await Promise.all([
       supabase
         .from("personeller")
         .select("id, ad, aylik_maas, saatlik_mesai_ucreti")
@@ -80,11 +109,14 @@ export default function MaaslarPage() {
         .eq("sube_id", currentSube.id)
         .eq("ay_yil", ayYil)
         .order("tarih", { ascending: true }),
+      fetch(`/api/dashboard/mesai-takip?${new URLSearchParams({ from, to, subeId: currentSube.id }).toString()}`),
     ])
 
+    const attendancePayload = await attendanceRes.json().catch(() => null) as AttendancePayload | null
     setPersoneller(personelRes.data || [])
     setOrtaklar(ortakRes.data || [])
     setRows(giderRes.data || [])
+    setAttendanceOvertime(attendanceRes.ok ? (attendancePayload?.details || []) : [])
     setLoading(false)
   }
 
@@ -92,7 +124,7 @@ export default function MaaslarPage() {
     const baseSalary = Number(personel.aylik_maas) || 0
     const hourlyRate = Number(personel.saatlik_mesai_ucreti) || (baseSalary > 0 ? baseSalary / 30 / 8 : 0)
     const advances: Detail[] = []
-    const overtime: Detail[] = []
+    const overtime: OvertimeDetail[] = []
 
     rows.forEach(row => {
       const advanceAmount = Number(row.personel_paylari?.[personel.id]) || 0
@@ -102,10 +134,34 @@ export default function MaaslarPage() {
 
       const hours = Number(row.personel_mesai_detaylari?.[personel.id]) || 0
       if (hours > 0) {
-        overtime.push({ tarih: row.tarih, amount: hours * hourlyRate, description: `${hours} saat mesai` })
+        overtime.push({
+          tarih: row.tarih,
+          amount: hours * hourlyRate,
+          description: `Manuel mesai: ${formatHours(hours)} saat x ${formatMoney(hourlyRate)} TL`,
+          hours,
+          rate: hourlyRate,
+          minutes: Math.round(hours * 60),
+          source: "manual",
+        })
       }
     })
 
+    attendanceOvertime
+      .filter(detail => detail.personelId === personel.id && detail.overtimeMinutes > 0)
+      .forEach(detail => {
+        const hours = detail.overtimeMinutes / 60
+        overtime.push({
+          tarih: detail.workDate,
+          amount: hours * hourlyRate,
+          description: `Mesai takip: ${formatHours(hours)} saat x ${formatMoney(hourlyRate)} TL`,
+          hours,
+          rate: hourlyRate,
+          minutes: detail.overtimeMinutes,
+          source: "attendance",
+        })
+      })
+
+    overtime.sort((a, b) => a.tarih.localeCompare(b.tarih) || a.source.localeCompare(b.source))
     const advanceTotal = advances.reduce((sum, item) => sum + item.amount, 0)
     const overtimeTotal = overtime.reduce((sum, item) => sum + item.amount, 0)
 
@@ -119,7 +175,7 @@ export default function MaaslarPage() {
       overtimeTotal,
       remaining: baseSalary + overtimeTotal - advanceTotal,
     }
-  }), [personeller, rows])
+  }), [attendanceOvertime, personeller, rows])
 
   const ortakSummaries = useMemo(() => ortaklar.map(ortak => {
     const advances: Detail[] = []
@@ -184,6 +240,7 @@ export default function MaaslarPage() {
       metrics: [
         { label: "Aylık Maaş", value: `${formatMoney(item.baseSalary)} TL` },
         { label: "Saatlik Mesai", value: `${formatMoney(item.hourlyRate)} TL` },
+        { label: "Toplam Mesai", value: `+${formatMoney(item.overtimeTotal)} TL` },
         { label: "Toplam Avans", value: `-${formatMoney(item.advanceTotal)} TL` },
         { label: "Net Kalan", value: `${formatMoney(item.remaining)} TL` },
       ],
@@ -196,9 +253,15 @@ export default function MaaslarPage() {
         },
         {
           title: "Mesailer",
-          headers: ["Tarih", "Açıklama", "Tutar"],
+          headers: ["Tarih", "Kaynak", "Saat", "Saatlik Ücret", "Tutar"],
           firstColumnWidth: "28%",
-          rows: item.overtime.map(detail => [formatDate(detail.tarih), detail.description, `+${formatMoney(detail.amount)} TL`]),
+          rows: item.overtime.map(detail => [
+            formatDate(detail.tarih),
+            detail.source === "attendance" ? "Mesai takip" : "Manuel",
+            `${formatHours(detail.hours)} saat`,
+            `${formatMoney(detail.rate)} TL`,
+            `+${formatMoney(detail.amount)} TL`,
+          ]),
         },
       ],
     })

@@ -204,6 +204,7 @@ export async function GET(request: NextRequest) {
 
       return {
         id: log.id,
+        personelId: summary?.personelId || null,
         personel: profile?.display_name || log.user.name,
         tcKimlik: log.user.tcKimlik,
         branch,
