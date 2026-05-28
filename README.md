@@ -551,6 +551,8 @@ Normal web sitesi degisiklikleri icin kullanicinin `.exe` dosyasini tekrar kurma
 
 Otomatik guncelleme GitHub Release uzerinden calisir. Repo private oldugunda release dosyalari yalnizca yetkili GitHub erisimi veya proje sahibinin kapali dagitim kanali ile indirilebilir.
 
+Internet yokken masaustu uygulamasi bos Chromium hata sayfasi yerine kendi baglanti uyarisi ekranini acar. Bu ekranda "Yeniden yukle" butonu bulunur; baglanti geri geldiginde butona basildiginda uygulama ana siteyi tekrar yukler. Bu davranis `v0.1.5` ve sonraki masaustu surumlerinde vardir.
+
 ## Test ve Dogrulama
 
 Degisikliklerden sonra minimum kontroller:
@@ -719,6 +721,10 @@ Kontrol edin:
 ### `.exe` PDF butonunda "about edinin" penceresi aciyor
 
 Bu hata eski masaustu kabugunda PDF icin acilan `about:blank` yazdirma penceresinin Windows'a dis baglanti gibi gonderilmesinden kaynaklanir. Cozum: `v0.1.4` veya daha yeni masaustu surumune guncelleyin. Bu surum PDF penceresini uygulama icinde acar.
+
+### `.exe` internet yokken beyaz hata sayfasi aciyor
+
+`v0.1.5` ve sonraki surumlerde masaustu uygulamasi internet yokken kendi "Internet baglantisi yok" ekranini acar. Baglanti geri geldiginde "Yeniden yukle" butonuna tiklayin. Eski surumlerde bu ekran yoksa yeni installer release'ine guncelleyin.
 
 ## Operasyon Rehberi
 
