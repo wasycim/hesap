@@ -73,26 +73,30 @@ export default function GirisPage() {
     const { data: profile } = signedUser
       ? await supabase
         .from("user_profiles")
-        .select("dashboard_access")
+        .select("dashboard_access, tc_kimlik")
         .eq("user_id", signedUser.id)
         .maybeSingle()
       : { data: null }
 
+    const mesaiTc = loginMode === "tc" ? cleanTc : String(profile?.tc_kimlik || "").replace(/\D/g, "")
+    let mesaiLoginOk = false
+
+    if (mesaiTc.length === 11) {
+      const mesaiResponse = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tcKimlik: mesaiTc, password }),
+      })
+      mesaiLoginOk = mesaiResponse.ok
+    }
+
     if (profile?.dashboard_access === false) {
       await supabase.auth.signOut()
 
-      if (loginMode === "tc") {
-        const mesaiResponse = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tcKimlik: cleanTc, password }),
-        })
-
-        if (mesaiResponse.ok) {
-          router.push("/mesai-qr")
-          router.refresh()
-          return
-        }
+      if (mesaiLoginOk) {
+        router.push("/mesai-qr")
+        router.refresh()
+        return
       }
 
       setError("Bu kullanici sadece mesai giris cikis icin yetkili.")

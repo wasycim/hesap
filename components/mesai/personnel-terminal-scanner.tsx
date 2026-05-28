@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Camera, CheckCircle2, LogOut, RotateCcw, XCircle } from "lucide-react"
+import { ArrowLeft, Camera, CheckCircle2, LogOut, RotateCcw, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 type ScanState = "ready" | "processing" | "success" | "error"
@@ -16,6 +16,7 @@ type ScanResponse = {
 
 type PersonnelTerminalScannerProps = {
   userName: string
+  dashboardMode?: boolean
 }
 
 const scannerId = "personnel-terminal-qr-reader"
@@ -39,7 +40,7 @@ function playTone(type: "success" | "error") {
   oscillator.stop(context.currentTime + 0.3)
 }
 
-export function PersonnelTerminalScanner({ userName }: PersonnelTerminalScannerProps) {
+export function PersonnelTerminalScanner({ userName, dashboardMode = false }: PersonnelTerminalScannerProps) {
   const router = useRouter()
   const scannerRef = useRef<import("html5-qrcode").Html5Qrcode | null>(null)
   const lockedRef = useRef(false)
@@ -161,7 +162,7 @@ export function PersonnelTerminalScanner({ userName }: PersonnelTerminalScannerP
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" })
-    router.replace("/login")
+    router.replace("/auth/giris")
     router.refresh()
   }
 
@@ -182,6 +183,11 @@ export function PersonnelTerminalScanner({ userName }: PersonnelTerminalScannerP
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {dashboardMode ? (
+              <Button type="button" variant="secondary" size="icon" aria-label="Dashboarda don" onClick={() => router.push("/dashboard")}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            ) : null}
             <Button type="button" variant="secondary" size="icon" aria-label="Sifirla" onClick={handleManualReset}>
               <RotateCcw className="h-4 w-4" />
             </Button>

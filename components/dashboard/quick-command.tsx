@@ -4,6 +4,8 @@ import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import {
   BarChart3,
+  CalendarDays,
+  Camera,
   ChevronDown,
   Columns3,
   Eye,
@@ -33,6 +35,9 @@ const NAV_ITEMS = [
   { title: "Gider Tablosu", href: "/dashboard/gider", adminOnly: false, icon: TrendingDown, color: "text-red-500" },
   { title: "Çorbalar", href: "/dashboard/corbalar", adminOnly: false, icon: Soup, color: "text-orange-500" },
   { title: "Maaşlar", href: "/dashboard/maaslar", adminOnly: true, icon: WalletCards, color: "text-emerald-500" },
+  { title: "Mesai", href: "/dashboard/mesai", adminOnly: false, icon: Camera, color: "text-amber-500" },
+  { title: "Vardiya", href: "/dashboard/vardiya", adminOnly: true, icon: CalendarDays, color: "text-violet-500" },
+  { title: "Mesai Takip", href: "/dashboard/mesai-takip", adminOnly: true, icon: CalendarDays, color: "text-amber-500" },
   { title: "Şube Ciro Raporları", href: "/dashboard/sube-ciro-raporlari", adminOnly: true, icon: BarChart3, color: "text-emerald-500" },
   { title: "Sütun Ayarları", href: "/dashboard/sutun-ayarlar", adminOnly: true, icon: Columns3, color: "text-sky-500" },
   { title: "Görünüm Ayarları", href: "/dashboard/gorunum-ayarlar", adminOnly: true, icon: Eye, color: "text-indigo-500" },

@@ -56,6 +56,8 @@ Sube bazli gelir, gider, corba, kargo cari ve kullanici yonetimi icin ana paneld
 - Guvenlik olaylari
 - Admin ayarlari
 - Gorunum ve kolon ayarlari
+- `Ctrl+K` ile hizli sayfa komutlari
+- `Ctrl+S` ile aktif sayfadaki kaydetme islemini calistirma
 
 ### QR Mesai Takip
 
@@ -99,14 +101,15 @@ Sistemin temel farki sudur: QR personelde sabit kalmaz. Guvenlik icin sabit term
 
 1. Sabit ekranda `/terminal` sayfasi acik kalir.
 2. Bu sayfa 30 saniyede bir yeni QR uretir.
-3. Personel `/login` sayfasindan TC ve sifre ile giris yapar.
-4. Basarili giristen sonra personel `/mesai-qr` sayfasina yonlenir.
-5. Personelin kamerasi acilir.
-6. Personel, kendi kamerasi ile terminaldeki QR'i okutur.
-7. `/api/personel/scan-terminal` QR tokenini dogrular.
-8. Personelin acik mesaisi yoksa giris kaydi acilir.
-9. Acik mesaisi varsa cikis saati yazilir ve kayit kapanir.
-10. Basarili islemde kamera otomatik kapatilir.
+3. Personel `/auth/giris` sayfasindan TC ve sifre ile giris yapar.
+4. Sadece mesai yetkisi varsa personel otomatik `/mesai-qr` sayfasina yonlenir.
+5. Dashboard yetkisi de varsa paneldeki `Mesai` menusunden QR okutma ekranini acar.
+6. Personelin kamerasi acilir.
+7. Personel, kendi kamerasi ile terminaldeki QR'i okutur.
+8. `/api/personel/scan-terminal` QR tokenini dogrular.
+9. Personelin acik mesaisi yoksa giris kaydi acilir.
+10. Acik mesaisi varsa cikis saati yazilir ve kayit kapanir.
+11. Basarili islemde kamera otomatik kapatilir.
 
 Bu yapi sayesinde terminaldeki QR kopyalansa bile kisa surede gecersiz olur.
 
@@ -118,12 +121,13 @@ Bu yapi sayesinde terminaldeki QR kopyalansa bile kisa surede gecersiz olur.
 | `/auth/giris` | Ana dashboard girisi | Herkes |
 | `/dashboard` | Hesap genel bakis paneli | Giris yapmis kullanici |
 | `/dashboard/vardiya` | Modern vardiya takvimi | Yonetici |
+| `/dashboard/mesai` | Dashboard icinden terminal QR okutma ekrani | Dashboard kullanicisi |
 | `/dashboard/mesai-takip` | Sube bazli mesai takip paneli | Yonetici |
 | `/dashboard/ayarlar` | Ortak, personel ve kargo firma ayarlari | Yonetici |
 | `/dashboard/admin-ayarlar` | Kullanici, sube, rol ve guvenlik ayarlari | Yonetici |
 | `/dashboard/guvenlik-ayarlar` | Guvenlik olaylari | Yonetici |
 | `/personel-mesai` | Mesai admin paneli | Yonetici |
-| `/login` | Personel mesai girisi | Personel |
+| `/login` | Eski mesai girisi; `/auth/giris` sayfasina yonlendirir | Herkes |
 | `/mesai-qr` | Personelin terminal QR okutma ekrani | Personel |
 | `/terminal` | Sabit terminal QR ekrani | Terminal |
 
@@ -381,7 +385,7 @@ Sistemde iki farkli giris akisi vardir.
 | Akis | Route | Kullanici |
 | --- | --- | --- |
 | Dashboard Auth | `/auth/giris` | Yonetici ve dashboard kullanicilari |
-| Mesai Auth | `/login` | Personel QR mesai kullanicilari |
+| Mesai Auth | `/auth/giris` | Personel QR mesai kullanicilari |
 
 Mesai girisi basarili olunca HTTP-only `mesai_auth` cookie yazilir. Bu cookie JWT ile imzalanir.
 
@@ -572,7 +576,7 @@ Manuel kontrol listesi:
 
 - `/` adresi login akisini dogru yonlendiriyor mu?
 - `/auth/giris` dashboard girisi calisiyor mu?
-- `/login` TC ve sifre ile mesai girisi yapiyor mu?
+- `/auth/giris` TC ve sifre ile dashboard veya mesai akisini dogru yonlendiriyor mu?
 - `/terminal` QR uretiyor mu?
 - `/mesai-qr` kamera aciyor mu?
 - Basarili okutma sonrasi kamera kapaniyor mu?
@@ -596,7 +600,8 @@ app/
     vardiya/                      Vardiya takvimi
     mesai-takip/                  Sube bazli mesai takip
     ayarlar/                      Personel ve sistem ayarlari
-  login/                          Personel mesai girisi
+  login/                          Eski route; auth/giris sayfasina yonlendirir
+  dashboard/mesai/                Dashboard icinden QR okutma
   mesai-qr/                       Personel kamera ile terminal QR okutma
   terminal/                       Sabit terminal QR ekrani
   personel-mesai/                 Admin personel mesai paneli
@@ -746,7 +751,7 @@ Bu hata eski masaustu kabugunda PDF icin acilan `about:blank` yazdirma penceresi
 ### Gunluk Mesai Kontrolu
 
 1. `/terminal` sayfasini sabit ekranda acin.
-2. Personellerin `/login` uzerinden giris yapmasini saglayin.
+2. Personellerin `/auth/giris` uzerinden giris yapmasini saglayin.
 3. Personeller `/mesai-qr` ekraninda terminal QR'ini okutsun.
 4. Yonetici `/dashboard/mesai-takip` ekranindan gec kalanlari ve fazla mesaileri kontrol etsin.
 5. Gerekirse PDF rapor alin.

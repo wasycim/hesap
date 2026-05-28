@@ -170,7 +170,7 @@ export function AdminAttendanceDashboard({ adminName }: DashboardProps) {
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" })
-    router.replace("/login")
+    router.replace("/auth/giris")
     router.refresh()
   }
 

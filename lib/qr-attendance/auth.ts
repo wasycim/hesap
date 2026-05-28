@@ -94,11 +94,11 @@ export async function requireAuth(roles?: Role[]) {
   const session = await getAuthSession()
 
   if (!session) {
-    redirect("/login")
+    redirect("/auth/giris")
   }
 
   if (roles?.length && !roles.includes(session.role)) {
-    redirect("/login")
+    redirect("/auth/giris")
   }
 
   return session
