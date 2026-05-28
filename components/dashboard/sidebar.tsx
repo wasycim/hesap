@@ -189,11 +189,11 @@ function AnimatedMesaiCameraIcon() {
         />
         <circle cx="12" cy="13.2" r="3.1" fill="none" stroke="currentColor" strokeWidth="2" />
         <circle cx="17.4" cy="10.2" r="0.7" fill="currentColor" />
-        <g className="mesai-camera-flash" transform="translate(18 6)">
-          <path d="M0-4v-2.2" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-          <path d="M2.8-2.8 4.3-4.3" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-          <path d="M4 0h2.2" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-          <circle cx="0" cy="0" r="3.7" fill="currentColor" opacity="0.14" />
+        <g className="mesai-camera-flash" transform="translate(18.4 8.1)">
+          <path d="M0-1.8v-2" stroke="currentColor" strokeLinecap="round" strokeWidth="1.7" />
+          <path d="M1.4-1.4 2.8-2.8" stroke="currentColor" strokeLinecap="round" strokeWidth="1.7" />
+          <path d="M1.8 0h2" stroke="currentColor" strokeLinecap="round" strokeWidth="1.7" />
+          <circle cx="0" cy="0" r="2.4" fill="currentColor" opacity="0.18" />
         </g>
       </svg>
       <style jsx>{`
