@@ -24,7 +24,7 @@ export default async function DashboardLayout({
     .maybeSingle()
 
   if (profile?.dashboard_access === false) {
-    redirect("/login")
+    redirect("/mesai-qr")
   }
 
   return (

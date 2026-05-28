@@ -26,6 +26,17 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    const saveFromKeyboard = async (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLocaleLowerCase("tr-TR") !== "s") return
+      if (!saveHandlerRef.current) return
+
+      event.preventDefault()
+      const result = await saveHandlerRef.current()
+      if (result !== false) {
+        setIsDirty(false)
+      }
+    }
+
     const markDirtyFromInput = (event: Event) => {
       const target = event.target as HTMLElement | null
       if (!target) return
@@ -56,11 +67,13 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
     document.addEventListener("input", markDirtyFromInput, true)
     document.addEventListener("change", markDirtyFromInput, true)
     document.addEventListener("click", markDirtyFromActionButton, true)
+    window.addEventListener("keydown", saveFromKeyboard)
 
     return () => {
       document.removeEventListener("input", markDirtyFromInput, true)
       document.removeEventListener("change", markDirtyFromInput, true)
       document.removeEventListener("click", markDirtyFromActionButton, true)
+      window.removeEventListener("keydown", saveFromKeyboard)
     }
   }, [markDirty])
 

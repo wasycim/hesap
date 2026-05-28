@@ -4,7 +4,7 @@ import { redirect } from "next/navigation"
 
 export default async function PersonelMesaiPage() {
   const session = await requireAnyMesaiAdmin()
-  if (!session.ok) redirect("/login")
+  if (!session.ok) redirect("/auth/giris")
 
   return <AdminAttendanceDashboard adminName={session.name} />
 }

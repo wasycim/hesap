@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CalendarDays, Clock3, FileText, Filter, TimerReset, UsersRound } from "lucide-react"
+import { CalendarDays, FileText, Filter, TimerReset, UsersRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -113,7 +113,6 @@ export default function MesaiTakipPage() {
     const branchSummaries = payload?.branchSummaries || []
     return {
       personel: branchSummaries.reduce((sum, item) => sum + item.personelCount, 0),
-      log: branchSummaries.reduce((sum, item) => sum + item.logCount, 0),
       open: branchSummaries.reduce((sum, item) => sum + item.openCount, 0),
       overtime: branchSummaries.reduce((sum, item) => sum + item.overtimeMinutes, 0),
       late: branchSummaries.reduce((sum, item) => sum + item.lateMinutes, 0),
@@ -138,18 +137,16 @@ export default function MesaiTakipPage() {
       orientation: "landscape",
       metrics: [
         { label: "Personel", value: String(totals.personel) },
-        { label: "Kayıt", value: String(totals.log) },
         { label: "Fazla Mesai", value: minutes(totals.overtime) },
         { label: "Geç Kalma", value: minutes(totals.late) },
       ],
       tables: [
         {
           title: "Şube Özeti",
-          headers: ["Şube", "Personel", "Kayıt", "Açık", "Geç Kalma", "Fazla Mesai", "Çalışma"],
+          headers: ["Şube", "Personel", "Açık", "Geç Kalma", "Fazla Mesai", "Çalışma"],
           rows: payload.branchSummaries.map((item) => [
             item.branch.ad,
             item.personelCount,
-            item.logCount,
             item.openCount,
             minutes(item.lateMinutes),
             minutes(item.overtimeMinutes),
@@ -158,11 +155,10 @@ export default function MesaiTakipPage() {
         },
         {
           title: "Personel Özeti",
-          headers: ["Personel", "Şube", "Kayıt", "Açık", "Geç Kalma", "Fazla Mesai", "Çalışma"],
+          headers: ["Personel", "Şube", "Açık", "Geç Kalma", "Fazla Mesai", "Çalışma"],
           rows: payload.personelSummaries.map((item) => [
             item.name,
             item.branch?.ad || "-",
-            item.logCount,
             item.openCount,
             minutes(item.lateMinutes),
             minutes(item.overtimeMinutes),
@@ -242,7 +238,6 @@ export default function MesaiTakipPage() {
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric icon={<UsersRound className="h-4 w-4" />} label="Personel" value={String(totals.personel)} />
-        <Metric icon={<Clock3 className="h-4 w-4" />} label="Mesai Kaydı" value={String(totals.log)} />
         <Metric icon={<TimerReset className="h-4 w-4" />} label="Fazla Mesai" value={minutes(totals.overtime)} />
         <Metric icon={<CalendarDays className="h-4 w-4" />} label="Geç Kalma" value={minutes(totals.late)} />
       </section>
@@ -260,7 +255,7 @@ export default function MesaiTakipPage() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="font-semibold">{item.branch.ad}</p>
-                    <p className="text-xs text-muted-foreground">{item.personelCount} personel · {item.logCount} kayıt</p>
+                    <p className="text-xs text-muted-foreground">{item.personelCount} personel</p>
                   </div>
                   <span className={item.overtimeMinutes > 0 ? "font-bold text-amber-600" : "font-bold text-muted-foreground"}>
                     {minutes(item.overtimeMinutes)}
@@ -287,7 +282,6 @@ export default function MesaiTakipPage() {
                     <tr>
                       <th className="p-3">Personel</th>
                       <th className="p-3">Şube</th>
-                      <th className="p-3">Kayıt</th>
                       <th className="p-3">Geç</th>
                       <th className="p-3">Fazla Mesai</th>
                       <th className="p-3">Çalışma</th>
@@ -298,7 +292,6 @@ export default function MesaiTakipPage() {
                       <tr key={item.personelId} className="border-t">
                         <td className="p-3 font-medium">{item.name}</td>
                         <td className="p-3">{item.branch?.ad || "-"}</td>
-                        <td className="p-3">{item.logCount}</td>
                         <td className="p-3">{minutes(item.lateMinutes)}</td>
                         <td className="p-3 font-bold text-amber-600">{minutes(item.overtimeMinutes)}</td>
                         <td className="p-3">{minutes(item.workedMinutes)}</td>
