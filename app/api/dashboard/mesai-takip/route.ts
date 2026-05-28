@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
-import { getShiftLabel } from "@/lib/qr-attendance/time"
+import { getShiftLabel, shiftBoundary } from "@/lib/qr-attendance/time"
 
 function dateParam(value: string | null) {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
@@ -23,6 +23,40 @@ function normalizeName(value: string | null | undefined) {
 function minutesBetween(start: Date, end: Date | null) {
   if (!end) return 0
   return Math.max(0, Math.floor((end.getTime() - start.getTime()) / 60000))
+}
+
+function shiftDurationMinutes(shift: { startMinute: number; endMinute: number } | null) {
+  if (!shift) return 0
+  return shift.endMinute <= shift.startMinute
+    ? (24 * 60 - shift.startMinute) + shift.endMinute
+    : shift.endMinute - shift.startMinute
+}
+
+function calculateTiming(log: {
+  checkInAt: Date
+  checkOutAt: Date | null
+  workDate: Date
+  shift: { startMinute: number; endMinute: number } | null
+}) {
+  const workedMinutes = minutesBetween(log.checkInAt, log.checkOutAt)
+  if (!log.shift) {
+    return { workedMinutes, earlyMinutes: 0, lateMinutes: 0, afterShiftMinutes: 0, overtimeMinutes: 0 }
+  }
+
+  const crossesMidnight = log.shift.endMinute <= log.shift.startMinute
+  const startsAt = shiftBoundary(log.workDate, log.shift.startMinute)
+  const endsAt = shiftBoundary(log.workDate, log.shift.endMinute, crossesMidnight)
+  const scheduledMinutes = shiftDurationMinutes(log.shift)
+  const earlyMinutes = Math.max(0, Math.floor((startsAt.getTime() - log.checkInAt.getTime()) / 60000))
+  const lateMinutes = Math.max(0, Math.floor((log.checkInAt.getTime() - startsAt.getTime()) / 60000))
+  const afterShiftMinutes = log.checkOutAt
+    ? Math.max(0, Math.floor((log.checkOutAt.getTime() - endsAt.getTime()) / 60000))
+    : 0
+  const overtimeMinutes = log.checkOutAt
+    ? Math.max(0, workedMinutes - scheduledMinutes)
+    : 0
+
+  return { workedMinutes, earlyMinutes, lateMinutes, afterShiftMinutes, overtimeMinutes }
 }
 
 async function requireDashboardAdmin() {
@@ -109,7 +143,9 @@ export async function GET(request: NextRequest) {
     branch: { id: string; ad: string; kod: string } | null
     logCount: number
     openCount: number
+    earlyMinutes: number
     lateMinutes: number
+    afterShiftMinutes: number
     overtimeMinutes: number
     workedMinutes: number
   }>()
@@ -124,7 +160,9 @@ export async function GET(request: NextRequest) {
       branch,
       logCount: 0,
       openCount: 0,
+      earlyMinutes: 0,
       lateMinutes: 0,
+      afterShiftMinutes: 0,
       overtimeMinutes: 0,
       workedMinutes: 0,
     })
@@ -140,14 +178,21 @@ export async function GET(request: NextRequest) {
       const branch = profile?.sube_id ? branchById.get(profile.sube_id) || null : null
       const key = `${profile?.sube_id || ""}:${normalizeName(profile?.display_name || log.user.name)}`
       const summary = summaryByKey.get(key)
-      const workedMinutes = minutesBetween(log.checkInAt, log.checkOutAt)
+      const timing = calculateTiming({
+        checkInAt: log.checkInAt,
+        checkOutAt: log.checkOutAt,
+        workDate: log.workDate,
+        shift: log.shift,
+      })
 
       if (summary) {
         summary.logCount += 1
         summary.openCount += log.checkOutAt ? 0 : 1
-        summary.lateMinutes += log.lateMinutes
-        summary.overtimeMinutes += log.overtimeMinutes
-        summary.workedMinutes += workedMinutes
+        summary.earlyMinutes += timing.earlyMinutes
+        summary.lateMinutes += timing.lateMinutes
+        summary.afterShiftMinutes += timing.afterShiftMinutes
+        summary.overtimeMinutes += timing.overtimeMinutes
+        summary.workedMinutes += timing.workedMinutes
       }
 
       return {
@@ -158,9 +203,11 @@ export async function GET(request: NextRequest) {
         workDate: log.workDate,
         checkInAt: log.checkInAt,
         checkOutAt: log.checkOutAt,
-        workedMinutes,
-        lateMinutes: log.lateMinutes,
-        overtimeMinutes: log.overtimeMinutes,
+        workedMinutes: timing.workedMinutes,
+        earlyMinutes: timing.earlyMinutes,
+        lateMinutes: timing.lateMinutes,
+        afterShiftMinutes: timing.afterShiftMinutes,
+        overtimeMinutes: timing.overtimeMinutes,
         status: log.status,
         shift: log.shift ? { id: String(log.shift.id), name: log.shift.name, label: getShiftLabel(log.shift) } : null,
       }
@@ -176,7 +223,9 @@ export async function GET(request: NextRequest) {
         personelCount: people.length,
         logCount: people.reduce((sum, item) => sum + item.logCount, 0),
         openCount: people.reduce((sum, item) => sum + item.openCount, 0),
+        earlyMinutes: people.reduce((sum, item) => sum + item.earlyMinutes, 0),
         lateMinutes: people.reduce((sum, item) => sum + item.lateMinutes, 0),
+        afterShiftMinutes: people.reduce((sum, item) => sum + item.afterShiftMinutes, 0),
         overtimeMinutes: people.reduce((sum, item) => sum + item.overtimeMinutes, 0),
         workedMinutes: people.reduce((sum, item) => sum + item.workedMinutes, 0),
       }
