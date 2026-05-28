@@ -90,10 +90,25 @@ Personellerin giris cikisini sabit terminal QR'i ile takip eder.
 - Sube bazli ozet
 - Personel bazli check-in ve check-out
 - Gec kalma
-- Fazla mesai
+- Erken giris, gec kalma, mesai sonrasi sure ve net fazla mesai ayrimi
 - Eksik cikislar
 - Tarih araligi filtreleme
+- Modern popover takvim ile baslangic ve bitis tarihi secimi
+- Sifir dakika kapanmis hatali kayitlari ve aktif personele baglanmayan eski demo kayitlarini gizleme
 - PDF raporlama
+
+### Maaslar
+
+`/dashboard/maaslar` sayfasi personel maaslarini, avanslari ve mesai ucretlerini sadece maas hesabinda toplar.
+
+- Aylik maas ve avans takibi
+- Mesai Takip ekranindaki net fazla mesaileri secili ay/sube icin otomatik okuma
+- Fazla mesai tutarini `net fazla mesai suresi x personel saatlik mesai ucreti` formuluyle hesaplama
+- Sureleri ondalikli saat yerine okunur bicimde gosterme: `8 sa 37 dk x 116,77 TL`
+- Manuel gider tablosu mesaileri ile QR mesai takip mesailerini ayri kaynak olarak gosterme
+- Personel PDF'inde kaynak, sure, saatlik ucret ve tutar detaylarini yazdirma
+
+> Not: Otomatik fazla mesai hesabi gelir veya gider tablosuna kayit yazmaz. Sadece maaslar sayfasinda personelin net kalan maasina eklenir.
 
 ## QR Mesai Akisi
 
@@ -123,6 +138,7 @@ Bu yapi sayesinde terminaldeki QR kopyalansa bile kisa surede gecersiz olur.
 | `/dashboard/vardiya` | Modern vardiya takvimi | Yonetici |
 | `/dashboard/mesai` | Dashboard icinden terminal QR okutma ekrani | Dashboard kullanicisi |
 | `/dashboard/mesai-takip` | Sube bazli mesai takip paneli | Yonetici |
+| `/dashboard/maaslar` | Maas, avans ve fazla mesai hesap paneli | Yonetici |
 | `/dashboard/ayarlar` | Ortak, personel ve kargo firma ayarlari | Yonetici |
 | `/dashboard/admin-ayarlar` | Kullanici, sube, rol ve guvenlik ayarlari | Yonetici |
 | `/dashboard/guvenlik-ayarlar` | Guvenlik olaylari | Yonetici |
@@ -203,15 +219,20 @@ Ek vardiya tipleri ayarlardan tanimlanabilir. Ornek:
 
 ### Gunluk Plan Mantigi
 
-Vardiyalar gunluk olarak atanir. Personelin bir sabit vardiyasi olabilir, fakat yonetici takvim uzerinden belirli gunleri degistirebilir.
+Vardiyalar gunluk olarak atanir. Takvimdeki `Sabit` sutunu kalici personel ayari degildir; o anda secili tarih araligindaki tum gunleri ayni vardiya ile dolduran hizli toplu atama kontroludur.
+
+Ornek:
+
+- Haftalik filtrede `Sabit -> Aksam` secilirse yalnizca o hafta tum gunler aksam vardiyasi olur.
+- Sonraki hafta `Sabit -> Sabah` secilirse yalnizca o hafta sabah vardiyasi olur.
+- Aylik veya ozel tarih araliginda secim yapilirsa sadece gorunen aralik doldurulur.
+
+Kaydedilen veri gun gun `vardiya_planlari` kaydi olarak tutulur. Bu sayede birinci hafta full aksam, ikinci hafta full sabah gibi farkli planlar korunur.
 
 Oncelik sirasi:
 
 1. Takvimde o gun icin atanmis vardiya
-2. Personelin sabit vardiya sutunundaki deger
-3. Prisma `users.shift_id` fallback degeri
-
-Bu sayede normal gunler sabit vardiyadan akar, istisna gunler takvimden kolayca degistirilir.
+2. Prisma `users.shift_id` fallback degeri
 
 ## Kurulum
 
@@ -755,6 +776,24 @@ Bu hata eski masaustu kabugunda PDF icin acilan `about:blank` yazdirma penceresi
 3. Personeller `/mesai-qr` ekraninda terminal QR'ini okutsun.
 4. Yonetici `/dashboard/mesai-takip` ekranindan gec kalanlari ve fazla mesaileri kontrol etsin.
 5. Gerekirse PDF rapor alin.
+
+### Fazla Mesaiyi Maasa Yansitma
+
+1. Personelin ayarlar ekraninda `saatlik_mesai_ucreti` degerini girin.
+2. Personel QR mesai sistemiyle giris cikis yaptikca Mesai Takip ekraninda net fazla mesai olusur.
+3. `/dashboard/maaslar` sayfasinda ilgili ay ve subeyi acin.
+4. Sistem net fazla mesai dakikasini saatlik ucretle carpar ve personelin net kalan maasina ekler.
+5. Personel PDF'i alin; PDF'de mesai kaynagi, sure, saatlik ucret ve tutar gorunur.
+
+Hesap ornegi:
+
+```text
+8 sa 37 dk = 517 dakika
+517 / 60 = 8,6166 saat
+8,6166 x 116,77 TL = fazla mesai tutari
+```
+
+Ekranda sure `8 sa 37 dk` olarak gosterilir; tutar hesabi dakika hassasiyetiyle yapilir.
 
 ## Lisans
 

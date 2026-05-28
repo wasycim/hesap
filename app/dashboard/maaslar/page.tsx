@@ -60,8 +60,12 @@ function formatDate(value: string) {
   return new Date(value).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" })
 }
 
-function formatHours(value: number) {
-  return value.toLocaleString("tr-TR", { minimumFractionDigits: value % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })
+function formatDurationFromMinutes(totalMinutes: number) {
+  const total = Math.max(0, Math.round(totalMinutes))
+  const hours = Math.floor(total / 60)
+  const minutes = total % 60
+  if (!hours) return `${minutes} dk`
+  return minutes ? `${hours} sa ${minutes} dk` : `${hours} sa`
 }
 
 export default function MaaslarPage() {
@@ -137,7 +141,7 @@ export default function MaaslarPage() {
         overtime.push({
           tarih: row.tarih,
           amount: hours * hourlyRate,
-          description: `Manuel mesai: ${formatHours(hours)} saat x ${formatMoney(hourlyRate)} TL`,
+          description: `Manuel mesai: ${formatDurationFromMinutes(Math.round(hours * 60))} x ${formatMoney(hourlyRate)} TL`,
           hours,
           rate: hourlyRate,
           minutes: Math.round(hours * 60),
@@ -153,7 +157,7 @@ export default function MaaslarPage() {
         overtime.push({
           tarih: detail.workDate,
           amount: hours * hourlyRate,
-          description: `Mesai takip: ${formatHours(hours)} saat x ${formatMoney(hourlyRate)} TL`,
+          description: `Mesai takip: ${formatDurationFromMinutes(detail.overtimeMinutes)} x ${formatMoney(hourlyRate)} TL`,
           hours,
           rate: hourlyRate,
           minutes: detail.overtimeMinutes,
@@ -258,7 +262,7 @@ export default function MaaslarPage() {
           rows: item.overtime.map(detail => [
             formatDate(detail.tarih),
             detail.source === "attendance" ? "Mesai takip" : "Manuel",
-            `${formatHours(detail.hours)} saat`,
+            formatDurationFromMinutes(detail.minutes),
             `${formatMoney(detail.rate)} TL`,
             `+${formatMoney(detail.amount)} TL`,
           ]),
