@@ -1,10 +1,14 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CalendarDays, FileText, Filter, TimerReset, UsersRound } from "lucide-react"
+import { format, parseISO } from "date-fns"
+import { tr } from "date-fns/locale"
+import { CalendarDays, ChevronDown, FileText, Filter, RefreshCw, TimerReset, UsersRound } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSube } from "@/contexts/sube-context"
 import { openPdfReport } from "@/lib/pdf-report"
@@ -257,23 +261,30 @@ export default function MesaiTakipPage() {
             Filtreler
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-4">
-          <InputDate label="Başlangıç" value={from} onChange={setFrom} />
-          <InputDate label="Bitiş" value={to} onChange={setTo} />
-          <Select value={selectedSubeId} onValueChange={setSelectedSubeId}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tüm şubeler</SelectItem>
-              {(payload?.branches || []).map((branch) => (
-                <SelectItem key={branch.id} value={branch.id}>{branch.ad}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button type="button" variant="secondary" onClick={loadData} disabled={loading}>
-            Yenile
-          </Button>
+        <CardContent className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(190px,1fr)_minmax(190px,1fr)_minmax(210px,1fr)_150px]">
+          <DatePicker label="Başlangıç" value={from} onChange={setFrom} />
+          <DatePicker label="Bitiş" value={to} onChange={setTo} />
+          <label className="grid gap-1.5 text-xs font-semibold text-muted-foreground">
+            Şube
+            <Select value={selectedSubeId} onValueChange={setSelectedSubeId}>
+              <SelectTrigger className="h-11 rounded-xl bg-background/80 px-3 shadow-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tüm şubeler</SelectItem>
+                {(payload?.branches || []).map((branch) => (
+                  <SelectItem key={branch.id} value={branch.id}>{branch.ad}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+          <label className="grid gap-1.5 text-xs font-semibold text-muted-foreground">
+            İşlem
+            <Button type="button" variant="secondary" className="h-11 rounded-xl gap-2 shadow-sm" onClick={loadData} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              Yenile
+            </Button>
+          </label>
         </CardContent>
       </Card>
 
@@ -419,16 +430,53 @@ export default function MesaiTakipPage() {
   )
 }
 
-function InputDate({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function DatePicker({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  const selected = parseISO(value)
+
   return (
-    <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
+    <label className="grid gap-1.5 text-xs font-semibold text-muted-foreground">
       {label}
-      <input
-        type="date"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-10 rounded-md border border-input bg-background px-3 text-sm font-normal text-foreground"
-      />
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 justify-between rounded-xl bg-background/80 px-3 text-left font-normal shadow-sm"
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-amber-500/12 text-amber-700 dark:text-amber-300">
+                <CalendarDays className="h-4 w-4" />
+              </span>
+              <span className="truncate text-sm font-semibold text-foreground">
+                {format(selected, "d MMMM yyyy", { locale: tr })}
+              </span>
+            </span>
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-auto overflow-hidden rounded-2xl border bg-card p-0 shadow-2xl">
+          <div className="bg-slate-950 px-4 py-3 text-white">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-bold">{label} tarihi</div>
+                <div className="mt-0.5 text-xs text-white/65">{format(selected, "d MMMM yyyy", { locale: tr })}</div>
+              </div>
+              <div className="grid h-9 w-9 place-items-center rounded-lg bg-white/10">
+                <CalendarDays className="h-4 w-4" />
+              </div>
+            </div>
+          </div>
+          <Calendar
+            mode="single"
+            selected={selected}
+            onSelect={(date) => {
+              if (date) onChange(format(date, "yyyy-MM-dd"))
+            }}
+            locale={tr}
+            className="rounded-xl p-3 [--cell-size:--spacing(9)]"
+          />
+        </PopoverContent>
+      </Popover>
     </label>
   )
 }
