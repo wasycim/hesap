@@ -171,7 +171,12 @@ export async function GET(request: NextRequest) {
   const details = logs
     .filter((log) => {
       const profile = profileByTc.get(log.user.tcKimlik)
-      return subeId === "all" ? !profile?.sube_id || branchIds.has(profile.sube_id) : profile?.sube_id === subeId
+      if (!profile?.sube_id) return false
+      if (subeId !== "all" && profile.sube_id !== subeId) return false
+      if (!branchIds.has(profile.sube_id)) return false
+
+      const key = `${profile.sube_id}:${normalizeName(profile.display_name || log.user.name)}`
+      return summaryByKey.has(key)
     })
     .map((log) => {
       const profile = profileByTc.get(log.user.tcKimlik)
