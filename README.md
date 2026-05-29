@@ -578,6 +578,78 @@ Otomatik guncelleme GitHub Release uzerinden calisir. Repo private oldugunda rel
 
 Internet yokken masaustu uygulamasi bos Chromium hata sayfasi yerine kendi baglanti uyarisi ekranini acar. Bu ekranda "Yeniden yukle" butonu bulunur; baglanti geri geldiginde butona basildiginda uygulama ana siteyi tekrar yukler. Bu davranis `v0.1.5` ve sonraki masaustu surumlerinde vardir.
 
+## iOS ve Android Mobil Uygulama
+
+Mobil uygulama Capacitor tabanlidir ve `info.pamukkaleturizm.hesap` bundle/package id degeriyle hazirlanmistir. Uygulama production web adresi olan `https://pamukkaleturizm.info` uzerinden calisir; ancak yalnizca bos bir WebView paketi degildir. Native mobil kabuk su ozellikleri ekler:
+
+- Native alt menü: Panel, Mesai, Takip, Vardiya ve Maas ekranlarina hizli gecis
+- Internet yokken uygulama ici offline ekran ve `Yeniden yukle` butonu
+- Push notification izin, cihaz token kaydi ve bildirim aksiyonu altyapisi
+- Local notification altyapisi
+- Kamera izni ve terminal QR okutma akisi
+- Haptic geri bildirim
+- Native splash screen ve status bar ayarlari
+- iOS ve Android app iconlari icin W logosu
+
+Mobil komutlar:
+
+```bash
+npm run mobile:assets
+npm run mobile:sync
+npm run mobile:open:android
+npm run mobile:open:ios
+```
+
+Android debug build icin makinede JDK kurulu olmali ve `JAVA_HOME` tanimli olmalidir:
+
+```powershell
+cd android
+.\gradlew.bat assembleDebug
+```
+
+iOS build ve App Store upload icin macOS + Xcode gerekir:
+
+```bash
+npm run mobile:open:ios
+```
+
+Xcode icinde:
+
+1. Team secilir.
+2. Bundle identifier `info.pamukkaleturizm.hesap` olarak korunur.
+3. Signing & Capabilities altinda Push Notifications etkinlestirilir.
+4. Gerekirse Background Modes > Remote notifications acilir.
+5. Archive alinir ve App Store Connect'e yuklenir.
+
+Android Play Store upload icin:
+
+1. Android Studio ile `android/` klasoru acilir.
+2. `app` modulunde release keystore tanimlanir.
+3. `Build > Generate Signed Bundle / APK` ile AAB uretilir.
+4. Play Console'a AAB yuklenir.
+
+### Mobil Magaza Bilgileri
+
+Gizlilik politikasi:
+
+```text
+https://pamukkaleturizm.info/privacy-policy
+```
+
+Destek URL:
+
+```text
+https://pamukkaleturizm.info/mobile-support
+```
+
+Magaza aciklamasi, veri guvenligi onerileri, App Store inceleme notlari ve ekran goruntusu listesi:
+
+```text
+docs/store-listing.md
+```
+
+App Store ve Play Store'a gondermeden once mutlaka bir inceleme test hesabi olusturun ve magaza notlarina ekleyin. Apple, hesaba dayali uygulamalarda inceleme ekibinin tum ozelliklere erisebilmesini ister.
+
 ## Test ve Dogrulama
 
 Degisikliklerden sonra minimum kontroller:

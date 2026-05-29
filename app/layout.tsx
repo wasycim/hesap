@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/sonner'
 import { ThemeProvider } from '@/components/theme-provider'
 import { VercelToolbarBlocker } from '@/components/vercel-toolbar-blocker'
+import { NativeAppBridge } from '@/components/mobile/native-app-bridge'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -56,6 +57,7 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem storageKey="hesap-theme">
           <VercelToolbarBlocker />
           {children}
+          <NativeAppBridge />
           <Toaster
             position="top-right"
             richColors
