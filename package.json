@@ -20,6 +20,10 @@
     "desktop:pack": "npm run desktop:icons && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --x64 --dir",
     "desktop:dist": "npm run desktop:icons && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win nsis --x64 --publish never",
     "desktop:publish": "npm run desktop:icons && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win nsis --x64 --publish always",
+    "mobile:assets": "node scripts/create-mobile-assets.js",
+    "mobile:sync": "npm run mobile:assets && cap sync",
+    "mobile:open:android": "npm run mobile:sync && cap open android",
+    "mobile:open:ios": "npm run mobile:sync && cap open ios",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
@@ -82,6 +86,15 @@
     "seed": "node prisma/seed.js"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/local-notifications": "^8.2.0",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/push-notifications": "^8.1.1",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
     "@hookform/resolvers": "^3.9.1",
     "@prisma/client": "^6.18.0",
     "@radix-ui/react-accordion": "1.2.12",
@@ -144,6 +157,9 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/cli": "^8.3.4",
+    "@capacitor/ios": "^8.3.4",
     "@tailwindcss/postcss": "^4.2.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
