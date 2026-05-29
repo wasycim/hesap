@@ -1,108 +1,153 @@
-# Hesap Mobil Mağaza Yayın Metinleri
+# Hesap Mobil Magaza Yayin Metinleri
 
-Son güncelleme: 29 Mayıs 2026
+Son guncelleme: 29 Mayis 2026
 
-## Uygulama Adı
+## Uygulama Adi
 
 Hesap
 
-## Kısa Açıklama
+## Paket / Bundle
 
-Şube, rapor, vardiya, QR mesai ve maaş takibini tek uygulamada yönetin.
+- Android package id: `wasy.system.hesap`
+- iOS bundle id: `wasy.system.hesap`
+- Play Console hesabi: `Wasy Systems`
 
-## Uzun Açıklama
+## Kisa Aciklama
 
-Hesap; işletmelerin şube bazlı finansal kayıtlarını, personel vardiyalarını, QR destekli mesai giriş çıkışlarını ve maaş hesaplarını tek panelden yönetmesi için geliştirilmiş güvenli bir iş uygulamasıdır.
+Sube, rapor, vardiya, QR mesai ve maas takibini tek uygulamada yonetin.
 
-Uygulama yalnızca bir web sitesini göstermek için tasarlanmamıştır. iOS ve Android sürümleri native alt menü, offline bağlantı ekranı, push bildirim altyapısı, yerel bildirimler, haptic geri bildirim, kamera ile QR okuma ve cihaz durumuna göre güvenli yeniden yükleme akışı içerir.
+## Uzun Aciklama
 
-Öne çıkan özellikler:
+Hesap; isletmelerin sube bazli finansal kayitlarini, personel vardiyalarini, QR destekli mesai giris cikislarini ve maas hesaplarini tek panelden yonetmesi icin gelistirilmis guvenli bir is uygulamasidir.
 
-- TC ve şifre ile güvenli giriş
-- Sabit terminal QR kodu ile personel mesai giriş/çıkış
-- Şube bazlı mesai takip ekranı
-- Günlük, haftalık, aylık ve özel aralık vardiya planlama
-- Fazla mesai, geç kalma ve vardiya öncesi mesai hesapları
-- Maaş ekranında fazla mesai tutarlarını otomatik hesaplama
+Uygulama yalnizca bir web sitesini gostermek icin tasarlanmamistir. iOS ve Android surumleri native alt menu, offline baglanti ekrani, push bildirim altyapisi, yerel bildirimler, haptic geri bildirim, kamera ile QR okuma, sifre sifirlama ve cihaz durumuna gore guvenli yeniden yukleme akisi icerir.
+
+One cikan ozellikler:
+
+- TC ve sifre ile guvenli giris
+- TC ile e-posta uzerinden sifre sifirlama
+- Sabit terminal QR kodu ile personel mesai giris/cikis
+- Sube bazli mesai takip ekrani
+- Gunluk, haftalik, aylik ve ozel aralik vardiya planlama
+- Fazla mesai, gec kalma ve vardiya oncesi mesai hesaplari
+- Maas ekraninda fazla mesai tutarlarini otomatik hesaplama
 - PDF raporlama
-- Native mobil alt menü
-- İnternet yokken offline sayfa ve yeniden yükleme
-- Push ve yerel bildirim altyapısı
+- Native mobil alt menu
+- Internet yokken offline sayfa ve yeniden yukleme
+- Push ve yerel bildirim altyapisi
 - Kamera ile QR okutma
-- Koyu/açık tema ve responsive tasarım
+- Koyu/acik tema ve responsive tasarim
 
 ## Anahtar Kelimeler
 
-mesai, vardiya, personel, maaş, QR, şube, rapor, cari, gider, gelir, işletme
+mesai, vardiya, personel, maas, QR, sube, rapor, cari, gider, gelir, isletme
 
 ## Kategori
 
-Business / İş
+Business / Is
 
-## Yaş Derecelendirme Notu
+## Yas Derecelendirme Notu
 
-Uygulama çocuklara yönelik değildir. Şirket içi iş verileri, personel bilgileri ve finansal kayıtlar içerir.
+Uygulama cocuklara yonelik degildir. Sirket ici is verileri, personel bilgileri ve finansal kayitlar icerir.
 
-## Gizlilik Politikası URL
+## URL'ler
 
+Gizlilik politikasi:
+
+```text
 https://pamukkaleturizm.info/privacy-policy
+```
 
-## Destek URL
+Destek:
 
+```text
 https://pamukkaleturizm.info/mobile-support
+```
 
-## Apple App Privacy Önerisi
+Veri silme / hesap silme talebi:
+
+```text
+https://pamukkaleturizm.info/data-deletion
+```
+
+Sifre sifirlama:
+
+```text
+https://pamukkaleturizm.info/auth/sifremi-unuttum
+```
+
+## Google Play Data Safety Onerisi
+
+Uygulama veri toplar:
+
+- Personal info: isim, e-posta, TC kimlik
+- Financial info: maas, avans, gelir/gider kayitlari
+- App activity: mesai giris cikis, rapor ve guvenlik olaylari
+- Device or other IDs: push bildirim tokeni
+
+Kullanim amaclari:
+
+- App functionality
+- Account management
+- Analytics / internal operational reporting
+- Fraud prevention, security, and compliance
+
+Veriler sifreli aktarilir. Kullanici verileri uygulama islevi, hesap yonetimi ve guvenlik icin islenir. Veriler reklam takibi icin kullanilmaz ve satilmaz.
+
+## Android Izinleri
+
+- Internet: uygulama API ve Supabase servislerine baglanir.
+- Camera: personel terminal QR kodunu okutur.
+- Notifications: mesai, rapor ve guvenlik bildirimleri icin kullanilir.
+
+AndroidManifest ayarlari:
+
+- `android:allowBackup="false"`
+- `android:usesCleartextTraffic="false"`
+- Package id: `wasy.system.hesap`
+
+## Apple App Privacy Onerisi
 
 Toplanan veri kategorileri:
 
 - Contact Info: e-posta ve ad soyad
-- Identifiers: kullanıcı id, TC kimlik, push token
-- User Content: finansal kayıtlar, rapor kayıtları
-- Diagnostics: hata ve güvenlik olayları
-- Other Data: vardiya, mesai ve şube kayıtları
+- Identifiers: kullanici id, TC kimlik, push token
+- User Content: finansal kayitlar, rapor kayitlari
+- Diagnostics: hata ve guvenlik olaylari
+- Other Data: vardiya, mesai ve sube kayitlari
 
-Kullanım amaçları:
+Kullanim amaclari:
 
 - App Functionality
 - Account Management
 - Analytics / internal operational reporting
 - Fraud Prevention, Security, and Compliance
 
-Veriler üçüncü taraf reklam takibi için kullanılmaz.
+Veriler ucuncu taraf reklam takibi icin kullanilmaz.
 
-## Google Play Data Safety Önerisi
+## Inceleme Notlari
 
-Uygulama veri toplar:
-
-- Personal info: isim, e-posta, TC kimlik
-- Financial info: maaş, avans, gelir/gider kayıtları
-- App activity: mesai giriş çıkış, rapor ve güvenlik olayları
-- Device or other IDs: push bildirim tokeni
-
-Veriler şifreli aktarılır. Kullanıcı verileri uygulama işlevi, hesap yönetimi ve güvenlik için işlenir. Kullanıcı silme/düzeltme talepleri kurum yöneticisi üzerinden yürütülür.
-
-## İnceleme Notları
-
-Apple/Google incelemesi için test hesabı oluşturulmalı ve şu bilgiler App Store Connect / Play Console notlarına eklenmelidir:
+Apple/Google incelemesi icin test hesabi olusturulmali ve su bilgiler App Store Connect / Play Console notlarina eklenmelidir:
 
 ```text
-Test kullanıcı:
+Test kullanici:
 TC:
-Şifre:
-Rol: Yönetici
+Sifre:
+Rol: Yonetici
 
-Test akışı:
-1. /auth/giris üzerinden giriş yapın.
-2. Mobil alt menüden Mesai, Mesai Takip, Vardiya ve Maaş ekranlarını açın.
-3. İnternet kapatıldığında offline ekranı ve yeniden yükle butonunu kontrol edin.
-4. Kamera izniyle QR okutma ekranını açın.
-5. Bildirim izni istendiğinde izin vererek native bildirim akışını doğrulayın.
+Test akisi:
+1. /auth/giris uzerinden giris yapin.
+2. Mobil alt menuden Mesai, Mesai Takip, Vardiya ve Maas ekranlarini acin.
+3. Internet kapatildiginda offline ekrani ve yeniden yukle butonunu kontrol edin.
+4. Kamera izniyle QR okutma ekranini acin.
+5. Bildirim izni istendiginde izin vererek native bildirim akisini dogrulayin.
+6. /auth/sifremi-unuttum ekraninda TC ile sifre sifirlama istegini kontrol edin.
+7. /privacy-policy, /mobile-support ve /data-deletion sayfalarinin acildigini kontrol edin.
 ```
 
-## Gerekli Görsel Varlıklar
+## Gerekli Gorsel Varliklar
 
 - App icon: `public/iconw.png`
 - iOS screenshots: 6.7", 6.5" ve 5.5" ekranlar
 - Android screenshots: phone ve tablet
 - Feature graphic: 1024x500
-
