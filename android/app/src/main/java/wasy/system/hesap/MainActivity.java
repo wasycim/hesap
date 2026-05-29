@@ -1,4 +1,4 @@
-package info.pamukkaleturizm.hesap;
+package wasy.system.hesap;
 
 import com.getcapacitor.BridgeActivity;
 
