@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Hesap</string>
     <string name="title_activity_main">Hesap</string>
-    <string name="package_name">info.pamukkaleturizm.hesap</string>
-    <string name="custom_url_scheme">info.pamukkaleturizm.hesap</string>
+    <string name="package_name">wasy.system.hesap</string>
+    <string name="custom_url_scheme">wasy.system.hesap</string>
 </resources>

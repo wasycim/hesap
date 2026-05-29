@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from "@capacitor/cli"
 
 const config: CapacitorConfig = {
-  appId: "info.pamukkaleturizm.hesap",
+  appId: "wasy.system.hesap",
   appName: "Hesap",
   webDir: "mobile-shell",
   server: {

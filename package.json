@@ -30,7 +30,7 @@
     "prisma:seed": "prisma db seed"
   },
   "build": {
-    "appId": "info.pamukkaleturizm.hesap",
+    "appId": "wasy.system.hesap",
     "productName": "Hesap",
     "copyright": "Copyright © 2026 Hesap",
     "artifactName": "Hesap-Setup-${version}.${ext}",

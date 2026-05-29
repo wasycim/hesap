@@ -580,7 +580,7 @@ Internet yokken masaustu uygulamasi bos Chromium hata sayfasi yerine kendi bagla
 
 ## iOS ve Android Mobil Uygulama
 
-Mobil uygulama Capacitor tabanlidir ve `info.pamukkaleturizm.hesap` bundle/package id degeriyle hazirlanmistir. Uygulama production web adresi olan `https://pamukkaleturizm.info` uzerinden calisir; ancak yalnizca bos bir WebView paketi degildir. Native mobil kabuk su ozellikleri ekler:
+Mobil uygulama Capacitor tabanlidir ve `wasy.system.hesap` bundle/package id degeriyle hazirlanmistir. Uygulama production web adresi olan `https://pamukkaleturizm.info` uzerinden calisir; ancak yalnizca bos bir WebView paketi degildir. Native mobil kabuk su ozellikleri ekler:
 
 - Native alt menü: Panel, Mesai, Takip, Vardiya ve Maas ekranlarina hizli gecis
 - Internet yokken uygulama ici offline ekran ve `Yeniden yukle` butonu
@@ -600,7 +600,7 @@ npm run mobile:open:android
 npm run mobile:open:ios
 ```
 
-Android debug build icin makinede JDK kurulu olmali ve `JAVA_HOME` tanimli olmalidir:
+Android debug/release build icin makinede JDK 17+ ve Android SDK kurulu olmali, `JAVA_HOME` ile `ANDROID_HOME` tanimli olmalidir:
 
 ```powershell
 cd android
@@ -616,17 +616,30 @@ npm run mobile:open:ios
 Xcode icinde:
 
 1. Team secilir.
-2. Bundle identifier `info.pamukkaleturizm.hesap` olarak korunur.
+2. Bundle identifier `wasy.system.hesap` olarak korunur.
 3. Signing & Capabilities altinda Push Notifications etkinlestirilir.
 4. Gerekirse Background Modes > Remote notifications acilir.
 5. Archive alinir ve App Store Connect'e yuklenir.
 
 Android Play Store upload icin:
 
-1. Android Studio ile `android/` klasoru acilir.
-2. `app` modulunde release keystore tanimlanir.
-3. `Build > Generate Signed Bundle / APK` ile AAB uretilir.
-4. Play Console'a AAB yuklenir.
+1. Play Console hesabi: `Wasy Systems`.
+2. Paket adi/applicationId: `wasy.system.hesap`.
+3. Release imzasi `android/keystore.properties` uzerinden okunur; keystore ve sifre dosyalari git'e eklenmez.
+4. AAB uretmek icin:
+
+```powershell
+cd android
+.\gradlew.bat bundleRelease
+```
+
+Uretilen dosya:
+
+```text
+android/app/build/outputs/bundle/release/app-release.aab
+```
+
+Bu AAB Play Console'da yeni uygulama surumu olarak yuklenir.
 
 ### Mobil Magaza Bilgileri
 
