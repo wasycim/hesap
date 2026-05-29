@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 
 export const metadata: Metadata = {
   title: "Mobil Uygulama Destek | Hesap",
-  description: "Hesap mobil uygulaması destek ve mağaza bilgileri.",
+  description: "Hesap mobil uygulaması destek, gizlilik, veri silme ve mağaza bilgileri.",
 }
 
 export default function MobileSupportPage() {
@@ -21,6 +21,10 @@ export default function MobileSupportPage() {
           <h2 className="font-semibold">Gizlilik Politikası</h2>
           <p className="mt-1 text-sm text-muted-foreground">Mağaza ve kullanıcı gizlilik metni.</p>
         </a>
+        <a className="rounded-xl border p-4 transition hover:border-emerald-500" href="/data-deletion">
+          <h2 className="font-semibold">Veri Silme Talebi</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Hesap ve veri silme/düzeltme süreci.</p>
+        </a>
         <a className="rounded-xl border p-4 transition hover:border-emerald-500" href="mailto:destek@pamukkaleturizm.info">
           <h2 className="font-semibold">Destek E-postası</h2>
           <p className="mt-1 text-sm text-muted-foreground">destek@pamukkaleturizm.info</p>
@@ -35,6 +39,7 @@ export default function MobileSupportPage() {
           <li>Push bildirim ve yerel bildirim altyapısı.</li>
           <li>Kamera ile terminal QR okutma.</li>
           <li>Haptic geri bildirim ve native durum çubuğu/splash ekranı.</li>
+          <li>TC ile şifre sıfırlama bağlantısı gönderme ve e-postadan yeni şifre belirleme.</li>
         </ul>
       </section>
     </main>

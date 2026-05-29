@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { IdCard, Loader2, LockKeyhole, Mail } from "lucide-react"
@@ -204,6 +205,11 @@ export default function GirisPage() {
                     autoComplete="current-password"
                     required
                   />
+                </div>
+                <div className="flex justify-end">
+                  <Link href="/auth/sifremi-unuttum" className="text-sm font-medium text-primary hover:underline">
+                    Şifremi unuttum
+                  </Link>
                 </div>
               </div>
             </CardContent>

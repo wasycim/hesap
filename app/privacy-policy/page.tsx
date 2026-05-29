@@ -40,7 +40,7 @@ export default function PrivacyPolicyPage() {
         <h2 className="text-xl font-semibold">Veri İşleme Amacı</h2>
         <p>
           Veriler; kullanıcı doğrulama, yetki kontrolü, şube bazlı raporlama, personel mesai takibi, maaş hesabı,
-          güvenlik denetimi ve yasal/operasyonel kayıt ihtiyacı için kullanılır.
+          güvenlik denetimi, şifre sıfırlama ve yasal/operasyonel kayıt ihtiyacı için kullanılır.
         </p>
       </section>
 
@@ -57,15 +57,16 @@ export default function PrivacyPolicyPage() {
         <h2 className="text-xl font-semibold">Güvenlik</h2>
         <p>
           Uygulamada JWT tabanlı oturum, HTTP-only cookie, bcrypt şifre özeti, yetkili route kontrolleri ve Supabase
-          RLS politikaları kullanılır. QR tokenleri süreli ve doğrulamalıdır.
+          RLS politikaları kullanılır. QR tokenleri süreli ve doğrulamalıdır. Şifre sıfırlama bağlantıları Supabase Auth
+          tarafından süreli olarak üretilir.
         </p>
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Haklar ve İletişim</h2>
+        <h2 className="text-xl font-semibold">Haklar, Veri Silme ve İletişim</h2>
         <p>
           Verilerinize ilişkin erişim, düzeltme veya silme talepleri için şirket yöneticinizle ya da uygulama sahibiyle
-          iletişime geçebilirsiniz.
+          iletişime geçebilirsiniz. Veri silme süreci için <a className="font-semibold text-emerald-600" href="/data-deletion">Veri Silme Talebi</a> sayfasını kullanabilirsiniz.
         </p>
         <p className="rounded-lg border bg-muted/40 p-4 text-sm">
           İletişim: <a className="font-semibold text-emerald-600" href="mailto:destek@pamukkaleturizm.info">destek@pamukkaleturizm.info</a>

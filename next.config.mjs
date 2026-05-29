@@ -37,6 +37,20 @@ const nextConfig = {
       },
     ]
   },
+  async redirects() {
+    return [
+      {
+        source: "/gizlilik-politikasi",
+        destination: "/privacy-policy",
+        permanent: true,
+      },
+      {
+        source: "/veri-silme",
+        destination: "/data-deletion",
+        permanent: true,
+      },
+    ]
+  },
 }
 
 export default nextConfig

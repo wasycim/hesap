@@ -1,4 +1,4 @@
-package com.getcapacitor.myapp;
+package wasy.system.hesap;
 
 import static org.junit.Assert.*;
 

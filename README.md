@@ -134,6 +134,8 @@ Bu yapi sayesinde terminaldeki QR kopyalansa bile kisa surede gecersiz olur.
 | --- | --- | --- |
 | `/` | Oturum durumuna gore giris veya dashboard yonlendirmesi | Herkes |
 | `/auth/giris` | Ana dashboard girisi | Herkes |
+| `/auth/sifremi-unuttum` | TC ile sifre sifirlama e-postasi isteme | Herkes |
+| `/auth/sifre-sifirla` | E-postadaki linkten yeni sifre belirleme | Sifre sifirlama linki |
 | `/dashboard` | Hesap genel bakis paneli | Giris yapmis kullanici |
 | `/dashboard/vardiya` | Modern vardiya takvimi | Yonetici |
 | `/dashboard/mesai` | Dashboard icinden terminal QR okutma ekrani | Dashboard kullanicisi |
@@ -146,6 +148,9 @@ Bu yapi sayesinde terminaldeki QR kopyalansa bile kisa surede gecersiz olur.
 | `/login` | Eski mesai girisi; `/auth/giris` sayfasina yonlendirir | Herkes |
 | `/mesai-qr` | Personelin terminal QR okutma ekrani | Personel |
 | `/terminal` | Sabit terminal QR ekrani | Terminal |
+| `/privacy-policy` | Mobil/web gizlilik politikasi | Herkes |
+| `/mobile-support` | Mobil uygulama destek sayfasi | Herkes |
+| `/data-deletion` | Veri silme ve duzeltme talep sureci | Herkes |
 
 ## Veritabani Yapisi
 
@@ -289,6 +294,12 @@ AUTH_SECRET=
 NEXTAUTH_SECRET=
 
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+Production icin `NEXT_PUBLIC_APP_URL` degeri `https://pamukkaleturizm.info` olmalidir. Supabase Auth redirect allow-list icinde su URL bulunmalidir:
+
+```text
+https://pamukkaleturizm.info/auth/callback
 ```
 
 ### Zorunlu Degiskenler
@@ -435,6 +446,25 @@ JWT token icinde terminal tipi, nonce, issuer, audience, subject ve expiry bilgi
 ```
 
 QR 30 saniyede bir yenilenir. Eski QR okutulursa API reddeder.
+
+### Sifre Sifirlama
+
+Kullanici `/auth/sifremi-unuttum` ekraninda TC kimlik numarasini girer. Sistem TC'yi `user_profiles.tc_kimlik` alanindan bulur, kullaniciya bagli gercek e-postayi cozer ve Supabase Auth ile sifre sifirlama e-postasi gonderir.
+
+Akis:
+
+1. `/api/auth/forgot-password` TC'yi dogrular.
+2. Profil veya Supabase Auth metadata uzerinden e-posta bulunur.
+3. E-posta gercekse Supabase `resetPasswordForEmail` cagrisi yapilir.
+4. Kullanici e-postadaki linkle `/auth/callback?next=/auth/sifre-sifirla` akisini tamamlar.
+5. `/auth/sifre-sifirla` ekraninda yeni sifre kaydedilir.
+
+Notlar:
+
+- Sifre sifirlama maili icin kullanicinin gercek e-postasi kayitli olmalidir.
+- `personel-<tc>@pamukkaleturizm.info` gibi otomatik uretilen mesai-only e-postalar mail alamaz; bu kullanicilar icin admin panelinden gercek e-posta tanimlanmalidir.
+- Supabase Auth > URL Configuration icinde `https://pamukkaleturizm.info/auth/callback` redirect URL olarak eklenmelidir.
+- Production icin Supabase SMTP ayari tanimlanmalidir; aksi halde varsayilan e-posta limitlerine takilabilirsiniz.
 
 ### Kamera Guvenligi
 
@@ -590,6 +620,8 @@ Mobil uygulama Capacitor tabanlidir ve `wasy.system.hesap` bundle/package id deg
 - Haptic geri bildirim
 - Native splash screen ve status bar ayarlari
 - iOS ve Android app iconlari icin W logosu
+- Android backup kapali, cleartext HTTP kapali
+- Sifre sifirlama, gizlilik politikasi, destek ve veri silme sayfalari
 
 Mobil komutlar:
 
@@ -626,7 +658,9 @@ Android Play Store upload icin:
 1. Play Console hesabi: `Wasy Systems`.
 2. Paket adi/applicationId: `wasy.system.hesap`.
 3. Release imzasi `android/keystore.properties` uzerinden okunur; keystore ve sifre dosyalari git'e eklenmez.
-4. AAB uretmek icin:
+4. AndroidManifest uzerinde kamera, internet ve bildirim izinleri tanimlidir.
+5. Hassas is verileri icin Android backup kapali, cleartext HTTP kapali tutulur.
+6. AAB uretmek icin:
 
 ```powershell
 cd android
@@ -655,6 +689,18 @@ Destek URL:
 https://pamukkaleturizm.info/mobile-support
 ```
 
+Veri silme URL:
+
+```text
+https://pamukkaleturizm.info/data-deletion
+```
+
+Sifre sifirlama URL:
+
+```text
+https://pamukkaleturizm.info/auth/sifremi-unuttum
+```
+
 Magaza aciklamasi, veri guvenligi onerileri, App Store inceleme notlari ve ekran goruntusu listesi:
 
 ```text
@@ -662,6 +708,16 @@ docs/store-listing.md
 ```
 
 App Store ve Play Store'a gondermeden once mutlaka bir inceleme test hesabi olusturun ve magaza notlarina ekleyin. Apple, hesaba dayali uygulamalarda inceleme ekibinin tum ozelliklere erisebilmesini ister.
+
+Play Console zorunlu kontrol listesi:
+
+- Privacy Policy: `https://pamukkaleturizm.info/privacy-policy`
+- Data deletion/account deletion: `https://pamukkaleturizm.info/data-deletion`
+- App access: test TC, sifre ve rol bilgisi
+- Data Safety: isim, e-posta, TC, finansal kayitlar, mesai/vardiya verileri, push tokeni ve uygulama aktivitesi isaretlenir
+- Permissions: Camera, Notifications, Internet
+- Ads: uygulamada reklam yoksa "No" secilir
+- Target audience: sirket ici is uygulamasi olarak cocuklara yonelik degil
 
 ## Test ve Dogrulama
 
@@ -683,6 +739,9 @@ Manuel kontrol listesi:
 - `/` adresi login akisini dogru yonlendiriyor mu?
 - `/auth/giris` dashboard girisi calisiyor mu?
 - `/auth/giris` TC ve sifre ile dashboard veya mesai akisini dogru yonlendiriyor mu?
+- `/auth/sifremi-unuttum` TC ile reset maili istegini aliyor mu?
+- `/auth/sifre-sifirla` e-posta linkinden gelen kullaniciya yeni sifre kaydettiriyor mu?
+- `/privacy-policy`, `/mobile-support`, `/data-deletion` public olarak 200 donuyor mu?
 - `/terminal` QR uretiyor mu?
 - `/mesai-qr` kamera aciyor mu?
 - Basarili okutma sonrasi kamera kapaniyor mu?
@@ -695,13 +754,15 @@ Manuel kontrol listesi:
 ```text
 app/
   api/
-    auth/                         Mesai auth API route'lari
+    auth/                         Mesai auth ve sifre sifirlama API route'lari
     terminal/qr/                  Dinamik terminal QR API route'u
     personel/scan-terminal/       QR okutma ve check-in/check-out route'u
     dashboard/vardiya/            Vardiya planlama API route'u
     dashboard/mesai-takip/        Mesai takip API route'u
     personel-mesai/               Mesai admin API route'lari
   auth/giris/                     Dashboard girisi
+  auth/sifremi-unuttum/           TC ile sifre sifirlama istegi
+  auth/sifre-sifirla/             E-postadan yeni sifre belirleme
   dashboard/
     vardiya/                      Vardiya takvimi
     mesai-takip/                  Sube bazli mesai takip
@@ -711,6 +772,9 @@ app/
   mesai-qr/                       Personel kamera ile terminal QR okutma
   terminal/                       Sabit terminal QR ekrani
   personel-mesai/                 Admin personel mesai paneli
+  privacy-policy/                 Gizlilik politikasi
+  mobile-support/                 Mobil destek sayfasi
+  data-deletion/                  Veri silme talebi sayfasi
 
 components/
   mesai/
