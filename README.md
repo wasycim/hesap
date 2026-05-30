@@ -293,13 +293,14 @@ JWT_SECRET=
 AUTH_SECRET=
 NEXTAUTH_SECRET=
 
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_APP_URL=https://pamukkaleturizm.info
 ```
 
-Production icin `NEXT_PUBLIC_APP_URL` degeri `https://pamukkaleturizm.info` olmalidir. Supabase Auth redirect allow-list icinde su URL bulunmalidir:
+Production icin `NEXT_PUBLIC_APP_URL` degeri `https://pamukkaleturizm.info` olmalidir. Sifre sifirlama route'u localhost veya local IP gelse bile link tabanini production domain'e sabitler. Supabase Auth redirect allow-list icinde su URL'ler bulunmalidir:
 
 ```text
 https://pamukkaleturizm.info/auth/callback
+https://pamukkaleturizm.info/auth/sifre-sifirla
 ```
 
 ### Zorunlu Degiskenler
@@ -455,15 +456,17 @@ Akis:
 
 1. `/api/auth/forgot-password` TC'yi dogrular.
 2. Profil veya Supabase Auth metadata uzerinden e-posta bulunur.
-3. E-posta gercekse Supabase `resetPasswordForEmail` cagrisi yapilir.
-4. Kullanici e-postadaki linkle `/auth/callback?next=/auth/sifre-sifirla` akisini tamamlar.
-5. `/auth/sifre-sifirla` ekraninda yeni sifre kaydedilir.
+3. E-posta gercekse Supabase `resetPasswordForEmail` cagrisi `https://pamukkaleturizm.info/auth/callback?next=/auth/sifre-sifirla` redirect'i ile yapilir.
+4. Kullanici e-postadaki linkle callback akisini tamamlar.
+5. `/auth/sifre-sifirla` ekrani `code`, `token_hash` veya hash token formatlarini yakalayip yeni sifreyi kaydeder.
 
 Notlar:
 
 - Sifre sifirlama maili icin kullanicinin gercek e-postasi kayitli olmalidir.
 - `personel-<tc>@pamukkaleturizm.info` gibi otomatik uretilen mesai-only e-postalar mail alamaz; bu kullanicilar icin admin panelinden gercek e-posta tanimlanmalidir.
-- Supabase Auth > URL Configuration icinde `https://pamukkaleturizm.info/auth/callback` redirect URL olarak eklenmelidir.
+- Supabase Auth > URL Configuration icinde Site URL `https://pamukkaleturizm.info` olmalidir.
+- Supabase Auth > URL Configuration icinde `https://pamukkaleturizm.info/auth/callback` ve `https://pamukkaleturizm.info/auth/sifre-sifirla` redirect URL olarak eklenmelidir.
+- Supabase Auth > Email Templates > Reset Password icin guzel HTML sablonu `docs/supabase-password-reset-email.html` dosyasindadir. Subject: `Hesap sifreni yenile`.
 - Production icin Supabase SMTP ayari tanimlanmalidir; aksi halde varsayilan e-posta limitlerine takilabilirsiniz.
 
 ### Kamera Guvenligi

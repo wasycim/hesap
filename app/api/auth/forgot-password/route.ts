@@ -3,13 +3,35 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { isValidTcKimlik, normalizeTcKimlik } from "@/lib/tc-kimlik"
 
 const genericMessage = "Eğer bu TC kimlik numarasına bağlı gerçek bir e-posta varsa şifre sıfırlama bağlantısı gönderildi."
+const productionAppUrl = "https://pamukkaleturizm.info"
 
-function requestOrigin(request: NextRequest) {
-  const forwardedHost = request.headers.get("x-forwarded-host")
-  const forwardedProto = request.headers.get("x-forwarded-proto") || "https"
+function normalizeAppUrl(value?: string | null) {
+  if (!value) return null
 
-  if (forwardedHost) return `${forwardedProto}://${forwardedHost}`
-  return request.nextUrl.origin
+  const trimmed = value.trim().replace(/\/+$/, "")
+  if (!trimmed) return null
+
+  try {
+    const url = new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`)
+    const hostname = url.hostname.toLowerCase()
+
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".local")) {
+      return null
+    }
+
+    return url.origin
+  } catch {
+    return null
+  }
+}
+
+function publicAppOrigin() {
+  return (
+    normalizeAppUrl(process.env.PASSWORD_RESET_BASE_URL) ||
+    normalizeAppUrl(process.env.NEXT_PUBLIC_APP_URL) ||
+    normalizeAppUrl(process.env.VERCEL_PROJECT_PRODUCTION_URL) ||
+    productionAppUrl
+  )
 }
 
 function isSyntheticAttendanceEmail(email: string, tcKimlik: string) {
@@ -82,7 +104,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, message: genericMessage })
   }
 
-  const callbackUrl = new URL("/auth/callback", requestOrigin(request))
+  const callbackUrl = new URL("/auth/callback", publicAppOrigin())
   callbackUrl.searchParams.set("next", "/auth/sifre-sifirla")
 
   const { error: resetError } = await admin.auth.resetPasswordForEmail(email, {
@@ -95,5 +117,5 @@ export async function POST(request: NextRequest) {
   }
 
   await writeResetEvent(admin, { userId, email, tcKimlik, status: "sent" })
-  return NextResponse.json({ ok: true, message: genericMessage })
+  return NextResponse.json({ ok: true, message: genericMessage, redirectTo: callbackUrl.toString() })
 }
