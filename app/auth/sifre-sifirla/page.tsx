@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ArrowLeft, CheckCircle2, Loader2, LockKeyhole } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -16,10 +16,66 @@ export default function ResetPasswordPage() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [checkingLink, setCheckingLink] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function prepareRecoverySession() {
+      try {
+        const url = new URL(window.location.href)
+        const code = url.searchParams.get("code")
+        const tokenHash = url.searchParams.get("token_hash")
+        const type = url.searchParams.get("type")
+        const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""))
+        const accessToken = hashParams.get("access_token")
+        const refreshToken = hashParams.get("refresh_token")
+
+        if (accessToken && refreshToken) {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+          if (sessionError) throw sessionError
+        } else if (code) {
+          const { error: codeError } = await supabase.auth.exchangeCodeForSession(code)
+          if (codeError) throw codeError
+        } else if (tokenHash && type === "recovery") {
+          const { error: otpError } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: "recovery",
+          })
+          if (otpError) throw otpError
+        }
+
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (!cancelled && !user) {
+          setError("Şifre sıfırlama bağlantısı geçersiz, süresi dolmuş veya bu tarayıcıda oturum açılamadı. Yeni bağlantı iste.")
+        }
+
+        if (window.location.search || window.location.hash) {
+          window.history.replaceState(null, "", "/auth/sifre-sifirla")
+        }
+      } catch {
+        if (!cancelled) {
+          setError("Şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş. Yeni bağlantı iste.")
+        }
+      } finally {
+        if (!cancelled) setCheckingLink(false)
+      }
+    }
+
+    prepareRecoverySession()
+
+    return () => {
+      cancelled = true
+    }
+  }, [supabase])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -114,9 +170,9 @@ export default function ResetPasswordPage() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button type="submit" className="h-11 w-full" disabled={loading || done}>
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Yeni şifreyi kaydet
+              <Button type="submit" className="h-11 w-full" disabled={checkingLink || loading || done}>
+                {(checkingLink || loading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {checkingLink ? "Bağlantı kontrol ediliyor" : "Yeni şifreyi kaydet"}
               </Button>
             </CardFooter>
           </form>
