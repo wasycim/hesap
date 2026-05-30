@@ -295,6 +295,13 @@ NEXTAUTH_SECRET=
 
 NEXT_PUBLIC_APP_URL=https://pamukkaleturizm.info
 PASSWORD_RESET_BASE_URL=https://pamukkaleturizm.info
+PASSWORD_RESET_DELIVERY=smtp
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM="Hesap Rapor Sistemi <system@pamukkaleturizm.tr>"
 SUPABASE_ACCESS_TOKEN=
 ```
 
@@ -305,7 +312,7 @@ https://pamukkaleturizm.info/auth/callback
 https://pamukkaleturizm.info/auth/sifre-sifirla
 ```
 
-`SUPABASE_ACCESS_TOKEN` sadece Supabase Auth URL/template ayarlarini Management API ile otomatik guncellemek icin kullanilir. Bu token Supabase Dashboard > Account > Access Tokens ekranindan uretilir ve git'e eklenmez.
+`PASSWORD_RESET_DELIVERY=smtp` sifre sifirlama mailini Supabase default template'i yerine uygulamanin kendi Turkce HTML mailiyle gonderir. Bunun icin `SMTP_*` degerleri Vercel Production ortaminda tanimli olmalidir. `SUPABASE_ACCESS_TOKEN` sadece Supabase Auth URL/template ayarlarini Management API ile otomatik guncellemek icin kullanilir. Bu token Supabase Dashboard > Account > Access Tokens ekranindan uretilir ve git'e eklenmez.
 
 ### Zorunlu Degiskenler
 
@@ -460,10 +467,11 @@ Akis:
 
 1. `/api/auth/forgot-password` TC'yi dogrular.
 2. Profil veya Supabase Auth metadata uzerinden e-posta bulunur.
-3. E-posta gercekse Supabase `resetPasswordForEmail` cagrisi `https://pamukkaleturizm.info/auth/callback?next=/auth/sifre-sifirla` redirect'i ile yapilir.
-4. Reset mail sablonu kullaniciyi dogrudan `https://pamukkaleturizm.info/auth/callback?next=/auth/sifre-sifirla&token_hash=...&type=recovery` adresine yollar; URL'de `localhost`, `access_token` veya `refresh_token` gorunmez.
-5. Callback `token_hash` degerini server tarafinda dogrular ve kullaniciyi yeni sifre ekranina tasir.
-6. `/auth/sifre-sifirla` ekrani gerekirse `code`, `token_hash` veya eski hash token formatlarini da yakalayip yeni sifreyi kaydeder.
+3. SMTP ayarlari varsa Supabase `generateLink` ile recovery token uretir ve uygulamanin kendi Turkce HTML maili gonderilir.
+4. SMTP ayarlari yoksa sistem Supabase `resetPasswordForEmail` fallback akisini kullanir; bu durumda mail tasarimi Supabase Dashboard > Email Templates ekranindaki sablona baglidir.
+5. Reset mail kullaniciyi dogrudan `https://pamukkaleturizm.info/auth/callback?next=/auth/sifre-sifirla&token_hash=...&type=recovery` adresine yollar; URL'de `localhost`, `access_token` veya `refresh_token` gorunmez.
+6. Callback `token_hash` degerini server tarafinda dogrular ve kullaniciyi yeni sifre ekranina tasir.
+7. `/auth/sifre-sifirla` ekrani gerekirse `code`, `token_hash` veya eski hash token formatlarini da yakalayip yeni sifreyi kaydeder.
 
 Notlar:
 
@@ -473,6 +481,7 @@ Notlar:
 - Supabase Auth > URL Configuration icinde `https://pamukkaleturizm.info/auth/callback` ve `https://pamukkaleturizm.info/auth/sifre-sifirla` redirect URL olarak eklenmelidir.
 - Supabase Auth > Email Templates > Reset Password icin Turkce HTML sablonu `docs/supabase-password-reset-email.html` dosyasindadir. Subject: `Hesap şifreni yenile`.
 - Supabase Management API token varsa URL ve mail sablonunu otomatik uygulamak icin `npm run supabase:auth-config` calistirilir.
+- Supabase default mailini tamamen devreden cikarmak icin Vercel Production ortaminda `PASSWORD_RESET_DELIVERY=smtp` ve `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` degerleri tanimli olmalidir.
 - Production icin Supabase SMTP ayari tanimlanmalidir; aksi halde varsayilan e-posta limitlerine takilabilirsiniz.
 
 ### Kamera Guvenligi
