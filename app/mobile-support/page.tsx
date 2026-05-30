@@ -25,6 +25,10 @@ export default function MobileSupportPage() {
           <h2 className="font-semibold">Veri Silme Talebi</h2>
           <p className="mt-1 text-sm text-muted-foreground">Hesap ve veri silme/düzeltme süreci.</p>
         </a>
+        <a className="rounded-xl border p-4 transition hover:border-emerald-500" href="/status">
+          <h2 className="font-semibold">Sistem Durumu</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Web, veritabanı ve Supabase canlı durum kontrolü.</p>
+        </a>
         <a className="rounded-xl border p-4 transition hover:border-emerald-500" href="mailto:destek@pamukkaleturizm.info">
           <h2 className="font-semibold">Destek E-postası</h2>
           <p className="mt-1 text-sm text-muted-foreground">destek@pamukkaleturizm.info</p>
@@ -36,7 +40,9 @@ export default function MobileSupportPage() {
         <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-muted-foreground">
           <li>Native alt menü ile dashboard, mesai, takip, vardiya ve maaş ekranlarına hızlı geçiş.</li>
           <li>İnternet yokken uygulama içi offline ekran ve yeniden yükleme akışı.</li>
+          <li>Bağlantı geri geldiğinde bekleyen güvenlik kayıtlarını otomatik senkronize etme.</li>
           <li>Push bildirim ve yerel bildirim altyapısı.</li>
+          <li>PDF raporları mobil yazdır/paylaş ekranından PDF olarak kaydetme.</li>
           <li>Kamera ile terminal QR okutma.</li>
           <li>Haptic geri bildirim ve native durum çubuğu/splash ekranı.</li>
           <li>TC ile şifre sıfırlama bağlantısı gönderme ve e-postadan yeni şifre belirleme.</li>

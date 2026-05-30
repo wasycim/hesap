@@ -20,6 +20,9 @@ export function PublicAuthFooter({ className = "" }: PublicAuthFooterProps) {
         <Link href="/mobile-support" className="transition hover:text-foreground">
           Destek
         </Link>
+        <Link href="/status" className="transition hover:text-foreground">
+          Sistem Durumu
+        </Link>
       </nav>
     </footer>
   )

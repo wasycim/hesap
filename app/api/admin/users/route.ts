@@ -167,6 +167,7 @@ export async function PATCH(request: NextRequest) {
 
   const body = await request.json().catch(() => ({}))
   const userId = String(body.userId || "").trim()
+  const email = String(body.email || "").trim().toLowerCase()
   const tcKimlik = normalizeTcKimlik(body.tcKimlik)
   const displayName = String(body.displayName || "").trim()
   const subeId = String(body.subeId || "").trim()
@@ -199,14 +200,17 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Bu TC ile kayıtlı başka bir kullanıcı var." }, { status: 400 })
   }
 
-  const { error: authUpdateError } = await admin.auth.admin.updateUserById(userId, {
+  const authUpdatePayload = {
+    ...(email ? { email, email_confirm: true } : {}),
     user_metadata: {
       display_name: displayName,
       tc_kimlik: tcKimlik,
       trusted_ips: trustedIps,
       dashboard_access: nextDashboardAccess,
     },
-  })
+  }
+
+  const { error: authUpdateError } = await admin.auth.admin.updateUserById(userId, authUpdatePayload)
 
   if (authUpdateError) {
     return NextResponse.json({ error: authUpdateError.message }, { status: 500 })
@@ -215,6 +219,7 @@ export async function PATCH(request: NextRequest) {
   const { error: profileError } = await admin
     .from("user_profiles")
     .update({
+      ...(email ? { email } : {}),
       display_name: displayName,
       tc_kimlik: tcKimlik,
       is_admin: nextIsAdmin,
@@ -235,6 +240,7 @@ export async function PATCH(request: NextRequest) {
     event_type: "user_update",
     details: {
       updated_user_id: userId,
+      email: email || undefined,
       display_name: displayName,
       tc_kimlik: tcKimlik,
       sube_id: subeId,

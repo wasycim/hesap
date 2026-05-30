@@ -1,6 +1,6 @@
 # Hesap Mobil Magaza Yayin Metinleri
 
-Son guncelleme: 29 Mayis 2026
+Son guncelleme: 30 Mayis 2026
 
 ## Uygulama Adi
 
@@ -20,18 +20,21 @@ Sube, rapor, vardiya, QR mesai ve maas takibini tek uygulamada yonetin.
 
 Hesap; isletmelerin sube bazli finansal kayitlarini, personel vardiyalarini, QR destekli mesai giris cikislarini ve maas hesaplarini tek panelden yonetmesi icin gelistirilmis guvenli bir is uygulamasidir.
 
-Uygulama yalnizca bir web sitesini gostermek icin tasarlanmamistir. iOS ve Android surumleri native alt menu, offline baglanti ekrani, push bildirim altyapisi, yerel bildirimler, haptic geri bildirim, kamera ile QR okuma, sifre sifirlama ve cihaz durumuna gore guvenli yeniden yukleme akisi icerir.
+Uygulama yalnizca bir web sitesini gostermek icin tasarlanmamistir. iOS ve Android surumleri native alt menu, offline baglanti ekrani, baglanti geri geldiginde senkronizasyon, push bildirim altyapisi, yerel bildirimler, haptic geri bildirim, kamera ile QR okuma, sifre sifirlama ve cihaz durumuna gore guvenli yeniden yukleme akisi icerir.
 
 One cikan ozellikler:
 
 - TC ve sifre ile guvenli giris
 - TC ile e-posta uzerinden sifre sifirlama
 - Sabit terminal QR kodu ile personel mesai giris/cikis
+- Yalnizca onayli terminal cihazlarinda QR uretme
 - Sube bazli mesai takip ekrani
 - Gunluk, haftalik, aylik ve ozel aralik vardiya planlama
 - Fazla mesai, gec kalma ve vardiya oncesi mesai hesaplari
 - Maas ekraninda fazla mesai tutarlarini otomatik hesaplama
 - PDF raporlama
+- Public sistem durum sayfasi ve yonetici sistem sagligi paneli
+- Yedekleme ve geri yukleme paneli
 - Native mobil alt menu
 - Internet yokken offline sayfa ve yeniden yukleme
 - Push ve yerel bildirim altyapisi
@@ -84,6 +87,7 @@ Uygulama veri toplar:
 - Financial info: maas, avans, gelir/gider kayitlari
 - App activity: mesai giris cikis, rapor ve guvenlik olaylari
 - Device or other IDs: push bildirim tokeni
+- Device or other IDs: terminal cihaz eslestirme anahtari
 
 Kullanim amaclari:
 
@@ -142,7 +146,7 @@ Test akisi:
 4. Kamera izniyle QR okutma ekranini acin.
 5. Bildirim izni istendiginde izin vererek native bildirim akisini dogrulayin.
 6. /auth/sifremi-unuttum ekraninda TC ile sifre sifirlama istegini kontrol edin.
-7. /privacy-policy, /mobile-support ve /data-deletion sayfalarinin acildigini kontrol edin.
+7. /privacy-policy, /mobile-support, /data-deletion ve /status sayfalarinin acildigini kontrol edin.
 ```
 
 ## Gerekli Gorsel Varliklar

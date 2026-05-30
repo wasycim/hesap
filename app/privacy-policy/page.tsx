@@ -11,7 +11,7 @@ export default function PrivacyPolicyPage() {
       <header className="space-y-3">
         <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">Hesap</p>
         <h1 className="text-3xl font-bold tracking-normal">Gizlilik Politikası</h1>
-        <p className="text-sm text-muted-foreground">Son güncelleme: 29 Mayıs 2026</p>
+        <p className="text-sm text-muted-foreground">Son güncelleme: 30 Mayıs 2026</p>
       </header>
 
       <section className="space-y-3">
@@ -24,7 +24,7 @@ export default function PrivacyPolicyPage() {
           <li>Kimlik ve hesap bilgileri: ad soyad, görünen ad, TC kimlik numarası, e-posta, rol ve şube bilgisi.</li>
           <li>Mesai bilgileri: QR okutma zamanı, giriş çıkış saati, vardiya, geç kalma ve fazla mesai süreleri.</li>
           <li>Finansal kayıtlar: gelir, gider, maaş, avans, cari ve rapor kayıtları.</li>
-          <li>Cihaz verileri: push bildirim tokeni, uygulama açılış zamanı, bağlantı durumu ve hata bilgileri.</li>
+          <li>Cihaz verileri: terminal cihaz eşleştirme anahtarı, push bildirim tokeni, uygulama açılış zamanı, bağlantı durumu ve hata bilgileri.</li>
         </ul>
       </section>
 
@@ -57,8 +57,8 @@ export default function PrivacyPolicyPage() {
         <h2 className="text-xl font-semibold">Güvenlik</h2>
         <p>
           Uygulamada JWT tabanlı oturum, HTTP-only cookie, bcrypt şifre özeti, yetkili route kontrolleri ve Supabase
-          RLS politikaları kullanılır. QR tokenleri süreli ve doğrulamalıdır. Şifre sıfırlama bağlantıları Supabase Auth
-          tarafından süreli olarak üretilir.
+          RLS politikaları kullanılır. QR tokenleri süreli ve doğrulamalıdır. Sabit terminal QR ekranı yalnızca yönetici
+          tarafından onaylanan cihazlarda çalışır. Şifre sıfırlama bağlantıları Supabase Auth tarafından süreli olarak üretilir.
         </p>
       </section>
 

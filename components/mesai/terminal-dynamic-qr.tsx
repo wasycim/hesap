@@ -9,6 +9,7 @@ type TerminalQrResponse = {
   qr: string
   expiresAt: string
   ttlSeconds: number
+  code?: string
   error?: string
 }
 
@@ -19,25 +20,36 @@ export function TerminalDynamicQr() {
   const [remaining, setRemaining] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [deviceKey, setDeviceKey] = useState("")
+  const [devicePending, setDevicePending] = useState(false)
 
   const clearTimers = useCallback(() => {
     if (refreshTimer.current) clearTimeout(refreshTimer.current)
     if (countdownTimer.current) clearInterval(countdownTimer.current)
   }, [])
 
-  const loadQr = useCallback(async () => {
+  const loadQr = useCallback(async (key = deviceKey) => {
+    if (!key) return
+
     setLoading(true)
     setError("")
 
-    const response = await fetch("/api/terminal/qr", { cache: "no-store" })
+    const response = await fetch("/api/terminal/qr", {
+      cache: "no-store",
+      headers: {
+        "x-terminal-device-key": key,
+      },
+    })
     const data = (await response.json().catch(() => ({}))) as TerminalQrResponse
 
     if (!response.ok) {
       setError(data.error ?? "Terminal QR olusturulamadi.")
+      setDevicePending(data.code === "TERMINAL_DEVICE_PENDING" || data.code === "TERMINAL_DEVICE_REQUIRED")
       setLoading(false)
       return
     }
 
+    setDevicePending(false)
     const QRCode = await import("qrcode")
     const image = await QRCode.toDataURL(data.qr, {
       errorCorrectionLevel: "M",
@@ -57,11 +69,13 @@ export function TerminalDynamicQr() {
     const tick = () => setRemaining(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)))
     tick()
     countdownTimer.current = setInterval(tick, 250)
-    refreshTimer.current = setTimeout(loadQr, Math.max(4000, data.ttlSeconds * 1000))
-  }, [clearTimers])
+    refreshTimer.current = setTimeout(() => loadQr(key), Math.max(4000, data.ttlSeconds * 1000))
+  }, [clearTimers, deviceKey])
 
   useEffect(() => {
-    loadQr()
+    const key = getOrCreateTerminalDeviceKey()
+    setDeviceKey(key)
+    registerTerminalDevice(key).finally(() => loadQr(key))
     return clearTimers
   }, [clearTimers, loadQr])
 
@@ -86,7 +100,7 @@ export function TerminalDynamicQr() {
             <Badge className="bg-emerald-400 text-slate-950 hover:bg-emerald-400">
               {loading ? "Hazirlaniyor" : `${remaining} sn`}
             </Badge>
-            <Button type="button" variant="secondary" size="icon" aria-label="Yenile" onClick={loadQr}>
+            <Button type="button" variant="secondary" size="icon" aria-label="Yenile" onClick={() => loadQr()}>
               <RefreshCw className="h-4 w-4" />
             </Button>
             <Button type="button" variant="secondary" size="icon" aria-label="Tam ekran" onClick={fullscreen}>
@@ -106,10 +120,22 @@ export function TerminalDynamicQr() {
                 </div>
               )}
             </div>
-            {error ? <p className="rounded-lg border border-red-400/40 bg-red-500/10 p-3 text-sm text-red-100">{error}</p> : null}
+            {error ? (
+              <div className="rounded-xl border border-red-400/40 bg-red-500/10 p-4 text-sm text-red-100">
+                <p className="font-bold">{error}</p>
+                {devicePending ? (
+                  <p className="mt-2 text-red-100/80">
+                    Bu ekran sadece onaylı terminal cihazlarında QR üretir. Yönetici panelinden Sistem Sağlığı &gt; Terminal Cihazları bölümünde bu cihazı onaylayın.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <div>
               <p className="text-3xl font-black">QR 30 saniyede bir yenilenir</p>
               <p className="mt-2 text-white/55">Personel TC ve sifre ile giris yapar, kamerasi ile bu kodu okutup giris/cikis yapar.</p>
+              {deviceKey ? (
+                <p className="mt-3 text-xs text-white/35">Terminal cihaz kodu: {deviceKey.slice(0, 8)}...{deviceKey.slice(-6)}</p>
+              ) : null}
             </div>
           </div>
         </section>
@@ -120,4 +146,28 @@ export function TerminalDynamicQr() {
       </div>
     </main>
   )
+}
+
+function getOrCreateTerminalDeviceKey() {
+  const storageKey = "hesap_terminal_device_key"
+  const existing = window.localStorage.getItem(storageKey)
+  if (existing) return existing
+
+  const random = typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const key = `terminal.${random.replace(/[^a-zA-Z0-9.-]/g, "")}`
+  window.localStorage.setItem(storageKey, key)
+  return key
+}
+
+async function registerTerminalDevice(deviceKey: string) {
+  await fetch("/api/terminal/devices", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      deviceKey,
+      label: `Terminal ${new Date().toLocaleDateString("tr-TR")}`,
+    }),
+  }).catch(() => undefined)
 }

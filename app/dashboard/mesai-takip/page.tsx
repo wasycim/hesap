@@ -25,6 +25,7 @@ type BranchSummary = {
   lateMinutes: number
   afterShiftMinutes: number
   overtimeMinutes: number
+  payableOvertimeMinutes: number
   workedMinutes: number
 }
 
@@ -40,6 +41,7 @@ type PersonelSummary = {
   lateMinutes: number
   afterShiftMinutes: number
   overtimeMinutes: number
+  payableOvertimeMinutes: number
   workedMinutes: number
 }
 
@@ -57,6 +59,7 @@ type Detail = {
   lateMinutes: number
   afterShiftMinutes: number
   overtimeMinutes: number
+  payableOvertimeMinutes: number
   status: "OPEN" | "CLOSED"
   shift: { id: string; name: string; label: string } | null
 }
@@ -105,14 +108,16 @@ function WarningBadges({
   lateMinutes,
   afterShiftMinutes,
   overtimeMinutes,
+  payableOvertimeMinutes,
 }: {
   beforeShiftMinutes: number
   earlyMinutes: number
   lateMinutes: number
   afterShiftMinutes: number
   overtimeMinutes: number
+  payableOvertimeMinutes: number
 }) {
-  if (!beforeShiftMinutes && !earlyMinutes && !lateMinutes && !afterShiftMinutes && !overtimeMinutes) {
+  if (!beforeShiftMinutes && !earlyMinutes && !lateMinutes && !afterShiftMinutes && !overtimeMinutes && !payableOvertimeMinutes) {
     return <span className="text-muted-foreground">Sorun yok</span>
   }
 
@@ -141,6 +146,11 @@ function WarningBadges({
       {overtimeMinutes > 0 && (
         <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
           Net fazla {minutes(overtimeMinutes)}
+        </Badge>
+      )}
+      {payableOvertimeMinutes > 0 && payableOvertimeMinutes !== overtimeMinutes && (
+        <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+          Maaşa {minutes(payableOvertimeMinutes)}
         </Badge>
       )}
     </div>
@@ -193,6 +203,7 @@ export default function MesaiTakipPage() {
       personel: branchSummaries.reduce((sum, item) => sum + item.personelCount, 0),
       open: branchSummaries.reduce((sum, item) => sum + item.openCount, 0),
       overtime: branchSummaries.reduce((sum, item) => sum + item.overtimeMinutes, 0),
+      payableOvertime: branchSummaries.reduce((sum, item) => sum + item.payableOvertimeMinutes, 0),
       late: branchSummaries.reduce((sum, item) => sum + item.lateMinutes, 0),
     }
   }, [payload])
@@ -216,12 +227,13 @@ export default function MesaiTakipPage() {
       metrics: [
         { label: "Personel", value: String(totals.personel) },
         { label: "Fazla Mesai", value: minutes(totals.overtime) },
+        { label: "Maaşa İşlenen", value: minutes(totals.payableOvertime) },
         { label: "Geç Kalma", value: minutes(totals.late) },
       ],
       tables: [
         {
           title: "Şube Özeti",
-          headers: ["Şube", "Personel", "Açık", "Vardiya Öncesi", "Erken Giriş", "Geç Kalma", "Mesai Sonrası", "Net Fazla", "Çalışma"],
+          headers: ["Şube", "Personel", "Açık", "Vardiya Öncesi", "Erken Giriş", "Geç Kalma", "Mesai Sonrası", "Net Fazla", "Maaşa İşlenen", "Çalışma"],
           rows: payload.branchSummaries.map((item) => [
             item.branch.ad,
             item.personelCount,
@@ -231,12 +243,13 @@ export default function MesaiTakipPage() {
             minutes(item.lateMinutes),
             minutes(item.afterShiftMinutes),
             minutes(item.overtimeMinutes),
+            minutes(item.payableOvertimeMinutes),
             minutes(item.workedMinutes),
           ]),
         },
         {
           title: "Personel Özeti",
-          headers: ["Personel", "Şube", "Açık", "Vardiya Öncesi", "Erken Giriş", "Geç Kalma", "Mesai Sonrası", "Net Fazla", "Çalışma"],
+          headers: ["Personel", "Şube", "Açık", "Vardiya Öncesi", "Erken Giriş", "Geç Kalma", "Mesai Sonrası", "Net Fazla", "Maaşa İşlenen", "Çalışma"],
           rows: payload.personelSummaries.map((item) => [
             item.name,
             item.branch?.ad || "-",
@@ -246,6 +259,7 @@ export default function MesaiTakipPage() {
             minutes(item.lateMinutes),
             minutes(item.afterShiftMinutes),
             minutes(item.overtimeMinutes),
+            minutes(item.payableOvertimeMinutes),
             minutes(item.workedMinutes),
           ]),
         },
@@ -266,6 +280,7 @@ export default function MesaiTakipPage() {
               item.lateMinutes > 0 ? `Gec: ${minutes(item.lateMinutes)}` : "",
               item.afterShiftMinutes > 0 ? `Mesai sonrasi: ${minutes(item.afterShiftMinutes)}` : "",
               item.overtimeMinutes > 0 ? `Net fazla: ${minutes(item.overtimeMinutes)}` : "",
+              item.payableOvertimeMinutes > 0 ? `Maaşa işlenen: ${minutes(item.payableOvertimeMinutes)}` : "",
             ].filter(Boolean).join(" / ") || "-",
             item.status === "OPEN" ? "Cikis bekliyor" : "Tamamlandi",
           ]),
@@ -337,6 +352,7 @@ export default function MesaiTakipPage() {
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric icon={<UsersRound className="h-4 w-4" />} label="Personel" value={String(totals.personel)} />
         <Metric icon={<TimerReset className="h-4 w-4" />} label="Fazla Mesai" value={minutes(totals.overtime)} />
+        <Metric icon={<TimerReset className="h-4 w-4" />} label="Maaşa İşlenen" value={minutes(totals.payableOvertime)} />
         <Metric icon={<CalendarDays className="h-4 w-4" />} label="Geç Kalma" value={minutes(totals.late)} />
       </section>
 
@@ -382,6 +398,7 @@ export default function MesaiTakipPage() {
                       <th className="p-3">Şube</th>
                       <th className="p-3">Geç</th>
                       <th className="p-3">Fazla Mesai</th>
+                      <th className="p-3">Maaşa İşlenen</th>
                       <th className="p-3">Çalışma</th>
                     </tr>
                   </thead>
@@ -392,6 +409,7 @@ export default function MesaiTakipPage() {
                         <td className="p-3">{item.branch?.ad || "-"}</td>
                         <td className="p-3">{minutes(item.lateMinutes)}</td>
                         <td className="p-3 font-bold text-amber-600">{minutes(item.overtimeMinutes)}</td>
+                        <td className="p-3 font-bold text-emerald-600">{minutes(item.payableOvertimeMinutes)}</td>
                         <td className="p-3">{minutes(item.workedMinutes)}</td>
                       </tr>
                     ))}
@@ -466,6 +484,7 @@ export default function MesaiTakipPage() {
                         lateMinutes={item.lateMinutes}
                         afterShiftMinutes={item.afterShiftMinutes}
                         overtimeMinutes={item.overtimeMinutes}
+                        payableOvertimeMinutes={item.payableOvertimeMinutes}
                       />
                     </td>
                     <td className="p-3">

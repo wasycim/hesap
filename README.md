@@ -17,6 +17,7 @@ Bu dokuman projeyi calistirmak, veritabani yapisini kurmak, QR mesai akisini anl
 - [Veritabani Kurulumu](#veritabani-kurulumu)
 - [Calistirma Komutlari](#calistirma-komutlari)
 - [Guvenlik](#guvenlik)
+- [Sistem Operasyonlari](#sistem-operasyonlari)
 - [Lisans ve Dagitim](#lisans-ve-dagitim)
 - [PDF ve Raporlama](#pdf-ve-raporlama)
 - [Deployment](#deployment)
@@ -151,6 +152,8 @@ Bu yapi sayesinde terminaldeki QR kopyalansa bile kisa surede gecersiz olur.
 | `/privacy-policy` | Mobil/web gizlilik politikasi | Herkes |
 | `/mobile-support` | Mobil uygulama destek sayfasi | Herkes |
 | `/data-deletion` | Veri silme ve duzeltme talep sureci | Herkes |
+| `/status` | Public sistem sagligi sayfasi | Herkes |
+| `/dashboard/sistem-sagligi` | Terminal cihaz onayi, yedekleme, reset gecmisi, ozet mail ve sistem sagligi | Yonetici |
 
 Auth ekranlarinda herkese acik kayit ol secenegi yoktur. Giris, sifremi unuttum, sifre sifirlama ve auth hata ekranlarinin altinda gizlilik politikasi, veri silme ve destek linkleri kucuk bilgi alani olarak gosterilir; ayni sayfalar iOS/Android WebView icinde de gorunur.
 
@@ -381,6 +384,7 @@ Supabase SQL Editor veya migration akisi uzerinden scriptleri uygulayin.
 | `scripts/012_qr_attendance_prisma_tables.sql` | QR mesai tablolarini ekler |
 | `scripts/013_vardiya_planlari.sql` | Vardiya planlama tablolarini ekler |
 | `supabase/migrations/20260527130000_enable_rls_for_attendance_and_shifts.sql` | Mesai ve vardiya tablolarinda RLS politikalarini etkinlestirir |
+| `scripts/015_system_operations.sql` | Terminal cihazlari, mobil cihaz tokenlari, bildirimler, tema tercihi ve ozet mail tablolarini ekler |
 
 Yardimci scriptler:
 
@@ -388,6 +392,7 @@ Yardimci scriptler:
 node scripts/apply-vardiya-schema.js
 node scripts/check-vardiya-schema.js
 node scripts/apply-rls-policies.js
+npm run supabase:system-schema
 ```
 
 ## Calistirma Komutlari
@@ -508,12 +513,61 @@ Kritik tablolar:
 - `public.attendance_logs`
 - `public.vardiya_tanimlari`
 - `public.vardiya_sabit_ayarlari`
+- `public.terminal_devices`
+- `public.user_devices`
+- `public.app_notifications`
+- `public.admin_digest_subscribers`
 
 RLS kapali olursa Supabase guvenlik paneli kritik uyari verir. Bu durumda migration dosyasini tekrar uygulayin:
 
 ```text
 supabase/migrations/20260527130000_enable_rls_for_attendance_and_shifts.sql
+scripts/015_system_operations.sql
 ```
+
+## Sistem Operasyonlari
+
+### Terminal cihaz eslestirme
+
+`/terminal` artik her cihazda otomatik QR uretmez. Terminal ekrani ilk acildiginda browser local storage icinde benzersiz bir terminal cihaz anahtari olusturur ve `public.terminal_devices` tablosuna bekleyen cihaz olarak kaydeder.
+
+Yonetici `/dashboard/sistem-sagligi` ekranindan cihazı onaylar. Yalnizca `approved=true` olan cihazlar `/api/terminal/qr` uzerinden 30 saniyelik QR alabilir. Onay kaldirilirsa terminal ekrani QR uretmeyi durdurur.
+
+### Offline mod ve senkronizasyon
+
+Web, iOS, Android ve masaustu uygulamada global offline ekran vardir. Internet yokken kullaniciya "Internet baglantisi yok" sayfasi ve `Yeniden yukle` butonu gosterilir. Guvenlik kaydi gibi kucuk mutasyonlar baglanti yoksa local queue icine alinir; baglanti geri geldiginde otomatik tekrar gonderilir.
+
+Mesai QR islemi guvenlik nedeniyle offline tamamlanmaz; terminal QR'i sureli JWT oldugu icin gercek check-in/check-out sunucu baglantisi varken yapilir.
+
+### Sistem sagligi ve status sayfasi
+
+`/status` herkese acik durum sayfasidir. Web uygulamasi, PostgreSQL ve Supabase API durumunu canli kontrol eder.
+
+`/dashboard/sistem-sagligi` yonetici ekraninda su alanlar vardir:
+
+- Canli sistem kontrolleri
+- Bekleyen/onayli terminal cihazlari
+- Sifre sifirlama talep gecmisi
+- Yedek indir ve JSON yedekten geri yukle
+- Gunluk/haftalik yonetici ozet mail alicilari
+
+### Bildirimler
+
+Dashboard icinde sag ustte bildirim merkezi vardir. Kullaniciya ozel gec kalma ve fazla mesai uyarilari son mesai kayitlarindan otomatik uretilir. Mobil kabuk push notification izin ve token kaydi altyapisini hazirlar; `public.user_devices` tablosu cihaz tokenlarini saklar.
+
+### Kullanici bazli tema
+
+Dark/light tema tercihi artik kullanici profilinde `user_profiles.theme_preference` alaninda saklanir. Kullanici farkli cihazdan giris yaptiginda tema tercihi yeniden uygulanir.
+
+### Fazla mesai yuvarlama
+
+Mesai takip ekrani gercek net fazla mesai dakikasini korur; maas hesabina ise odeme kuralina gore yuvarlanmis sure gider:
+
+- 1 sa 15 dk veya 1 sa 30 dk gercekte aynen gosterilir, maasa 1 saat islenir.
+- 1 sa 45 dk ve uzeri bir sonraki saate yuvarlanir, maasa 2 saat islenir.
+- 60 dakikadan kisa ama pozitif fazla mesai maas detayinda 1 saat olarak islenir.
+
+Personel maas PDF'inde "gercek sure" ve "maasa islenen sure" ayrimi aciklamada gorunur.
 
 ## Lisans ve Dagitim
 
@@ -635,8 +689,10 @@ Mobil uygulama Capacitor tabanlidir ve `wasy.system.hesap` bundle/package id deg
 
 - Native alt menü: Panel, Mesai, Takip, Vardiya ve Maas ekranlarina hizli gecis
 - Internet yokken uygulama ici offline ekran ve `Yeniden yukle` butonu
+- Baglanti geri geldiginde bekleyen guvenlik kayitlarini otomatik senkronize etme
 - Push notification izin, cihaz token kaydi ve bildirim aksiyonu altyapisi
 - Local notification altyapisi
+- PDF rapor butonlari mobilde de rapor/print akisini acar; iOS/Android paylas veya yazdir ekranindan PDF olarak kaydedilebilir
 - Kamera izni ve terminal QR okutma akisi
 - Haptic geri bildirim
 - Native splash screen ve status bar ayarlari
@@ -952,18 +1008,19 @@ Bu hata eski masaustu kabugunda PDF icin acilan `about:blank` yazdirma penceresi
 1. Personelin ayarlar ekraninda `saatlik_mesai_ucreti` degerini girin.
 2. Personel QR mesai sistemiyle giris cikis yaptikca Mesai Takip ekraninda net fazla mesai olusur.
 3. `/dashboard/maaslar` sayfasinda ilgili ay ve subeyi acin.
-4. Sistem net fazla mesai dakikasini saatlik ucretle carpar ve personelin net kalan maasina ekler.
-5. Personel PDF'i alin; PDF'de mesai kaynagi, sure, saatlik ucret ve tutar gorunur.
+4. Sistem net fazla mesai dakikasini ekranda aynen gosterir, maasa ise odeme kuralina gore yuvarlanmis saati ekler.
+5. Personel PDF'i alin; PDF'de mesai kaynagi, gercek sure, maasa islenen sure, saatlik ucret ve tutar gorunur.
 
 Hesap ornegi:
 
 ```text
 8 sa 37 dk = 517 dakika
-517 / 60 = 8,6166 saat
-8,6166 x 116,77 TL = fazla mesai tutari
+517 dakika ekranda 8 sa 37 dk gorunur
+37 dk, 45 dk altinda kaldigi icin maasa 8 saat islenir
+8 x 116,77 TL = fazla mesai tutari
 ```
 
-Ekranda sure `8 sa 37 dk` olarak gosterilir; tutar hesabi dakika hassasiyetiyle yapilir.
+Ekranda sure `8 sa 37 dk` olarak gosterilir; tutar hesabi maas kuralindaki saat yuvarlamasiyla yapilir. `8 sa 45 dk` olsaydi maasa `9 saat` islenirdi.
 
 ## Lisans
 

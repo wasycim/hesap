@@ -46,6 +46,7 @@ type AttendanceDetail = {
   personelId: string | null
   workDate: string
   overtimeMinutes: number
+  payableOvertimeMinutes?: number
 }
 
 type AttendancePayload = {
@@ -153,14 +154,15 @@ export default function MaaslarPage() {
     attendanceOvertime
       .filter(detail => detail.personelId === personel.id && detail.overtimeMinutes > 0)
       .forEach(detail => {
-        const hours = detail.overtimeMinutes / 60
+        const payableMinutes = detail.payableOvertimeMinutes || detail.overtimeMinutes
+        const hours = payableMinutes / 60
         overtime.push({
           tarih: detail.workDate,
           amount: hours * hourlyRate,
-          description: `Mesai takip: ${formatDurationFromMinutes(detail.overtimeMinutes)} x ${formatMoney(hourlyRate)} TL`,
+          description: `Mesai takip: gerçek ${formatDurationFromMinutes(detail.overtimeMinutes)}, maaşa ${formatDurationFromMinutes(payableMinutes)} x ${formatMoney(hourlyRate)} TL`,
           hours,
           rate: hourlyRate,
-          minutes: detail.overtimeMinutes,
+          minutes: payableMinutes,
           source: "attendance",
         })
       })
