@@ -3,8 +3,10 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/sonner'
 import { ThemeProvider } from '@/components/theme-provider'
+import { ThemeUserSync } from '@/components/theme-user-sync'
 import { VercelToolbarBlocker } from '@/components/vercel-toolbar-blocker'
 import { NativeAppBridge } from '@/components/mobile/native-app-bridge'
+import { ConnectivityOverlay } from '@/components/mobile/connectivity-overlay'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -55,8 +57,10 @@ export default function RootLayout({
     <html lang="tr" className="bg-background" suppressHydrationWarning>
       <body className="min-h-dvh bg-background font-sans antialiased">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem storageKey="hesap-theme">
+          <ThemeUserSync />
           <VercelToolbarBlocker />
           {children}
+          <ConnectivityOverlay />
           <NativeAppBridge />
           <Toaster
             position="top-right"

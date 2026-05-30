@@ -73,6 +73,7 @@ export default function AdminAyarlarPage() {
   const [vardiya, setVardiya] = useState("T")
   const [selectedUserId, setSelectedUserId] = useState("")
   const [editSubeId, setEditSubeId] = useState("")
+  const [editEmail, setEditEmail] = useState("")
   const [editDisplayName, setEditDisplayName] = useState("")
   const [editTcKimlik, setEditTcKimlik] = useState("")
   const [editTrustedIps, setEditTrustedIps] = useState("")
@@ -101,6 +102,7 @@ export default function AdminAyarlarPage() {
 
   useEffect(() => {
     if (!selectedUser) return
+    setEditEmail(selectedUser.email || "")
     setEditDisplayName(selectedUser.display_name || "")
     setEditTcKimlik(selectedUser.tc_kimlik || "")
     setEditTrustedIps((selectedUser.trusted_ips || []).join(", "))
@@ -172,6 +174,7 @@ export default function AdminAyarlarPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         userId: selectedUserId,
+        email: editEmail,
         displayName: editDisplayName,
         tcKimlik: editTcKimlik,
         trustedIps: editTrustedIps,
@@ -424,6 +427,10 @@ export default function AdminAyarlarPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>E-posta</Label>
+              <Input value={editEmail} onChange={(event) => setEditEmail(event.target.value)} placeholder="kullanici@mail.com" disabled={!selectedUser} />
             </div>
             <div className="space-y-2">
               <Label>Görünen ad</Label>

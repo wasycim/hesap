@@ -370,7 +370,7 @@ function configureAutoUpdater() {
   })
 }
 
-app.setAppUserModelId("info.pamukkaleturizm.hesap")
+app.setAppUserModelId("wasy.system.hesap")
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null)

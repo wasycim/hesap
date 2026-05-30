@@ -1,3 +1,5 @@
+import { queueOfflineMutation } from "@/lib/offline-sync"
+
 export type SecurityEventType =
   | "login"
   | "failed_login"
@@ -16,23 +18,37 @@ export type SecurityEventType =
   | "branch_delete"
   | "branch_delete_failed"
   | "visibility_update"
+  | "terminal_device_approved"
+  | "terminal_device_revoked"
+  | "terminal_device_delete"
+  | "backup_export"
+  | "backup_restore"
+  | "digest_settings_update"
 
 export async function logSecurityEvent(eventType: SecurityEventType, details: Record<string, unknown> = {}) {
+  const deviceId = getDeviceId()
+  const body = JSON.stringify({
+    eventType,
+    details: {
+      ...details,
+      device_id: deviceId,
+      client_time_zone: typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : null,
+    },
+  })
+
   try {
-    const deviceId = getDeviceId()
-    await fetch("/api/security-events", {
+    const response = await fetch("/api/security-events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        eventType,
-        details: {
-          ...details,
-          device_id: deviceId,
-          client_time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        },
-      }),
+      body,
     })
+    if (!response.ok) throw new Error("Güvenlik kaydı sunucuya yazılamadı.")
   } catch (error) {
+    queueOfflineMutation("/api/security-events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    })
     console.warn("Güvenlik kaydı oluşturulamadı", error)
   }
 }

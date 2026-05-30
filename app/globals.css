@@ -488,6 +488,13 @@
   100% { transform: translateX(3px) scale(1.05); }
 }
 
+@keyframes menu-health-pulse {
+  0% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); }
+  38% { transform: scale(1.16); filter: drop-shadow(0 0 8px currentColor); }
+  72% { transform: scale(.96); }
+  100% { transform: scale(1.05); filter: drop-shadow(0 0 4px currentColor); }
+}
+
 .sidebar-menu-item:hover .menu-icon-spin {
   animation: menu-spin 650ms ease both;
 }
@@ -548,6 +555,10 @@
 
 .sidebar-menu-item:hover .menu-icon-account-settings {
   animation: none;
+}
+
+.sidebar-menu-item:hover .menu-icon-pulse {
+  animation: menu-health-pulse 900ms ease both;
 }
 
 .sidebar-menu-item:hover .menu-icon-report,

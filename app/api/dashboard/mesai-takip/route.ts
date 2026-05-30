@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 import { getShiftLabel, shiftBoundary } from "@/lib/qr-attendance/time"
+import { roundOvertimeToPaidMinutes } from "@/lib/mesai/overtime"
 
 function dateParam(value: string | null) {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
@@ -155,6 +156,7 @@ export async function GET(request: NextRequest) {
     lateMinutes: number
     afterShiftMinutes: number
     overtimeMinutes: number
+    payableOvertimeMinutes: number
     workedMinutes: number
   }>()
 
@@ -173,6 +175,7 @@ export async function GET(request: NextRequest) {
       lateMinutes: 0,
       afterShiftMinutes: 0,
       overtimeMinutes: 0,
+      payableOvertimeMinutes: 0,
       workedMinutes: 0,
     })
   }
@@ -202,6 +205,7 @@ export async function GET(request: NextRequest) {
       })
 
       if (summary) {
+        const payableOvertimeMinutes = roundOvertimeToPaidMinutes(timing.overtimeMinutes)
         summary.logCount += 1
         summary.openCount += log.checkOutAt ? 0 : 1
         summary.beforeShiftMinutes += timing.beforeShiftMinutes
@@ -209,6 +213,7 @@ export async function GET(request: NextRequest) {
         summary.lateMinutes += timing.lateMinutes
         summary.afterShiftMinutes += timing.afterShiftMinutes
         summary.overtimeMinutes += timing.overtimeMinutes
+        summary.payableOvertimeMinutes += payableOvertimeMinutes
         summary.workedMinutes += timing.workedMinutes
       }
 
@@ -227,6 +232,7 @@ export async function GET(request: NextRequest) {
         lateMinutes: timing.lateMinutes,
         afterShiftMinutes: timing.afterShiftMinutes,
         overtimeMinutes: timing.overtimeMinutes,
+        payableOvertimeMinutes: roundOvertimeToPaidMinutes(timing.overtimeMinutes),
         status: log.status,
         shift: log.shift ? { id: String(log.shift.id), name: log.shift.name, label: getShiftLabel(log.shift) } : null,
       }
@@ -247,6 +253,7 @@ export async function GET(request: NextRequest) {
         lateMinutes: people.reduce((sum, item) => sum + item.lateMinutes, 0),
         afterShiftMinutes: people.reduce((sum, item) => sum + item.afterShiftMinutes, 0),
         overtimeMinutes: people.reduce((sum, item) => sum + item.overtimeMinutes, 0),
+        payableOvertimeMinutes: people.reduce((sum, item) => sum + item.payableOvertimeMinutes, 0),
         workedMinutes: people.reduce((sum, item) => sum + item.workedMinutes, 0),
       }
     })

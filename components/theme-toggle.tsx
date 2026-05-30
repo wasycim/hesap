@@ -19,13 +19,21 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
   }, [])
 
   const isDark = mounted && resolvedTheme === "dark"
+  const nextTheme = isDark ? "light" : "dark"
 
   return (
     <Button
       type="button"
       variant="ghost"
       size="icon"
-      onClick={() => setTheme(isDark ? "light" : "dark")}
+      onClick={() => {
+        setTheme(nextTheme)
+        fetch("/api/user/theme", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ theme: nextTheme }),
+        }).catch(() => undefined)
+      }}
       title={isDark ? "Açık moda geç" : "Koyu moda geç"}
       aria-label={isDark ? "Açık moda geç" : "Koyu moda geç"}
       className={cn("theme-toggle-button text-muted-foreground hover:text-foreground", className)}

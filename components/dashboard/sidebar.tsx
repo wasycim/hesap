@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import {
+  Activity,
   BarChart3,
   Building2,
   CalendarDays,
@@ -62,6 +63,7 @@ const adminMenuItems = [
   { title: "Görünüm Ayarları", href: "/dashboard/gorunum-ayarlar", icon: Eye, color: "text-indigo-500" },
   { title: "Genel Ayarlar", href: "/dashboard/ayarlar", icon: Settings, color: "text-gray-400" },
   { title: "Güvenlik Ayarları", href: "/dashboard/guvenlik-ayarlar", icon: Shield, color: "text-emerald-500" },
+  { title: "Sistem Sağlığı", href: "/dashboard/sistem-sagligi", icon: Activity, color: "text-cyan-500" },
   { title: "Admin Ayarları", href: "/dashboard/admin-ayarlar", icon: ShieldCheck, color: "text-amber-500" },
 ]
 
@@ -85,6 +87,7 @@ function getMenuIconMotion(href: string) {
   if (href === "/dashboard/14-no-hesap") return "menu-icon-bank"
   if (href === "/dashboard/ayarlar") return "menu-icon-spin"
   if (href === "/dashboard/guvenlik-ayarlar") return "menu-icon-security"
+  if (href === "/dashboard/sistem-sagligi") return "menu-icon-pulse"
   if (href === "/dashboard/admin-ayarlar") return "menu-icon-admin"
   if (href.includes("sutun")) return "menu-icon-columns"
   if (href.includes("gorunum")) return "menu-icon-eye"

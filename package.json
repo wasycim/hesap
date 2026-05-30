@@ -25,6 +25,7 @@
     "mobile:open:android": "npm run mobile:sync && cap open android",
     "mobile:open:ios": "npm run mobile:sync && cap open ios",
     "supabase:auth-config": "node scripts/update-supabase-auth-config.mjs",
+    "supabase:system-schema": "node scripts/apply-system-operations-schema.js",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
