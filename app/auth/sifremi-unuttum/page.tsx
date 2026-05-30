@@ -58,7 +58,7 @@ export default function ForgotPasswordPage() {
                 <CardDescription>TC kimlik numaranı gir, kayıtlı e-postana sıfırlama bağlantısı gönderelim.</CardDescription>
               </div>
             </CardHeader>
-            <CardContent className="space-y-5">
+            <CardContent className="space-y-6 pb-3">
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>
@@ -70,7 +70,7 @@ export default function ForgotPasswordPage() {
                   <AlertDescription>{message}</AlertDescription>
                 </Alert>
               )}
-              <div className="space-y-3">
+              <div className="space-y-3.5">
                 <Label htmlFor="tc">TC Kimlik No</Label>
                 <div className="relative">
                   <IdCard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -80,15 +80,15 @@ export default function ForgotPasswordPage() {
                     maxLength={11}
                     value={tcKimlik}
                     onChange={(event) => setTcKimlik(event.target.value.replace(/\D/g, "").slice(0, 11))}
-                    className="h-11 pl-10"
+                    className="h-12 rounded-xl pl-10"
                     autoComplete="username"
                     required
                   />
                 </div>
               </div>
             </CardContent>
-            <CardFooter>
-              <Button type="submit" className="h-11 w-full" disabled={loading}>
+            <CardFooter className="pt-3">
+              <Button type="submit" className="h-12 w-full rounded-xl" disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Sıfırlama bağlantısı gönder
               </Button>
