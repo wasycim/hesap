@@ -17,6 +17,7 @@ export default function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [checkingLink, setCheckingLink] = useState(true)
+  const [canReset, setCanReset] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const router = useRouter()
@@ -39,36 +40,43 @@ export default function ResetPasswordPage() {
         const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""))
         const accessToken = hashParams.get("access_token")
         const refreshToken = hashParams.get("refresh_token")
+        const hashType = hashParams.get("type")
 
-        if (accessToken && refreshToken) {
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          })
-          if (sessionError) throw sessionError
-        } else if (code) {
-          const { error: codeError } = await supabase.auth.exchangeCodeForSession(code)
-          if (codeError) throw codeError
-        } else if (tokenHash && type === "recovery") {
-          const { error: otpError } = await supabase.auth.verifyOtp({
-            token_hash: tokenHash,
-            type: "recovery",
-          })
-          if (otpError) throw otpError
+        if (code || (tokenHash && type === "recovery")) {
+          const callbackUrl = new URL("/auth/callback", window.location.origin)
+          callbackUrl.searchParams.set("next", "/auth/sifre-sifirla")
+          if (code) callbackUrl.searchParams.set("code", code)
+          if (tokenHash) {
+            callbackUrl.searchParams.set("token_hash", tokenHash)
+            callbackUrl.searchParams.set("type", "recovery")
+          }
+          window.location.replace(callbackUrl.toString())
+          return
         }
 
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!cancelled && !user) {
-          setError("Şifre sıfırlama bağlantısı geçersiz, süresi dolmuş veya bu tarayıcıda oturum açılamadı. Yeni bağlantı iste.")
-        }
-
-        if (window.location.search || window.location.hash) {
+        if (accessToken || refreshToken || hashType === "recovery") {
           window.history.replaceState(null, "", "/auth/sifre-sifirla")
+          setError("Bu bağlantı eski şifre sıfırlama formatında geldi. Güvenliğin için yeni bağlantı iste.")
+          setCanReset(false)
+          return
+        }
+
+        const recoveryResponse = await fetch("/api/auth/reset-password", { cache: "no-store" })
+        const recoveryResult = await recoveryResponse.json().catch(() => ({ ok: false }))
+
+        if (!cancelled && !recoveryResult.ok) {
+          setError("Bu sayfa yalnızca e-postadaki şifre sıfırlama bağlantısı ile kullanılabilir. Yeni bağlantı iste.")
+          setCanReset(false)
+          return
+        }
+
+        if (!cancelled) {
+          setCanReset(true)
         }
       } catch {
         if (!cancelled) {
           setError("Şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş. Yeni bağlantı iste.")
+          setCanReset(false)
         }
       } finally {
         if (!cancelled) setCheckingLink(false)
@@ -87,6 +95,12 @@ export default function ResetPasswordPage() {
     setLoading(true)
     setError(null)
 
+    if (!canReset) {
+      setError("Bu sayfa yalnızca e-postadaki şifre sıfırlama bağlantısı ile kullanılabilir.")
+      setLoading(false)
+      return
+    }
+
     if (password.length < 6) {
       setError("Yeni şifre en az 6 karakter olmalı.")
       setLoading(false)
@@ -99,10 +113,15 @@ export default function ResetPasswordPage() {
       return
     }
 
-    const { error: updateError } = await supabase.auth.updateUser({ password })
+    const response = await fetch("/api/auth/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    })
+    const result = await response.json().catch(() => ({}))
 
-    if (updateError) {
-      setError("Bağlantı geçersiz, süresi dolmuş veya şifre güncellenemedi.")
+    if (!response.ok) {
+      setError(result.error || "Bağlantı geçersiz, süresi dolmuş veya şifre güncellenemedi.")
       setLoading(false)
       return
     }
@@ -128,7 +147,7 @@ export default function ResetPasswordPage() {
               </Link>
               <div>
                 <CardTitle className="text-2xl">Yeni şifre belirle</CardTitle>
-                <CardDescription>E-postadaki bağlantıdan geldiysen yeni şifreni kaydedebilirsin.</CardDescription>
+                <CardDescription>Bu ekran yalnızca e-postadaki güvenli şifre sıfırlama bağlantısı ile açılır.</CardDescription>
               </div>
             </CardHeader>
             <CardContent className="space-y-5">
@@ -154,6 +173,7 @@ export default function ResetPasswordPage() {
                     onChange={(event) => setPassword(event.target.value)}
                     className="h-11 pl-10"
                     autoComplete="new-password"
+                    disabled={!canReset || loading || done}
                     required
                   />
                 </div>
@@ -169,13 +189,14 @@ export default function ResetPasswordPage() {
                     onChange={(event) => setConfirmPassword(event.target.value)}
                     className="h-11 pl-10"
                     autoComplete="new-password"
+                    disabled={!canReset || loading || done}
                     required
                   />
                 </div>
               </div>
             </CardContent>
             <CardFooter>
-              <Button type="submit" className="h-11 w-full" disabled={checkingLink || loading || done}>
+              <Button type="submit" className="h-11 w-full" disabled={!canReset || checkingLink || loading || done}>
                 {(checkingLink || loading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {checkingLink ? "Bağlantı kontrol ediliyor" : "Yeni şifreyi kaydet"}
               </Button>

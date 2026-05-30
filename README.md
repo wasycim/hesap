@@ -483,6 +483,7 @@ Notlar:
 - Supabase Management API token varsa URL ve mail sablonunu otomatik uygulamak icin `npm run supabase:auth-config` calistirilir.
 - Supabase default mailini tamamen devreden cikarmak icin Vercel Production ortaminda `PASSWORD_RESET_DELIVERY=smtp` ve `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` degerleri tanimli olmalidir.
 - Production icin Supabase SMTP ayari tanimlanmalidir; aksi halde varsayilan e-posta limitlerine takilabilirsiniz.
+- `/auth/sifre-sifirla` sayfasi normal oturumla kullanilamaz. Sifre guncelleme API'si sadece e-postadaki recovery linki callback tarafinda dogrulandiktan sonra verilen kisa sureli, imzali cookie ile calisir.
 
 ### Kamera Guvenligi
 
