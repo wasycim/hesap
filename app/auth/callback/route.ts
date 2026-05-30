@@ -1,8 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
+import { publicAppOrigin, shouldForcePublicOrigin } from '@/lib/public-app-url'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl
+  const appOrigin = publicAppOrigin()
+
+  if (shouldForcePublicOrigin(origin)) {
+    return NextResponse.redirect(`${appOrigin}${request.nextUrl.pathname}${request.nextUrl.search}`)
+  }
+
   const code = searchParams.get('code')
   const tokenHash = searchParams.get('token_hash')
   const type = searchParams.get('type')
@@ -13,7 +20,7 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
+      return NextResponse.redirect(`${appOrigin}${next}`)
     }
   }
 
@@ -25,9 +32,9 @@ export async function GET(request: NextRequest) {
     })
 
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
+      return NextResponse.redirect(`${appOrigin}${next}`)
     }
   }
 
-  return NextResponse.redirect(`${origin}/auth/error`)
+  return NextResponse.redirect(`${appOrigin}/auth/error`)
 }
