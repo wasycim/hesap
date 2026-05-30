@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { PublicAuthFooter } from "@/components/auth/public-auth-footer"
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("")
@@ -204,6 +205,7 @@ export default function ResetPasswordPage() {
           </form>
         </Card>
       </div>
+      <PublicAuthFooter className="mx-auto -mt-2 max-w-lg pb-1" />
     </main>
   )
 }

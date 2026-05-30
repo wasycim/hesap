@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { logSecurityEvent } from "@/lib/audit-log"
+import { PublicAuthFooter } from "@/components/auth/public-auth-footer"
 
 export default function GirisPage() {
   const [email, setEmail] = useState("")
@@ -222,6 +223,7 @@ export default function GirisPage() {
           </form>
         </Card>
       </div>
+      <PublicAuthFooter className="mx-auto -mt-2 max-w-5xl pb-1" />
     </main>
   )
 }
