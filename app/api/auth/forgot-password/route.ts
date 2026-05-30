@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { isPasswordResetSmtpConfigured, sendPasswordResetEmail } from "@/lib/email/password-reset"
 import { publicAppOrigin } from "@/lib/public-app-url"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { isValidTcKimlik, normalizeTcKimlik } from "@/lib/tc-kimlik"
@@ -7,6 +8,18 @@ const genericMessage = "Eğer bu TC kimlik numarasına bağlı gerçek bir e-pos
 
 function isSyntheticAttendanceEmail(email: string, tcKimlik: string) {
   return email.toLowerCase() === `personel-${tcKimlik}@pamukkaleturizm.info`
+}
+
+function customMailModeEnabled() {
+  return process.env.PASSWORD_RESET_DELIVERY?.trim().toLowerCase() === "smtp" || isPasswordResetSmtpConfigured()
+}
+
+function recoveryUrlFromToken(tokenHash: string) {
+  const resetUrl = new URL("/auth/callback", publicAppOrigin())
+  resetUrl.searchParams.set("next", "/auth/sifre-sifirla")
+  resetUrl.searchParams.set("token_hash", tokenHash)
+  resetUrl.searchParams.set("type", "recovery")
+  return resetUrl.toString()
 }
 
 async function writeResetEvent(
@@ -77,6 +90,38 @@ export async function POST(request: NextRequest) {
 
   const callbackUrl = new URL("/auth/callback", publicAppOrigin())
   callbackUrl.searchParams.set("next", "/auth/sifre-sifirla")
+
+  if (customMailModeEnabled()) {
+    const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+      type: "recovery",
+      email,
+      options: {
+        redirectTo: callbackUrl.toString(),
+      },
+    })
+    const tokenHash = linkData?.properties?.hashed_token
+
+    if (linkError || !tokenHash) {
+      await writeResetEvent(admin, { userId, email, tcKimlik, status: "failed", error: linkError?.message || "Reset token üretilemedi." })
+      return NextResponse.json({ error: "Şifre sıfırlama bağlantısı oluşturulamadı." }, { status: 500 })
+    }
+
+    try {
+      await sendPasswordResetEmail({ to: email, resetUrl: recoveryUrlFromToken(tokenHash) })
+    } catch (error) {
+      await writeResetEvent(admin, {
+        userId,
+        email,
+        tcKimlik,
+        status: "failed",
+        error: error instanceof Error ? error.message : "SMTP gönderimi başarısız.",
+      })
+      return NextResponse.json({ error: "Şifre sıfırlama e-postası gönderilemedi." }, { status: 500 })
+    }
+
+    await writeResetEvent(admin, { userId, email, tcKimlik, status: "sent" })
+    return NextResponse.json({ ok: true, message: genericMessage, delivery: "smtp" })
+  }
 
   const { error: resetError } = await admin.auth.resetPasswordForEmail(email, {
     redirectTo: callbackUrl.toString(),
