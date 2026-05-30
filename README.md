@@ -152,6 +152,8 @@ Bu yapi sayesinde terminaldeki QR kopyalansa bile kisa surede gecersiz olur.
 | `/mobile-support` | Mobil uygulama destek sayfasi | Herkes |
 | `/data-deletion` | Veri silme ve duzeltme talep sureci | Herkes |
 
+Auth ekranlarinda herkese acik kayit ol secenegi yoktur. Giris, sifremi unuttum, sifre sifirlama ve auth hata ekranlarinin altinda gizlilik politikasi, veri silme ve destek linkleri kucuk bilgi alani olarak gosterilir; ayni sayfalar iOS/Android WebView icinde de gorunur.
+
 ## Veritabani Yapisi
 
 QR mesai sistemi Prisma tarafinda uc ana tablo uzerine kuruludur.

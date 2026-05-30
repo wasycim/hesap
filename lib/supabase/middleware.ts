@@ -61,8 +61,7 @@ export async function updateSession(request: NextRequest) {
   // If user is logged in and trying to access auth pages, redirect to dashboard
   if (
     user &&
-    (request.nextUrl.pathname.startsWith('/auth/giris') ||
-      request.nextUrl.pathname.startsWith('/auth/kayit'))
+    request.nextUrl.pathname.startsWith('/auth/giris')
   ) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
