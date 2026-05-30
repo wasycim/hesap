@@ -27,6 +27,11 @@ export default function ResetPasswordPage() {
 
     async function prepareRecoverySession() {
       try {
+        if (["localhost", "127.0.0.1"].includes(window.location.hostname)) {
+          window.location.replace(`https://pamukkaleturizm.info${window.location.pathname}${window.location.search}${window.location.hash}`)
+          return
+        }
+
         const url = new URL(window.location.href)
         const code = url.searchParams.get("code")
         const tokenHash = url.searchParams.get("token_hash")

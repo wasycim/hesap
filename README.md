@@ -294,14 +294,18 @@ AUTH_SECRET=
 NEXTAUTH_SECRET=
 
 NEXT_PUBLIC_APP_URL=https://pamukkaleturizm.info
+PASSWORD_RESET_BASE_URL=https://pamukkaleturizm.info
+SUPABASE_ACCESS_TOKEN=
 ```
 
-Production icin `NEXT_PUBLIC_APP_URL` degeri `https://pamukkaleturizm.info` olmalidir. Sifre sifirlama route'u localhost veya local IP gelse bile link tabanini production domain'e sabitler. Supabase Auth redirect allow-list icinde su URL'ler bulunmalidir:
+Production icin `NEXT_PUBLIC_APP_URL` ve `PASSWORD_RESET_BASE_URL` degerleri `https://pamukkaleturizm.info` olmalidir. Sifre sifirlama route'u localhost veya local IP gelse bile link tabanini production domain'e sabitler. Supabase Auth redirect allow-list icinde su URL'ler bulunmalidir:
 
 ```text
 https://pamukkaleturizm.info/auth/callback
 https://pamukkaleturizm.info/auth/sifre-sifirla
 ```
+
+`SUPABASE_ACCESS_TOKEN` sadece Supabase Auth URL/template ayarlarini Management API ile otomatik guncellemek icin kullanilir. Bu token Supabase Dashboard > Account > Access Tokens ekranindan uretilir ve git'e eklenmez.
 
 ### Zorunlu Degiskenler
 
@@ -457,8 +461,9 @@ Akis:
 1. `/api/auth/forgot-password` TC'yi dogrular.
 2. Profil veya Supabase Auth metadata uzerinden e-posta bulunur.
 3. E-posta gercekse Supabase `resetPasswordForEmail` cagrisi `https://pamukkaleturizm.info/auth/callback?next=/auth/sifre-sifirla` redirect'i ile yapilir.
-4. Kullanici e-postadaki linkle callback akisini tamamlar.
-5. `/auth/sifre-sifirla` ekrani `code`, `token_hash` veya hash token formatlarini yakalayip yeni sifreyi kaydeder.
+4. Reset mail sablonu kullaniciyi dogrudan `https://pamukkaleturizm.info/auth/callback?next=/auth/sifre-sifirla&token_hash=...&type=recovery` adresine yollar; URL'de `localhost`, `access_token` veya `refresh_token` gorunmez.
+5. Callback `token_hash` degerini server tarafinda dogrular ve kullaniciyi yeni sifre ekranina tasir.
+6. `/auth/sifre-sifirla` ekrani gerekirse `code`, `token_hash` veya eski hash token formatlarini da yakalayip yeni sifreyi kaydeder.
 
 Notlar:
 
@@ -466,7 +471,8 @@ Notlar:
 - `personel-<tc>@pamukkaleturizm.info` gibi otomatik uretilen mesai-only e-postalar mail alamaz; bu kullanicilar icin admin panelinden gercek e-posta tanimlanmalidir.
 - Supabase Auth > URL Configuration icinde Site URL `https://pamukkaleturizm.info` olmalidir.
 - Supabase Auth > URL Configuration icinde `https://pamukkaleturizm.info/auth/callback` ve `https://pamukkaleturizm.info/auth/sifre-sifirla` redirect URL olarak eklenmelidir.
-- Supabase Auth > Email Templates > Reset Password icin guzel HTML sablonu `docs/supabase-password-reset-email.html` dosyasindadir. Subject: `Hesap sifreni yenile`.
+- Supabase Auth > Email Templates > Reset Password icin Turkce HTML sablonu `docs/supabase-password-reset-email.html` dosyasindadir. Subject: `Hesap şifreni yenile`.
+- Supabase Management API token varsa URL ve mail sablonunu otomatik uygulamak icin `npm run supabase:auth-config` calistirilir.
 - Production icin Supabase SMTP ayari tanimlanmalidir; aksi halde varsayilan e-posta limitlerine takilabilirsiniz.
 
 ### Kamera Guvenligi
