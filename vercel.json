@@ -9,6 +9,10 @@
     {
       "path": "/api/cron/admin-digest?interval=weekly",
       "schedule": "0 6 * * 1"
+    },
+    {
+      "path": "/api/cron/attendance-alerts",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

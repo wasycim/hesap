@@ -23,12 +23,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 401 })
   }
 
-  if (!canSendAdminDigestEmail()) {
+  const interval = request.nextUrl.searchParams.get("interval") === "weekly" ? "weekly" : "daily"
+  const dryRun = request.nextUrl.searchParams.get("dryRun") === "1"
+  const since = interval === "weekly" ? daysAgo(7) : startOfToday()
+
+  if (!dryRun && !canSendAdminDigestEmail()) {
     return NextResponse.json({ ok: false, error: "SMTP ayarları yok." }, { status: 202 })
   }
 
-  const interval = request.nextUrl.searchParams.get("interval") === "weekly" ? "weekly" : "daily"
-  const since = interval === "weekly" ? daysAgo(7) : startOfToday()
   const admin = createAdminClient()
   const { data: subscribers, error } = await admin
     .from("admin_digest_subscribers")
@@ -36,7 +38,7 @@ export async function GET(request: NextRequest) {
     .eq(interval === "weekly" ? "weekly_enabled" : "daily_enabled", true)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!subscribers?.length) return NextResponse.json({ ok: true, sent: 0 })
+  if (!subscribers?.length) return NextResponse.json({ ok: true, dryRun, sent: 0 })
 
   const [logs, openCount, userCount] = await Promise.all([
     prisma.attendanceLog.findMany({
@@ -56,6 +58,23 @@ export async function GET(request: NextRequest) {
     .filter((log) => log.overtimeMinutes > 0)
     .slice(0, 5)
     .map((log) => `${log.user.name}: ${formatMinutes(log.overtimeMinutes)} fazla mesai`)
+
+  if (dryRun) {
+    return NextResponse.json({
+      ok: true,
+      dryRun,
+      interval,
+      subscribers: subscribers.length,
+      metrics: {
+        activeUsers: userCount,
+        completedCount,
+        openCount,
+        overtime: formatMinutes(overtimeMinutes),
+        late: formatMinutes(lateMinutes),
+      },
+      topOvertime,
+    })
+  }
 
   let sent = 0
   for (const subscriber of subscribers) {

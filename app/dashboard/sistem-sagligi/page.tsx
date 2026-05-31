@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { Activity, CheckCircle2, Download, Mail, RefreshCw, ShieldCheck, Trash2, Upload } from "lucide-react"
+import { Activity, BellRing, CheckCircle2, Download, Mail, RefreshCw, Send, ShieldCheck, Trash2, Upload } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,11 +12,28 @@ import { useSube } from "@/contexts/sube-context"
 
 type HealthPayload = {
   checkedAt: string
-  overall: "operational" | "down"
-  components: Array<{ name: string; status: "operational" | "down"; message: string }>
+  overall: "operational" | "degraded" | "down"
+  components: Array<{ name: string; status: "operational" | "degraded" | "down"; message: string }>
   latestEvents: SecurityEvent[]
   resetEvents: SecurityEvent[]
   pendingDevices: TerminalDevice[]
+  pushSummary?: {
+    provider: string
+    configured: boolean
+    missing: string[]
+    registeredDevices: number
+    latestDeliveries: Array<{
+      id: string
+      status: "sent" | "failed" | "skipped"
+      title: string | null
+      error: string | null
+      created_at: string
+    }>
+  }
+  digestSummary?: {
+    configured: boolean
+    latestEvents: SecurityEvent[]
+  }
 }
 
 type TerminalDevice = {
@@ -58,6 +75,7 @@ export default function SistemSagligiPage() {
   const [digestUsers, setDigestUsers] = useState<DigestUser[]>([])
   const [loading, setLoading] = useState(true)
   const [backupBusy, setBackupBusy] = useState(false)
+  const [testBusy, setTestBusy] = useState<"push" | "digest" | null>(null)
 
   useEffect(() => {
     if (!subeLoading && isAdmin) loadAll()
@@ -184,6 +202,51 @@ export default function SistemSagligiPage() {
     toast.success("Özet mail ayarı kaydedildi.")
   }
 
+  async function sendPushTest() {
+    setTestBusy("push")
+    const response = await fetch("/api/admin/push-test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "Hesap push testi",
+        body: "Gerçek push bildirim altyapısı test edildi.",
+        href: "/dashboard/mesai-takip",
+        level: "success",
+      }),
+    })
+    const result = await response.json().catch(() => ({}))
+    setTestBusy(null)
+
+    if (response.ok && result.sent > 0) {
+      toast.success(`${result.sent} cihaza push gönderildi.`)
+      loadAll()
+      return
+    }
+
+    toast.warning(result.error || "Push testi gönderilemedi. FCM ayarlarını ve cihaz tokenlarını kontrol edin.")
+    loadAll()
+  }
+
+  async function sendDigestTest() {
+    setTestBusy("digest")
+    const response = await fetch("/api/admin/digest-test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    })
+    const result = await response.json().catch(() => ({}))
+    setTestBusy(null)
+
+    if (response.ok && result.sent) {
+      toast.success("Otomatik rapor test maili gönderildi.")
+      loadAll()
+      return
+    }
+
+    toast.warning(result.error || "Rapor mail testi gönderilemedi. SMTP ayarlarını kontrol edin.")
+    loadAll()
+  }
+
   const approvedDevices = useMemo(() => devices.filter((device) => device.approved), [devices])
   const pendingDevices = useMemo(() => devices.filter((device) => !device.approved), [devices])
 
@@ -216,8 +279,14 @@ export default function SistemSagligiPage() {
                   <p className="font-semibold">{component.name}</p>
                   <p className="text-xs text-muted-foreground">{component.message}</p>
                 </div>
-                <Badge className={component.status === "operational" ? "bg-emerald-600" : "bg-red-600"}>
-                  {component.status === "operational" ? "Çalışıyor" : "Sorun var"}
+                <Badge className={
+                  component.status === "operational"
+                    ? "bg-emerald-600"
+                    : component.status === "degraded"
+                      ? "bg-amber-500 text-amber-950"
+                      : "bg-red-600"
+                }>
+                  {component.status === "operational" ? "Çalışıyor" : component.status === "degraded" ? "Eksik ayar" : "Sorun var"}
                 </Badge>
               </div>
             ))}
@@ -243,6 +312,56 @@ export default function SistemSagligiPage() {
                 </p>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><BellRing className="h-5 w-5" /> Push Bildirim Testi</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Kendi hesabına kayıtlı mobil cihaza gerçek FCM push bildirimi gönderir. FCM ayarları eksikse test sonucu panelde açıkça görünür.
+            </p>
+            <div className="grid gap-2 rounded-xl border p-3 text-sm sm:grid-cols-3">
+              <div>
+                <p className="text-xs text-muted-foreground">Sağlayıcı</p>
+                <p className="font-semibold uppercase">{health?.pushSummary?.provider || "fcm"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Kayıtlı cihaz</p>
+                <p className="font-semibold">{health?.pushSummary?.registeredDevices ?? 0}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Durum</p>
+                <p className="font-semibold">{health?.pushSummary?.configured ? "Hazır" : "Eksik ayar"}</p>
+              </div>
+            </div>
+            <Button onClick={sendPushTest} disabled={testBusy === "push"} className="gap-2">
+              <Send className={testBusy === "push" ? "h-4 w-4 animate-pulse" : "h-4 w-4"} />
+              Test push gönder
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" /> Otomatik Rapor Testi</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Günlük/haftalık yönetici özet mail altyapısını aynı SMTP ayarlarıyla test eder.
+            </p>
+            <div className="rounded-xl border p-3 text-sm">
+              <p className="text-xs text-muted-foreground">SMTP durumu</p>
+              <p className="font-semibold">{health?.digestSummary?.configured ? "Hazır" : "SMTP ayarları eksik"}</p>
+            </div>
+            <Button onClick={sendDigestTest} disabled={testBusy === "digest"} variant="outline" className="gap-2">
+              <Mail className={testBusy === "digest" ? "h-4 w-4 animate-pulse" : "h-4 w-4"} />
+              Test rapor maili gönder
+            </Button>
           </CardContent>
         </Card>
       </section>

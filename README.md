@@ -18,6 +18,8 @@ Bu dokuman projeyi calistirmak, veritabani yapisini kurmak, QR mesai akisini anl
 - [Calistirma Komutlari](#calistirma-komutlari)
 - [Guvenlik](#guvenlik)
 - [Sistem Operasyonlari](#sistem-operasyonlari)
+- [Push Bildirim ve Gelismis Log](#push-bildirim-ve-gelismis-log)
+- [Mobil Native Hazirlik](#mobil-native-hazirlik)
 - [Lisans ve Dagitim](#lisans-ve-dagitim)
 - [PDF ve Raporlama](#pdf-ve-raporlama)
 - [Deployment](#deployment)
@@ -1021,6 +1023,124 @@ Hesap ornegi:
 ```
 
 Ekranda sure `8 sa 37 dk` olarak gosterilir; tutar hesabi maas kuralindaki saat yuvarlamasiyla yapilir. `8 sa 45 dk` olsaydi maasa `9 saat` islenirdi.
+
+## Push Bildirim ve Gelismis Log
+
+### Gercek Push Bildirim Sistemi
+
+Mobil uygulama `@capacitor/push-notifications` ile cihaz push tokenini alir ve `/api/mobile/register-device` uzerinden `public.user_devices` tablosuna kaydeder. Sunucu tarafinda Firebase Cloud Messaging HTTP v1 kullanilir.
+
+Gerekli ortam degiskenleri:
+
+```bash
+FCM_PROJECT_ID=
+FCM_CLIENT_EMAIL=
+FCM_PRIVATE_KEY=
+```
+
+FCM ayarlari tamamlandiginda:
+
+- `/api/admin/push-test` secili yoneticinin mobil cihazina test bildirimi gonderir.
+- `/api/cron/attendance-alerts` gec kalma ve fazla mesai kayitlarini tarar, kullaniciya uygulama ici bildirim olusturur ve push teslimini dener.
+- Teslim denemeleri `public.push_delivery_logs` tablosuna yazilir.
+- Push tokenlari loglarda duz metin tutulmaz, SHA-256 hash olarak saklanir.
+
+FCM ayarlari eksikse sistem hata verip durmaz; saglik panelinde `Eksik ayar` olarak gosterir ve teslim loguna `skipped` kaydi duser. Gercek cihaza bildirim gitmesi icin Firebase tarafinda Android `google-services.json`, iOS icin APNs/Firebase ayarlari ve yukaridaki sunucu ortam degiskenleri tamamlanmalidir.
+
+### Gelismis Log
+
+`/dashboard/gelismis-log` yalnizca yoneticilere aciktir. Bu ekran mevcut `security_events` kayitlarini denetim paneli formatinda gosterir.
+
+Ozellikler:
+
+- Tarih araligi filtresi
+- Olay tipi filtresi
+- E-posta, IP ve olay metniyle arama
+- Guvenilir IP / kontrol edilmesi gereken IP ayrimi
+- Kullanici, sube, cihaz ve detay JSON ozeti
+- PDF raporu
+
+Yeni olay tipleri:
+
+- `push_test_sent`
+- `attendance_push_alerts_sent`
+- `admin_digest_test_sent`
+
+### Vardiya Cakisma Kontrolu
+
+`/api/dashboard/vardiya` artik ayni istek icinde ayni personele ayni gun ikinci vardiya atamasini kabul etmez. Veritabani tarafinda da `sube_id + personel_id + tarih` icin benzersiz indeks bulunur:
+
+```sql
+idx_vardiya_planlari_one_assignment_per_day
+```
+
+Bu kural sadece istenen kapsami engeller: ayni personel, ayni gun, ikinci vardiya. Farkli gunler veya farkli personeller etkilenmez.
+
+### Otomatik Rapor Testi
+
+`/dashboard/sistem-sagligi` ekraninda `Otomatik Rapor Testi` butonu vardir. Bu buton admin hesabinin e-postasina test raporu gonderir. Gercek cron akislari:
+
+```text
+/api/cron/admin-digest?interval=daily
+/api/cron/admin-digest?interval=weekly
+/api/cron/attendance-alerts
+```
+
+SMTP eksikse panel bunu `Eksik ayar` olarak gosterir.
+
+## Mobil Native Hazirlik
+
+Mobil uygulama sadece web sayfasini gosteren bos bir kabuk gibi davranmasin diye native yetenekler eklenmistir:
+
+- Native alt menu
+- Kamera ile terminal QR okutma
+- Push notification izin ve token kaydi
+- Android bildirim kanali: `hesap_alerts`
+- Local notification altyapisi
+- Offline ekran ve yeniden yukle akisi
+- Haptic geri bildirim
+- Native splash/status bar ayarlari
+- PDF raporlari mobil yazdir/paylas akisi
+- Gizlilik, veri silme, destek ve status public sayfalari
+
+Mobil destek ve magazaya hazir ekranlar:
+
+```text
+/mobile-support
+/mobile-native
+/store-screenshots
+/privacy-policy
+/data-deletion
+/status
+```
+
+Store ekran goruntusu uretmek icin localde uygulamayi acip `/store-screenshots` sayfasinin ekran goruntuleri alinabilir. Bu sayfa App Store / Play Store icin native ozellikleri tek ekranda gostermek amaciyla hazirlanmistir.
+
+Hazirlanan ekran goruntuleri:
+
+```text
+docs/store-screenshots/store-screenshots-overview.png
+docs/store-screenshots/mobile-native-phone.png
+docs/store-screenshots/mobile-support-phone.png
+```
+
+### Yeni Supabase Semasi
+
+Push, gelismis log indeksleri ve vardiya cakismazlik guvencesi icin:
+
+```bash
+npm run supabase:push-audit-schema
+```
+
+Bu script asagidaki alanlari ekler:
+
+- `app_notifications.push_status`
+- `app_notifications.push_sent_at`
+- `app_notifications.push_error`
+- `app_notifications.source_key`
+- `push_delivery_logs`
+- `security_events` ek indeksleri
+- `vardiya_planlari` tek-gun tek-vardiya benzersiz indeksi
 
 ## Lisans
 

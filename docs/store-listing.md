@@ -1,6 +1,6 @@
 # Hesap Mobil Magaza Yayin Metinleri
 
-Son guncelleme: 30 Mayis 2026
+Son guncelleme: 31 Mayis 2026
 
 ## Uygulama Adi
 
@@ -21,6 +21,7 @@ Sube, rapor, vardiya, QR mesai ve maas takibini tek uygulamada yonetin.
 Hesap; isletmelerin sube bazli finansal kayitlarini, personel vardiyalarini, QR destekli mesai giris cikislarini ve maas hesaplarini tek panelden yonetmesi icin gelistirilmis guvenli bir is uygulamasidir.
 
 Uygulama yalnizca bir web sitesini gostermek icin tasarlanmamistir. iOS ve Android surumleri native alt menu, offline baglanti ekrani, baglanti geri geldiginde senkronizasyon, push bildirim altyapisi, yerel bildirimler, haptic geri bildirim, kamera ile QR okuma, sifre sifirlama ve cihaz durumuna gore guvenli yeniden yukleme akisi icerir.
+Sunucu tarafinda FCM HTTP v1 ile gercek push gonderimi, push teslim loglari ve gelismis denetim kayitlari bulunur.
 
 One cikan ozellikler:
 
@@ -34,11 +35,13 @@ One cikan ozellikler:
 - Maas ekraninda fazla mesai tutarlarini otomatik hesaplama
 - PDF raporlama
 - Public sistem durum sayfasi ve yonetici sistem sagligi paneli
+- Gelismis Log denetim paneli
 - Yedekleme ve geri yukleme paneli
 - Native mobil alt menu
 - Internet yokken offline sayfa ve yeniden yukleme
-- Push ve yerel bildirim altyapisi
+- Gercek push bildirim, Android bildirim kanali ve yerel bildirim altyapisi
 - Kamera ile QR okutma
+- Ayni personele ayni gun cift vardiya engeli
 - Koyu/acik tema ve responsive tasarim
 
 ## Anahtar Kelimeler
@@ -147,6 +150,7 @@ Test akisi:
 5. Bildirim izni istendiginde izin vererek native bildirim akisini dogrulayin.
 6. /auth/sifremi-unuttum ekraninda TC ile sifre sifirlama istegini kontrol edin.
 7. /privacy-policy, /mobile-support, /data-deletion ve /status sayfalarinin acildigini kontrol edin.
+8. /mobile-native ve /store-screenshots sayfalarini native ozellik gostergeleri icin kontrol edin.
 ```
 
 ## Gerekli Gorsel Varliklar
@@ -155,3 +159,11 @@ Test akisi:
 - iOS screenshots: 6.7", 6.5" ve 5.5" ekranlar
 - Android screenshots: phone ve tablet
 - Feature graphic: 1024x500
+
+Hazir ekran goruntuleri:
+
+```text
+docs/store-screenshots/store-screenshots-overview.png
+docs/store-screenshots/mobile-native-phone.png
+docs/store-screenshots/mobile-support-phone.png
+```
