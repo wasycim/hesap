@@ -1087,6 +1087,7 @@ Bu kural sadece istenen kapsami engeller: ayni personel, ayni gun, ikinci vardiy
 ```
 
 SMTP eksikse panel bunu `Eksik ayar` olarak gosterir.
+Vercel Hobby planda cron jobs gunde bir kez calisabildigi icin `attendance-alerts` varsayilan Vercel cron'u gunluk ayarlanmistir. Daha sik push uyarisi istenirse Vercel Pro plan veya dis bir scheduler ile `/api/cron/attendance-alerts` endpoint'i daha kisa aralikla tetiklenebilir.
 
 ## Mobil Native Hazirlik
 
