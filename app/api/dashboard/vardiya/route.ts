@@ -158,6 +158,20 @@ export async function POST(request: NextRequest) {
     assignment.vardiya.length <= 80
   ))
 
+  const assignmentKeys = new Map<string, string>()
+  for (const assignment of validAssignments) {
+    const key = `${assignment.personel_id}__${assignment.tarih}`
+    const vardiya = assignment.vardiya.trim()
+    const existing = assignmentKeys.get(key)
+    if (existing !== undefined && (existing || vardiya)) {
+      return NextResponse.json(
+        { error: "Aynı personele aynı gün ikinci vardiya atanamaz. Lütfen çakışan günü temizleyip tekrar kaydedin." },
+        { status: 409 },
+      )
+    }
+    assignmentKeys.set(key, vardiya)
+  }
+
   const validFixedShifts = fixedShifts.filter((item) => (
     item.personel_id &&
     typeof item.sabit_vardiya === "string" &&
@@ -166,13 +180,13 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient()
   const rowsToUpsert = validAssignments
-    .filter((assignment) => assignment.vardiya)
+    .filter((assignment) => assignment.vardiya.trim())
     .map((assignment) => ({
       user_id: user.id,
       sube_id: subeId,
       personel_id: assignment.personel_id,
       tarih: assignment.tarih,
-      vardiya: assignment.vardiya,
+      vardiya: assignment.vardiya.trim(),
       notlar: assignment.notlar || null,
       updated_at: new Date().toISOString(),
     }))

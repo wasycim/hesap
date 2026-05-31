@@ -29,6 +29,14 @@ export default function MobileSupportPage() {
           <h2 className="font-semibold">Sistem Durumu</h2>
           <p className="mt-1 text-sm text-muted-foreground">Web, veritabanı ve Supabase canlı durum kontrolü.</p>
         </a>
+        <a className="rounded-xl border p-4 transition hover:border-emerald-500" href="/mobile-native">
+          <h2 className="font-semibold">Native Özellikler</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Push, offline, kamera, PDF ve cihaz entegrasyonları.</p>
+        </a>
+        <a className="rounded-xl border p-4 transition hover:border-emerald-500" href="/store-screenshots">
+          <h2 className="font-semibold">Mağaza Ekranları</h2>
+          <p className="mt-1 text-sm text-muted-foreground">App Store ve Play Store ekran görüntüsü hazırlama sayfası.</p>
+        </a>
         <a className="rounded-xl border p-4 transition hover:border-emerald-500" href="mailto:destek@pamukkaleturizm.info">
           <h2 className="font-semibold">Destek E-postası</h2>
           <p className="mt-1 text-sm text-muted-foreground">destek@pamukkaleturizm.info</p>

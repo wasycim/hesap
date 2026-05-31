@@ -3,12 +3,14 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import {
+  Activity,
   BarChart3,
   CalendarDays,
   Camera,
   ChevronDown,
   Columns3,
   Eye,
+  FileSearch,
   Landmark,
   LayoutDashboard,
   Package,
@@ -43,6 +45,8 @@ const NAV_ITEMS = [
   { title: "Görünüm Ayarları", href: "/dashboard/gorunum-ayarlar", adminOnly: true, icon: Eye, color: "text-indigo-500" },
   { title: "Genel Ayarlar", href: "/dashboard/ayarlar", adminOnly: true, icon: Settings, color: "text-gray-500" },
   { title: "Güvenlik Ayarları", href: "/dashboard/guvenlik-ayarlar", adminOnly: true, icon: Shield, color: "text-emerald-500" },
+  { title: "Gelişmiş Log", href: "/dashboard/gelismis-log", adminOnly: true, icon: FileSearch, color: "text-rose-500" },
+  { title: "Sistem Sağlığı", href: "/dashboard/sistem-sagligi", adminOnly: true, icon: Activity, color: "text-cyan-500" },
   { title: "Admin Ayarları", href: "/dashboard/admin-ayarlar", adminOnly: true, icon: ShieldCheck, color: "text-amber-500" },
   { title: "Hesap Ayarları", href: "/dashboard/hesap", adminOnly: false, icon: UserCog, color: "text-purple-500" },
 ]

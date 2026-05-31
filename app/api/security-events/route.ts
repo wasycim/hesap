@@ -17,6 +17,14 @@ function normalizeTrustedIps(value: unknown) {
   return Array.from(new Set(rawItems.map(item => String(item).trim()).filter(Boolean)))
 }
 
+function cleanSearchFilter(value: string | null) {
+  return String(value || "").trim().replace(/[,%()]/g, " ").replace(/\s+/g, " ").slice(0, 80)
+}
+
+function isIsoDate(value: string | null) {
+  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value))
+}
+
 async function getCurrentUserAndProfile() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -46,11 +54,30 @@ export async function GET(request: NextRequest) {
   const page = Math.max(Number(searchParams.get("page")) || 1, 1)
   const from = (page - 1) * limit
   const to = from + limit - 1
+  const eventType = String(searchParams.get("eventType") || "").trim()
+  const search = cleanSearchFilter(searchParams.get("query"))
+  const fromDate = searchParams.get("from")
+  const toDate = searchParams.get("to")
 
   const admin = createAdminClient()
-  const { data, error, count } = await admin
+  let query = admin
     .from("security_events")
     .select("*", { count: "exact" })
+
+  if (eventType && eventType !== "all") {
+    query = query.eq("event_type", eventType)
+  }
+  if (isIsoDate(fromDate)) {
+    query = query.gte("created_at", `${fromDate}T00:00:00.000Z`)
+  }
+  if (isIsoDate(toDate)) {
+    query = query.lte("created_at", `${toDate}T23:59:59.999Z`)
+  }
+  if (search) {
+    query = query.or(`event_type.ilike.%${search}%,user_email.ilike.%${search}%,ip_address.ilike.%${search}%`)
+  }
+
+  const { data, error, count } = await query
     .order("created_at", { ascending: false })
     .range(from, to)
 
