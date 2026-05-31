@@ -12,7 +12,7 @@
     },
     {
       "path": "/api/cron/attendance-alerts",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 4 * * *"
     }
   ]
 }
