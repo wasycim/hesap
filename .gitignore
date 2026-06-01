@@ -19,4 +19,6 @@ node_modules
 desktop/release/
 desktop/build/icon.ico
 desktop/build/icon.png
+android/app/google-services.json
+ios/App/App/GoogleService-Info.plist
 .DS_Store
