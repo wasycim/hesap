@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { canSendAdminDigestEmail } from "@/lib/email/admin-digest"
+import { getPushProviderStatus } from "@/lib/notifications/push"
 
 type ComponentState = "operational" | "degraded" | "down"
 
@@ -14,7 +16,7 @@ async function checkDatabase() {
       name: "PostgreSQL",
       status: "down" as ComponentState,
       latencyMs: Date.now() - startedAt,
-      message: error instanceof Error ? error.message : "Veritabanı kontrolü başarısız.",
+      message: error instanceof Error ? error.message : "Veritabani kontrolu basarisiz.",
     }
   }
 }
@@ -31,16 +33,35 @@ async function checkSupabase() {
       name: "Supabase API",
       status: "down" as ComponentState,
       latencyMs: Date.now() - startedAt,
-      message: error instanceof Error ? error.message : "Supabase kontrolü başarısız.",
+      message: error instanceof Error ? error.message : "Supabase kontrolu basarisiz.",
     }
   }
 }
 
 export async function GET() {
+  const push = getPushProviderStatus()
   const components = await Promise.all([
-    Promise.resolve({ name: "Web uygulaması", status: "operational" as ComponentState, latencyMs: 0 }),
+    Promise.resolve({ name: "Web uygulamasi", status: "operational" as ComponentState, latencyMs: 0 }),
     checkDatabase(),
     checkSupabase(),
+    Promise.resolve({
+      name: "FCM push bildirim",
+      status: push.configured ? "operational" as ComponentState : "degraded" as ComponentState,
+      latencyMs: 0,
+      message: push.configured ? "Push anahtarlari hazir" : `Eksik: ${push.missing.join(", ")}`,
+    }),
+    Promise.resolve({
+      name: "SMTP e-posta",
+      status: canSendAdminDigestEmail() ? "operational" as ComponentState : "degraded" as ComponentState,
+      latencyMs: 0,
+      message: canSendAdminDigestEmail() ? "Rapor ve sifre maili hazir" : "SMTP ayarlari eksik",
+    }),
+    Promise.resolve({
+      name: "Vercel deploy",
+      status: process.env.VERCEL ? "operational" as ComponentState : "degraded" as ComponentState,
+      latencyMs: 0,
+      message: process.env.VERCEL ? `Bolge: ${process.env.VERCEL_REGION || "-"}` : "Vercel ortam bilgisi yok",
+    }),
   ])
 
   const overall = components.some((item) => item.status === "down")

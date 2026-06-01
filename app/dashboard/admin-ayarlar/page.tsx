@@ -29,6 +29,7 @@ interface AdminUser {
   display_name?: string | null
   trusted_ips?: string[]
   is_admin: boolean
+  is_developer?: boolean
   dashboard_access?: boolean
   sube_id: string | null
   vardiya: string | null
@@ -49,6 +50,7 @@ function formatVardiya(value: string | null) {
 
 function formatAccountType(user: AdminUser) {
   if (user.dashboard_access === false) return "Sadece Mesai"
+  if (user.is_developer) return "Developer"
   return user.is_admin ? "Yönetici" : "Kullanıcı"
 }
 
@@ -107,7 +109,7 @@ export default function AdminAyarlarPage() {
     setEditTcKimlik(selectedUser.tc_kimlik || "")
     setEditTrustedIps((selectedUser.trusted_ips || []).join(", "))
     setEditSubeId(selectedUser.sube_id || subeler[0]?.id || "")
-    setEditRole(selectedUser.dashboard_access === false ? "attendance_only" : selectedUser.is_admin ? "admin" : "user")
+    setEditRole(selectedUser.dashboard_access === false ? "attendance_only" : selectedUser.is_developer ? "developer" : selectedUser.is_admin ? "admin" : "user")
     setEditVardiya(selectedUser.vardiya || "T")
   }, [selectedUser, subeler])
 
@@ -135,6 +137,7 @@ export default function AdminAyarlarPage() {
         password,
         subeId,
         isAdmin: role === "admin",
+        isDeveloper: role === "developer",
         dashboardAccess: role !== "attendance_only",
         vardiya,
       }),
@@ -180,6 +183,7 @@ export default function AdminAyarlarPage() {
         trustedIps: editTrustedIps,
         subeId: editSubeId,
         isAdmin: editRole === "admin",
+        isDeveloper: editRole === "developer",
         dashboardAccess: editRole !== "attendance_only",
         vardiya: editVardiya,
       }),
@@ -380,6 +384,7 @@ export default function AdminAyarlarPage() {
                   <SelectContent>
                     <SelectItem value="user">Kullanıcı</SelectItem>
                     <SelectItem value="admin">Yönetici</SelectItem>
+                    <SelectItem value="developer">Developer</SelectItem>
                     <SelectItem value="attendance_only">Sadece Mesai</SelectItem>
                   </SelectContent>
                 </Select>
@@ -480,6 +485,7 @@ export default function AdminAyarlarPage() {
                   <SelectContent>
                     <SelectItem value="user">Kullanıcı</SelectItem>
                     <SelectItem value="admin">Yönetici</SelectItem>
+                    <SelectItem value="developer">Developer</SelectItem>
                     <SelectItem value="attendance_only">Sadece Mesai</SelectItem>
                   </SelectContent>
                 </Select>

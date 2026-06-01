@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { requireDashboardAdmin } from "@/lib/admin/require-admin"
+import { requireDashboardDeveloper } from "@/lib/admin/require-admin"
 import { canSendAdminDigestEmail } from "@/lib/email/admin-digest"
 import { getPushProviderStatus } from "@/lib/notifications/push"
 import { prisma } from "@/lib/prisma"
@@ -14,7 +14,7 @@ async function assertSupabase<T extends { error: { message?: string } | null }>(
 }
 
 export async function GET() {
-  const adminGuard = await requireDashboardAdmin()
+  const adminGuard = await requireDashboardDeveloper()
   if (!adminGuard.ok) return adminGuard.response
 
   const admin = createAdminClient()

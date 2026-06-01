@@ -7,6 +7,7 @@ import { ThemeUserSync } from '@/components/theme-user-sync'
 import { VercelToolbarBlocker } from '@/components/vercel-toolbar-blocker'
 import { NativeAppBridge } from '@/components/mobile/native-app-bridge'
 import { ConnectivityOverlay } from '@/components/mobile/connectivity-overlay'
+import { ClientErrorReporter } from '@/components/system/client-error-reporter'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -58,6 +59,7 @@ export default function RootLayout({
       <body className="min-h-dvh bg-background font-sans antialiased">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem storageKey="hesap-theme">
           <ThemeUserSync />
+          <ClientErrorReporter />
           <VercelToolbarBlocker />
           {children}
           <ConnectivityOverlay />

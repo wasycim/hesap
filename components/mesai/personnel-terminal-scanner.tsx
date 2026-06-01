@@ -22,6 +22,16 @@ type PersonnelTerminalScannerProps = {
 
 const scannerId = "personnel-terminal-qr-reader"
 
+function getScannerDeviceId() {
+  if (typeof window === "undefined") return ""
+  const key = "hesap.scanner.deviceId"
+  const existing = window.localStorage.getItem(key)
+  if (existing) return existing
+  const next = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
+  window.localStorage.setItem(key, next)
+  return next
+}
+
 function playTone(type: "success" | "error") {
   const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
   if (!AudioContextCtor) return
@@ -87,7 +97,8 @@ export function PersonnelTerminalScanner({ userName, dashboardMode = false }: Pe
     setDetail("Terminal QR dogrulaniyor.")
 
     const scannedAt = new Date().toISOString()
-    const requestBody = JSON.stringify({ qr: decodedText })
+    const deviceId = getScannerDeviceId()
+    const requestBody = JSON.stringify({ qr: decodedText, deviceId })
     let response: Response
 
     try {
@@ -101,7 +112,7 @@ export function PersonnelTerminalScanner({ userName, dashboardMode = false }: Pe
         queueOfflineMutation("/api/personel/scan-terminal", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ qr: decodedText, offlineQueued: true, offlineScannedAt: scannedAt }),
+          body: JSON.stringify({ qr: decodedText, deviceId, offlineQueued: true, offlineScannedAt: scannedAt }),
         }, {
           label: "Mesai QR okutma",
         })

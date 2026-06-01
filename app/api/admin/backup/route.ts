@@ -36,6 +36,21 @@ const backupTables = [
   "app_notifications",
   "push_delivery_logs",
   "security_events",
+  "app_settings",
+  "device_licenses",
+  "notification_rule_definitions",
+  "overtime_approvals",
+  "pdf_templates",
+  "pdf_archives",
+  "app_announcements",
+  "tea_requests",
+  "tea_request_recipients",
+  "holidays",
+  "system_health_alerts",
+  "error_reports",
+  "offline_conflicts",
+  "app_store_metadata",
+  "backup_snapshots",
 ]
 
 function isMissingTableError(error: { code?: string; message?: string }) {

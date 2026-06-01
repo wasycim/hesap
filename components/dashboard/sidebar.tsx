@@ -7,6 +7,7 @@ import {
   Activity,
   BarChart3,
   BellRing,
+  BellPlus,
   Building2,
   CalendarDays,
   Camera,
@@ -19,16 +20,19 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  MonitorCheck,
   Package,
   Settings,
   Shield,
   ShieldCheck,
   Soup,
+  Coffee,
   TrendingDown,
   TrendingUp,
   UserCog,
   Wallet,
   WalletCards,
+  Wrench,
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -60,6 +64,7 @@ const menuItems = [
 const maasMenuItem = { key: "maaslar", title: "Maaşlar", href: "/dashboard/maaslar", icon: WalletCards, color: "text-emerald-500" }
 
 const adminMenuItems = [
+  { title: "Bildirim Gonder", href: "/dashboard/bildirim-gonder", icon: BellPlus, color: "text-emerald-500" },
   { title: "Şube Ciro Raporları", href: "/dashboard/sube-ciro-raporlari", icon: BarChart3, color: "text-emerald-500" },
   { title: "Sütun Ayarları", href: "/dashboard/sutun-ayarlar", icon: Columns3, color: "text-sky-500" },
   { title: "Görünüm Ayarları", href: "/dashboard/gorunum-ayarlar", icon: Eye, color: "text-indigo-500" },
@@ -71,8 +76,16 @@ const adminMenuItems = [
 ]
 
 const bottomMenuItems = [
+  { title: "Cay", href: "/dashboard/cay", icon: Coffee, color: "text-amber-500" },
   { title: "Bildirimler", href: "/dashboard/bildirimler", icon: BellRing, color: "text-emerald-500" },
   { title: "Hesap Ayarları", href: "/dashboard/hesap", icon: UserCog, color: "text-purple-500" },
+]
+
+const developerOnlyHrefs = new Set(["/dashboard/gelismis-log", "/dashboard/sistem-sagligi", "/dashboard/admin-ayarlar"])
+
+const developerMenuItems = [
+  { title: "Lisansli Cihazlar", href: "/dashboard/lisanslar", icon: MonitorCheck, color: "text-lime-500" },
+  { title: "Operasyon Merkezi", href: "/dashboard/operasyon", icon: Wrench, color: "text-violet-500" },
 ]
 
 const onDortNoSubMenuItems = [
@@ -249,6 +262,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   const [onDortNoOpen, setOnDortNoOpen] = useState(false)
   const [kargoFirmalar, setKargoFirmalar] = useState<KargoFirma[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isDeveloper, setIsDeveloper] = useState(false)
   const [subeMenuOpen, setSubeMenuOpen] = useState(false)
   const [menuVisibility, setMenuVisibility] = useState<Record<string, boolean>>({})
 
@@ -286,11 +300,12 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
 
     const { data: profile } = await supabase
       .from("user_profiles")
-      .select("is_admin")
+      .select("is_admin, is_developer")
       .eq("user_id", user.id)
       .single()
 
-    setIsAdmin(Boolean(profile?.is_admin))
+    setIsAdmin(Boolean(profile?.is_admin || profile?.is_developer))
+    setIsDeveloper(Boolean(profile?.is_developer))
   }
 
   async function fetchKargoFirmalar() {
@@ -517,7 +532,27 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
             )
           })()}
 
-          {isAdmin && adminMenuItems.map((item) => {
+          {isAdmin && adminMenuItems.filter((item) => isDeveloper || !developerOnlyHrefs.has(item.href)).map((item) => {
+            const isActive = pathname === item.href
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={cn(
+                    "sidebar-menu-item group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                    isActive
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                  )}
+                >
+                  <item.icon className={cn("sidebar-menu-icon h-5 w-5", getMenuIconMotion(item.href), item.color)} />
+                  <span>{item.title}</span>
+                </Link>
+              </li>
+            )
+          })}
+          {isDeveloper && developerMenuItems.map((item) => {
             const isActive = pathname === item.href
             return (
               <li key={item.href}>

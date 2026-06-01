@@ -37,6 +37,26 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  const { data: license } = await admin
+    .from("device_licenses")
+    .upsert(
+      {
+        user_id: user.id,
+        device_id: deviceId || data.id,
+        platform,
+        label: `${platform} mobil`,
+        last_seen_at: now,
+        updated_at: now,
+      },
+      { onConflict: "user_id,device_id,platform" },
+    )
+    .select("id, active")
+    .single()
+
+  if (license && license.active === false) {
+    return NextResponse.json({ error: "Bu mobil cihaz lisansi iptal edilmis.", blocked: true }, { status: 403 })
+  }
+
   await admin.from("security_events").insert({
     user_id: user.id,
     user_email: user.email || null,
@@ -49,5 +69,5 @@ export async function POST(request: NextRequest) {
     },
   })
 
-  return NextResponse.json({ ok: true, device: data, pushTokenSaved: Boolean(pushToken) })
+  return NextResponse.json({ ok: true, device: data, license, pushTokenSaved: Boolean(pushToken) })
 }

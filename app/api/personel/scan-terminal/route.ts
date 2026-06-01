@@ -10,6 +10,7 @@ import {
   resolvePersonelDashboardShift,
   todayInIstanbul,
 } from "@/lib/qr-attendance/dashboard-vardiya"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 export async function POST(request: NextRequest) {
   const session = await getAuthSession()
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest) {
   const payload = parseTerminalQrPayload(body.qr)
   const offlineQueued = body.offlineQueued === true
   const offlineScannedAt = typeof body.offlineScannedAt === "string" ? new Date(body.offlineScannedAt) : null
+  const scannerDeviceId = String(body.deviceId || "").trim().slice(0, 180)
   const scanTime = offlineQueued && offlineScannedAt && !Number.isNaN(offlineScannedAt.getTime())
     ? offlineScannedAt
     : new Date()
@@ -61,6 +63,24 @@ export async function POST(request: NextRequest) {
 
     const result = await prisma.$transaction(async (tx) => {
       const user = currentUser
+
+      const lastLog = await tx.attendanceLog.findFirst({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
+      })
+
+      if (!offlineQueued && lastLog && now.getTime() - lastLog.createdAt.getTime() < 20_000) {
+        const admin = createAdminClient()
+        await admin.from("security_events").insert({
+          event_type: "suspicious_fast_qr_scan",
+          details: {
+            attendance_user_id: user.id,
+            tc_kimlik: user.tcKimlik,
+            scanner_device_id: scannerDeviceId || null,
+            seconds_since_last: Math.max(0, Math.round((now.getTime() - lastLog.createdAt.getTime()) / 1000)),
+          },
+        })
+      }
 
       const openLog = await tx.attendanceLog.findFirst({
         where: {

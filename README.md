@@ -1,6 +1,6 @@
 # Hesap ve QR Mesai Takip Sistemi
 
-Hesap, sube bazli gelir gider takibi ile QR destekli personel mesai takibini ayni panelde birlestiren production odakli bir Next.js uygulamasidir. Sistem Supabase Postgres, Prisma, JWT, RLS politikalar, vardiya planlama, PDF raporlama ve Vercel deployment akisi uzerine kuruludur.
+Hesap, sube bazli gelir gider takibi ile QR destekli personel mesai takibini ayni panelde birlestiren production odakli bir Next.js uygulamasidir. Sistem Supabase Postgres, Prisma, JWT, RLS politikalar, vardiya planlama, PDF raporlama, cihaz lisanslama, bildirim otomasyonu, operasyon merkezi ve Vercel deployment akisi uzerine kuruludur.
 
 Bu dokuman projeyi calistirmak, veritabani yapisini kurmak, QR mesai akisini anlamak, vardiya planlamak, yetkileri yonetmek ve production sorunlarini hizli cozmek icin hazirlanmistir.
 
@@ -20,6 +20,7 @@ Bu dokuman projeyi calistirmak, veritabani yapisini kurmak, QR mesai akisini anl
 - [Sistem Operasyonlari](#sistem-operasyonlari)
 - [Push Bildirim ve Gelismis Log](#push-bildirim-ve-gelismis-log)
 - [Bildirim, Yedekleme ve Performans Gelistirmeleri](#bildirim-yedekleme-ve-performans-gelistirmeleri)
+- [Gelismis Operasyon Paketi](#gelismis-operasyon-paketi)
 - [Mobil Native Hazirlik](#mobil-native-hazirlik)
 - [Mac Olmadan iOS TestFlight](#mac-olmadan-ios-testflight)
 - [Lisans ve Dagitim](#lisans-ve-dagitim)
@@ -130,12 +131,27 @@ Son surumde sistem operasyonlari genisletildi:
 - Yedekleme kapsami genisletildi: subeler, personeller, gelir/gider, corbalar, kargo cari, 14 no hesap, vardiya, mesai, bildirim, terminal cihaz, audit log ve sistem operasyon tablolari JSON yedegine dahil edilir.
 - Windows `.exe` surumu kapanis tusuna basildiginda tamamen kapanmak yerine sistem tepsisinde arka planda calisir; bildirimlerin gelmeye devam etmesi icin Windows acilisinda otomatik baslatma ayari yapar. PC tamamen kapaliyken bildirim almak teknik olarak mumkun degildir; PC acildiginda uygulama tekrar devreye girer.
 
+## Gelismis Operasyon Paketi
+
+Bu paket developer rolunu, cihaz lisanslamayi ve yonetim operasyonlarini tek merkezde toplar.
+
+- Developer rol yoneticiden usttedir. Developer admin/developer hesap acabilir, sistem sagligini ve gelismis loglari gorebilir. Normal yonetici admin veya developer hesap acamaz.
+- TC `25511195212` ve e-posta `ykacaran480@gmail.com` ile eslesen profil developer olarak isaretlenir.
+- `/dashboard/lisanslar` aktif PC, web, Android ve iOS cihazlarini listeler; cihaz uzaktan iptal edilirse ilgili cihaz `/device-blocked` ekranina duser.
+- `/dashboard/operasyon` bakim modu, bildirim kurallari, fazla mesai onaylari, PDF sablonlari, PDF arsivi, duyurular, resmi tatiller, sistem alarmlari, hata raporlari, offline cakismazliklar, store metadata ve yedek snapshotlarini yonetir.
+- Fazla mesai once onaya duser. `approved` olmayan otomatik fazla mesai maas hesabina eklenmez.
+- PDF raporlari olusturuldugunda HTML snapshot olarak `pdf_archives` tablosuna arsiv kaydi dusurulur.
+- `/api/cron/daily-backup` onemli operasyon ve finans tablolarinin gunluk JSON snapshotini alir.
+- `/dashboard/bildirim-gonder` yoneticilere ham link yazdirmadan hazir sayfa secimiyle bildirim gonderir.
+- `/dashboard/cay` uzerinden yonetici secili kullanicilara "Cay hazir mi?" bildirimi yollar; kullanicilar Hazir/Hazir degil cevabi verir.
+- `/status` artik web, PostgreSQL, Supabase API, FCM, SMTP ve Vercel durumunu public olarak gosterir.
+
 ## QR Mesai Akisi
 
-Sistemin temel farki sudur: QR personelde sabit kalmaz. Guvenlik icin sabit terminal ekranindaki QR 30 saniyede bir yenilenir.
+Sistemin temel farki sudur: QR personelde sabit kalmaz. Guvenlik icin sabit terminal ekranindaki QR 20 saniyede bir yenilenir.
 
 1. Sabit ekranda `/terminal` sayfasi acik kalir.
-2. Bu sayfa 30 saniyede bir yeni QR uretir.
+2. Bu sayfa 20 saniyede bir yeni QR uretir.
 3. Personel `/auth/giris` sayfasindan TC ve sifre ile giris yapar.
 4. Sadece mesai yetkisi varsa personel otomatik `/mesai-qr` sayfasina yonlenir.
 5. Dashboard yetkisi de varsa paneldeki `Mesai` menusunden QR okutma ekranini acar.
@@ -162,18 +178,25 @@ Bu yapi sayesinde terminaldeki QR kopyalansa bile kisa surede gecersiz olur.
 | `/dashboard/mesai-takip` | Sube bazli mesai takip paneli | Yonetici |
 | `/dashboard/maaslar` | Maas, avans ve fazla mesai hesap paneli | Yonetici |
 | `/dashboard/ayarlar` | Ortak, personel ve kargo firma ayarlari | Yonetici |
-| `/dashboard/admin-ayarlar` | Kullanici, sube, rol ve guvenlik ayarlari | Yonetici |
+| `/dashboard/admin-ayarlar` | Kullanici, sube, rol ve guvenlik ayarlari | Developer |
+| `/dashboard/bildirim-gonder` | Sayfa secimli manuel bildirim gonderme | Yonetici |
 | `/dashboard/bildirimler` | Bildirim gecmisi ve okundu durumu | Giris yapmis kullanici |
 | `/dashboard/guvenlik-ayarlar` | Guvenlik olaylari | Yonetici |
+| `/dashboard/gelismis-log` | Gelismis denetim ve audit loglari | Developer |
+| `/dashboard/sistem-sagligi` | Terminal, servis ve entegrasyon sagligi | Developer |
+| `/dashboard/lisanslar` | PC/telefon cihaz lisanslari ve uzaktan iptal | Developer |
+| `/dashboard/operasyon` | Bakim modu, kurallar, rapor arsivi, yedek ve operasyon merkezi | Developer |
+| `/dashboard/cay` | Cay hazir mi bildirim ve durum akisi | Dashboard kullanicisi |
 | `/personel-mesai` | Mesai admin paneli | Yonetici |
 | `/login` | Eski mesai girisi; `/auth/giris` sayfasina yonlendirir | Herkes |
 | `/mesai-qr` | Personelin terminal QR okutma ekrani | Personel |
 | `/terminal` | Sabit terminal QR ekrani | Terminal |
+| `/maintenance` | Bakim modu aktifken gosterilen sayfa | Herkes |
+| `/device-blocked` | Lisansi iptal edilen cihaz uyarisi | Giris yapmis kullanici |
 | `/privacy-policy` | Mobil/web gizlilik politikasi | Herkes |
 | `/mobile-support` | Mobil uygulama destek sayfasi | Herkes |
 | `/data-deletion` | Veri silme ve duzeltme talep sureci | Herkes |
 | `/status` | Public sistem sagligi sayfasi | Herkes |
-| `/dashboard/sistem-sagligi` | Terminal cihaz onayi, yedekleme, reset gecmisi, ozet mail ve sistem sagligi | Yonetici |
 
 Auth ekranlarinda herkese acik kayit ol secenegi yoktur. Giris, sifremi unuttum, sifre sifirlama ve auth hata ekranlarinin altinda gizlilik politikasi, veri silme ve destek linkleri kucuk bilgi alani olarak gosterilir; ayni sayfalar iOS/Android WebView icinde de gorunur.
 
@@ -405,6 +428,7 @@ Supabase SQL Editor veya migration akisi uzerinden scriptleri uygulayin.
 | `scripts/013_vardiya_planlari.sql` | Vardiya planlama tablolarini ekler |
 | `supabase/migrations/20260527130000_enable_rls_for_attendance_and_shifts.sql` | Mesai ve vardiya tablolarinda RLS politikalarini etkinlestirir |
 | `scripts/015_system_operations.sql` | Terminal cihazlari, mobil cihaz tokenlari, bildirimler, tema tercihi ve ozet mail tablolarini ekler |
+| `scripts/018_advanced_operations_suite.sql` | Developer rol, cihaz lisanslari, operasyon merkezi, cay akisi, PDF arsivi, offline cakismazlik, bakim modu, tatil takvimi ve saglik alarmlarini ekler |
 
 Yardimci scriptler:
 
@@ -413,6 +437,7 @@ node scripts/apply-vardiya-schema.js
 node scripts/check-vardiya-schema.js
 node scripts/apply-rls-policies.js
 npm run supabase:system-schema
+npm run supabase:advanced-ops-schema
 ```
 
 ## Calistirma Komutlari
@@ -446,6 +471,12 @@ npm run prisma:push
 ```
 
 Prisma schema degisikliklerini veritabanina uygular.
+
+```bash
+npm run supabase:advanced-ops-schema
+```
+
+Developer rol, cihaz lisanslama, operasyon merkezi, cay akisi, PDF arsivi, backup snapshot ve RLS politikalarini Supabase'e uygular.
 
 ## Guvenlik
 
@@ -484,7 +515,7 @@ JWT token icinde terminal tipi, nonce, issuer, audience, subject ve expiry bilgi
 }
 ```
 
-QR 30 saniyede bir yenilenir. Eski QR okutulursa API reddeder.
+QR 20 saniyede bir yenilenir. Eski QR okutulursa API reddeder.
 
 ### Sifre Sifirlama
 
@@ -537,12 +568,26 @@ Kritik tablolar:
 - `public.user_devices`
 - `public.app_notifications`
 - `public.admin_digest_subscribers`
+- `public.device_licenses`
+- `public.notification_rule_definitions`
+- `public.overtime_approvals`
+- `public.pdf_templates`
+- `public.pdf_archives`
+- `public.app_announcements`
+- `public.tea_requests`
+- `public.tea_request_recipients`
+- `public.holidays`
+- `public.system_health_alerts`
+- `public.error_reports`
+- `public.offline_conflicts`
+- `public.backup_snapshots`
 
 RLS kapali olursa Supabase guvenlik paneli kritik uyari verir. Bu durumda migration dosyasini tekrar uygulayin:
 
 ```text
 supabase/migrations/20260527130000_enable_rls_for_attendance_and_shifts.sql
 scripts/015_system_operations.sql
+scripts/018_advanced_operations_suite.sql
 ```
 
 ## Sistem Operasyonlari
@@ -551,7 +596,17 @@ scripts/015_system_operations.sql
 
 `/terminal` artik her cihazda otomatik QR uretmez. Terminal ekrani ilk acildiginda browser local storage icinde benzersiz bir terminal cihaz anahtari olusturur ve `public.terminal_devices` tablosuna bekleyen cihaz olarak kaydeder.
 
-Yonetici `/dashboard/sistem-sagligi` ekranindan cihazı onaylar. Yalnizca `approved=true` olan cihazlar `/api/terminal/qr` uzerinden 30 saniyelik QR alabilir. Onay kaldirilirsa terminal ekrani QR uretmeyi durdurur.
+Developer `/dashboard/sistem-sagligi` ekranindan cihazi onaylar. Yalnizca `approved=true` olan cihazlar `/api/terminal/qr` uzerinden 20 saniyelik QR alabilir. Onay kaldirilirsa terminal ekrani QR uretmeyi durdurur.
+
+Terminal cihazinda istege bagli IP kisiti ve kamera zorunlulugu tutulur. `allowed_ips` doluysa terminal QR API yalnizca bu IP adreslerinden QR uretir. Sureden cok hizli arka arkaya QR okutma, farkli cihaz ve olagan disi saat gibi supheli durumlar `security_events` icine yazilir.
+
+### Cihaz bazli lisanslama
+
+Web, masaustu, Android ve iOS istemcileri oturumdan sonra kendini `/api/devices/register` veya `/api/mobile/register-device` uzerinden kaydeder. Kayitlar `device_licenses` tablosunda tutulur.
+
+- Developer `/dashboard/lisanslar` ekraninda hangi cihaz aktif gorebilir.
+- Cihaz iptal edilirse yeni API istekleri engellenir ve kullanici `/device-blocked` ekranina yonlendirilir.
+- Developer ve lisans muaf hesaplar acil durum icin bloktan muaf tutulabilir.
 
 ### Offline mod ve senkronizasyon
 
@@ -561,9 +616,9 @@ Mesai QR islemi guvenlik nedeniyle offline tamamlanmaz; terminal QR'i sureli JWT
 
 ### Sistem sagligi ve status sayfasi
 
-`/status` herkese acik durum sayfasidir. Web uygulamasi, PostgreSQL ve Supabase API durumunu canli kontrol eder.
+`/status` herkese acik durum sayfasidir. Web uygulamasi, PostgreSQL, Supabase API, FCM, SMTP ve Vercel durumunu canli kontrol eder.
 
-`/dashboard/sistem-sagligi` yonetici ekraninda su alanlar vardir:
+`/dashboard/sistem-sagligi` developer ekraninda su alanlar vardir:
 
 - Canli sistem kontrolleri
 - Bekleyen/onayli terminal cihazlari
@@ -571,9 +626,21 @@ Mesai QR islemi guvenlik nedeniyle offline tamamlanmaz; terminal QR'i sureli JWT
 - Yedek indir ve JSON yedekten geri yukle
 - Gunluk/haftalik yonetici ozet mail alicilari
 
+Bakim modu `app_settings` tablosundaki `maintenance_mode` kaydi ile acilir. Aktifken dashboard trafigi `/maintenance` sayfasina yonlenir; developer gerekirse iceri girebilir.
+
 ### Bildirimler
 
 Dashboard icinde sag ustte bildirim merkezi vardir. Kullaniciya ozel gec kalma ve fazla mesai uyarilari son mesai kayitlarindan otomatik uretilir. Mobil kabuk push notification izin ve token kaydi altyapisini hazirlar; `public.user_devices` tablosu cihaz tokenlarini saklar.
+
+Masaustu `.exe` uygulamasi okunmamis bildirim sayisini Windows taskbar overlay ve tray tooltip uzerinden gosterir. Bildirim sayisi 1, 5, 7 gibi kullaniciya gorunur; bildirimler okununca sayac temizlenir.
+
+Yonetici bildirim gonderirken link yazmaz; hazir sayfa listesinden hedef sayfayi secer. Bildirim hedefleri tum kullanicilar, yoneticiler, sube veya tek kullanici olabilir.
+
+### Duyuru ve cay akisi
+
+Developer operasyon merkezinden uygulama ici duyuru yayinlayabilir. Duyurular aktif tarih araliginda dashboard ustunde gorunur.
+
+`/dashboard/cay` ekraninda yonetici secili kullanicilara cay bildirimi gonderir. Kullanici `Hazir` veya `Hazir degil` yaniti verir; yonetici yanitlari ayni ekranda hazir, hazir degil ve bekleyen olarak izler.
 
 ### Kullanici bazli tema
 
@@ -590,6 +657,14 @@ Mesai takip ekrani gercek net fazla mesai dakikasini korur; maas hesabina ise od
 
 Personel maas PDF'inde "gercek sure" ve "maasa islenen sure" ayrimi aciklamada gorunur.
 
+### Fazla mesai onay akisi
+
+Mesai takip API'si tamamlanan kayitlardan net fazla mesai uretir ve 45 dakika uzeri kayitlari `overtime_approvals` tablosuna aday olarak ekler. Developer veya yetkili yonetici operasyon merkezinde onaylamadan bu sure maas hesabina yansimaz.
+
+### Yedekleme ve geri yukleme
+
+Admin yedekleme endpoint'i finans, personel, vardiya, mesai, bildirim, cihaz, lisans, operasyon, cay, tatil, PDF arsivi ve audit log tablolarini kapsar. Gunluk otomatik snapshot icin `/api/cron/daily-backup` endpoint'i kullanilir. Snapshotlar geri yukleme oncesi onizleme ve secerek geri yukleme akisina temel olacak sekilde `backup_snapshots` tablosunda saklanir.
+
 ## Lisans ve Dagitim
 
 Bu proje kapali kaynak ve ozel lisanslidir. Kod, installer, guncelleme dosyalari, veritabani semasi, dokumantasyon ve logo dosyalari proje sahibinden yazili izin alinmadan kopyalanamaz, indirilemez, kullanilamaz, paylasilamaz veya yeniden dagitilamaz.
@@ -603,7 +678,7 @@ Indirme kontrolu icin onemli kural:
 - Uygulamayi kullanacak kisiye installer dosyasini proje sahibi paylasir; kullanici bu dosyayi baska kisiye dagitamaz.
 - Masaustu otomatik guncelleme private release kullaniyorsa GitHub yetkisi olan kullanicilar veya proje sahibinin belirledigi dagitim kanali uzerinden calistirilmalidir.
 
-Mevcut yasal lisans bu projeyi izinsiz kullanima ve dagitima kapatir. Gercek anlamda kisi bazli aktivasyon istenirse ayrica lisans anahtari sunucusu ve uygulama acilisinda online dogrulama katmani eklenmelidir.
+Mevcut yasal lisans bu projeyi izinsiz kullanima ve dagitima kapatir. Uygulama icinde cihaz bazli lisanslama vardir; developer `/dashboard/lisanslar` ekranindan aktif PC/telefon kayitlarini gorebilir ve uzaktan iptal edebilir. Installer dosyasinin kim tarafindan indirilebilecegini sinirlamak icin GitHub Release veya dagitim kanali ayrica private tutulmalidir.
 
 ## PDF ve Raporlama
 
@@ -631,6 +706,8 @@ PDF butonlari once islem secimi acar. Yatay/dikey icin iki ayri akis vardir:
 
 Masaustu PDF akisi `about:blank` penceresini Windows'a dis baglanti olarak gondermez; bu nedenle "Bu uygulama baglantisini acmak icin 'about' edinin" hatasi beklenmez.
 
+PDF sablonlari ve arsiv kayitlari `/dashboard/operasyon` icinden takip edilir. Rapor olusturuldugunda HTML snapshot `pdf_archives` tablosuna yazilir; bu kayit ileride resmi arsiv, yeniden indirme ve secili geri yukleme akislari icin kullanilir.
+
 ## Deployment
 
 Production deploy Vercel uzerinden yapilir.
@@ -647,6 +724,17 @@ SUPABASE_SERVICE_ROLE_KEY=
 DATABASE_URL=
 DIRECT_URL=
 JWT_SECRET=
+NEXT_PUBLIC_APP_URL=https://pamukkaleturizm.info
+PASSWORD_RESET_BASE_URL=https://pamukkaleturizm.info
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM=
+FCM_PROJECT_ID=
+FCM_CLIENT_EMAIL=
+FCM_PRIVATE_KEY=
+CRON_SECRET=
 ```
 
 Supabase Vercel entegrasyonu bazen `POSTGRES_PRISMA_URL` ve `POSTGRES_URL_NON_POOLING` uretir. Prisma build ve runtime icin bunlarin aliaslari da gerekir.
@@ -877,6 +965,11 @@ Manuel kontrol listesi:
 - Basarili okutma sonrasi kamera kapaniyor mu?
 - `/dashboard/vardiya` personelleri ve vardiyalari gosteriyor mu?
 - `/dashboard/mesai-takip` sube bazli veriyi getiriyor mu?
+- Developer hesapta `/dashboard/lisanslar`, `/dashboard/operasyon`, `/dashboard/sistem-sagligi` ve `/dashboard/gelismis-log` aciliyor mu?
+- Normal yonetici developer/admin hesap olusturamiyor mu?
+- `/dashboard/bildirim-gonder` hazir sayfa secimiyle bildirim olusturuyor mu?
+- `/dashboard/cay` Hazir/Hazir degil yanitlarini yoneticiye yansitiyor mu?
+- `/status` Web, PostgreSQL, Supabase, FCM, SMTP ve Vercel durumlarini gosteriyor mu?
 - PDF cikti aktif filtreye uyuyor mu?
 
 ## Proje Yapisi
@@ -890,12 +983,24 @@ app/
     dashboard/vardiya/            Vardiya planlama API route'u
     dashboard/mesai-takip/        Mesai takip API route'u
     personel-mesai/               Mesai admin API route'lari
+    admin/device-licenses/        Cihaz lisans listeleme ve iptal API'si
+    admin/operations/             Operasyon merkezi tablo API'si
+    announcements/                Aktif duyuru API'si
+    cron/daily-backup/            Gunluk JSON snapshot API'si
+    devices/register/             Web/desktop cihaz lisans kaydi
+    error-reports/                Client hata raporlama API'si
+    offline-conflicts/            Offline cakismazlik kaydi API'si
+    tea/                          Cay bildirimi ve yanit API'si
   auth/giris/                     Dashboard girisi
   auth/sifremi-unuttum/           TC ile sifre sifirlama istegi
   auth/sifre-sifirla/             E-postadan yeni sifre belirleme
   dashboard/
     vardiya/                      Vardiya takvimi
     mesai-takip/                  Sube bazli mesai takip
+    bildirim-gonder/              Sayfa secimli bildirim gonderme
+    cay/                          Cay hazir mi akisi
+    lisanslar/                    Developer cihaz lisanslari
+    operasyon/                    Developer operasyon merkezi
     ayarlar/                      Personel ve sistem ayarlari
   login/                          Eski route; auth/giris sayfasina yonlendirir
   dashboard/mesai/                Dashboard icinden QR okutma
@@ -905,6 +1010,8 @@ app/
   privacy-policy/                 Gizlilik politikasi
   mobile-support/                 Mobil destek sayfasi
   data-deletion/                  Veri silme talebi sayfasi
+  maintenance/                    Bakim modu sayfasi
+  device-blocked/                 Iptal edilmis cihaz uyarisi
 
 components/
   mesai/
@@ -913,8 +1020,13 @@ components/
     personnel-terminal-scanner.tsx Personel kamera tarayicisi
     admin-attendance-dashboard.tsx Mesai admin paneli
   dashboard/
+    announcement-banner.tsx        Uygulama ici duyuru bandi
     vardiya-settings-card.tsx      Vardiya ayarlari
     sidebar.tsx                   Dashboard menusu
+  security/
+    device-license-registration.tsx Cihaz lisans kaydi istemcisi
+  system/
+    client-error-reporter.tsx      Client hata raporlama istemcisi
 
 lib/
   qr-attendance/
@@ -932,6 +1044,8 @@ prisma/
 scripts/
   apply-rls-policies.js           RLS policy uygulama yardimcisi
   apply-vardiya-schema.js         Vardiya schema uygulama yardimcisi
+  apply-advanced-operations-schema.js Gelismis operasyon semasi uygulama yardimcisi
+  018_advanced_operations_suite.sql Developer, lisans, operasyon ve cay semasi
   check-vardiya-schema.js         Vardiya schema kontrolu
   smoke-qr-attendance.js          QR mesai smoke testi
 
@@ -1100,7 +1214,7 @@ FCM ayarlari eksikse sistem hata verip durmaz; saglik panelinde `Eksik ayar` ola
 
 ### Gelismis Log
 
-`/dashboard/gelismis-log` yalnizca yoneticilere aciktir. Bu ekran mevcut `security_events` kayitlarini denetim paneli formatinda gosterir.
+`/dashboard/gelismis-log` yalnizca developer hesaba aciktir. Normal yoneticiler bu ekrani goremez. Bu ekran mevcut `security_events` kayitlarini denetim paneli formatinda gosterir.
 
 Ozellikler:
 
@@ -1116,6 +1230,11 @@ Yeni olay tipleri:
 - `push_test_sent`
 - `attendance_push_alerts_sent`
 - `admin_digest_test_sent`
+- `device_license_registered`
+- `device_license_revoked`
+- `terminal_ip_blocked`
+- `suspicious_fast_qr_scan`
+- `daily_backup_created`
 
 ### Vardiya Cakisma Kontrolu
 
@@ -1149,6 +1268,7 @@ Mobil uygulama sadece web sayfasini gosteren bos bir kabuk gibi davranmasin diye
 - Push notification izin ve token kaydi
 - Android bildirim kanali: `hesap_alerts`
 - Local notification altyapisi
+- Platform biyometrik kilit acma denemesi: iOS Face ID/Touch ID ve Android parmak izi uyumlu WebAuthn tabanli akisa hazirdir
 - Offline ekran ve yeniden yukle akisi
 - Haptic geri bildirim
 - Native splash/status bar ayarlari

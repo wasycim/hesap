@@ -68,6 +68,37 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  if (
+    !request.nextUrl.pathname.startsWith('/api') &&
+    request.nextUrl.pathname !== '/maintenance' &&
+    request.nextUrl.pathname !== '/status'
+  ) {
+    const { data: maintenance } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'maintenance_mode')
+      .maybeSingle()
+
+    const maintenanceValue = maintenance?.value as { enabled?: boolean; allowDeveloper?: boolean } | null
+    if (maintenanceValue?.enabled) {
+      let isDeveloper = false
+      if (user && maintenanceValue.allowDeveloper !== false) {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('is_developer, dashboard_access')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        isDeveloper = Boolean(profile?.is_developer && profile.dashboard_access !== false)
+      }
+
+      if (!isDeveloper) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/maintenance'
+        return NextResponse.redirect(url)
+      }
+    }
+  }
+
   // IMPORTANT: You *must* return the supabaseResponse object as it is.
   // If you're creating a new response object with NextResponse.next() make sure to:
   // 1. Pass the request in it, like so:

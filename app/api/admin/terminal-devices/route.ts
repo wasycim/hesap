@@ -24,6 +24,9 @@ export async function PATCH(request: NextRequest) {
   const id = String(body.id || "").trim()
   const approved = Boolean(body.approved)
   const label = String(body.label || "").trim().slice(0, 80)
+  const allowedIps = Array.isArray(body.allowedIps)
+    ? body.allowedIps.map((item: unknown) => String(item).trim()).filter(Boolean)
+    : String(body.allowedIps || "").split(/[\n,; ]+/).map((item) => item.trim()).filter(Boolean)
 
   if (!id) {
     return NextResponse.json({ error: "Cihaz seçimi zorunlu." }, { status: 400 })
@@ -36,6 +39,8 @@ export async function PATCH(request: NextRequest) {
     .update({
       approved,
       label: label || undefined,
+      allowed_ips: allowedIps,
+      camera_required: body.cameraRequired !== false,
       approved_by: approved ? adminGuard.user.id : null,
       approved_at: approved ? now : null,
       updated_at: now,
@@ -48,7 +53,7 @@ export async function PATCH(request: NextRequest) {
     user_id: adminGuard.user.id,
     user_email: adminGuard.user.email,
     event_type: approved ? "terminal_device_approved" : "terminal_device_revoked",
-    details: { terminal_device_id: id, label },
+    details: { terminal_device_id: id, label, allowed_ips: allowedIps },
   })
 
   return NextResponse.json({ ok: true })

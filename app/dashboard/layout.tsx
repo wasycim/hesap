@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { QuickCommand } from "@/components/dashboard/quick-command"
 import { NotificationCenter } from "@/components/notifications/notification-center"
+import { AnnouncementBanner } from "@/components/notifications/announcement-banner"
+import { DeviceLicenseRegistration } from "@/components/security/device-license-registration"
 import { SubeProvider } from "@/contexts/sube-context"
 import { UnsavedChangesProvider } from "@/contexts/unsaved-changes-context"
 
@@ -35,6 +37,8 @@ export default async function DashboardLayout({
       <DashboardSidebar userEmail={user.email ?? ""} displayName={String(user.user_metadata?.display_name || "")} />
       <QuickCommand />
       <NotificationCenter />
+      <AnnouncementBanner />
+      <DeviceLicenseRegistration />
       <main className="mobile-safe-area min-w-0 flex-1 overflow-auto pt-14 lg:pt-0">
         {children}
       </main>

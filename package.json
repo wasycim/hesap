@@ -28,6 +28,7 @@
     "supabase:system-schema": "node scripts/apply-system-operations-schema.js",
     "supabase:push-audit-schema": "node scripts/apply-push-and-advanced-log-schema.js",
     "supabase:notification-rules-schema": "node scripts/apply-notification-rules-schema.js",
+    "supabase:advanced-ops-schema": "node scripts/apply-advanced-operations-schema.js",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",

@@ -72,12 +72,12 @@ export function SubeProvider({ children }: { children: ReactNode }) {
     // Kullanıcı profilini çek
     const { data: profile } = await supabase
       .from("user_profiles")
-      .select("is_admin, sube_id, vardiya")
+      .select("is_admin, is_developer, sube_id, vardiya")
       .eq("user_id", user.id)
       .single()
 
     if (profile) {
-      setIsAdmin(profile.is_admin || false)
+      setIsAdmin(Boolean(profile.is_admin || profile.is_developer))
       setUserVardiya(profile.vardiya || null)
 
       // Kullanıcının şubesini bul
@@ -87,7 +87,7 @@ export function SubeProvider({ children }: { children: ReactNode }) {
           setUserSube(userSubeData)
           setCurrentSube(userSubeData)
         }
-      } else if (profile.is_admin && subeData && subeData.length > 0) {
+      } else if ((profile.is_admin || profile.is_developer) && subeData && subeData.length > 0) {
         // Admin ise son secilen subeyi koru, yoksa ilk subeyi sec.
         const savedSubeId = typeof window !== "undefined"
           ? window.localStorage.getItem("current_sube_id")

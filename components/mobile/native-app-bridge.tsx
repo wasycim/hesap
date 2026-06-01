@@ -49,6 +49,7 @@ export function NativeAppBridge() {
       await StatusBar.setBackgroundColor({ color: "#0f172a" }).catch(() => undefined)
 
       await Preferences.set({ key: "hesap:last-opened-at", value: new Date().toISOString() }).catch(() => undefined)
+      await unlockWithPlatformBiometric().catch(() => undefined)
       await registerNativeDevice()
       await registerPushNotifications(setPushState)
       await scheduleNativeReminder()
@@ -213,6 +214,71 @@ async function registerNativeDevice(pushToken?: string) {
       at: new Date().toISOString(),
     }),
   }).catch(() => undefined)
+}
+
+function randomBytes(length: number) {
+  const bytes = new Uint8Array(length)
+  crypto.getRandomValues(bytes)
+  return bytes
+}
+
+function arrayBufferToBase64Url(buffer: ArrayBuffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(buffer))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")
+}
+
+function base64UrlToArrayBuffer(value: string) {
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=")
+  const binary = atob(padded)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+  return bytes.buffer
+}
+
+async function unlockWithPlatformBiometric() {
+  if (!Capacitor.isNativePlatform()) return
+  if (typeof PublicKeyCredential === "undefined") return
+  const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false)
+  if (!available) return
+
+  const enabled = await Preferences.get({ key: "hesap:biometric-enabled" }).catch(() => ({ value: null }))
+  const credential = await Preferences.get({ key: "hesap:biometric-credential-id" }).catch(() => ({ value: null }))
+  if (enabled.value === "false") return
+
+  if (!credential.value) {
+    const created = await navigator.credentials.create({
+      publicKey: {
+        challenge: randomBytes(32),
+        rp: { name: "Hesap" },
+        user: {
+          id: randomBytes(16),
+          name: "hesap",
+          displayName: "Hesap kullanicisi",
+        },
+        pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+        authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+        timeout: 60_000,
+        attestation: "none",
+      },
+    }).catch(() => null) as PublicKeyCredential | null
+    if (created?.rawId) {
+      await Preferences.set({ key: "hesap:biometric-enabled", value: "true" }).catch(() => undefined)
+      await Preferences.set({ key: "hesap:biometric-credential-id", value: arrayBufferToBase64Url(created.rawId) }).catch(() => undefined)
+    }
+    return
+  }
+
+  const assertion = await navigator.credentials.get({
+    publicKey: {
+      challenge: randomBytes(32),
+      allowCredentials: [{ id: base64UrlToArrayBuffer(credential.value), type: "public-key" }],
+      userVerification: "required",
+      timeout: 60_000,
+    },
+  }).catch(() => null)
+
+  if (!assertion) {
+    window.location.href = "/auth/giris"
+  }
 }
 
 async function scheduleNativeReminder() {

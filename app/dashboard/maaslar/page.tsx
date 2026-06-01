@@ -49,6 +49,11 @@ type AttendanceDetail = {
   payableOvertimeMinutes?: number
 }
 
+type OvertimeApproval = {
+  attendance_log_id: number
+  status: "pending" | "approved" | "rejected"
+}
+
 type AttendancePayload = {
   details: AttendanceDetail[]
 }
@@ -76,6 +81,7 @@ export default function MaaslarPage() {
   const [ortaklar, setOrtaklar] = useState<Ortak[]>([])
   const [rows, setRows] = useState<GiderRow[]>([])
   const [attendanceOvertime, setAttendanceOvertime] = useState<AttendanceDetail[]>([])
+  const [overtimeApprovals, setOvertimeApprovals] = useState<OvertimeApproval[]>([])
   const [selectedPersonelId, setSelectedPersonelId] = useState<string | null>(null)
   const [selectedOrtakId, setSelectedOrtakId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -95,7 +101,7 @@ export default function MaaslarPage() {
     const from = getMonthStartDate(month, year)
     const to = getMonthEndDate(month, year)
 
-    const [personelRes, ortakRes, giderRes, attendanceRes] = await Promise.all([
+    const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes] = await Promise.all([
       supabase
         .from("personeller")
         .select("id, ad, aylik_maas, saatlik_mesai_ucreti")
@@ -115,13 +121,16 @@ export default function MaaslarPage() {
         .eq("ay_yil", ayYil)
         .order("tarih", { ascending: true }),
       fetch(`/api/dashboard/mesai-takip?${new URLSearchParams({ from, to, subeId: currentSube.id }).toString()}`),
+      fetch("/api/admin/operations?table=overtime_approvals", { cache: "no-store" }),
     ])
 
     const attendancePayload = await attendanceRes.json().catch(() => null) as AttendancePayload | null
+    const approvalsPayload = await approvalsRes.json().catch(() => null)
     setPersoneller(personelRes.data || [])
     setOrtaklar(ortakRes.data || [])
     setRows(giderRes.data || [])
     setAttendanceOvertime(attendanceRes.ok ? (attendancePayload?.details || []) : [])
+    setOvertimeApprovals(approvalsRes.ok ? (approvalsPayload?.items || []) : [])
     setLoading(false)
   }
 
@@ -130,6 +139,7 @@ export default function MaaslarPage() {
     const hourlyRate = Number(personel.saatlik_mesai_ucreti) || (baseSalary > 0 ? baseSalary / 30 / 8 : 0)
     const advances: Detail[] = []
     const overtime: OvertimeDetail[] = []
+    const approvalByLogId = new Map(overtimeApprovals.map((item) => [Number(item.attendance_log_id), item.status]))
 
     rows.forEach(row => {
       const advanceAmount = Number(row.personel_paylari?.[personel.id]) || 0
@@ -152,7 +162,7 @@ export default function MaaslarPage() {
     })
 
     attendanceOvertime
-      .filter(detail => detail.personelId === personel.id && (detail.payableOvertimeMinutes ?? detail.overtimeMinutes) > 0)
+      .filter(detail => detail.personelId === personel.id && (detail.payableOvertimeMinutes ?? detail.overtimeMinutes) > 0 && approvalByLogId.get(Number(detail.id)) === "approved")
       .forEach(detail => {
         const payableMinutes = detail.payableOvertimeMinutes || detail.overtimeMinutes
         const hours = payableMinutes / 60
@@ -181,7 +191,7 @@ export default function MaaslarPage() {
       overtimeTotal,
       remaining: baseSalary + overtimeTotal - advanceTotal,
     }
-  }), [attendanceOvertime, personeller, rows])
+  }), [attendanceOvertime, overtimeApprovals, personeller, rows])
 
   const ortakSummaries = useMemo(() => ortaklar.map(ortak => {
     const advances: Detail[] = []

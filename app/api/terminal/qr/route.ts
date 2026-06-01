@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient()
   const { data: device, error } = await admin
     .from("terminal_devices")
-    .select("id, approved")
+    .select("id, approved, allowed_ips")
     .eq("device_key", deviceKey)
     .maybeSingle()
 
@@ -52,11 +52,24 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  const clientIp = getClientIp(request)
+  const allowedIps = Array.isArray(device.allowed_ips) ? device.allowed_ips.filter(Boolean) : []
+  if (allowedIps.length > 0 && !allowedIps.includes(clientIp)) {
+    await admin.from("security_events").insert({
+      event_type: "terminal_ip_blocked",
+      details: { terminal_id: device.id, device_key: deviceKey, client_ip: clientIp, allowed_ips: allowedIps },
+    })
+    return NextResponse.json(
+      { error: "Bu terminal IP adresi yetkili degil.", code: "TERMINAL_IP_BLOCKED" },
+      { status: 403 },
+    )
+  }
+
   await admin
     .from("terminal_devices")
     .update({
       last_seen_at: new Date().toISOString(),
-      last_ip: getClientIp(request),
+      last_ip: clientIp,
       user_agent: getUserAgent(request),
       updated_at: new Date().toISOString(),
     })

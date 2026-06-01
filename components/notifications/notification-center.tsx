@@ -59,6 +59,10 @@ export function NotificationCenter() {
 
   const unreadCount = useMemo(() => items.filter((item) => !item.read_at).length, [items])
 
+  useEffect(() => {
+    window.hesapDesktop?.setBadgeCount?.(unreadCount).catch(() => undefined)
+  }, [unreadCount])
+
   return (
     <div className="fixed right-4 top-[calc(0.75rem+env(safe-area-inset-top))] z-50 lg:right-5">
       <Popover open={open} onOpenChange={setOpen}>

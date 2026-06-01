@@ -83,6 +83,16 @@ export async function flushOfflineMutations() {
       if (response.ok) {
         synced += 1
       } else {
+        const serverPayload = await response.clone().json().catch(() => ({ status: response.status }))
+        await fetcher("/api/offline-conflicts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mutation_path: job.url,
+            client_payload: { init: job.init, meta: job.meta, createdAt: job.createdAt },
+            server_payload: serverPayload,
+          }),
+        }).catch(() => undefined)
         remaining.push(job)
       }
     } catch {

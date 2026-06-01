@@ -35,7 +35,7 @@ async function getCurrentUserAndProfile() {
 
   const { data: profile } = await supabase
     .from("user_profiles")
-    .select("is_admin, email")
+    .select("is_admin, is_developer, email")
     .eq("user_id", user.id)
     .single()
 
@@ -45,7 +45,7 @@ async function getCurrentUserAndProfile() {
 export async function GET(request: NextRequest) {
   const { profile } = await getCurrentUserAndProfile()
 
-  if (!profile?.is_admin) {
+  if (!profile?.is_developer) {
     return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
   }
 

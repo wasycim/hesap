@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, session, shell, Tray, Notification } = require("electron")
+const { app, BrowserWindow, Menu, dialog, ipcMain, session, shell, Tray, Notification, nativeImage } = require("electron")
 const { autoUpdater } = require("electron-updater")
 const path = require("path")
 const fs = require("fs")
@@ -330,6 +330,25 @@ function createTray() {
   })
 }
 
+function setAppBadge(count) {
+  const normalized = Number.isFinite(Number(count)) ? Math.max(0, Math.min(99, Math.round(Number(count)))) : 0
+  if (process.platform === "darwin" || process.platform === "linux") {
+    app.setBadgeCount(normalized)
+  }
+  if (process.platform === "win32" && mainWindow && !mainWindow.isDestroyed()) {
+    if (normalized > 0) {
+      const label = normalized > 9 ? "9+" : String(normalized)
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><circle cx="32" cy="32" r="30" fill="#ef4444"/><text x="32" y="41" text-anchor="middle" font-family="Arial" font-size="${label.length > 1 ? 28 : 34}" font-weight="900" fill="white">${label}</text></svg>`
+      mainWindow.setOverlayIcon(nativeImage.createFromDataURL(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`), `${normalized} yeni bildirim`)
+    } else {
+      mainWindow.setOverlayIcon(null, "")
+    }
+  }
+  if (tray) {
+    tray.setToolTip(normalized > 0 ? `Hesap - ${normalized} yeni bildirim` : "Hesap")
+  }
+}
+
 function configureStartup() {
   if (process.platform !== "win32" || !app.isPackaged) return
   app.setLoginItemSettings({
@@ -460,6 +479,10 @@ app.on("before-quit", () => {
 
 ipcMain.handle("desktop:get-version", () => app.getVersion())
 ipcMain.handle("desktop:check-for-updates", () => checkForUpdates({ manual: true }))
+ipcMain.handle("desktop:set-badge-count", (_event, count) => {
+  setAppBadge(count)
+  return { ok: true }
+})
 ipcMain.handle("desktop:save-pdf-report", async (_event, payload = {}) => {
   const title = sanitizeFileName(payload.title)
   const html = typeof payload.html === "string" ? payload.html : ""

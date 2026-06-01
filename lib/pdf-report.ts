@@ -349,6 +349,20 @@ async function downloadPdfReport(title: string, orientation: PdfOrientation, htm
   openPrintWindow(html.replace("</body>", `<script>window.addEventListener("load", () => setTimeout(() => window.print(), 300));</script></body>`))
 }
 
+function archivePdfReport(title: string, subtitle: string | undefined, html: string) {
+  fetch("/api/admin/operations?table=pdf_archives", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      report_type: title.toLocaleLowerCase("tr-TR").replace(/\s+/g, "_").slice(0, 80),
+      title,
+      period_label: subtitle || "",
+      file_name: `${title}.pdf`,
+      html_snapshot: html.slice(0, 200000),
+    }),
+  }).catch(() => undefined)
+}
+
 export function openPdfReport({
   title,
   subtitle,
@@ -381,6 +395,8 @@ export function openPdfReport({
     tables,
     autoPrint: action === "print",
   })
+
+  archivePdfReport(title, subtitle, html)
 
   if (action === "download") {
     void downloadPdfReport(title, orientation, html)

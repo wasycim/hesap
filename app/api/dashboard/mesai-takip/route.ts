@@ -74,11 +74,11 @@ async function requireDashboardAdmin() {
 
   const { data: profile } = await supabase
     .from("user_profiles")
-    .select("is_admin")
+    .select("is_admin, is_developer")
     .eq("user_id", user.id)
     .single()
 
-  return Boolean(profile?.is_admin)
+  return Boolean(profile?.is_admin || profile?.is_developer)
 }
 
 export async function GET(request: NextRequest) {
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
   const [{ data: branches, error: branchError }, { data: personeller, error: personelError }, { data: profiles, error: profileError }] = await Promise.all([
     admin.from("subeler").select("id, ad, kod").eq("aktif", true).order("ad"),
     personelQuery,
-    admin.from("user_profiles").select("display_name, tc_kimlik, sube_id, is_admin"),
+    admin.from("user_profiles").select("user_id, display_name, tc_kimlik, sube_id, is_admin"),
   ])
 
   if (branchError) return NextResponse.json({ error: branchError.message }, { status: 500 })
@@ -237,6 +237,29 @@ export async function GET(request: NextRequest) {
         shift: log.shift ? { id: String(log.shift.id), name: log.shift.name, label: getShiftLabel(log.shift) } : null,
       }
     })
+
+  const overtimeApprovalRows = details
+    .filter((detail) => detail.payableOvertimeMinutes >= 45 && detail.checkOutAt)
+    .map((detail) => {
+      const profile = profileByTc.get(detail.tcKimlik)
+      return {
+        attendance_log_id: detail.id,
+        user_profile_id: profile?.user_id || null,
+        personel_name: detail.personel,
+        branch_name: detail.branch?.ad || null,
+        work_date: new Date(detail.workDate).toISOString().slice(0, 10),
+        raw_minutes: detail.overtimeMinutes,
+        payable_minutes: detail.payableOvertimeMinutes,
+        status: "pending",
+        updated_at: new Date().toISOString(),
+      }
+    })
+
+  if (overtimeApprovalRows.length > 0) {
+    await admin
+      .from("overtime_approvals")
+      .upsert(overtimeApprovalRows, { onConflict: "attendance_log_id", ignoreDuplicates: true })
+  }
 
   const summaries = Array.from(summaryByKey.values())
   const branchSummaries = (branches || [])
