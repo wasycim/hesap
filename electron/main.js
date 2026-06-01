@@ -1,10 +1,13 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, session, shell } = require("electron")
+const { app, BrowserWindow, Menu, dialog, ipcMain, session, shell, Tray, Notification } = require("electron")
 const { autoUpdater } = require("electron-updater")
 const path = require("path")
 const fs = require("fs")
 
 const defaultAppUrl = "https://pamukkaleturizm.info"
 let mainWindow = null
+let tray = null
+let isQuitting = false
+let hasShownTrayHint = false
 let updateCheckInFlight = false
 
 function normalizeAppUrl(value) {
@@ -246,6 +249,21 @@ function createWindow() {
     mainWindow.show()
   })
 
+  mainWindow.on("close", (event) => {
+    if (isQuitting || process.platform === "darwin") return
+    event.preventDefault()
+    mainWindow.hide()
+
+    if (!hasShownTrayHint && Notification.isSupported()) {
+      hasShownTrayHint = true
+      new Notification({
+        title: "Hesap arka planda calisiyor",
+        body: "Bildirimleri alabilmek icin uygulama sistem tepsisinde acik kalacak.",
+        icon: getIconPath(),
+      }).show()
+    }
+  })
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isInternalBlankWindow(url)) {
       return {
@@ -276,6 +294,48 @@ function createWindow() {
 
   mainWindow.loadURL(appUrl).catch(() => {
     showOfflinePage()
+  })
+}
+
+function createTray() {
+  if (tray) return
+  tray = new Tray(getIconPath())
+  tray.setToolTip("Hesap")
+  tray.setContextMenu(Menu.buildFromTemplate([
+    {
+      label: "Hesap'i ac",
+      click: () => {
+        if (!mainWindow || mainWindow.isDestroyed()) createWindow()
+        mainWindow.show()
+        mainWindow.focus()
+      },
+    },
+    {
+      label: "Guncellemeyi kontrol et",
+      click: () => checkForUpdates({ manual: true }).catch(() => undefined),
+    },
+    { type: "separator" },
+    {
+      label: "Tamamen kapat",
+      click: () => {
+        isQuitting = true
+        app.quit()
+      },
+    },
+  ]))
+  tray.on("double-click", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) createWindow()
+    mainWindow.show()
+    mainWindow.focus()
+  })
+}
+
+function configureStartup() {
+  if (process.platform !== "win32" || !app.isPackaged) return
+  app.setLoginItemSettings({
+    openAtLogin: true,
+    openAsHidden: false,
+    path: app.getPath("exe"),
   })
 }
 
@@ -375,8 +435,10 @@ app.setAppUserModelId("wasy.system.hesap")
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null)
+  configureStartup()
   configurePermissions()
   configureAutoUpdater()
+  createTray()
   createWindow()
   setTimeout(() => {
     checkForUpdates().catch(() => undefined)
@@ -385,10 +447,15 @@ app.whenReady().then(() => {
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show()
 })
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit()
+  if (process.platform === "darwin") return
+})
+
+app.on("before-quit", () => {
+  isQuitting = true
 })
 
 ipcMain.handle("desktop:get-version", () => app.getVersion())

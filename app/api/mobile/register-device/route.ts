@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { hashPushToken } from "@/lib/notifications/push"
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient()
   const now = new Date().toISOString()
-  const { error } = await admin
+  const { data, error } = await admin
     .from("user_devices")
     .upsert(
       {
@@ -31,7 +32,22 @@ export async function POST(request: NextRequest) {
       },
       { onConflict: "user_id,device_id,platform" },
     )
+    .select("id, platform, last_seen_at")
+    .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+
+  await admin.from("security_events").insert({
+    user_id: user.id,
+    user_email: user.email || null,
+    event_type: "mobile_device_registered",
+    details: {
+      device_id: deviceId || null,
+      platform,
+      has_push_token: Boolean(pushToken),
+      push_token_hash: pushToken ? hashPushToken(pushToken) : null,
+    },
+  })
+
+  return NextResponse.json({ ok: true, device: data, pushTokenSaved: Boolean(pushToken) })
 }

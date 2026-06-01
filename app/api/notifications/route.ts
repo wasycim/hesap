@@ -30,7 +30,7 @@ export async function GET() {
     .select("id, title, body, href, level, read_at, created_at")
     .or(`user_id.eq.${user.id},user_id.is.null`)
     .order("created_at", { ascending: false })
-    .limit(20)
+    .limit(50)
 
   const attendancePromise = profile?.tc_kimlik
     ? prisma.attendanceLog.findMany({
@@ -87,6 +87,17 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Oturum bulunamadı." }, { status: 401 })
 
   const body = await request.json().catch(() => ({}))
+  if (body.all === true) {
+    const admin = createAdminClient()
+    const { error } = await admin
+      .from("app_notifications")
+      .update({ read_at: new Date().toISOString() })
+      .or(`user_id.eq.${user.id},user_id.is.null`)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
+
   const id = String(body.id || "").trim()
   if (!id || id.startsWith("late-") || id.startsWith("overtime-")) {
     return NextResponse.json({ ok: true })
