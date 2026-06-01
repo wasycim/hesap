@@ -1,6 +1,6 @@
 {
-  "name": "my-project",
-  "version": "0.1.6",
+  "name": "hesap",
+  "version": "0.1.7",
   "private": true,
   "license": "UNLICENSED",
   "description": "Hesap web ve QR mesai takip sistemi",
@@ -67,9 +67,10 @@
       ]
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
+      "allowToChangeInstallationDirectory": false,
+      "include": "desktop/build/installer.nsh",
       "installerIcon": "desktop/build/icon.ico",
       "uninstallerIcon": "desktop/build/icon.ico",
       "installerHeaderIcon": "desktop/build/icon.ico",

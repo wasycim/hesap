@@ -684,7 +684,9 @@ Masaustu kabugunun kendisi guncellenecekse `package.json` icindeki `version` art
 $env:GH_TOKEN="github_token_degeri"; npm run desktop:publish
 ```
 
-Kullanici uygulamayi actiginda yeni release varsa "Guncelleme yapmaniz gerekmektedir" mesaji gorur. Uygulama yeni surumu indirir, indirme bitince yeniden baslatip kurar. Ornegin `0.1.5` kuruluysa ve GitHub Releases tarafinda `0.1.6` yayinlandiysa eski uygulama acilista `0.1.6` guncellemesini alir.
+Kullanici uygulamayi actiginda yeni release varsa "Guncelleme yapmaniz gerekmektedir" mesaji gorur. Uygulama yeni surumu indirir, indirme bitince yeniden baslatip kurar. Ornegin `0.1.5` kuruluysa ve GitHub Releases tarafinda `0.1.7` yayinlandiysa eski uygulama acilista `0.1.7` guncellemesini alir.
+
+Windows installer tek kullanicili sabit kurulum akisiyle calisir ve kurulum klasoru degistirme ekrani gostermez. Bu ayar uygulamanin yeni surumlerde ayni `Hesap` kurulumunun ustune gecmesini saglar. `0.1.5` doneminden kalan eski uninstall kaydi yeni installer tarafindan otomatik temizlenir; boylece Windows "Uygulamalar" ekraninda `Hesap 0.1.5` ve `Hesap 0.1.6+` yan yana gorunmez.
 
 Normal web sitesi degisiklikleri icin kullanicinin `.exe` dosyasini tekrar kurmasi gerekmez; uygulama siteyi actigi anda son web surumunu gorur. Electron kabugu, ikon, otomatik guncelleme veya PDF pencere davranisi gibi masaustu tarafina ait degisikliklerde yeni installer release edilir ve uygulama acilista bunu otomatik kontrol eder.
 
