@@ -23,14 +23,19 @@ export function NotificationCenter() {
 
   useEffect(() => {
     load()
-    const timer = window.setInterval(load, 120_000)
+    requestDesktopNotificationPermission()
+    const timer = window.setInterval(load, 30_000)
     return () => window.clearInterval(timer)
   }, [])
 
   async function load() {
     const response = await fetch("/api/notifications", { cache: "no-store" })
     const data = await response.json().catch(() => ({}))
-    if (response.ok) setItems(data.notifications || [])
+    if (response.ok) {
+      const nextItems = (data.notifications || []) as NotificationItem[]
+      showDesktopNotifications(nextItems)
+      setItems(nextItems)
+    }
   }
 
   async function markRead(item: NotificationItem) {
@@ -91,4 +96,53 @@ export function NotificationCenter() {
       </Popover>
     </div>
   )
+}
+
+function requestDesktopNotificationPermission() {
+  if (typeof window === "undefined" || !("Notification" in window)) return
+  if (Notification.permission === "default") {
+    Notification.requestPermission().catch(() => undefined)
+  }
+}
+
+function showDesktopNotifications(items: NotificationItem[]) {
+  if (typeof window === "undefined" || !("Notification" in window)) return
+  if (Notification.permission !== "granted") return
+
+  const notifiedKey = "hesap.desktop.notifiedNotificationIds"
+  const notified = new Set<string>(safeParseStringArray(window.localStorage.getItem(notifiedKey)))
+  let changed = false
+
+  for (const item of items) {
+    if (item.read_at || notified.has(item.id)) continue
+    notified.add(item.id)
+    changed = true
+
+    const notification = new Notification(item.title || "Hesap bildirimi", {
+      body: item.body || "Yeni bildirim var.",
+      icon: "/icon.png",
+      badge: "/icon.png",
+      tag: `hesap-${item.id}`,
+      requireInteraction: item.level === "warning" || item.level === "error",
+    })
+
+    notification.onclick = () => {
+      window.focus()
+      window.location.assign(item.href || "/dashboard")
+      notification.close()
+    }
+  }
+
+  if (changed) {
+    window.localStorage.setItem(notifiedKey, JSON.stringify([...notified].slice(-200)))
+  }
+}
+
+function safeParseStringArray(value: string | null) {
+  try {
+    const parsed = JSON.parse(value || "[]")
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : []
+  } catch {
+    return []
+  }
 }
