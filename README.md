@@ -20,6 +20,7 @@ Bu dokuman projeyi calistirmak, veritabani yapisini kurmak, QR mesai akisini anl
 - [Sistem Operasyonlari](#sistem-operasyonlari)
 - [Push Bildirim ve Gelismis Log](#push-bildirim-ve-gelismis-log)
 - [Mobil Native Hazirlik](#mobil-native-hazirlik)
+- [Mac Olmadan iOS TestFlight](#mac-olmadan-ios-testflight)
 - [Lisans ve Dagitim](#lisans-ve-dagitim)
 - [PDF ve Raporlama](#pdf-ve-raporlama)
 - [Deployment](#deployment)
@@ -731,6 +732,30 @@ Xcode icinde:
 3. Signing & Capabilities altinda Push Notifications etkinlestirilir.
 4. Gerekirse Background Modes > Remote notifications acilir.
 5. Archive alinir ve App Store Connect'e yuklenir.
+
+### Mac Olmadan iOS TestFlight
+
+Mac bilgisayar yoksa iPhone testleri icin Codemagic bulut Mac workflow'u hazirlandi. Repo kokundeki `codemagic.yaml`, `ios-testflight` workflow'u ile Capacitor iOS projesini build eder, App Store imzasi uygular ve `.ipa` dosyasini App Store Connect/TestFlight tarafina yukler.
+
+Gerekli kullanici tarafli bilgiler:
+
+- Apple Developer Program hesabi.
+- App Store Connect'te `Hesap` app kaydi.
+- Bundle ID: `wasy.system.hesap`
+- App Store Connect API key: `.p8`, Key ID, Issuer ID.
+- App Store Connect Apple ID: `APP_STORE_APP_ID`
+- Codemagic iOS signing: Apple Distribution sertifikasi ve `wasy.system.hesap` icin App Store provisioning profile.
+
+Codemagic ortam grubu `app_store_connect` su degiskenleri icermelidir:
+
+```text
+APP_STORE_CONNECT_PRIVATE_KEY
+APP_STORE_CONNECT_KEY_IDENTIFIER
+APP_STORE_CONNECT_ISSUER_ID
+APP_STORE_APP_ID
+```
+
+Detayli kurulum rehberi: `docs/ios-testflight-codemagic.md`
 
 Android Play Store upload icin:
 

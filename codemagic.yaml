@@ -1,0 +1,71 @@
+workflows:
+  ios-testflight:
+    name: iOS TestFlight - Hesap
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+
+    environment:
+      groups:
+        - app_store_connect
+      vars:
+        BUNDLE_ID: "wasy.system.hesap"
+        XCODE_PROJECT: "ios/App/App.xcodeproj"
+        XCODE_SCHEME: "App"
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: wasy.system.hesap
+
+    cache:
+      cache_paths:
+        - $HOME/.npm
+
+    scripts:
+      - name: Install npm dependencies
+        script: |
+          npm ci
+
+      - name: Prepare Capacitor iOS project
+        script: |
+          npm run mobile:assets
+          npx cap sync ios
+
+      - name: Initialize keychain
+        script: |
+          keychain initialize
+
+      - name: Add certificates to keychain
+        script: |
+          keychain add-certificates
+
+      - name: Apply provisioning profile
+        script: |
+          xcode-project use-profiles \
+            --project "$XCODE_PROJECT" \
+            --custom-export-options='{"testFlightInternalTestingOnly": true}'
+
+      - name: Increment iOS build number
+        script: |
+          NEXT_BUILD_NUMBER="${BUILD_NUMBER:-1}"
+          if [ -n "$APP_STORE_APP_ID" ]; then
+            LATEST_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" 2>/dev/null || echo 0)
+            NEXT_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
+          fi
+          (cd ios/App && agvtool new-version -all "$NEXT_BUILD_NUMBER")
+
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: false
