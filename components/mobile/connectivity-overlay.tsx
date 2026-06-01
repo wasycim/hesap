@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { RefreshCw, WifiOff } from "lucide-react"
-import { flushOfflineMutations, getOfflineQueueCount } from "@/lib/offline-sync"
+import { flushOfflineMutations, getOfflineQueueCount, installOfflineMutationQueue } from "@/lib/offline-sync"
 
 export function ConnectivityOverlay() {
   const [online, setOnline] = useState(true)
@@ -13,6 +13,7 @@ export function ConnectivityOverlay() {
     const updateOnline = () => setOnline(navigator.onLine)
     const updateQueue = () => setQueueCount(getOfflineQueueCount())
 
+    installOfflineMutationQueue()
     updateOnline()
     updateQueue()
     window.addEventListener("online", updateOnline)
@@ -37,29 +38,31 @@ export function ConnectivityOverlay() {
   if (online) {
     return queueCount > 0 || syncing ? (
       <div className="fixed bottom-4 right-4 z-[9997] rounded-full border bg-background px-4 py-2 text-xs font-semibold shadow-lg">
-        {syncing ? "Bekleyen işlemler senkronize ediliyor..." : `${queueCount} işlem bekliyor`}
+        {syncing ? "Bekleyen islemler senkronize ediliyor..." : `${queueCount} islem bekliyor`}
       </div>
     ) : null
   }
 
   return (
-    <div className="fixed inset-0 z-[10001] grid place-items-center bg-slate-950 px-6 text-white">
-      <div className="w-full max-w-sm text-center">
-        <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-white/10">
-          <WifiOff className="h-7 w-7" />
+    <div className="fixed inset-x-3 bottom-4 z-[10001] mx-auto max-w-xl rounded-2xl border border-amber-400/40 bg-slate-950/95 p-3 text-white shadow-2xl shadow-slate-950/30 backdrop-blur">
+      <div className="flex items-center gap-3">
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-amber-400/15 text-amber-300">
+          <WifiOff className="h-5 w-5" />
         </div>
-        <h2 className="mt-5 text-2xl font-bold tracking-normal">İnternet bağlantısı yok</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-300">
-          Bağlantı geri geldiğinde bekleyen güvenlik kayıtları otomatik senkronize edilir. Kontrol ettikten sonra sayfayı yeniden yükleyebilirsiniz.
-        </p>
-        {queueCount > 0 ? <p className="mt-3 text-xs font-semibold text-amber-300">{queueCount} işlem bekliyor.</p> : null}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold">Internet baglantisi yok</p>
+          <p className="mt-0.5 text-xs leading-5 text-slate-300">
+            Kaydedilen islemler kuyruga alinir ve baglanti gelince otomatik senkronize edilir.
+          </p>
+          {queueCount > 0 ? <p className="mt-1 text-xs font-semibold text-amber-300">{queueCount} islem bekliyor.</p> : null}
+        </div>
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 text-sm font-bold text-white shadow-lg shadow-emerald-950/40"
+          className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-3 text-xs font-bold text-white shadow-lg shadow-emerald-950/40"
         >
           <RefreshCw className="h-4 w-4" />
-          Yeniden yükle
+          Yenile
         </button>
       </div>
     </div>

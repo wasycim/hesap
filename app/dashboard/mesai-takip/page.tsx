@@ -210,8 +210,8 @@ export default function MesaiTakipPage() {
 
   const overtimePeople = useMemo(() => (
     (payload?.personelSummaries || [])
-      .filter((personel) => personel.overtimeMinutes > 0)
-      .sort((a, b) => b.overtimeMinutes - a.overtimeMinutes)
+      .filter((personel) => personel.payableOvertimeMinutes > 0)
+      .sort((a, b) => b.payableOvertimeMinutes - a.payableOvertimeMinutes)
   ), [payload])
 
   function exportPdf() {

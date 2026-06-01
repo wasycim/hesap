@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require("electron")
 contextBridge.exposeInMainWorld("hesapDesktop", {
   getVersion: () => ipcRenderer.invoke("desktop:get-version"),
   checkForUpdates: () => ipcRenderer.invoke("desktop:check-for-updates"),
+  savePdfReport: (payload) => ipcRenderer.invoke("desktop:save-pdf-report", payload),
   onUpdateStatus: (callback) => {
     if (typeof callback !== "function") return () => undefined
 

@@ -10,7 +10,7 @@ import { Preferences } from "@capacitor/preferences"
 import { PushNotifications } from "@capacitor/push-notifications"
 import { SplashScreen } from "@capacitor/splash-screen"
 import { StatusBar, Style } from "@capacitor/status-bar"
-import { BarChart3, CalendarDays, Camera, Home, RefreshCw, WalletCards } from "lucide-react"
+import { BarChart3, CalendarDays, Camera, Home, WalletCards } from "lucide-react"
 
 const nativeNavItems = [
   { label: "Panel", href: "/dashboard", icon: Home },
@@ -28,7 +28,7 @@ function isNativeApp() {
 
 export function NativeAppBridge() {
   const [native, setNative] = useState(false)
-  const [online, setOnline] = useState(true)
+  const [, setOnline] = useState(true)
   const [pushState, setPushState] = useState<PushState>("idle")
   const [currentPath, setCurrentPath] = useState("/")
 
@@ -84,34 +84,8 @@ export function NativeAppBridge() {
     window.location.href = href
   }
 
-  function reload() {
-    Haptics.impact({ style: ImpactStyle.Medium }).catch(() => undefined)
-    window.location.reload()
-  }
-
   return (
     <>
-      {!online && (
-        <div className="fixed inset-0 z-[10000] grid place-items-center bg-slate-950 px-6 text-white">
-          <div className="w-full max-w-sm text-center">
-            <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-white/10">
-              <RefreshCw className="h-7 w-7" />
-            </div>
-            <h2 className="mt-5 text-2xl font-bold">İnternet bağlantısı yok</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              Hesap verileri güvenli şekilde sunucudan alınır. Bağlantınızı kontrol edip tekrar deneyin.
-            </p>
-            <button
-              type="button"
-              onClick={reload}
-              className="mt-6 h-11 w-full rounded-xl bg-emerald-500 px-4 text-sm font-bold text-white shadow-lg shadow-emerald-950/40"
-            >
-              Yeniden yükle
-            </button>
-          </div>
-        </div>
-      )}
-
       {pushState === "denied" && (
         <div className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+10px)] z-[9999] rounded-xl border border-amber-500/40 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 shadow-lg dark:bg-amber-950 dark:text-amber-100">
           Bildirim izni kapalı. Mesai ve rapor hatırlatmaları için cihaz ayarlarından bildirimleri açabilirsiniz.

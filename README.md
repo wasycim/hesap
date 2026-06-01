@@ -568,7 +568,8 @@ Mesai takip ekrani gercek net fazla mesai dakikasini korur; maas hesabina ise od
 
 - 1 sa 15 dk veya 1 sa 30 dk gercekte aynen gosterilir, maasa 1 saat islenir.
 - 1 sa 45 dk ve uzeri bir sonraki saate yuvarlanir, maasa 2 saat islenir.
-- 60 dakikadan kisa ama pozitif fazla mesai maas detayinda 1 saat olarak islenir.
+- 45 dakikadan kisa fazla mesai maasa islenmez; 10 dk, 20 dk veya 44 dk icin mesai ucreti yazilmaz.
+- 45 dk ve uzeri 1 saat kabul edilir; 1 sa 45 dk ve uzeri sonraki saate yuvarlanir.
 
 Personel maas PDF'inde "gercek sure" ve "maasa islenen sure" ayrimi aciklamada gorunur.
 
@@ -606,7 +607,12 @@ Tarih filtreleri:
 
 PDF raporlar aktif filtreye gore hazirlanir. Ornegin haftalik filtre seciliyse sadece o haftanin vardiya veya mesai verileri yazdirilir.
 
-Masaustu `.exe` icinde PDF butonlari uygulamanin kendi yazdirma penceresini acar. PDF akisi `about:blank` penceresini Windows'a dis baglanti olarak gondermez; bu nedenle "Bu uygulama baglantisini acmak icin 'about' edinin" hatasi beklenmez.
+PDF butonlari once islem secimi acar. Yatay/dikey icin iki ayri akis vardir:
+
+- `PDF indir`: Masaustu `.exe` icinde dosya kaydetme penceresiyle gercek PDF olusturur. Web, iOS ve Android tarafinda tarayici/cihaz PDF olarak kaydet veya paylas akisi acilir.
+- `Yazdir`: Raporu yatay veya dikey A4 yazdirma penceresine gonderir.
+
+Masaustu PDF akisi `about:blank` penceresini Windows'a dis baglanti olarak gondermez; bu nedenle "Bu uygulama baglantisini acmak icin 'about' edinin" hatasi beklenmez.
 
 ## Deployment
 
@@ -678,21 +684,22 @@ Masaustu kabugunun kendisi guncellenecekse `package.json` icindeki `version` art
 $env:GH_TOKEN="github_token_degeri"; npm run desktop:publish
 ```
 
-Kullanici uygulamayi actiginda yeni release varsa "Yeni guncelleme var" mesaji gorur. "Guncelle" butonuna tikladiginda installer indirilir, uygulama yeniden baslar ve yeni surum otomatik kurulur.
+Kullanici uygulamayi actiginda yeni release varsa "Guncelleme yapmaniz gerekmektedir" mesaji gorur. Uygulama yeni surumu indirir, indirme bitince yeniden baslatip kurar. Ornegin `0.1.5` kuruluysa ve GitHub Releases tarafinda `0.1.6` yayinlandiysa eski uygulama acilista `0.1.6` guncellemesini alir.
 
 Normal web sitesi degisiklikleri icin kullanicinin `.exe` dosyasini tekrar kurmasi gerekmez; uygulama siteyi actigi anda son web surumunu gorur. Electron kabugu, ikon, otomatik guncelleme veya PDF pencere davranisi gibi masaustu tarafina ait degisikliklerde yeni installer release edilir ve uygulama acilista bunu otomatik kontrol eder.
 
 Otomatik guncelleme GitHub Release uzerinden calisir. Repo private oldugunda release dosyalari yalnizca yetkili GitHub erisimi veya proje sahibinin kapali dagitim kanali ile indirilebilir.
 
-Internet yokken masaustu uygulamasi bos Chromium hata sayfasi yerine kendi baglanti uyarisi ekranini acar. Bu ekranda "Yeniden yukle" butonu bulunur; baglanti geri geldiginde butona basildiginda uygulama ana siteyi tekrar yukler. Bu davranis `v0.1.5` ve sonraki masaustu surumlerinde vardir.
+Internet yokken masaustu uygulamasi bos Chromium hata sayfasi yerine kendi baglanti uyarisi ekranini acar. Bu ekranda "Yeniden yukle" butonu bulunur; baglanti geri geldiginde butona basildiginda uygulama ana siteyi tekrar yukler. Uygulama acikken baglanti kesilirse guvenli API islemleri offline kuyruga alinir ve baglanti gelince otomatik senkronize edilir.
 
 ## iOS ve Android Mobil Uygulama
 
 Mobil uygulama Capacitor tabanlidir ve `wasy.system.hesap` bundle/package id degeriyle hazirlanmistir. Uygulama production web adresi olan `https://pamukkaleturizm.info` uzerinden calisir; ancak yalnizca bos bir WebView paketi degildir. Native mobil kabuk su ozellikleri ekler:
 
-- Native alt menü: Panel, Mesai, Takip, Vardiya ve Maas ekranlarina hizli gecis
-- Internet yokken uygulama ici offline ekran ve `Yeniden yukle` butonu
-- Baglanti geri geldiginde bekleyen guvenlik kayitlarini otomatik senkronize etme
+- Native alt menu: Panel, Mesai, Takip, Vardiya ve Maas ekranlarina hizli gecis
+- Internet yokken uygulama ici offline uyari ve `Yenile` butonu
+- Baglanti geri geldiginde bekleyen guvenlik, tema, bildirim, vardiya ve desteklenen API islemlerini otomatik senkronize etme
+- Terminal QR mesai okutma offline yakalanir; QR'in okutuldugu an imzali token icinden dogrulanir ve internet geldiginde ayni saatle islenir
 - Push notification izin, cihaz token kaydi ve bildirim aksiyonu altyapisi
 - Local notification altyapisi
 - PDF rapor butonlari mobilde de rapor/print akisini acar; iOS/Android paylas veya yazdir ekranindan PDF olarak kaydedilebilir

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Camera, CheckCircle2, LogOut, RotateCcw, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { queueOfflineMutation } from "@/lib/offline-sync"
 
 type ScanState = "ready" | "processing" | "success" | "error"
 
@@ -85,11 +86,40 @@ export function PersonnelTerminalScanner({ userName, dashboardMode = false }: Pe
     setMessage("Mesai kontrol ediliyor")
     setDetail("Terminal QR dogrulaniyor.")
 
-    const response = await fetch("/api/personel/scan-terminal", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ qr: decodedText }),
-    })
+    const scannedAt = new Date().toISOString()
+    const requestBody = JSON.stringify({ qr: decodedText })
+    let response: Response
+
+    try {
+      response = await fetch("/api/personel/scan-terminal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: requestBody,
+      })
+    } catch (error) {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        queueOfflineMutation("/api/personel/scan-terminal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ qr: decodedText, offlineQueued: true, offlineScannedAt: scannedAt }),
+        }, {
+          label: "Mesai QR okutma",
+        })
+        setState("success")
+        setMessage("ISLEM KAYDEDILDI")
+        setDetail("Internet geldiginde giris/cikis otomatik senkronize edilecek. Kamera kapatildi.")
+        playTone("success")
+        await stopScanner()
+        return
+      }
+      setState("error")
+      setMessage("Baglanti hatasi")
+      setDetail("Internet baglantisini kontrol edip tekrar deneyin.")
+      playTone("error")
+      resetTimerRef.current = setTimeout(reset, 2800)
+      return
+    }
+
     const payload = (await response.json().catch(() => ({}))) as ScanResponse
 
     if (!response.ok) {
