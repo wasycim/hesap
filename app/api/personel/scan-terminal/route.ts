@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { AttendanceStatus, Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { getAuthSession } from "@/lib/qr-attendance/auth"
-import { parseTerminalQrPayload, verifyTerminalQrPayload } from "@/lib/qr-attendance/qr"
+import { parseTerminalQrPayload, verifyTerminalQrPayload, verifyTerminalQrPayloadAt } from "@/lib/qr-attendance/qr"
 import { calculateLateMinutes, calculateOvertimeMinutes, getShiftLabel, getWorkDate } from "@/lib/qr-attendance/time"
 import {
   ensurePrismaShift,
@@ -20,12 +20,23 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => ({}))
   const payload = parseTerminalQrPayload(body.qr)
+  const offlineQueued = body.offlineQueued === true
+  const offlineScannedAt = typeof body.offlineScannedAt === "string" ? new Date(body.offlineScannedAt) : null
+  const scanTime = offlineQueued && offlineScannedAt && !Number.isNaN(offlineScannedAt.getTime())
+    ? offlineScannedAt
+    : new Date()
 
-  if (!payload || !verifyTerminalQrPayload(payload)) {
+  const qrIsValid = payload
+    ? offlineQueued
+      ? verifyTerminalQrPayloadAt(payload, scanTime)
+      : verifyTerminalQrPayload(payload)
+    : false
+
+  if (!payload || !qrIsValid) {
     return NextResponse.json({ error: "Terminal QR gecersiz veya suresi dolmus." }, { status: 403 })
   }
 
-  const now = new Date()
+  const now = scanTime
 
   try {
     const currentUser = await prisma.user.findFirst({

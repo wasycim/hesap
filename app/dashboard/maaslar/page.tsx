@@ -152,7 +152,7 @@ export default function MaaslarPage() {
     })
 
     attendanceOvertime
-      .filter(detail => detail.personelId === personel.id && detail.overtimeMinutes > 0)
+      .filter(detail => detail.personelId === personel.id && (detail.payableOvertimeMinutes ?? detail.overtimeMinutes) > 0)
       .forEach(detail => {
         const payableMinutes = detail.payableOvertimeMinutes || detail.overtimeMinutes
         const hours = payableMinutes / 60

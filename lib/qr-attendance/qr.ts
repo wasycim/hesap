@@ -145,6 +145,39 @@ export function verifyTerminalQrPayload(payload: TerminalQrPayload) {
   }
 }
 
+export function verifyTerminalQrPayloadAt(payload: TerminalQrPayload, scannedAt: Date) {
+  try {
+    const claims = jwt.verify(payload.token, jwtSecret(), {
+      subject: "fixed-terminal",
+      issuer: qrIssuer,
+      audience: "hesap-mesai-personnel",
+      ignoreExpiration: true,
+    }) as { typ?: string; exp?: number; iat?: number }
+
+    if (payload.terminalId !== "fixed-terminal" || claims.typ !== "terminal-attendance-qr") {
+      return false
+    }
+
+    if (!claims.exp || !claims.iat) return false
+
+    const scannedAtMs = scannedAt.getTime()
+    const issuedAtMs = claims.iat * 1000
+    const expiresAtMs = claims.exp * 1000
+    const scanGraceMs = 30_000
+    const replayWindowMs = 14 * 24 * 60 * 60 * 1000
+    const nowMs = Date.now()
+
+    return (
+      scannedAtMs >= issuedAtMs - 5_000 &&
+      scannedAtMs <= expiresAtMs + scanGraceMs &&
+      scannedAtMs <= nowMs + 5 * 60 * 1000 &&
+      scannedAtMs >= nowMs - replayWindowMs
+    )
+  } catch {
+    return false
+  }
+}
+
 export function verifyDynamicQrPayload(payload: QrPayload, user: Pick<User, "id" | "qrToken">) {
   try {
     const claims = jwt.verify(payload.token, jwtSecret(), {

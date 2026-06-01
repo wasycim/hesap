@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain, session, shell } = require("electron")
 const { autoUpdater } = require("electron-updater")
 const path = require("path")
+const fs = require("fs")
 
 const defaultAppUrl = "https://pamukkaleturizm.info"
 let mainWindow = null
@@ -20,6 +21,14 @@ const appUrl = normalizeAppUrl(process.env.HESAP_DESKTOP_URL)
 const appOrigin = new URL(appUrl).origin
 const allowedOrigins = new Set([new URL(defaultAppUrl).origin, appOrigin])
 let isShowingOfflinePage = false
+
+function sanitizeFileName(value) {
+  return String(value || "Hesap-Rapor")
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120) || "Hesap-Rapor"
+}
 
 function getIconPath() {
   const iconFile = process.platform === "win32" ? "icon.ico" : "icon.png"
@@ -307,7 +316,7 @@ async function checkForUpdates({ manual = false } = {}) {
 }
 
 function configureAutoUpdater() {
-  autoUpdater.autoDownload = false
+  autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.allowPrerelease = false
   autoUpdater.allowDowngrade = false
@@ -322,22 +331,16 @@ function configureAutoUpdater() {
 
   autoUpdater.on("update-available", async (info) => {
     sendUpdateStatus("available", { version: info.version })
-    const choice = await dialog.showMessageBox(mainWindow, {
+    await dialog.showMessageBox(mainWindow, {
       type: "info",
       title: "Yeni guncelleme var",
-      message: "Yeni guncelleme var",
-      detail: `Hesap ${info.version} surumu hazir. Simdi indirip kurmak ister misiniz?`,
-      buttons: ["Guncelle", "Sonra"],
+      message: "Guncelleme yapmaniz gerekmektedir",
+      detail: `Hesap ${info.version} surumu hazir. Uygulama guncellemeyi indirip kurulum icin hazirlayacak.`,
+      buttons: ["Tamam"],
       defaultId: 0,
-      cancelId: 1,
+      cancelId: 0,
     })
-
-    if (choice.response === 0) {
-      sendUpdateStatus("downloading", { version: info.version })
-      autoUpdater.downloadUpdate().catch((error) => {
-        sendUpdateStatus("error", { message: error instanceof Error ? error.message : "Guncelleme indirilemedi." })
-      })
-    }
+    sendUpdateStatus("downloading", { version: info.version })
   })
 
   autoUpdater.on("download-progress", (progress) => {
@@ -350,19 +353,17 @@ function configureAutoUpdater() {
 
   autoUpdater.on("update-downloaded", async (info) => {
     sendUpdateStatus("downloaded", { version: info.version })
-    const choice = await dialog.showMessageBox(mainWindow, {
+    await dialog.showMessageBox(mainWindow, {
       type: "info",
       title: "Guncelleme indirildi",
       message: "Guncelleme hazir",
       detail: "Uygulama yeniden baslatilacak ve yeni surum otomatik kurulacak.",
-      buttons: ["Yeniden baslat ve kur", "Sonra"],
+      buttons: ["Yeniden baslat ve kur"],
       defaultId: 0,
-      cancelId: 1,
+      cancelId: 0,
     })
 
-    if (choice.response === 0) {
-      autoUpdater.quitAndInstall(false, true)
-    }
+    autoUpdater.quitAndInstall(false, true)
   })
 
   autoUpdater.on("error", (error) => {
@@ -392,3 +393,55 @@ app.on("window-all-closed", () => {
 
 ipcMain.handle("desktop:get-version", () => app.getVersion())
 ipcMain.handle("desktop:check-for-updates", () => checkForUpdates({ manual: true }))
+ipcMain.handle("desktop:save-pdf-report", async (_event, payload = {}) => {
+  const title = sanitizeFileName(payload.title)
+  const html = typeof payload.html === "string" ? payload.html : ""
+  const orientation = payload.orientation === "portrait" ? "portrait" : "landscape"
+
+  if (!html.trim()) {
+    return { ok: false, error: "PDF icerigi bos." }
+  }
+
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: "PDF kaydet",
+    defaultPath: `${title}.pdf`,
+    filters: [{ name: "PDF", extensions: ["pdf"] }],
+  })
+
+  if (canceled || !filePath) {
+    return { ok: false, canceled: true }
+  }
+
+  const pdfWindow = new BrowserWindow({
+    show: false,
+    width: orientation === "landscape" ? 1400 : 900,
+    height: orientation === "landscape" ? 900 : 1200,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      webSecurity: true,
+    },
+  })
+
+  try {
+    await pdfWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+    const pdfData = await pdfWindow.webContents.printToPDF({
+      landscape: orientation === "landscape",
+      printBackground: true,
+      pageSize: "A4",
+      margins: {
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0,
+      },
+    })
+    fs.writeFileSync(filePath, pdfData)
+    return { ok: true, filePath }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "PDF kaydedilemedi." }
+  } finally {
+    if (!pdfWindow.isDestroyed()) pdfWindow.close()
+  }
+})
