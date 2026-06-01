@@ -1,0 +1,62 @@
+name: Publish Desktop Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, for example v0.1.6"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  windows-release:
+    name: Build and upload Windows installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Windows installer
+        run: npm run desktop:dist
+
+      - name: Upload release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = $env:RELEASE_TAG
+          $version = $tag.TrimStart("v")
+          $installer = Resolve-Path "desktop/release/Hesap-Setup-$version.exe"
+          $blockmap = Resolve-Path "desktop/release/Hesap-Setup-$version.exe.blockmap"
+          $latest = Resolve-Path "desktop/release/latest.yml"
+
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag `
+              --title "Hesap $tag" `
+              --notes "Hesap $tag masaustu guncellemesi. Offline senkronizasyon, PDF indirme/yazdirma ayrimi ve 45 dakika fazla mesai kurali."
+          }
+
+          gh release upload $tag `
+            $installer `
+            $blockmap `
+            $latest `
+            --clobber
