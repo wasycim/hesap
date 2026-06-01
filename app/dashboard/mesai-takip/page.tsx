@@ -214,6 +214,11 @@ export default function MesaiTakipPage() {
       .sort((a, b) => b.payableOvertimeMinutes - a.payableOvertimeMinutes)
   ), [payload])
 
+  const performancePeople = useMemo(() => (
+    [...(payload?.personelSummaries || [])]
+      .sort((a, b) => (b.workedMinutes + b.payableOvertimeMinutes) - (a.workedMinutes + a.payableOvertimeMinutes))
+  ), [payload])
+
   function exportPdf() {
     if (!payload) return
     const branchName = selectedSubeId === "all"
@@ -420,6 +425,51 @@ export default function MesaiTakipPage() {
           </CardContent>
         </Card>
       </section>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Personel Performans Raporu</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Seçili tarih aralığında kişi bazlı çalışma, geç kalma, net fazla mesai ve maaşa işlenecek mesai toplamı.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full min-w-[920px] text-sm">
+              <thead className="bg-muted/70 text-left">
+                <tr>
+                  <th className="p-3">Personel</th>
+                  <th className="p-3">Şube</th>
+                  <th className="p-3">Kayıt</th>
+                  <th className="p-3">Açık</th>
+                  <th className="p-3">Çalışma</th>
+                  <th className="p-3">Geç Kalma</th>
+                  <th className="p-3">Net Fazla</th>
+                  <th className="p-3">Maaşa İşlenen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">Yükleniyor</td></tr>
+                ) : performancePeople.length === 0 ? (
+                  <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">Personel özeti yok</td></tr>
+                ) : performancePeople.map((item) => (
+                  <tr key={item.personelId} className="border-t">
+                    <td className="p-3 font-semibold">{item.name}</td>
+                    <td className="p-3">{item.branch?.ad || "-"}</td>
+                    <td className="p-3">{item.logCount}</td>
+                    <td className="p-3">{item.openCount}</td>
+                    <td className="p-3 font-semibold">{minutes(item.workedMinutes)}</td>
+                    <td className="p-3 text-red-600">{minutes(item.lateMinutes)}</td>
+                    <td className="p-3 text-amber-600">{minutes(item.overtimeMinutes)}</td>
+                    <td className="p-3 font-bold text-emerald-600">{minutes(item.payableOvertimeMinutes)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

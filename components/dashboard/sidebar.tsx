@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import {
   Activity,
   BarChart3,
+  BellRing,
   Building2,
   CalendarDays,
   Camera,
@@ -70,6 +71,7 @@ const adminMenuItems = [
 ]
 
 const bottomMenuItems = [
+  { title: "Bildirimler", href: "/dashboard/bildirimler", icon: BellRing, color: "text-emerald-500" },
   { title: "Hesap Ayarları", href: "/dashboard/hesap", icon: UserCog, color: "text-purple-500" },
 ]
 

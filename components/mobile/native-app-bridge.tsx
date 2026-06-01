@@ -54,6 +54,11 @@ export function NativeAppBridge() {
       await scheduleNativeReminder()
     }
 
+    async function retryRegistration() {
+      const storedToken = await Preferences.get({ key: "hesap:push-token" }).catch(() => ({ value: null }))
+      await registerNativeDevice(storedToken.value || undefined)
+    }
+
     const networkListener = Network.addListener("networkStatusChange", (status) => {
       setOnline(status.connected)
     })
@@ -62,13 +67,26 @@ export function NativeAppBridge() {
       if (isActive) {
         setCurrentPath(window.location.pathname)
         await Preferences.set({ key: "hesap:last-resumed-at", value: new Date().toISOString() }).catch(() => undefined)
+        await retryRegistration()
       }
     })
+
+    const visibilityListener = () => {
+      if (document.visibilityState === "visible") {
+        retryRegistration().catch(() => undefined)
+      }
+    }
+    document.addEventListener("visibilitychange", visibilityListener)
+    const retryTimer = window.setInterval(() => {
+      retryRegistration().catch(() => undefined)
+    }, 30_000)
 
     bootNativeShell()
 
     return () => {
       active = false
+      window.clearInterval(retryTimer)
+      document.removeEventListener("visibilitychange", visibilityListener)
       networkListener.then((listener) => listener.remove()).catch(() => undefined)
       appListener.then((listener) => listener.remove()).catch(() => undefined)
     }
@@ -165,16 +183,35 @@ async function registerPushNotifications(setPushState: (state: PushState) => voi
 
 async function registerNativeDevice(pushToken?: string) {
   const platform = Capacitor.getPlatform()
+  const token = pushToken || (await Preferences.get({ key: "hesap:push-token" }).catch(() => ({ value: null }))).value || undefined
   const stored = await Preferences.get({ key: "hesap:native-device-id" }).catch(() => ({ value: null }))
   const deviceId = stored.value || (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`)
   if (!stored.value) {
     await Preferences.set({ key: "hesap:native-device-id", value: deviceId }).catch(() => undefined)
   }
 
-  await fetch("/api/mobile/register-device", {
+  const response = await fetch("/api/mobile/register-device", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ deviceId, platform, pushToken }),
+    body: JSON.stringify({ deviceId, platform, pushToken: token }),
+  }).catch((error) => {
+    Preferences.set({
+      key: "hesap:native-device-register-error",
+      value: JSON.stringify({ message: error instanceof Error ? error.message : String(error), at: new Date().toISOString() }),
+    }).catch(() => undefined)
+    return null
+  })
+
+  if (!response) return
+  const result = await response.json().catch(() => ({}))
+  await Preferences.set({
+    key: "hesap:native-device-register-result",
+    value: JSON.stringify({
+      ok: response.ok,
+      status: response.status,
+      pushTokenSaved: Boolean(result?.pushTokenSaved),
+      at: new Date().toISOString(),
+    }),
   }).catch(() => undefined)
 }
 

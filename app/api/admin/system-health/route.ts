@@ -62,6 +62,7 @@ export async function GET() {
     { data: pendingDevices },
     pushDeviceCount,
     latestPushLogs,
+    latestUserDevices,
     digestEvents,
   ] = await Promise.all([
     admin.from("security_events").select("*").order("created_at", { ascending: false }).limit(8),
@@ -87,6 +88,11 @@ export async function GET() {
       .select("*")
       .order("created_at", { ascending: false })
       .limit(8),
+    admin
+      .from("user_devices")
+      .select("id, user_id, device_id, platform, enabled, last_seen_at, updated_at, created_at, push_token")
+      .order("last_seen_at", { ascending: false })
+      .limit(10),
     admin
       .from("security_events")
       .select("*")
@@ -114,6 +120,17 @@ export async function GET() {
       missing: pushProvider.missing,
       registeredDevices: pushDeviceCount.count || 0,
       latestDeliveries: latestPushLogs.data || [],
+      latestDevices: (latestUserDevices.data || []).map((device: any) => ({
+        id: device.id,
+        user_id: device.user_id,
+        device_id: device.device_id,
+        platform: device.platform,
+        enabled: device.enabled,
+        has_push_token: Boolean(device.push_token),
+        last_seen_at: device.last_seen_at,
+        updated_at: device.updated_at,
+        created_at: device.created_at,
+      })),
     },
     digestSummary: {
       configured: canSendAdminDigestEmail(),

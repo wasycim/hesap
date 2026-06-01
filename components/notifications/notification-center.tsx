@@ -47,6 +47,16 @@ export function NotificationCenter() {
     }).catch(() => undefined)
   }
 
+  async function markAllRead() {
+    const now = new Date().toISOString()
+    setItems((current) => current.map((entry) => ({ ...entry, read_at: entry.read_at || now })))
+    await fetch("/api/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ all: true }),
+    }).catch(() => undefined)
+  }
+
   const unreadCount = useMemo(() => items.filter((item) => !item.read_at).length, [items])
 
   return (
@@ -69,7 +79,14 @@ export function NotificationCenter() {
                 <h2 className="font-bold">Bildirimler</h2>
                 <p className="text-xs text-muted-foreground">Geç kalma, fazla mesai ve sistem uyarıları.</p>
               </div>
-              <Badge variant="outline">{unreadCount} yeni</Badge>
+              <div className="flex items-center gap-2">
+                {unreadCount > 0 ? (
+                  <button type="button" onClick={markAllRead} className="rounded-md px-2 py-1 text-xs font-semibold text-emerald-600 hover:bg-emerald-500/10">
+                    Tumunu okundu yap
+                  </button>
+                ) : null}
+                <Badge variant="outline">{unreadCount} yeni</Badge>
+              </div>
             </div>
           </div>
           <div className="max-h-[420px] overflow-y-auto">
@@ -91,6 +108,11 @@ export function NotificationCenter() {
                 </div>
               </div>
             ))}
+          </div>
+          <div className="border-t p-2">
+            <Link href="/dashboard/bildirimler" onClick={() => setOpen(false)} className="block rounded-md px-3 py-2 text-center text-xs font-bold text-emerald-600 hover:bg-emerald-500/10">
+              Bildirim gecmisini ac
+            </Link>
           </div>
         </PopoverContent>
       </Popover>

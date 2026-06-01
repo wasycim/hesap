@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { Activity, BellRing, CheckCircle2, Download, Mail, RefreshCw, Send, ShieldCheck, Trash2, Upload } from "lucide-react"
+import { Activity, BellRing, CheckCircle2, Download, Mail, RefreshCw, Send, ShieldCheck, SlidersHorizontal, Smartphone, Trash2, Upload } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { useSube } from "@/contexts/sube-context"
 
 type HealthPayload = {
@@ -27,6 +29,17 @@ type HealthPayload = {
       status: "sent" | "failed" | "skipped"
       title: string | null
       error: string | null
+      created_at: string
+    }>
+    latestDevices: Array<{
+      id: string
+      user_id: string
+      device_id: string | null
+      platform: string | null
+      enabled: boolean
+      has_push_token: boolean
+      last_seen_at: string | null
+      updated_at: string | null
       created_at: string
     }>
   }
@@ -63,6 +76,41 @@ type DigestUser = {
   weekly_enabled: boolean
 }
 
+type NotificationUser = {
+  user_id: string
+  email: string | null
+  display_name: string | null
+  sube_id: string | null
+  branch_name: string | null
+  is_admin: boolean
+  dashboard_access: boolean
+}
+
+type NotificationHistory = {
+  id: string
+  target_name: string
+  branch_name: string | null
+  title: string
+  level: string
+  read_at: string | null
+  push_status: string | null
+  push_error: string | null
+  created_at: string
+}
+
+type AttendanceRule = {
+  sube_id: string
+  sube_ad: string
+  sube_kod: string
+  active: boolean
+  late_enabled: boolean
+  late_threshold_minutes: number
+  overtime_enabled: boolean
+  overtime_threshold_minutes: number
+  send_to_personnel: boolean
+  send_to_admins: boolean
+}
+
 function formatDate(value?: string | null) {
   if (!value) return "-"
   return new Date(value).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" })
@@ -76,6 +124,19 @@ export default function SistemSagligiPage() {
   const [loading, setLoading] = useState(true)
   const [backupBusy, setBackupBusy] = useState(false)
   const [testBusy, setTestBusy] = useState<"push" | "digest" | null>(null)
+  const [notificationUsers, setNotificationUsers] = useState<NotificationUser[]>([])
+  const [notificationBranches, setNotificationBranches] = useState<Array<{ id: string; ad: string; kod: string }>>([])
+  const [notificationHistory, setNotificationHistory] = useState<NotificationHistory[]>([])
+  const [attendanceRules, setAttendanceRules] = useState<AttendanceRule[]>([])
+  const [manualTargetType, setManualTargetType] = useState("admins")
+  const [manualTargetUserId, setManualTargetUserId] = useState("")
+  const [manualTargetSubeId, setManualTargetSubeId] = useState("")
+  const [manualTitle, setManualTitle] = useState("Hesap bildirimi")
+  const [manualBody, setManualBody] = useState("")
+  const [manualHref, setManualHref] = useState("/dashboard/bildirimler")
+  const [manualLevel, setManualLevel] = useState("info")
+  const [manualBusy, setManualBusy] = useState(false)
+  const [ruleBusy, setRuleBusy] = useState<string | null>(null)
 
   useEffect(() => {
     if (!subeLoading && isAdmin) loadAll()
@@ -84,19 +145,27 @@ export default function SistemSagligiPage() {
 
   async function loadAll() {
     setLoading(true)
-    const [healthRes, devicesRes, digestRes] = await Promise.all([
+    const [healthRes, devicesRes, digestRes, notificationsRes, rulesRes] = await Promise.all([
       fetch("/api/admin/system-health", { cache: "no-store" }),
       fetch("/api/admin/terminal-devices", { cache: "no-store" }),
       fetch("/api/admin/digest-settings", { cache: "no-store" }),
+      fetch("/api/admin/notifications", { cache: "no-store" }),
+      fetch("/api/admin/attendance-rules", { cache: "no-store" }),
     ])
-    const [healthData, devicesData, digestData] = await Promise.all([
+    const [healthData, devicesData, digestData, notificationsData, rulesData] = await Promise.all([
       healthRes.json().catch(() => null),
       devicesRes.json().catch(() => null),
       digestRes.json().catch(() => null),
+      notificationsRes.json().catch(() => null),
+      rulesRes.json().catch(() => null),
     ])
     setHealth(healthRes.ok ? healthData : null)
     setDevices(devicesRes.ok ? devicesData.devices || [] : [])
     setDigestUsers(digestRes.ok ? digestData.users || [] : [])
+    setNotificationUsers(notificationsRes.ok ? notificationsData.users || [] : [])
+    setNotificationBranches(notificationsRes.ok ? notificationsData.branches || [] : [])
+    setNotificationHistory(notificationsRes.ok ? notificationsData.history || [] : [])
+    setAttendanceRules(rulesRes.ok ? rulesData.rules || [] : [])
     setLoading(false)
   }
 
@@ -247,6 +316,73 @@ export default function SistemSagligiPage() {
     loadAll()
   }
 
+  async function sendManualNotification() {
+    if (!manualTitle.trim() || !manualBody.trim()) {
+      toast.error("Bildirim basligi ve mesaji zorunlu.")
+      return
+    }
+
+    setManualBusy(true)
+    const response = await fetch("/api/admin/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        targetType: manualTargetType,
+        userId: manualTargetUserId,
+        subeId: manualTargetSubeId,
+        title: manualTitle,
+        body: manualBody,
+        href: manualHref,
+        level: manualLevel,
+        sendPush: true,
+      }),
+    })
+    const result = await response.json().catch(() => ({}))
+    setManualBusy(false)
+
+    if (!response.ok) {
+      toast.error(result.error || "Bildirim gonderilemedi.")
+      return
+    }
+
+    toast.success(`${result.recipients || 0} kullaniciya bildirim olusturuldu.`)
+    setManualBody("")
+    loadAll()
+  }
+
+  function patchAttendanceRule(subeId: string, patch: Partial<AttendanceRule>) {
+    setAttendanceRules((items) => items.map((item) => item.sube_id === subeId ? { ...item, ...patch } : item))
+  }
+
+  async function saveAttendanceRule(rule: AttendanceRule) {
+    setRuleBusy(rule.sube_id)
+    const response = await fetch("/api/admin/attendance-rules", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subeId: rule.sube_id,
+        active: rule.active,
+        lateEnabled: rule.late_enabled,
+        lateThresholdMinutes: rule.late_threshold_minutes,
+        overtimeEnabled: rule.overtime_enabled,
+        overtimeThresholdMinutes: rule.overtime_threshold_minutes,
+        sendToPersonnel: rule.send_to_personnel,
+        sendToAdmins: rule.send_to_admins,
+      }),
+    })
+    const result = await response.json().catch(() => ({}))
+    setRuleBusy(null)
+
+    if (!response.ok) {
+      toast.error(result.error || "Uyari kurali kaydedilemedi.")
+      loadAll()
+      return
+    }
+
+    toast.success(`${rule.sube_ad} uyari kurali kaydedildi.`)
+    loadAll()
+  }
+
   const approvedDevices = useMemo(() => devices.filter((device) => device.approved), [devices])
   const pendingDevices = useMemo(() => devices.filter((device) => !device.approved), [devices])
 
@@ -343,6 +479,21 @@ export default function SistemSagligiPage() {
               <Send className={testBusy === "push" ? "h-4 w-4 animate-pulse" : "h-4 w-4"} />
               Test push gönder
             </Button>
+            {(health?.pushSummary?.latestDevices || []).length > 0 ? (
+              <div className="space-y-2 pt-2">
+                <p className="flex items-center gap-2 text-sm font-semibold"><Smartphone className="h-4 w-4" /> Son kayitli cihazlar</p>
+                {(health?.pushSummary?.latestDevices || []).slice(0, 5).map((device) => (
+                  <div key={device.id} className="grid gap-2 rounded-lg border p-3 text-xs sm:grid-cols-[1fr_auto_auto] sm:items-center">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{device.platform || "bilinmeyen"} / {device.device_id || "cihaz id yok"}</p>
+                      <p className="text-muted-foreground">Son gorulme: {formatDate(device.last_seen_at || device.updated_at || device.created_at)}</p>
+                    </div>
+                    <Badge variant={device.enabled ? "default" : "secondary"}>{device.enabled ? "Aktif" : "Kapali"}</Badge>
+                    <Badge variant={device.has_push_token ? "default" : "destructive"}>{device.has_push_token ? "Token var" : "Token yok"}</Badge>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -362,6 +513,135 @@ export default function SistemSagligiPage() {
               <Mail className={testBusy === "digest" ? "h-4 w-4 animate-pulse" : "h-4 w-4"} />
               Test rapor maili gönder
             </Button>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><BellRing className="h-5 w-5" /> Manuel Bildirim Gönder</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="grid gap-1.5 text-sm">
+                <span className="font-medium">Hedef</span>
+                <Select value={manualTargetType} onValueChange={setManualTargetType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admins">Yöneticiler</SelectItem>
+                    <SelectItem value="branch">Şube</SelectItem>
+                    <SelectItem value="user">Tek kullanıcı</SelectItem>
+                    <SelectItem value="all">Tüm kullanıcılar</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+              {manualTargetType === "user" ? (
+                <label className="grid gap-1.5 text-sm">
+                  <span className="font-medium">Kullanıcı</span>
+                  <Select value={manualTargetUserId} onValueChange={setManualTargetUserId}>
+                    <SelectTrigger><SelectValue placeholder="Kullanıcı seç" /></SelectTrigger>
+                    <SelectContent>
+                      {notificationUsers.map((user) => (
+                        <SelectItem key={user.user_id} value={user.user_id}>{user.display_name || user.email || user.user_id}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+              ) : null}
+              {manualTargetType === "branch" ? (
+                <label className="grid gap-1.5 text-sm">
+                  <span className="font-medium">Şube</span>
+                  <Select value={manualTargetSubeId} onValueChange={setManualTargetSubeId}>
+                    <SelectTrigger><SelectValue placeholder="Şube seç" /></SelectTrigger>
+                    <SelectContent>
+                      {notificationBranches.map((branch) => (
+                        <SelectItem key={branch.id} value={branch.id}>{branch.ad}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+              ) : null}
+              <label className="grid gap-1.5 text-sm">
+                <span className="font-medium">Seviye</span>
+                <Select value={manualLevel} onValueChange={setManualLevel}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="info">Bilgi</SelectItem>
+                    <SelectItem value="success">Başarılı</SelectItem>
+                    <SelectItem value="warning">Uyarı</SelectItem>
+                    <SelectItem value="error">Kritik</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="grid gap-1.5 text-sm">
+                <span className="font-medium">Link</span>
+                <Input value={manualHref} onChange={(event) => setManualHref(event.target.value)} />
+              </label>
+            </div>
+            <label className="grid gap-1.5 text-sm">
+              <span className="font-medium">Başlık</span>
+              <Input value={manualTitle} onChange={(event) => setManualTitle(event.target.value)} />
+            </label>
+            <label className="grid gap-1.5 text-sm">
+              <span className="font-medium">Mesaj</span>
+              <Textarea value={manualBody} onChange={(event) => setManualBody(event.target.value)} rows={4} placeholder="Gönderilecek bildirimi yaz..." />
+            </label>
+            <Button onClick={sendManualNotification} disabled={manualBusy} className="gap-2">
+              <Send className={manualBusy ? "h-4 w-4 animate-pulse" : "h-4 w-4"} />
+              Bildirim gönder
+            </Button>
+            <div className="space-y-2 pt-2">
+              <p className="text-sm font-semibold">Son bildirimler</p>
+              {notificationHistory.slice(0, 4).map((item) => (
+                <div key={item.id} className="rounded-lg border p-3 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold">{item.title}</p>
+                    <Badge variant={item.read_at ? "secondary" : "default"}>{item.read_at ? "Okundu" : "Yeni"}</Badge>
+                  </div>
+                  <p className="mt-1 text-muted-foreground">{item.target_name} / {item.push_status || "pending"}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><SlidersHorizontal className="h-5 w-5" /> Şube Bazlı Mesai Uyarı Kuralları</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">Geç kalma ve fazla mesai push uyarıları şube bazlı eşiklerle çalışır. Fazla mesai varsayılan 45 dk ve üzeri için bildirilir.</p>
+            {attendanceRules.map((rule) => (
+              <div key={rule.sube_id} className="rounded-xl border p-3">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">{rule.sube_ad}</p>
+                    <p className="text-xs text-muted-foreground">Kod: {rule.sube_kod || "-"}</p>
+                  </div>
+                  <Switch checked={rule.active} onCheckedChange={(checked) => patchAttendanceRule(rule.sube_id, { active: checked })} />
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
+                    Geç kalma eşiği (dk)
+                    <Input type="number" min={0} value={rule.late_threshold_minutes} onChange={(event) => patchAttendanceRule(rule.sube_id, { late_threshold_minutes: Number(event.target.value) || 0 })} />
+                  </label>
+                  <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
+                    Fazla mesai eşiği (dk)
+                    <Input type="number" min={0} value={rule.overtime_threshold_minutes} onChange={(event) => patchAttendanceRule(rule.sube_id, { overtime_threshold_minutes: Number(event.target.value) || 0 })} />
+                  </label>
+                </div>
+                <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                  <label className="flex items-center justify-between gap-2 rounded-lg bg-muted/45 px-3 py-2">Geç uyarısı <Switch checked={rule.late_enabled} onCheckedChange={(checked) => patchAttendanceRule(rule.sube_id, { late_enabled: checked })} /></label>
+                  <label className="flex items-center justify-between gap-2 rounded-lg bg-muted/45 px-3 py-2">Fazla mesai <Switch checked={rule.overtime_enabled} onCheckedChange={(checked) => patchAttendanceRule(rule.sube_id, { overtime_enabled: checked })} /></label>
+                  <label className="flex items-center justify-between gap-2 rounded-lg bg-muted/45 px-3 py-2">Personele gönder <Switch checked={rule.send_to_personnel} onCheckedChange={(checked) => patchAttendanceRule(rule.sube_id, { send_to_personnel: checked })} /></label>
+                  <label className="flex items-center justify-between gap-2 rounded-lg bg-muted/45 px-3 py-2">Yöneticilere de gönder <Switch checked={rule.send_to_admins} onCheckedChange={(checked) => patchAttendanceRule(rule.sube_id, { send_to_admins: checked })} /></label>
+                </div>
+                <Button size="sm" variant="outline" className="mt-3" disabled={ruleBusy === rule.sube_id} onClick={() => saveAttendanceRule(rule)}>
+                  {ruleBusy === rule.sube_id ? "Kaydediliyor" : "Kural kaydet"}
+                </Button>
+              </div>
+            ))}
           </CardContent>
         </Card>
       </section>

@@ -120,6 +120,26 @@ export async function GET(request: NextRequest) {
   const fixedShiftDefinitions = defaultFixedShifts
     .map((row) => ({ ...row, ...(fixedByCode.get(row.kod) || {}) }))
     .filter((row) => row.aktif)
+  const personelById = new Map((personelRes.data || []).map((personel) => [personel.id, personel]))
+  const planGroups = new Map<string, any[]>()
+  for (const assignment of planRes.data || []) {
+    const key = `${assignment.personel_id}__${assignment.tarih}`
+    const items = planGroups.get(key) || []
+    items.push(assignment)
+    planGroups.set(key, items)
+  }
+  const conflicts = Array.from(planGroups.entries())
+    .filter(([, items]) => items.length > 1)
+    .map(([key, items]) => {
+      const [personelId, tarih] = key.split("__")
+      return {
+        personel_id: personelId,
+        personel_ad: personelById.get(personelId)?.ad || personelId,
+        tarih,
+        count: items.length,
+        vardiyalar: items.map((item) => item.vardiya),
+      }
+    })
 
   return NextResponse.json({
     personeller: (personelRes.data || []).map((personel) => ({
@@ -130,6 +150,7 @@ export async function GET(request: NextRequest) {
       sabit_vardiya: personel.sabit_vardiya || null,
     })),
     assignments: planRes.data || [],
+    conflicts,
     fixedShiftDefinitions,
     shiftDefinitions: shiftRes.data || [],
   })

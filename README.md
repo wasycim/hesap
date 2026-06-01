@@ -19,6 +19,7 @@ Bu dokuman projeyi calistirmak, veritabani yapisini kurmak, QR mesai akisini anl
 - [Guvenlik](#guvenlik)
 - [Sistem Operasyonlari](#sistem-operasyonlari)
 - [Push Bildirim ve Gelismis Log](#push-bildirim-ve-gelismis-log)
+- [Bildirim, Yedekleme ve Performans Gelistirmeleri](#bildirim-yedekleme-ve-performans-gelistirmeleri)
 - [Mobil Native Hazirlik](#mobil-native-hazirlik)
 - [Mac Olmadan iOS TestFlight](#mac-olmadan-ios-testflight)
 - [Lisans ve Dagitim](#lisans-ve-dagitim)
@@ -114,6 +115,21 @@ Personellerin giris cikisini sabit terminal QR'i ile takip eder.
 
 > Not: Otomatik fazla mesai hesabi gelir veya gider tablosuna kayit yazmaz. Sadece maaslar sayfasinda personelin net kalan maasina eklenir.
 
+## Bildirim, Yedekleme ve Performans Gelistirmeleri
+
+Son surumde sistem operasyonlari genisletildi:
+
+- `/dashboard/sistem-sagligi` icinden yonetici, sube, tek kullanici veya tum kullanicilara manuel bildirim gonderilebilir.
+- Bildirimler hem uygulama ici kayit olarak tutulur hem de FCM tokeni olan cihazlara push olarak iletilir.
+- `/dashboard/bildirimler` sayfasinda bildirim gecmisi, okunma durumu ve toplu okundu isaretleme bulunur.
+- Mobil cihaz push token kaydi, kullanici girisinden sonra otomatik yeniden denenir; boylece ilk acilista oturum yoksa token kaybi yasanmaz.
+- Sube bazli mesai uyari kurallari eklendi. Gec kalma ve fazla mesai esikleri sube sube ayarlanabilir.
+- Fazla mesai bildirim esigi varsayilan olarak 45 dakikadir. 45 dakika alti mesai maasa islenmez; 45 dakika ve uzeri bir sonraki saat kuralina gore yuvarlanir.
+- Mesai takip ekraninda personel performans raporu bulunur: calisma, gec kalma, net fazla mesai ve maasa islenen sure tek tabloda izlenir.
+- Vardiya sayfasinda cakisma kontrolu gorunur hale getirildi. Ayni personele ayni gun ikinci vardiya kaydi API ve veritabani seviyesinde engellenir.
+- Yedekleme kapsami genisletildi: subeler, personeller, gelir/gider, corbalar, kargo cari, 14 no hesap, vardiya, mesai, bildirim, terminal cihaz, audit log ve sistem operasyon tablolari JSON yedegine dahil edilir.
+- Windows `.exe` surumu kapanis tusuna basildiginda tamamen kapanmak yerine sistem tepsisinde arka planda calisir; bildirimlerin gelmeye devam etmesi icin Windows acilisinda otomatik baslatma ayari yapar. PC tamamen kapaliyken bildirim almak teknik olarak mumkun degildir; PC acildiginda uygulama tekrar devreye girer.
+
 ## QR Mesai Akisi
 
 Sistemin temel farki sudur: QR personelde sabit kalmaz. Guvenlik icin sabit terminal ekranindaki QR 30 saniyede bir yenilenir.
@@ -147,6 +163,7 @@ Bu yapi sayesinde terminaldeki QR kopyalansa bile kisa surede gecersiz olur.
 | `/dashboard/maaslar` | Maas, avans ve fazla mesai hesap paneli | Yonetici |
 | `/dashboard/ayarlar` | Ortak, personel ve kargo firma ayarlari | Yonetici |
 | `/dashboard/admin-ayarlar` | Kullanici, sube, rol ve guvenlik ayarlari | Yonetici |
+| `/dashboard/bildirimler` | Bildirim gecmisi ve okundu durumu | Giris yapmis kullanici |
 | `/dashboard/guvenlik-ayarlar` | Guvenlik olaylari | Yonetici |
 | `/personel-mesai` | Mesai admin paneli | Yonetici |
 | `/login` | Eski mesai girisi; `/auth/giris` sayfasina yonlendirir | Herkes |

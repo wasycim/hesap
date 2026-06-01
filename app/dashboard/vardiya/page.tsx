@@ -51,6 +51,14 @@ type FixedShiftDefinition = {
   aktif: boolean
 }
 
+type ShiftConflict = {
+  personel_id: string
+  personel_ad: string
+  tarih: string
+  count: number
+  vardiyalar: string[]
+}
+
 type ShiftOption = {
   id: string
   label: string
@@ -139,6 +147,7 @@ export default function VardiyaPage() {
   const [customShifts, setCustomShifts] = useState<CustomShift[]>([])
   const [assignments, setAssignments] = useState<Record<string, string>>({})
   const [dirtyAssignments, setDirtyAssignments] = useState<Record<string, string>>({})
+  const [conflicts, setConflicts] = useState<ShiftConflict[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const selectedRange = useMemo(() => {
@@ -243,6 +252,7 @@ export default function VardiyaPage() {
     setPersoneller(payload.personeller || [])
     setFixedShifts(payload.fixedShiftDefinitions || [])
     setCustomShifts(payload.shiftDefinitions || [])
+    setConflicts(payload.conflicts || [])
     setAssignments(Object.fromEntries((payload.assignments || []).map((assignment: Assignment) => [
       `${assignment.tarih}__${assignment.personel_id}`,
       assignment.vardiya,
@@ -570,6 +580,21 @@ export default function VardiyaPage() {
             </table>
           </div>
         )}
+
+        <div className={`rounded-lg border p-3 text-xs ${conflicts.length ? "border-red-400 bg-red-50 text-red-800 dark:border-red-500/40 dark:bg-red-500/15 dark:text-red-100" : "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-100"}`}>
+          {conflicts.length ? (
+            <div className="space-y-1">
+              <p className="font-bold">Vardiya çakışması bulundu. Aynı personele aynı gün birden fazla vardiya atanmış.</p>
+              {conflicts.slice(0, 5).map((conflict) => (
+                <p key={`${conflict.personel_id}-${conflict.tarih}`}>
+                  {conflict.personel_ad} / {conflict.tarih}: {conflict.vardiyalar.join(", ")}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <p className="font-bold">Çakışma kontrolü aktif. Aynı personele aynı gün ikinci vardiya kaydedilemez.</p>
+          )}
+        </div>
 
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
           {shiftOptions.map((shift) => (
