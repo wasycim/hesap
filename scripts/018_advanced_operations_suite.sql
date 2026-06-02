@@ -463,6 +463,45 @@ values
   ('android', 'Hesap', 'QR mesai ve rapor yonetimi', 'Hesap, sube bazli mesai, vardiya, bildirim ve PDF rapor sureclerini yonetmek icin gelistirilen is uygulamasidir.', 'mesai,vardiya,rapor,pdf,sube', '/store-screenshots')
 on conflict do nothing;
 
+with default_user_permissions(permission_key) as (
+  values
+    ('dashboard'),
+    ('gelir'),
+    ('gider'),
+    ('corbalar'),
+    ('kargo_cari'),
+    ('vardiya'),
+    ('mesai'),
+    ('mesai_takip'),
+    ('cay'),
+    ('bildirimler'),
+    ('hesap')
+)
+insert into public.dashboard_permission_overrides (
+  scope_type,
+  role_key,
+  user_id,
+  permission_key,
+  allowed,
+  active,
+  note
+)
+select
+  'role',
+  'user',
+  null,
+  default_user_permissions.permission_key,
+  true,
+  true,
+  'Normal kullanici operasyon menuleri varsayilan acik.'
+from default_user_permissions
+on conflict (role_key, permission_key)
+where scope_type = 'role' and active = true
+do update set
+  allowed = true,
+  updated_at = now(),
+  note = excluded.note;
+
 update public.user_profiles
 set is_developer = true,
     is_admin = true,

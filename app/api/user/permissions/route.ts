@@ -46,6 +46,10 @@ function defaultsForRole(role: "developer" | "admin" | "user") {
   }
 
   permissions.dashboard = true
+  permissions.gelir = true
+  permissions.gider = true
+  permissions.corbalar = true
+  permissions.kargo_cari = true
   permissions.vardiya = true
   permissions.mesai = true
   permissions.mesai_takip = true
