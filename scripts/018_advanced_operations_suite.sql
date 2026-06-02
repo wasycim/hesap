@@ -471,3 +471,51 @@ set is_developer = true,
     updated_at = now()
 where tc_kimlik = '25511195212'
    or lower(coalesce(email, '')) = 'ykacaran480@gmail.com';
+
+with faruk_profile as (
+  select user_id
+  from public.user_profiles
+  where tc_kimlik = '24802737766'
+     or lower(coalesce(display_name, '')) = lower('Faruk KAHRIMAN')
+     or lower(coalesce(display_name, '')) = lower('Faruk KAHRİMAN')
+  limit 1
+),
+faruk_permissions(permission_key) as (
+  values
+    ('dashboard'),
+    ('gelir'),
+    ('gider'),
+    ('corbalar'),
+    ('vardiya'),
+    ('mesai'),
+    ('mesai_takip'),
+    ('kargo_cari'),
+    ('cay'),
+    ('bildirimler'),
+    ('hesap')
+)
+insert into public.dashboard_permission_overrides (
+  scope_type,
+  user_id,
+  role_key,
+  permission_key,
+  allowed,
+  active,
+  note
+)
+select
+  'user',
+  faruk_profile.user_id,
+  null,
+  faruk_permissions.permission_key,
+  true,
+  true,
+  'Faruk Kahriman eski menu yetkileri korunur.'
+from faruk_profile
+cross join faruk_permissions
+on conflict (user_id, permission_key)
+where scope_type = 'user' and active = true
+do update set
+  allowed = true,
+  updated_at = now(),
+  note = excluded.note;

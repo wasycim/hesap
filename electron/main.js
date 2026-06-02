@@ -359,6 +359,18 @@ function configureStartup() {
   })
 }
 
+function prepareForRealQuit() {
+  isQuitting = true
+  if (tray) {
+    tray.destroy()
+    tray = null
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.removeAllListeners("close")
+    mainWindow.close()
+  }
+}
+
 function startupPreferencePath() {
   return path.join(app.getPath("userData"), "startup-preference.json")
 }
@@ -471,7 +483,14 @@ function configureAutoUpdater() {
       cancelId: 0,
     })
 
-    autoUpdater.quitAndInstall(false, true)
+    prepareForRealQuit()
+    setTimeout(() => {
+      autoUpdater.quitAndInstall(false, true)
+    }, 300)
+  })
+
+  autoUpdater.on("before-quit-for-update", () => {
+    prepareForRealQuit()
   })
 
   autoUpdater.on("error", (error) => {
@@ -503,7 +522,7 @@ app.on("window-all-closed", () => {
 })
 
 app.on("before-quit", () => {
-  isQuitting = true
+  prepareForRealQuit()
 })
 
 ipcMain.handle("desktop:get-version", () => app.getVersion())

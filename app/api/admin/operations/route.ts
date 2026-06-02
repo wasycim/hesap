@@ -154,6 +154,35 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}))
   const payload = sanitizePayload(table, body, guard.user.id)
   const admin = createAdminClient()
+
+  if (table === "dashboard_permission_overrides") {
+    let existingQuery = admin
+      .from(table)
+      .select("id")
+      .eq("scope_type", payload.scope_type)
+      .eq("permission_key", payload.permission_key)
+      .eq("active", true)
+
+    if (payload.scope_type === "role") existingQuery = existingQuery.eq("role_key", payload.role_key)
+    if (payload.scope_type === "user") existingQuery = existingQuery.eq("user_id", payload.user_id)
+
+    const { data: existing, error: existingError } = await existingQuery.maybeSingle()
+    if (existingError) return NextResponse.json({ error: existingError.message }, { status: 500 })
+    if (existing?.id) {
+      const { data, error } = await admin.from(table).update(payload).eq("id", existing.id).select("*").single()
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+      await admin.from("security_events").insert({
+        user_id: guard.user.id,
+        user_email: guard.profile?.email || guard.user.email,
+        event_type: `${table}_update`,
+        details: { id: data.id },
+      })
+
+      return NextResponse.json({ ok: true, item: data })
+    }
+  }
+
   const { data, error } = await admin.from(table).insert(payload).select("*").single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

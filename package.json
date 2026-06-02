@@ -1,6 +1,6 @@
 {
   "name": "hesap",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "private": true,
   "license": "UNLICENSED",
   "description": "Hesap web ve QR mesai takip sistemi",
