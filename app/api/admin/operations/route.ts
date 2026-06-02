@@ -43,6 +43,32 @@ function sanitizePayload(table: string, body: any, userId: string) {
       updated_at: now,
     }
   }
+  if (table === "overtime_approvals") {
+    const rawMinutes = Math.max(0, Math.round(Number(body.raw_minutes) || 0))
+    const payableMinutes = Math.max(0, Math.round(Number(body.payable_minutes) || Number(body.manual_minutes) || rawMinutes || 0))
+    const manualMinutes = Math.max(0, Math.round(Number(body.manual_minutes) || 0))
+    const status = ["pending", "approved", "rejected"].includes(body.status) ? body.status : "pending"
+    return {
+      attendance_log_id: body.attendance_log_id ? Number(body.attendance_log_id) : null,
+      personel_id: body.personel_id || null,
+      source_key: body.source_key ? String(body.source_key).trim().slice(0, 180) : null,
+      user_profile_id: body.user_profile_id || null,
+      personel_name: String(body.personel_name || "").trim().slice(0, 160),
+      branch_name: String(body.branch_name || "").trim().slice(0, 120),
+      work_date: body.work_date || null,
+      raw_minutes: rawMinutes,
+      payable_minutes: payableMinutes,
+      manual_minutes: manualMinutes,
+      hourly_rate: body.hourly_rate ? Number(body.hourly_rate) : null,
+      amount: body.amount ? Number(body.amount) : null,
+      status,
+      requested_by: userId,
+      approved_by: status === "approved" ? userId : null,
+      approved_at: status === "approved" ? now : null,
+      note: String(body.note || body.manual_reason || "").trim().slice(0, 1000),
+      updated_at: now,
+    }
+  }
   if (table === "pdf_templates") {
     return {
       name: String(body.name || "PDF Sablonu").trim().slice(0, 120),
@@ -211,12 +237,16 @@ export async function PATCH(request: NextRequest) {
     payload = { value: body.value && typeof body.value === "object" ? body.value : {}, updated_by: guard.user.id, updated_at: new Date().toISOString() }
   } else if (table === "overtime_approvals") {
     const status = ["pending", "approved", "rejected"].includes(body.status) ? body.status : "pending"
+    const nextPayableMinutes = body.payable_minutes === undefined
+      ? undefined
+      : Math.max(0, Math.round(Number(body.payable_minutes) || 0))
     payload = {
       status,
       note: String(body.note || "").slice(0, 1000),
       approved_by: status === "pending" ? null : guard.user.id,
       approved_at: status === "pending" ? null : new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      ...(nextPayableMinutes === undefined ? {} : { payable_minutes: nextPayableMinutes }),
     }
   } else if (table === "offline_conflicts") {
     payload = { status: String(body.status || "resolved"), resolved_by: guard.user.id, resolved_at: new Date().toISOString() }

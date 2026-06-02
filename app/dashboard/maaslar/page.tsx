@@ -50,7 +50,15 @@ type AttendanceDetail = {
 }
 
 type OvertimeApproval = {
-  attendance_log_id: number
+  id: string
+  attendance_log_id: number | null
+  personel_id: string | null
+  personel_name: string | null
+  work_date: string | null
+  raw_minutes: number
+  payable_minutes: number
+  manual_minutes: number
+  note: string | null
   status: "pending" | "approved" | "rejected"
 }
 
@@ -72,6 +80,10 @@ function formatDurationFromMinutes(totalMinutes: number) {
   const minutes = total % 60
   if (!hours) return `${minutes} dk`
   return minutes ? `${hours} sa ${minutes} dk` : `${hours} sa`
+}
+
+function normalizeName(value: string | null | undefined) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("tr-TR")
 }
 
 export default function MaaslarPage() {
@@ -139,7 +151,11 @@ export default function MaaslarPage() {
     const hourlyRate = Number(personel.saatlik_mesai_ucreti) || (baseSalary > 0 ? baseSalary / 30 / 8 : 0)
     const advances: Detail[] = []
     const overtime: OvertimeDetail[] = []
-    const approvalByLogId = new Map(overtimeApprovals.map((item) => [Number(item.attendance_log_id), item.status]))
+    const approvalByLogId = new Map(
+      overtimeApprovals
+        .filter((item) => item.attendance_log_id && item.status === "approved")
+        .map((item) => [Number(item.attendance_log_id), item]),
+    )
 
     rows.forEach(row => {
       const advanceAmount = Number(row.personel_paylari?.[personel.id]) || 0
@@ -162,9 +178,10 @@ export default function MaaslarPage() {
     })
 
     attendanceOvertime
-      .filter(detail => detail.personelId === personel.id && (detail.payableOvertimeMinutes ?? detail.overtimeMinutes) > 0 && approvalByLogId.get(Number(detail.id)) === "approved")
+      .filter(detail => detail.personelId === personel.id && (detail.payableOvertimeMinutes ?? detail.overtimeMinutes) > 0 && approvalByLogId.has(Number(detail.id)))
       .forEach(detail => {
-        const payableMinutes = detail.payableOvertimeMinutes || detail.overtimeMinutes
+        const approval = approvalByLogId.get(Number(detail.id))
+        const payableMinutes = Number(approval?.payable_minutes) || detail.payableOvertimeMinutes || detail.overtimeMinutes
         const hours = payableMinutes / 60
         overtime.push({
           tarih: detail.workDate,
@@ -174,6 +191,24 @@ export default function MaaslarPage() {
           rate: hourlyRate,
           minutes: payableMinutes,
           source: "attendance",
+        })
+      })
+
+    overtimeApprovals
+      .filter((approval) => approval.status === "approved" && !approval.attendance_log_id)
+      .filter((approval) => approval.personel_id === personel.id || normalizeName(approval.personel_name) === normalizeName(personel.ad))
+      .forEach((approval) => {
+        const payableMinutes = Number(approval.payable_minutes || approval.manual_minutes || 0)
+        if (payableMinutes <= 0) return
+        const hours = payableMinutes / 60
+        overtime.push({
+          tarih: approval.work_date || getMonthStartDate(month, year),
+          amount: hours * hourlyRate,
+          description: `Yonetici onayli manuel mesai: ${formatDurationFromMinutes(payableMinutes)} x ${formatMoney(hourlyRate)} TL${approval.note ? ` - ${approval.note}` : ""}`,
+          hours,
+          rate: hourlyRate,
+          minutes: payableMinutes,
+          source: "manual",
         })
       })
 
@@ -191,7 +226,7 @@ export default function MaaslarPage() {
       overtimeTotal,
       remaining: baseSalary + overtimeTotal - advanceTotal,
     }
-  }), [attendanceOvertime, overtimeApprovals, personeller, rows])
+  }), [attendanceOvertime, month, overtimeApprovals, personeller, rows, year])
 
   const ortakSummaries = useMemo(() => ortaklar.map(ortak => {
     const advances: Detail[] = []

@@ -125,12 +125,15 @@ alter table public.dashboard_permission_overrides
 create table if not exists public.overtime_approvals (
   id uuid primary key default gen_random_uuid(),
   attendance_log_id integer references public.attendance_logs(id) on delete cascade,
+  personel_id uuid references public.personeller(id) on delete set null,
+  source_key text,
   user_profile_id uuid references auth.users(id) on delete set null,
   personel_name text,
   branch_name text,
   work_date date,
   raw_minutes integer not null default 0,
   payable_minutes integer not null default 0,
+  manual_minutes integer not null default 0,
   hourly_rate numeric(12,2),
   amount numeric(14,2),
   status text not null default 'pending',
@@ -148,6 +151,15 @@ alter table public.overtime_approvals
 alter table public.overtime_approvals
   add constraint overtime_approvals_status_check
   check (status in ('pending', 'approved', 'rejected'));
+
+alter table public.overtime_approvals
+  add column if not exists personel_id uuid references public.personeller(id) on delete set null;
+
+alter table public.overtime_approvals
+  add column if not exists source_key text;
+
+alter table public.overtime_approvals
+  add column if not exists manual_minutes integer not null default 0;
 
 create table if not exists public.pdf_templates (
   id uuid primary key default gen_random_uuid(),
@@ -432,6 +444,11 @@ create index if not exists idx_overtime_approvals_status_date on public.overtime
 create unique index if not exists idx_overtime_approvals_attendance_log
   on public.overtime_approvals (attendance_log_id)
   where attendance_log_id is not null;
+create unique index if not exists idx_overtime_approvals_source_key
+  on public.overtime_approvals (source_key)
+  where source_key is not null and source_key <> '';
+create index if not exists idx_overtime_approvals_personel_date
+  on public.overtime_approvals (personel_id, work_date desc);
 create index if not exists idx_pdf_archives_type_date on public.pdf_archives (report_type, created_at desc);
 create index if not exists idx_app_announcements_active_date on public.app_announcements (active, starts_at, ends_at);
 create index if not exists idx_tea_request_recipients_user_status on public.tea_request_recipients (user_id, response, created_at desc);

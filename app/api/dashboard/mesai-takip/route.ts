@@ -67,6 +67,75 @@ function calculateTiming(log: {
   return { workedMinutes, beforeShiftMinutes, earlyMinutes, lateMinutes, afterShiftMinutes, overtimeMinutes }
 }
 
+function calculateGroupedTiming(group: {
+  intervals: Array<{ checkInAt: Date; checkOutAt: Date | null }>
+  workDate: Date
+  shift: { startMinute: number; endMinute: number } | null
+}) {
+  const intervals = [...group.intervals].sort((a, b) => a.checkInAt.getTime() - b.checkInAt.getTime())
+  const firstCheckInAt = intervals[0]?.checkInAt
+  const allClosed = intervals.every((interval) => interval.checkOutAt)
+  const lastCheckOutAt = allClosed
+    ? intervals.reduce<Date | null>((latest, interval) => {
+        if (!interval.checkOutAt) return latest
+        return !latest || interval.checkOutAt > latest ? interval.checkOutAt : latest
+      }, null)
+    : null
+  const workedMinutes = intervals.reduce((sum, interval) => sum + minutesBetween(interval.checkInAt, interval.checkOutAt), 0)
+  const breakMinutes = intervals.reduce((sum, interval, index) => {
+    if (index === 0) return sum
+    const previous = intervals[index - 1]
+    if (!previous.checkOutAt) return sum
+    return sum + Math.max(0, Math.floor((interval.checkInAt.getTime() - previous.checkOutAt.getTime()) / 60000))
+  }, 0)
+
+  if (!group.shift || !firstCheckInAt) {
+    return {
+      checkInAt: firstCheckInAt,
+      checkOutAt: lastCheckOutAt,
+      workedMinutes,
+      breakMinutes,
+      beforeShiftMinutes: 0,
+      earlyMinutes: 0,
+      lateMinutes: 0,
+      afterShiftMinutes: 0,
+      overtimeMinutes: 0,
+    }
+  }
+
+  const crossesMidnight = group.shift.endMinute <= group.shift.startMinute
+  const startsAt = shiftBoundary(group.workDate, group.shift.startMinute)
+  const endsAt = shiftBoundary(group.workDate, group.shift.endMinute, crossesMidnight)
+  const scheduledMinutes = shiftDurationMinutes(group.shift)
+  const beforeShiftMinutes = lastCheckOutAt && lastCheckOutAt <= startsAt ? workedMinutes : 0
+  const earlyMinutes = beforeShiftMinutes > 0 ? 0 : Math.max(0, Math.floor((startsAt.getTime() - firstCheckInAt.getTime()) / 60000))
+  const lateMinutes = beforeShiftMinutes > 0 ? 0 : Math.max(0, Math.floor((firstCheckInAt.getTime() - startsAt.getTime()) / 60000))
+  const afterShiftMinutes = lastCheckOutAt
+    ? Math.max(0, Math.floor((lastCheckOutAt.getTime() - endsAt.getTime()) / 60000))
+    : 0
+  const overtimeMinutes = beforeShiftMinutes > 0
+    ? beforeShiftMinutes
+    : lastCheckOutAt
+      ? Math.max(0, workedMinutes - scheduledMinutes)
+      : 0
+
+  return {
+    checkInAt: firstCheckInAt,
+    checkOutAt: lastCheckOutAt,
+    workedMinutes,
+    breakMinutes,
+    beforeShiftMinutes,
+    earlyMinutes,
+    lateMinutes,
+    afterShiftMinutes,
+    overtimeMinutes,
+  }
+}
+
+function workDateKey(value: Date) {
+  return value.toISOString().slice(0, 10)
+}
+
 async function getDashboardAccess() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -212,70 +281,87 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  const details = logs
-    .filter((log) => {
-      if (log.checkOutAt && minutesBetween(log.checkInAt, log.checkOutAt) === 0) return false
+  const groupedLogs = new Map<string, typeof logs[number][]>()
 
-      const profile = profileByTc.get(log.user.tcKimlik)
-      if (!profile?.sube_id) return false
-      if (subeId !== "all" && profile.sube_id !== subeId) return false
-      if (!branchIds.has(profile.sube_id)) return false
+  for (const log of logs) {
+    if (log.checkOutAt && minutesBetween(log.checkInAt, log.checkOutAt) === 0) continue
 
-      const key = `${profile.sube_id}:${normalizeName(profile.display_name || log.user.name)}`
-      return summaryByKey.has(key)
-    })
-    .map((log) => {
-      const profile = profileByTc.get(log.user.tcKimlik)
+    const profile = profileByTc.get(log.user.tcKimlik)
+    if (!profile?.sube_id) continue
+    if (subeId !== "all" && profile.sube_id !== subeId) continue
+    if (!branchIds.has(profile.sube_id)) continue
+
+    const summaryKey = `${profile.sube_id}:${normalizeName(profile.display_name || log.user.name)}`
+    if (!summaryByKey.has(summaryKey)) continue
+
+    const groupKey = `${summaryKey}:${workDateKey(log.workDate)}`
+    const current = groupedLogs.get(groupKey) || []
+    current.push(log)
+    groupedLogs.set(groupKey, current)
+  }
+
+  const rawDetails = Array.from(groupedLogs.values())
+    .map((groupLogs) => {
+      const orderedLogs = [...groupLogs].sort((a, b) => a.checkInAt.getTime() - b.checkInAt.getTime())
+      const firstLog = orderedLogs[0]
+      const profile = profileByTc.get(firstLog.user.tcKimlik)
       const branch = profile?.sube_id ? branchById.get(profile.sube_id) || null : null
-      const key = `${profile?.sube_id || ""}:${normalizeName(profile?.display_name || log.user.name)}`
-      const summary = summaryByKey.get(key)
-      const timing = calculateTiming({
-        checkInAt: log.checkInAt,
-        checkOutAt: log.checkOutAt,
-        workDate: log.workDate,
-        shift: log.shift,
+      const summaryKey = `${profile?.sube_id || ""}:${normalizeName(profile?.display_name || firstLog.user.name)}`
+      const summary = summaryByKey.get(summaryKey)
+      const timing = calculateGroupedTiming({
+        intervals: orderedLogs.map((log) => ({ checkInAt: log.checkInAt, checkOutAt: log.checkOutAt })),
+        workDate: firstLog.workDate,
+        shift: firstLog.shift,
       })
 
       if (summary) {
-        const payableOvertimeMinutes = roundOvertimeToPaidMinutes(timing.overtimeMinutes)
-        summary.logCount += 1
-        summary.openCount += log.checkOutAt ? 0 : 1
+        summary.logCount += orderedLogs.length
+        summary.openCount += timing.checkOutAt ? 0 : 1
         summary.beforeShiftMinutes += timing.beforeShiftMinutes
         summary.earlyMinutes += timing.earlyMinutes
         summary.lateMinutes += timing.lateMinutes
         summary.afterShiftMinutes += timing.afterShiftMinutes
         summary.overtimeMinutes += timing.overtimeMinutes
-        summary.payableOvertimeMinutes += payableOvertimeMinutes
         summary.workedMinutes += timing.workedMinutes
       }
 
+      const payableOvertimeMinutes = roundOvertimeToPaidMinutes(timing.overtimeMinutes)
       return {
-        id: log.id,
+        id: Number(firstLog.id),
+        sourceLogIds: orderedLogs.map((log) => Number(log.id)),
+        segmentCount: orderedLogs.length,
+        breakMinutes: timing.breakMinutes,
+        summaryKey,
         personelId: summary?.personelId || null,
-        personel: profile?.display_name || log.user.name,
-        tcKimlik: log.user.tcKimlik,
+        personel: profile?.display_name || firstLog.user.name,
+        tcKimlik: firstLog.user.tcKimlik,
         branch,
-        workDate: log.workDate,
-        checkInAt: log.checkInAt,
-        checkOutAt: log.checkOutAt,
+        workDate: firstLog.workDate,
+        checkInAt: timing.checkInAt || firstLog.checkInAt,
+        checkOutAt: timing.checkOutAt,
         workedMinutes: timing.workedMinutes,
         beforeShiftMinutes: timing.beforeShiftMinutes,
         earlyMinutes: timing.earlyMinutes,
         lateMinutes: timing.lateMinutes,
         afterShiftMinutes: timing.afterShiftMinutes,
         overtimeMinutes: timing.overtimeMinutes,
-        payableOvertimeMinutes: roundOvertimeToPaidMinutes(timing.overtimeMinutes),
-        status: log.status,
-        shift: log.shift ? { id: String(log.shift.id), name: log.shift.name, label: getShiftLabel(log.shift) } : null,
+        payableOvertimeMinutes,
+        approvedPayableOvertimeMinutes: 0,
+        approvalId: null as string | null,
+        approvalStatus: payableOvertimeMinutes > 0 ? "pending" as const : null,
+        status: timing.checkOutAt ? "CLOSED" as const : "OPEN" as const,
+        shift: firstLog.shift ? { id: String(firstLog.shift.id), name: firstLog.shift.name, label: getShiftLabel(firstLog.shift) } : null,
       }
     })
+    .sort((a, b) => new Date(b.workDate).getTime() - new Date(a.workDate).getTime() || new Date(b.checkInAt).getTime() - new Date(a.checkInAt).getTime())
 
-  const overtimeApprovalRows = details
-    .filter((detail) => detail.payableOvertimeMinutes >= 45 && detail.checkOutAt)
+  const overtimeApprovalRows = rawDetails
+    .filter((detail) => detail.payableOvertimeMinutes > 0 && detail.checkOutAt)
     .map((detail) => {
       const profile = profileByTc.get(detail.tcKimlik)
       return {
         attendance_log_id: detail.id,
+        personel_id: detail.personelId,
         user_profile_id: profile?.user_id || null,
         personel_name: detail.personel,
         branch_name: detail.branch?.ad || null,
@@ -292,6 +378,37 @@ export async function GET(request: NextRequest) {
       .from("overtime_approvals")
       .upsert(overtimeApprovalRows, { onConflict: "attendance_log_id", ignoreDuplicates: true })
   }
+
+  const approvalIds = rawDetails.map((detail) => detail.id).filter(Boolean)
+  const { data: approvalRows } = approvalIds.length
+    ? await admin
+        .from("overtime_approvals")
+        .select("id, attendance_log_id, status, raw_minutes, payable_minutes, manual_minutes, note")
+        .in("attendance_log_id", approvalIds)
+    : { data: [] }
+
+  const approvalByLogId = new Map((approvalRows || []).map((approval: any) => [Number(approval.attendance_log_id), approval]))
+  for (const summary of summaryByKey.values()) {
+    summary.payableOvertimeMinutes = 0
+  }
+
+  const details = rawDetails.map(({ summaryKey, ...detail }) => {
+    const approval = approvalByLogId.get(Number(detail.id))
+    const approvedPayableOvertimeMinutes = approval?.status === "approved"
+      ? Number(approval.payable_minutes) || 0
+      : 0
+    const summary = summaryByKey.get(summaryKey)
+    if (summary) {
+      summary.payableOvertimeMinutes += approvedPayableOvertimeMinutes
+    }
+
+    return {
+      ...detail,
+      approvalId: approval?.id || null,
+      approvalStatus: approval?.status || detail.approvalStatus,
+      approvedPayableOvertimeMinutes,
+    }
+  })
 
   const summaries = Array.from(summaryByKey.values())
   const branchSummaries = (branches || [])

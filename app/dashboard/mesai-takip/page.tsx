@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { tr } from "date-fns/locale"
-import { CalendarDays, ChevronDown, FileText, Filter, RefreshCw, TimerReset, UsersRound } from "lucide-react"
+import { CalendarDays, Check, ChevronDown, FileText, Filter, RefreshCw, TimerReset, UsersRound, X } from "lucide-react"
+import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSube } from "@/contexts/sube-context"
@@ -54,12 +56,17 @@ type Detail = {
   checkInAt: string
   checkOutAt: string | null
   workedMinutes: number
+  breakMinutes: number
+  segmentCount: number
   beforeShiftMinutes: number
   earlyMinutes: number
   lateMinutes: number
   afterShiftMinutes: number
   overtimeMinutes: number
   payableOvertimeMinutes: number
+  approvedPayableOvertimeMinutes: number
+  approvalId: string | null
+  approvalStatus: "pending" | "approved" | "rejected" | null
   status: "OPEN" | "CLOSED"
   shift: { id: string; name: string; label: string } | null
 }
@@ -109,6 +116,8 @@ function WarningBadges({
   afterShiftMinutes,
   overtimeMinutes,
   payableOvertimeMinutes,
+  approvedPayableOvertimeMinutes,
+  approvalStatus,
 }: {
   beforeShiftMinutes: number
   earlyMinutes: number
@@ -116,6 +125,8 @@ function WarningBadges({
   afterShiftMinutes: number
   overtimeMinutes: number
   payableOvertimeMinutes: number
+  approvedPayableOvertimeMinutes: number
+  approvalStatus: "pending" | "approved" | "rejected" | null
 }) {
   if (!beforeShiftMinutes && !earlyMinutes && !lateMinutes && !afterShiftMinutes && !overtimeMinutes && !payableOvertimeMinutes) {
     return <span className="text-muted-foreground">Sorun yok</span>
@@ -148,9 +159,19 @@ function WarningBadges({
           Net fazla {minutes(overtimeMinutes)}
         </Badge>
       )}
-      {payableOvertimeMinutes > 0 && payableOvertimeMinutes !== overtimeMinutes && (
+      {approvedPayableOvertimeMinutes > 0 && (
         <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-          Maaşa {minutes(payableOvertimeMinutes)}
+          Maasa {minutes(approvedPayableOvertimeMinutes)}
+        </Badge>
+      )}
+      {!approvedPayableOvertimeMinutes && payableOvertimeMinutes > 0 && approvalStatus !== "rejected" && (
+        <Badge variant="outline" className="border-slate-500/40 bg-slate-500/10 text-slate-700 dark:text-slate-300">
+          Onay bekliyor {minutes(payableOvertimeMinutes)}
+        </Badge>
+      )}
+      {approvalStatus === "rejected" && (
+        <Badge variant="outline" className="border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300">
+          Mesai reddedildi
         </Badge>
       )}
     </div>
@@ -173,6 +194,98 @@ function DetailStatusBadge({ status }: { status: "OPEN" | "CLOSED" }) {
   )
 }
 
+function ApprovalActions({
+  item,
+  isAdmin,
+  busy,
+  onUpdate,
+}: {
+  item: Detail
+  isAdmin: boolean
+  busy: string | null
+  onUpdate: (detail: Detail, status: "approved" | "rejected") => void
+}) {
+  if (!item.payableOvertimeMinutes && !item.approvalStatus) {
+    return <span className="text-muted-foreground">-</span>
+  }
+
+  if (!isAdmin) {
+    if (item.approvalStatus === "approved") {
+      return <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Onaylandi</Badge>
+    }
+    if (item.approvalStatus === "rejected") {
+      return <Badge variant="outline" className="border-red-500/50 text-red-600">Reddedildi</Badge>
+    }
+    return <Badge variant="outline" className="border-slate-400/60 text-muted-foreground">Onay bekliyor</Badge>
+  }
+
+  const disabled = !item.approvalId || busy === item.approvalId
+
+  if (item.approvalStatus === "approved") {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Onaylandi</Badge>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 gap-1 border-red-500/40 text-red-600"
+          disabled={disabled}
+          onClick={() => onUpdate(item, "rejected")}
+        >
+          <X className="h-3.5 w-3.5" />
+          Reddet
+        </Button>
+      </div>
+    )
+  }
+
+  if (item.approvalStatus === "rejected") {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <Badge variant="outline" className="border-red-500/50 text-red-600">Reddedildi</Badge>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 gap-1 border-emerald-500/40 text-emerald-600"
+          disabled={disabled}
+          onClick={() => onUpdate(item, "approved")}
+        >
+          <Check className="h-3.5 w-3.5" />
+          Onayla
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button
+        type="button"
+        size="sm"
+        className="h-8 gap-1 bg-emerald-600 text-white hover:bg-emerald-700"
+        disabled={disabled}
+        onClick={() => onUpdate(item, "approved")}
+      >
+        <Check className="h-3.5 w-3.5" />
+        Onayla
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-8 gap-1 border-red-500/40 text-red-600"
+        disabled={disabled}
+        onClick={() => onUpdate(item, "rejected")}
+      >
+        <X className="h-3.5 w-3.5" />
+        Reddet
+      </Button>
+    </div>
+  )
+}
+
 export default function MesaiTakipPage() {
   const { isAdmin, loading: subeLoading } = useSube()
   const [from, setFrom] = useState(monthStart())
@@ -180,6 +293,11 @@ export default function MesaiTakipPage() {
   const [selectedSubeId, setSelectedSubeId] = useState("all")
   const [payload, setPayload] = useState<Payload | null>(null)
   const [loading, setLoading] = useState(true)
+  const [approvalBusy, setApprovalBusy] = useState<string | null>(null)
+  const [manualPersonelId, setManualPersonelId] = useState("")
+  const [manualDate, setManualDate] = useState(today())
+  const [manualHours, setManualHours] = useState("")
+  const [manualNote, setManualNote] = useState("")
 
   useEffect(() => {
     if (!subeLoading) loadData()
@@ -196,6 +314,72 @@ export default function MesaiTakipPage() {
     setLoading(false)
   }
 
+  async function updateApproval(detail: Detail, status: "approved" | "rejected") {
+    if (!detail.approvalId) {
+      toast.error("Onay kaydi henuz olusmadi. Listeyi yenileyip tekrar deneyin.")
+      return
+    }
+
+    setApprovalBusy(detail.approvalId)
+    const response = await fetch("/api/admin/operations?table=overtime_approvals", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: detail.approvalId,
+        status,
+        payable_minutes: status === "approved" ? detail.payableOvertimeMinutes : 0,
+        note: status === "approved" ? "Mesai takip ekranindan onaylandi." : "Mesai takip ekranindan reddedildi.",
+      }),
+    })
+    setApprovalBusy(null)
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}))
+      toast.error(result.error || "Mesai onayi guncellenemedi.")
+      return
+    }
+    toast.success(status === "approved" ? "Mesai maaşa işlenmek üzere onaylandı." : "Mesai reddedildi.")
+    loadData()
+  }
+
+  async function createManualOvertime() {
+    const personel = (payload?.personelSummaries || []).find((item) => item.personelId === manualPersonelId)
+    const hours = Number(manualHours.replace(",", "."))
+    if (!personel || !Number.isFinite(hours) || hours <= 0) {
+      toast.error("Personel ve saat bilgisi zorunlu.")
+      return
+    }
+
+    const manualMinutes = Math.round(hours * 60)
+    setApprovalBusy("manual")
+    const response = await fetch("/api/admin/operations?table=overtime_approvals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        attendance_log_id: null,
+        personel_id: personel.personelId,
+        personel_name: personel.name,
+        branch_name: personel.branch?.ad || null,
+        work_date: manualDate,
+        raw_minutes: manualMinutes,
+        payable_minutes: manualMinutes,
+        manual_minutes: manualMinutes,
+        source_key: `manual:${personel.personelId}:${manualDate}:${Date.now()}`,
+        status: "approved",
+        note: manualNote || "Yonetici manuel mesai ekledi.",
+      }),
+    })
+    setApprovalBusy(null)
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}))
+      toast.error(result.error || "Manuel mesai eklenemedi.")
+      return
+    }
+    toast.success("Manuel mesai onayli olarak eklendi.")
+    setManualHours("")
+    setManualNote("")
+    loadData()
+  }
+
   const totals = useMemo(() => {
     const branchSummaries = payload?.branchSummaries || []
     return {
@@ -209,8 +393,8 @@ export default function MesaiTakipPage() {
 
   const overtimePeople = useMemo(() => (
     (payload?.personelSummaries || [])
-      .filter((personel) => personel.payableOvertimeMinutes > 0)
-      .sort((a, b) => b.payableOvertimeMinutes - a.payableOvertimeMinutes)
+      .filter((personel) => personel.overtimeMinutes > 0 || personel.payableOvertimeMinutes > 0)
+      .sort((a, b) => b.overtimeMinutes - a.overtimeMinutes)
   ), [payload])
 
   const performancePeople = useMemo(() => (
@@ -284,7 +468,9 @@ export default function MesaiTakipPage() {
               item.lateMinutes > 0 ? `Gec: ${minutes(item.lateMinutes)}` : "",
               item.afterShiftMinutes > 0 ? `Mesai sonrasi: ${minutes(item.afterShiftMinutes)}` : "",
               item.overtimeMinutes > 0 ? `Net fazla: ${minutes(item.overtimeMinutes)}` : "",
-              item.payableOvertimeMinutes > 0 ? `Maaşa işlenen: ${minutes(item.payableOvertimeMinutes)}` : "",
+              item.approvedPayableOvertimeMinutes > 0 ? `Maasa islenen: ${minutes(item.approvedPayableOvertimeMinutes)}` : "",
+              !item.approvedPayableOvertimeMinutes && item.payableOvertimeMinutes > 0 && item.approvalStatus !== "rejected" ? `Onay bekliyor: ${minutes(item.payableOvertimeMinutes)}` : "",
+              item.approvalStatus === "rejected" ? "Mesai reddedildi" : "",
             ].filter(Boolean).join(" / ") || "-",
             item.status === "OPEN" ? "Cikis bekliyor" : "Tamamlandi",
           ]),
@@ -352,6 +538,62 @@ export default function MesaiTakipPage() {
           </label>
         </CardContent>
       </Card>
+
+      {isAdmin && payload && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Manuel Mesai Ekle</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Hatali veya eksik kayit varsa yoneticinin onayladigi mesai dogrudan maas hesabina eklenir.
+            </p>
+          </CardHeader>
+          <CardContent className="grid items-end gap-3 md:grid-cols-[minmax(220px,1.3fr)_minmax(170px,0.8fr)_minmax(130px,0.55fr)_minmax(220px,1fr)_130px]">
+            <label className="grid gap-1.5 text-xs font-semibold text-muted-foreground">
+              Personel
+              <Select value={manualPersonelId} onValueChange={setManualPersonelId}>
+                <SelectTrigger className="h-11 rounded-xl bg-background/80 px-3 shadow-sm">
+                  <SelectValue placeholder="Personel sec" />
+                </SelectTrigger>
+                <SelectContent>
+                  {payload.personelSummaries.map((personel) => (
+                    <SelectItem key={personel.personelId} value={personel.personelId}>
+                      {personel.name} {personel.branch?.ad ? `- ${personel.branch.ad}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+            <DatePicker label="Tarih" value={manualDate} onChange={setManualDate} />
+            <label className="grid gap-1.5 text-xs font-semibold text-muted-foreground">
+              Saat
+              <Input
+                value={manualHours}
+                onChange={(event) => setManualHours(event.target.value)}
+                inputMode="decimal"
+                placeholder="2"
+                className="h-11 rounded-xl"
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-semibold text-muted-foreground">
+              Not
+              <Input
+                value={manualNote}
+                onChange={(event) => setManualNote(event.target.value)}
+                placeholder="Istege bagli"
+                className="h-11 rounded-xl"
+              />
+            </label>
+            <Button
+              type="button"
+              className="h-11 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
+              onClick={createManualOvertime}
+              disabled={approvalBusy === "manual"}
+            >
+              Ekle
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric icon={<UsersRound className="h-4 w-4" />} label="Personel" value={String(totals.personel)} />
@@ -479,7 +721,7 @@ export default function MesaiTakipPage() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-lg border">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[1120px] text-sm">
               <thead className="bg-muted/70 text-left">
                 <tr>
                   <th className="p-3">Tarih</th>
@@ -489,14 +731,15 @@ export default function MesaiTakipPage() {
                   <th className="p-3">Çıkış</th>
                   <th className="p-3">Çalışma</th>
                   <th className="p-3">Uyarı</th>
+                  <th className="p-3">Onay</th>
                   <th className="p-3">Sonuç</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">Yükleniyor</td></tr>
+                  <tr><td colSpan={9} className="p-6 text-center text-muted-foreground">Yükleniyor</td></tr>
                 ) : (payload?.details || []).length === 0 ? (
-                  <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">Seçili aralıkta giriş çıkış bulunamadı</td></tr>
+                  <tr><td colSpan={9} className="p-6 text-center text-muted-foreground">Seçili aralıkta giriş çıkış bulunamadı</td></tr>
                 ) : payload?.details.map((item) => (
                   <tr key={item.id} className={`border-t ${item.status === "OPEN" ? "bg-amber-500/5" : ""}`}>
                     <td className="whitespace-nowrap p-3 text-muted-foreground">{formatDate(item.workDate)}</td>
@@ -525,7 +768,14 @@ export default function MesaiTakipPage() {
                         </Badge>
                       )}
                     </td>
-                    <td className="p-3 font-semibold">{minutes(item.workedMinutes)}</td>
+                    <td className="p-3">
+                      <div className="font-semibold">{minutes(item.workedMinutes)}</div>
+                      {item.segmentCount > 1 && (
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          {item.segmentCount} parca / ara {minutes(item.breakMinutes)}
+                        </div>
+                      )}
+                    </td>
                     <td className="p-3">
                       <WarningBadges
                         beforeShiftMinutes={item.beforeShiftMinutes}
@@ -534,7 +784,12 @@ export default function MesaiTakipPage() {
                         afterShiftMinutes={item.afterShiftMinutes}
                         overtimeMinutes={item.overtimeMinutes}
                         payableOvertimeMinutes={item.payableOvertimeMinutes}
+                        approvedPayableOvertimeMinutes={item.approvedPayableOvertimeMinutes}
+                        approvalStatus={item.approvalStatus}
                       />
+                    </td>
+                    <td className="p-3">
+                      <ApprovalActions item={item} isAdmin={isAdmin} busy={approvalBusy} onUpdate={updateApproval} />
                     </td>
                     <td className="p-3">
                       <DetailStatusBadge status={item.status} />
