@@ -67,6 +67,16 @@ export function hashPushToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex")
 }
 
+function isUnregisteredFcmResult(result: PushDeliveryResult) {
+  const payload = result.response as any
+  const details = Array.isArray(payload?.error?.details) ? payload.error.details : []
+  return (
+    result.statusCode === 404 ||
+    payload?.error?.status === "NOT_FOUND" ||
+    details.some((detail: any) => detail?.errorCode === "UNREGISTERED")
+  )
+}
+
 async function getFcmAccessToken() {
   const status = getPushProviderStatus()
   if (!status.configured) {
@@ -220,6 +230,16 @@ export async function deliverPushToUserDevices(admin: any, input: DeliverToUserI
         }
 
     results.push(result)
+    if (isUnregisteredFcmResult(result)) {
+      await admin
+        .from("user_devices")
+        .update({
+          push_token: null,
+          enabled: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", device.id)
+    }
     deliveryRows.push({
       notification_id: input.notificationId,
       user_id: input.userId,

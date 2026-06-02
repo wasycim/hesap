@@ -15,6 +15,9 @@ export async function POST(request: NextRequest) {
   const deviceId = String(body.deviceId || "").trim().slice(0, 160)
   const platform = String(body.platform || "web").trim().slice(0, 32) || "web"
   const pushToken = String(body.pushToken || "").trim() || null
+  const pushRegistrationError = body.pushRegistrationError
+    ? String(body.pushRegistrationError).slice(0, 1200)
+    : null
 
   const admin = createAdminClient()
   const now = new Date().toISOString()
@@ -66,6 +69,7 @@ export async function POST(request: NextRequest) {
       platform,
       has_push_token: Boolean(pushToken),
       push_token_hash: pushToken ? hashPushToken(pushToken) : null,
+      push_registration_error: pushRegistrationError,
     },
   })
 

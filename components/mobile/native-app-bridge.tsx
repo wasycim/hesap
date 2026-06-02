@@ -56,8 +56,8 @@ export function NativeAppBridge() {
 
       await Preferences.set({ key: "hesap:last-opened-at", value: new Date().toISOString() }).catch(() => undefined)
       await unlockWithPlatformBiometric().catch(() => undefined)
-      await registerNativeDevice()
       await registerPushNotifications(setPushState)
+      await retryRegistration()
       await scheduleNativeReminder()
     }
 
@@ -168,6 +168,17 @@ async function registerPushNotifications(setPushState: (state: PushState) => voi
   }
 
   setPushState("granted")
+  await PushNotifications.addListener("registration", async (token) => {
+    await Preferences.set({ key: "hesap:push-token", value: token.value }).catch(() => undefined)
+    await Preferences.remove({ key: "hesap:push-registration-error" }).catch(() => undefined)
+    await registerNativeDevice(token.value)
+  })
+
+  await PushNotifications.addListener("registrationError", async (error) => {
+    await Preferences.set({ key: "hesap:push-registration-error", value: JSON.stringify(error) }).catch(() => undefined)
+    await registerNativeDevice(undefined, error)
+  })
+
   if (Capacitor.getPlatform() === "android") {
     await PushNotifications.createChannel({
       id: "hesap_alerts",
@@ -180,24 +191,18 @@ async function registerPushNotifications(setPushState: (state: PushState) => voi
   }
   await PushNotifications.register().catch(() => undefined)
 
-  await PushNotifications.addListener("registration", async (token) => {
-    await Preferences.set({ key: "hesap:push-token", value: token.value }).catch(() => undefined)
-    await registerNativeDevice(token.value)
-  })
-
-  await PushNotifications.addListener("registrationError", async (error) => {
-    await Preferences.set({ key: "hesap:push-registration-error", value: JSON.stringify(error) }).catch(() => undefined)
-  })
-
   await PushNotifications.addListener("pushNotificationActionPerformed", (event) => {
     const target = String(event.notification.data?.href || "/dashboard/mesai-takip")
     if (target.startsWith("/")) window.location.href = target
   })
 }
 
-async function registerNativeDevice(pushToken?: string) {
+async function registerNativeDevice(pushToken?: string, pushRegistrationError?: unknown) {
   const platform = Capacitor.getPlatform()
   const token = pushToken || (await Preferences.get({ key: "hesap:push-token" }).catch(() => ({ value: null }))).value || undefined
+  const storedRegistrationError = pushRegistrationError
+    ? JSON.stringify(pushRegistrationError)
+    : (await Preferences.get({ key: "hesap:push-registration-error" }).catch(() => ({ value: null }))).value || undefined
   const stored = await Preferences.get({ key: "hesap:native-device-id" }).catch(() => ({ value: null }))
   const deviceId = stored.value || (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`)
   if (!stored.value) {
@@ -207,7 +212,7 @@ async function registerNativeDevice(pushToken?: string) {
   const response = await fetch("/api/mobile/register-device", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ deviceId, platform, pushToken: token }),
+    body: JSON.stringify({ deviceId, platform, pushToken: token, pushRegistrationError: storedRegistrationError }),
   }).catch((error) => {
     Preferences.set({
       key: "hesap:native-device-register-error",
