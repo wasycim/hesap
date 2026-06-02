@@ -1,9 +1,10 @@
-const CACHE_NAME = "hesap-shell-v4"
-const API_CACHE_NAME = "hesap-api-v2"
+const CACHE_NAME = "hesap-shell-v5"
+const API_CACHE_NAME = "hesap-api-v3"
 const SHELL_URLS = [
   "/offline.html",
   "/auth/giris",
   "/dashboard",
+  "/dashboard/gelir",
   "/dashboard/mesai",
   "/dashboard/mesai-takip",
   "/dashboard/vardiya",

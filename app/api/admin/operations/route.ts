@@ -209,6 +209,24 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  if (table === "overtime_approvals" && payload.attendance_log_id) {
+    const { data, error } = await admin
+      .from(table)
+      .upsert(payload, { onConflict: "attendance_log_id" })
+      .select("*")
+      .single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    await admin.from("security_events").insert({
+      user_id: guard.user.id,
+      user_email: guard.profile?.email || guard.user.email,
+      event_type: `${table}_upsert`,
+      details: { id: data.id, attendance_log_id: payload.attendance_log_id },
+    })
+
+    return NextResponse.json({ ok: true, item: data })
+  }
+
   const { data, error } = await admin.from(table).insert(payload).select("*").single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

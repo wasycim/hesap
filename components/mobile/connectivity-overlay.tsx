@@ -35,10 +35,27 @@ export function ConnectivityOverlay() {
       .finally(() => setSyncing(false))
   }, [online, queueCount])
 
+  async function syncNow() {
+    setSyncing(true)
+    const result = await flushOfflineMutations().catch(() => ({ synced: 0, remaining: queueCount }))
+    setQueueCount(result.remaining)
+    setSyncing(false)
+  }
+
   if (online) {
     return queueCount > 0 || syncing ? (
-      <div className="fixed bottom-4 right-4 z-[9997] rounded-full border bg-background px-4 py-2 text-xs font-semibold shadow-lg">
-        {syncing ? "Bekleyen islemler senkronize ediliyor..." : `${queueCount} islem bekliyor`}
+      <div className="fixed bottom-4 right-4 z-[9997] flex items-center gap-2 rounded-full border bg-background px-3 py-2 text-xs font-semibold shadow-lg">
+        <span>{syncing ? "Bekleyen islemler senkronize ediliyor..." : `${queueCount} islem bekliyor`}</span>
+        {queueCount > 0 ? (
+          <button
+            type="button"
+            onClick={syncNow}
+            disabled={syncing}
+            className="rounded-full bg-emerald-600 px-3 py-1 text-white disabled:opacity-60"
+          >
+            Senkronize et
+          </button>
+        ) : null}
       </div>
     ) : null
   }

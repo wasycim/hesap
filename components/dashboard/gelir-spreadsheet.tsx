@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { FileText, Plus, Save, Trash2 } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
@@ -94,10 +93,6 @@ function normalizeSubeName(name: string): string {
   return name.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\u0131/g, "i")
 }
 
-function getGiderTotalKey(tarih: string, vardiya: string, isTekVardiya: boolean) {
-  return isTekVardiya ? tarih : `${tarih}__${vardiya || "S"}`
-}
-
 function compareDateVardiya(a: Pick<GelirRow, "tarih" | "vardiya">, b: Pick<GelirRow, "tarih" | "vardiya">) {
   const dateCompare = a.tarih.localeCompare(b.tarih)
   if (dateCompare !== 0) return dateCompare
@@ -110,8 +105,8 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   const [firmalar, setFirmalar] = useState<GelirFirma[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const supabase = createClient()
-  const { currentSube, isAdmin, currentUserId, refreshKey, userVardiya } = useSube()
+  const [offlineLoaded, setOfflineLoaded] = useState(false)
+  const { currentSube, isAdmin, refreshKey, userVardiya } = useSube()
   const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
   
   const ayYil = `${month}-${year}`
@@ -140,28 +135,8 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     
     if (currentSube) {
       loadData()
-    }
-
-    if (!currentSube) return
-
-    const channel = supabase
-      .channel(`gelir_changes_${currentSube.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'gelir_kayitlari',
-          filter: `sube_id=eq.${currentSube.id}`,
-        },
-        () => {
-          loadData()
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
+    } else {
+      setLoading(false)
     }
   }, [month, year, currentSube?.id, refreshKey])
 
@@ -172,81 +147,39 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
 
   async function loadData() {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !currentSube) return
-
-    const { data: settingsData } = await supabase
-      .from("kolon_ayarlari")
-      .select("*")
-      .eq("sube_id", currentSube.id)
-      .eq("table_type", "gelir")
-      .order("sort_order", { ascending: true })
-
-    setColumnSettings(mergeColumnSettings("gelir", settingsData as TableColumnSetting[] | null))
-
-    const { data: firmaData } = await supabase
-      .from("gelir_firmalar")
-      .select("id, ad, color")
-      .eq("sube_id", currentSube.id)
-      .eq("aktif", true)
-      .order("sira", { ascending: true })
-
-    setFirmalar(firmaData || [])
-
-    // Şubeye göre kayıtları çek (admin tüm kullanıcıların kayıtlarını görür)
-    let query = supabase
-      .from("gelir_kayitlari")
-      .select("*")
-      .eq("sube_id", currentSube.id)
-      .eq("ay_yil", ayYil)
-      .order("tarih", { ascending: true })
-      .order("vardiya", { ascending: true })
-
-    const { data, error } = await query
-    const giderTotals = await loadGiderTotals()
-
-    if (!error && data) {
-      setRows(data.filter(row => isDateInSelectedMonth(row.tarih, month, year)).map(row => ({
-        id: row.id,
-        user_id: row.user_id,
-        sube_id: row.sube_id,
-        tarih: row.tarih,
-        vardiya: isTekVardiya ? "" : (row.vardiya || "S"),
-        pamukkale_turizm: Number(row.pamukkale_turizm) || 0,
-        anadolu_ulasim: Number(row.anadolu_ulasim) || 0,
-        inegol_seyahat: Number(row.inegol_seyahat) || 0,
-        alasehir_turizm: Number(row.alasehir_turizm) || 0,
-        unlu_1: Number(row.unlu_1) || 0,
-        unlu_2: Number(row.unlu_2) || 0,
-        pamukkale_kargo: Number(row.pamukkale_kargo) || 0,
-        diger_komisyon: Number(row.diger_komisyon) || 0,
-        kasa_gelen: Number(row.kasa_gelen) || 0,
-        toplam: Number(row.toplam) || 0,
-        giderler: giderTotals.get(getGiderTotalKey(row.tarih, row.vardiya || "S", isTekVardiya)) ?? (Number(row.giderler) || 0),
-        kalan: (Number(row.toplam) || 0) - (giderTotals.get(getGiderTotalKey(row.tarih, row.vardiya || "S", isTekVardiya)) ?? (Number(row.giderler) || 0)),
-        durum: row.durum || "KONTROL EDİLMEDİ",
-        custom_values: row.custom_values || {},
-      })).sort(compareDateVardiya))
+    if (!currentSube) {
+      setLoading(false)
+      return
     }
-    setLoading(false)
-  }
 
-  async function loadGiderTotals() {
-    const totalsByDate = new Map<string, number>()
-    if (!currentSube) return totalsByDate
-
-    const { data } = await supabase
-      .from("gider_kayitlari")
-      .select("tarih, vardiya, genel_toplam")
-      .eq("sube_id", currentSube.id)
-      .eq("ay_yil", ayYil)
-
-    ;(data || []).forEach(row => {
-      const key = getGiderTotalKey(row.tarih, row.vardiya || "S", isTekVardiya)
-      totalsByDate.set(key, (totalsByDate.get(key) || 0) + (Number(row.genel_toplam) || 0))
+    const params = new URLSearchParams({
+      subeId: currentSube.id,
+      month,
+      year: String(year),
+      ayYil,
     })
 
-    return totalsByDate
+    try {
+      const response = await fetch(`/api/dashboard/gelir?${params.toString()}`, { cache: "no-store" })
+      const data = await response.json().catch(() => ({}))
+      const fromOfflineCache = response.headers.get("X-Hesap-Offline-Cache") === "1" || response.headers.get("X-Hesap-Offline") === "1" || data?.offline === true
+      setOfflineLoaded(fromOfflineCache)
+
+      if (!response.ok) {
+        toast.error(data.error || "Gelir tablosu yuklenemedi.")
+        setLoading(false)
+        return
+      }
+
+      setColumnSettings(mergeColumnSettings("gelir", data.columnSettings as TableColumnSetting[] | null))
+      setFirmalar(data.firmalar || [])
+      setRows(((data.rows || []) as GelirRow[]).filter(row => isDateInSelectedMonth(row.tarih, month, year)).sort(compareDateVardiya))
+    } catch {
+      toast.warning("Gelir tablosu offline cache bulunamadigi icin bos acildi.")
+      setOfflineLoaded(true)
+    } finally {
+      setLoading(false)
+    }
   }
 
   function getNextDate(): string {
@@ -346,8 +279,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
 
   async function saveData() {
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !currentSube) {
+    if (!currentSube) {
       setSaving(false)
       return false
     }
@@ -369,71 +301,32 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       return false
     }
 
-    // Önce kendi kayıtlarımı sil (sadece düzenleyebildiğim vardiyalardan)
-    let deleteQuery = supabase
-      .from("gelir_kayitlari")
-      .delete()
-      .eq("sube_id", currentSube.id)
-      .eq("ay_yil", ayYil)
-
-    if (!isAdmin) {
-      deleteQuery = deleteQuery.eq("user_id", user.id)
-      deleteQuery = deleteQuery.eq("tarih", getLocalDateString())
-    }
-    
-    // Eğer kullanıcının belirli bir vardiyası varsa sadece o vardiyayı sil
-    if (!isTekVardiya && userVardiya && !isAdmin) {
-      deleteQuery = deleteQuery.eq("vardiya", userVardiya)
-    }
-    
-    const { error: deleteError } = await deleteQuery
-    if (deleteError) {
-      console.log("[v0] Gelir silme hatası:", deleteError)
+    const response = await fetch("/api/dashboard/gelir", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subeId: currentSube.id,
+        month,
+        year,
+        ayYil,
+        rows: editableRows,
+      }),
+    })
+    const result = await response.json().catch(() => ({}))
+    if (!response.ok && !result.queued) {
+      toast.error(result.error || "Gelir kaydedilemedi.")
       setSaving(false)
       return false
     }
 
-    const giderTotals = await loadGiderTotals()
-
-    // Yeni kayıtları ekle
-    if (editableRows.length > 0) {
-      const insertData = editableRows.map(row => {
-        const giderler = giderTotals.get(getGiderTotalKey(row.tarih, row.vardiya || "S", isTekVardiya)) || 0
-        return {
-          user_id: row.user_id || user.id,
-          sube_id: currentSube.id,
-          ay_yil: ayYil,
-          tarih: row.tarih,
-          vardiya: row.vardiya,
-          pamukkale_turizm: row.pamukkale_turizm,
-          anadolu_ulasim: row.anadolu_ulasim,
-          inegol_seyahat: row.inegol_seyahat,
-          alasehir_turizm: row.alasehir_turizm,
-          unlu_1: row.unlu_1,
-          unlu_2: row.unlu_2,
-          pamukkale_kargo: row.pamukkale_kargo,
-          diger_komisyon: row.diger_komisyon,
-          kasa_gelen: row.kasa_gelen,
-          toplam: row.toplam,
-          giderler,
-          kalan: row.toplam - giderler,
-          durum: row.durum,
-          custom_values: row.custom_values || {},
-        }
-      })
-
-      const { error } = await supabase.from("gelir_kayitlari").insert(insertData)
-      if (error) {
-        console.log("[v0] Gelir kaydetme hatası:", error)
-        setSaving(false)
-        return false
-      }
-    }
-
     setSaving(false)
     markClean()
-    toast.success("Değişiklikler kaydedildi ✅")
-    loadData()
+    if (result.queued || response.status === 202) {
+      toast.success("Gelir kaydi offline kuyruğa alindi. Internet gelince senkronize edilecek.")
+    } else {
+      toast.success("Değişiklikler kaydedildi ✅")
+      loadData()
+    }
     return true
   }
 
@@ -543,6 +436,11 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
         <Button onClick={exportPdf} size="sm" variant="outline" disabled={rows.length === 0}>
           <FileText className="w-4 h-4 mr-1" /> PDF
         </Button>
+        {offlineLoaded ? (
+          <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
+            Offline cache
+          </span>
+        ) : null}
       </div>
 
       <div className="sticky-table-scroll rounded-lg border bg-card">

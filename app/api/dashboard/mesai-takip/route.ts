@@ -329,6 +329,13 @@ export async function GET(request: NextRequest) {
       return {
         id: Number(firstLog.id),
         sourceLogIds: orderedLogs.map((log) => Number(log.id)),
+        segments: orderedLogs.map((log) => ({
+          id: Number(log.id),
+          checkInAt: log.checkInAt,
+          checkOutAt: log.checkOutAt,
+          workedMinutes: minutesBetween(log.checkInAt, log.checkOutAt),
+          status: log.checkOutAt ? "CLOSED" as const : "OPEN" as const,
+        })),
         segmentCount: orderedLogs.length,
         breakMinutes: timing.breakMinutes,
         summaryKey,
@@ -348,6 +355,7 @@ export async function GET(request: NextRequest) {
         payableOvertimeMinutes,
         approvedPayableOvertimeMinutes: 0,
         approvalId: null as string | null,
+        approvalNote: null as string | null,
         approvalStatus: payableOvertimeMinutes > 0 ? "pending" as const : null,
         status: timing.checkOutAt ? "CLOSED" as const : "OPEN" as const,
         shift: firstLog.shift ? { id: String(firstLog.shift.id), name: firstLog.shift.name, label: getShiftLabel(firstLog.shift) } : null,
@@ -405,6 +413,7 @@ export async function GET(request: NextRequest) {
     return {
       ...detail,
       approvalId: approval?.id || null,
+      approvalNote: approval?.note || null,
       approvalStatus: approval?.status || detail.approvalStatus,
       approvedPayableOvertimeMinutes,
     }

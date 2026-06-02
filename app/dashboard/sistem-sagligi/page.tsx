@@ -123,7 +123,7 @@ export default function SistemSagligiPage() {
   const [digestUsers, setDigestUsers] = useState<DigestUser[]>([])
   const [loading, setLoading] = useState(true)
   const [backupBusy, setBackupBusy] = useState(false)
-  const [testBusy, setTestBusy] = useState<"push" | "digest" | null>(null)
+  const [testBusy, setTestBusy] = useState<"push" | "digest" | "sync" | null>(null)
   const [notificationUsers, setNotificationUsers] = useState<NotificationUser[]>([])
   const [notificationBranches, setNotificationBranches] = useState<Array<{ id: string; ad: string; kod: string }>>([])
   const [notificationHistory, setNotificationHistory] = useState<NotificationHistory[]>([])
@@ -293,6 +293,15 @@ export default function SistemSagligiPage() {
     }
 
     toast.warning(result.error || "Push testi gönderilemedi. FCM ayarlarını ve cihaz tokenlarını kontrol edin.")
+    loadAll()
+  }
+
+  async function syncPushDevice() {
+    setTestBusy("sync")
+    window.dispatchEvent(new CustomEvent("hesap:sync-native-push"))
+    await new Promise((resolve) => window.setTimeout(resolve, 1800))
+    setTestBusy(null)
+    toast.success("FCM cihaz senkronizasyonu tetiklendi. Token durumunu yeniden kontrol ediyorum.")
     loadAll()
   }
 
@@ -475,10 +484,16 @@ export default function SistemSagligiPage() {
                 <p className="font-semibold">{health?.pushSummary?.configured ? "Hazır" : "Eksik ayar"}</p>
               </div>
             </div>
-            <Button onClick={sendPushTest} disabled={testBusy === "push"} className="gap-2">
-              <Send className={testBusy === "push" ? "h-4 w-4 animate-pulse" : "h-4 w-4"} />
-              Test push gönder
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={syncPushDevice} disabled={testBusy === "sync"} variant="outline" className="gap-2">
+                <RefreshCw className={testBusy === "sync" ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+                FCM senkronize et
+              </Button>
+              <Button onClick={sendPushTest} disabled={testBusy === "push"} className="gap-2">
+                <Send className={testBusy === "push" ? "h-4 w-4 animate-pulse" : "h-4 w-4"} />
+                Test push gönder
+              </Button>
+            </div>
             {(health?.pushSummary?.latestDevices || []).length > 0 ? (
               <div className="space-y-2 pt-2">
                 <p className="flex items-center gap-2 text-sm font-semibold"><Smartphone className="h-4 w-4" /> Son kayitli cihazlar</p>

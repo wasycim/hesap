@@ -84,6 +84,17 @@ export function NativeAppBridge() {
       }
     }
     document.addEventListener("visibilitychange", visibilityListener)
+    const pushSyncListener = () => {
+      registerPushNotifications(setPushState)
+        .then(() => retryRegistration())
+        .then(() => window.dispatchEvent(new CustomEvent("hesap:native-push-sync-result", { detail: { ok: true } })))
+        .catch((error) => {
+          window.dispatchEvent(new CustomEvent("hesap:native-push-sync-result", {
+            detail: { ok: false, error: error instanceof Error ? error.message : String(error) },
+          }))
+        })
+    }
+    window.addEventListener("hesap:sync-native-push", pushSyncListener)
     const retryTimer = window.setInterval(() => {
       retryRegistration().catch(() => undefined)
     }, 30_000)
@@ -94,6 +105,7 @@ export function NativeAppBridge() {
       active = false
       window.clearInterval(retryTimer)
       document.removeEventListener("visibilitychange", visibilityListener)
+      window.removeEventListener("hesap:sync-native-push", pushSyncListener)
       networkListener.then((listener) => listener.remove()).catch(() => undefined)
       appListener.then((listener) => listener.remove()).catch(() => undefined)
     }
