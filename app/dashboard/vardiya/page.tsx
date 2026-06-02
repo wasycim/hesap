@@ -215,18 +215,18 @@ export default function VardiyaPage() {
 
       const { data } = await supabase
         .from("user_profiles")
-        .select("is_admin")
+        .select("is_admin, is_developer")
         .eq("user_id", user.id)
         .single()
 
-      setIsAdmin(Boolean(data?.is_admin))
+      setIsAdmin(Boolean(data?.is_admin || data?.is_developer))
     }
 
     checkAdmin()
   }, [])
 
   useEffect(() => {
-    if (currentSube && isAdmin) loadSchedule()
+    if (currentSube && isAdmin !== null) loadSchedule()
   }, [currentSube?.id, selectedRange.from, selectedRange.to, isAdmin])
 
   async function loadSchedule() {
@@ -380,12 +380,12 @@ export default function VardiyaPage() {
 
   const hasChanges = Object.keys(dirtyAssignments).length > 0
 
-  if (isAdmin === false) {
+  if (isAdmin === null) {
     return (
       <div className="grid min-h-64 place-items-center p-6 text-center">
         <div>
-          <h1 className="text-lg font-semibold">Erisim engellendi</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Vardiya planini sadece yoneticiler gorebilir.</p>
+          <h1 className="text-lg font-semibold">Yukleniyor</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Vardiya plani hazirlaniyor.</p>
         </div>
       </div>
     )
@@ -500,7 +500,7 @@ export default function VardiyaPage() {
               <FileText className="h-3.5 w-3.5" />
               PDF
             </Button>
-            <Button type="button" size="sm" className="h-8 gap-2" onClick={saveSchedule} disabled={saving || !hasChanges}>
+            <Button type="button" size="sm" className="h-8 gap-2" onClick={saveSchedule} disabled={!isAdmin || saving || !hasChanges}>
               <Save className="h-3.5 w-3.5" />
               {saving ? "Kaydediliyor" : "Kaydet"}
             </Button>
@@ -540,7 +540,7 @@ export default function VardiyaPage() {
                       <span className="block truncate" title={personel.ad}>{personel.ad}</span>
                     </td>
                     <td className="border-b border-r px-1 py-1">
-                      <Select value={rangeBulkShifts[personel.id] || "none"} onValueChange={(next) => applyBulkShift(personel.id, next === "none" ? "" : next)}>
+                      <Select value={rangeBulkShifts[personel.id] || "none"} onValueChange={(next) => applyBulkShift(personel.id, next === "none" ? "" : next)} disabled={!isAdmin}>
                         <SelectTrigger className="h-7 w-full px-2 text-[11px]">
                           <SelectValue placeholder="-" />
                         </SelectTrigger>
@@ -557,7 +557,7 @@ export default function VardiyaPage() {
                       const shift = shiftById.get(value)
                       return (
                         <td key={dateKey(day)} className="border-b border-r p-1">
-                          <Select value={value || "none"} onValueChange={(next) => setAssignment(day, personel.id, next === "none" ? "" : next)}>
+                          <Select value={value || "none"} onValueChange={(next) => setAssignment(day, personel.id, next === "none" ? "" : next)} disabled={!isAdmin}>
                             <SelectTrigger
                               aria-label={`${personel.ad} ${dayLabel(day)} vardiyasi`}
                               className={`h-7 w-full justify-center px-1 text-[11px] font-semibold ${shift?.className || ""}`}
@@ -602,7 +602,7 @@ export default function VardiyaPage() {
               {shift.short} · {shift.label} {shift.time !== "-" ? shift.time : ""}
             </span>
           ))}
-          <span className="ml-auto hidden sm:inline">Sabit sütunu sadece seçili tarih aralığındaki tüm günleri doldurur.</span>
+          <span className="ml-auto hidden sm:inline">{isAdmin ? "Sabit sütunu sadece seçili tarih aralığındaki tüm günleri doldurur." : "Salt okunur: vardiyaları görebilir, değiştiremezsiniz."}</span>
         </div>
       </div>
     </div>

@@ -10,7 +10,8 @@ import { Preferences } from "@capacitor/preferences"
 import { PushNotifications } from "@capacitor/push-notifications"
 import { SplashScreen } from "@capacitor/splash-screen"
 import { StatusBar, Style } from "@capacitor/status-bar"
-import { BarChart3, CalendarDays, Camera, Home, WalletCards } from "lucide-react"
+import { BarChart3, CalendarDays, Camera, Home, LogOut, WalletCards } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 const nativeNavItems = [
   { label: "Panel", href: "/dashboard", icon: Home },
@@ -21,12 +22,17 @@ const nativeNavItems = [
 ]
 
 type PushState = "idle" | "granted" | "denied" | "unavailable"
+const visibleNativeNavItems = [
+  ...nativeNavItems.filter((item) => item.href !== "/dashboard/maaslar"),
+  { label: "Cikis", href: "/auth/giris", icon: LogOut, action: "logout" as const },
+]
 
 function isNativeApp() {
   return typeof window !== "undefined" && Capacitor.isNativePlatform()
 }
 
 export function NativeAppBridge() {
+  const supabase = createClient()
   const [native, setNative] = useState(false)
   const [, setOnline] = useState(true)
   const [pushState, setPushState] = useState<PushState>("idle")
@@ -97,10 +103,17 @@ export function NativeAppBridge() {
 
   if (!native) return null
 
-  function goTo(href: string) {
+  async function goTo(item: (typeof visibleNativeNavItems)[number]) {
     Haptics.impact({ style: ImpactStyle.Light }).catch(() => undefined)
-    setCurrentPath(href)
-    window.location.href = href
+    if ("action" in item && item.action === "logout") {
+      await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined)
+      await supabase.auth.signOut().catch(() => undefined)
+      window.location.href = "/auth/giris"
+      return
+    }
+
+    setCurrentPath(item.href)
+    window.location.href = item.href
   }
 
   return (
@@ -113,14 +126,14 @@ export function NativeAppBridge() {
 
       <nav className="fixed inset-x-0 bottom-0 z-[9998] border-t bg-background/95 px-2 pb-[calc(env(safe-area-inset-bottom)+8px)] pt-2 shadow-[0_-12px_30px_rgba(15,23,42,0.14)] backdrop-blur md:hidden">
         <div className="grid grid-cols-5 gap-1">
-          {nativeNavItems.map((item) => {
+          {visibleNativeNavItems.map((item) => {
             const Icon = item.icon
             const active = activePath === item.href || (item.href !== "/dashboard" && activePath.startsWith(item.href))
             return (
               <button
                 key={item.href}
                 type="button"
-                onClick={() => goTo(item.href)}
+                onClick={() => goTo(item)}
                 className={`grid min-h-12 place-items-center rounded-xl px-1 text-[10px] font-semibold transition ${
                   active ? "bg-emerald-500 text-white shadow-sm" : "text-muted-foreground"
                 }`}

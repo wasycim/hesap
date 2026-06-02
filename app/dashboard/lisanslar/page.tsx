@@ -75,7 +75,7 @@ export default function LisanslarPage() {
                   <tr><td colSpan={7} className="p-4 text-center text-muted-foreground">Kayitli cihaz yok.</td></tr>
                 ) : null}
                 {licenses.map((license) => {
-                  const profile = Array.isArray(license.user_profiles) ? license.user_profiles[0] : license.user_profiles
+                  const profile = license.user_profile || (Array.isArray(license.user_profiles) ? license.user_profiles[0] : license.user_profiles)
                   return (
                     <tr key={license.id} className="border-t">
                       <td className="p-3">

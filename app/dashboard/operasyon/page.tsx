@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { CalendarDays, FileText, Megaphone, ShieldAlert, Wrench } from "lucide-react"
+import { CalendarDays, FileText, Megaphone, ShieldAlert, Trash2, Wrench } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,9 +13,9 @@ import { Textarea } from "@/components/ui/textarea"
 
 const tables = [
   "app_settings",
+  "dashboard_permission_overrides",
   "notification_rule_definitions",
   "overtime_approvals",
-  "pdf_templates",
   "pdf_archives",
   "app_announcements",
   "holidays",
@@ -34,10 +34,11 @@ async function fetchTable(table: string) {
 
 export default function OperasyonPage() {
   const [data, setData] = useState<Record<string, any[]>>({})
+  const [users, setUsers] = useState<any[]>([])
   const [busy, setBusy] = useState(false)
   const [rule, setRule] = useState({ name: "", event_type: "attendance", level: "warning", starts_at: "", ends_at: "", message_template: "" })
-  const [template, setTemplate] = useState({ name: "", report_type: "mesai", orientation: "landscape" })
-  const [announcement, setAnnouncement] = useState({ title: "", body: "", level: "info", target_type: "all" })
+  const [permission, setPermission] = useState({ scope_type: "role", role_key: "user", user_id: "", permission_key: "gelir", allowed: true, note: "" })
+  const [announcement, setAnnouncement] = useState({ title: "", body: "", level: "info", target_type: "all", starts_at: "", ends_at: "", always: true })
   const [holiday, setHoliday] = useState({ holiday_date: "", name: "", type: "official" })
 
   async function load() {
@@ -48,6 +49,11 @@ export default function OperasyonPage() {
       if (entry.status === "fulfilled") next[entry.value[0]] = entry.value[1]
     }
     setData(next)
+    const usersResponse = await fetch("/api/admin/users", { cache: "no-store" }).catch(() => null)
+    if (usersResponse?.ok) {
+      const usersPayload = await usersResponse.json().catch(() => ({}))
+      setUsers(usersPayload.users || [])
+    }
     setBusy(false)
   }
 
@@ -101,6 +107,17 @@ export default function OperasyonPage() {
       return
     }
     toast.success("Kaydedildi.")
+    load()
+  }
+
+  async function remove(table: string, id: string) {
+    const response = await fetch(`/api/admin/operations?table=${table}&id=${encodeURIComponent(id)}`, { method: "DELETE" })
+    const result = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      toast.error(result.error || "Kayit silinemedi.")
+      return
+    }
+    toast.success("Kayit silindi.")
     load()
   }
 
@@ -171,6 +188,89 @@ export default function OperasyonPage() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader><CardTitle>Hesap yetki yonetimi</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-[160px_1fr_1fr_140px_auto] md:items-end">
+            <label className="grid gap-1.5 text-sm font-medium">
+              Kapsam
+              <Select value={permission.scope_type} onValueChange={(scope_type) => setPermission({ ...permission, scope_type })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="role">Rol</SelectItem>
+                  <SelectItem value="user">Tek hesap</SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+            {permission.scope_type === "role" ? (
+              <label className="grid gap-1.5 text-sm font-medium">
+                Rol
+                <Select value={permission.role_key} onValueChange={(role_key) => setPermission({ ...permission, role_key })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">Kullanici</SelectItem>
+                    <SelectItem value="admin">Yonetici</SelectItem>
+                    <SelectItem value="developer">Developer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+            ) : (
+              <label className="grid gap-1.5 text-sm font-medium">
+                Hesap
+                <Select value={permission.user_id} onValueChange={(user_id) => setPermission({ ...permission, user_id })}>
+                  <SelectTrigger><SelectValue placeholder="Hesap sec" /></SelectTrigger>
+                  <SelectContent>
+                    {users.map((user) => (
+                      <SelectItem key={user.user_id} value={user.user_id}>{user.display_name || user.email || user.tc_kimlik}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+            )}
+            <label className="grid gap-1.5 text-sm font-medium">
+              Yetki
+              <Select value={permission.permission_key} onValueChange={(permission_key) => setPermission({ ...permission, permission_key })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[
+                    "gelir", "gider", "corbalar", "kargo_cari", "vardiya", "mesai", "mesai_takip", "maaslar",
+                    "bildirim_gonder", "sube_ciro_raporlari", "ayarlar", "guvenlik_ayarlar", "gelismis_log",
+                    "sistem_sagligi", "admin_ayarlar", "lisanslar", "operasyon", "cay", "bildirimler", "hesap",
+                  ].map((key) => <SelectItem key={key} value={key}>{key}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="flex h-10 items-center justify-between gap-3 rounded-xl border px-3 text-sm font-semibold">
+              Yetkili
+              <Switch checked={permission.allowed} onCheckedChange={(allowed) => setPermission({ ...permission, allowed })} />
+            </label>
+            <Button onClick={() => create("dashboard_permission_overrides", {
+              ...permission,
+              role_key: permission.scope_type === "role" ? permission.role_key : null,
+              user_id: permission.scope_type === "user" ? permission.user_id : null,
+            })}>Kaydet</Button>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {(data.dashboard_permission_overrides || []).slice(0, 18).map((item) => (
+              <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm">
+                <div>
+                  <p className="font-bold">{item.permission_key}</p>
+                  <p className="text-muted-foreground">
+                    {item.scope_type === "role" ? `Rol: ${item.role_key}` : `Hesap: ${users.find((user) => user.user_id === item.user_id)?.display_name || item.user_id}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Badge variant={item.allowed ? "default" : "destructive"}>{item.allowed ? "Acik" : "Kapali"}</Badge>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500" onClick={() => remove("dashboard_permission_overrides", item.id)} title="Sil">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
       <section className="grid gap-4 xl:grid-cols-2">
         <Card>
           <CardHeader><CardTitle>Bildirim kural motoru</CardTitle></CardHeader>
@@ -205,33 +305,24 @@ export default function OperasyonPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> PDF sablon ve arsiv</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> PDF arsivi</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <div className="grid gap-3 md:grid-cols-3">
-              <Input placeholder="Sablon adi" value={template.name} onChange={(e) => setTemplate({ ...template, name: e.target.value })} />
-              <Input placeholder="Rapor tipi" value={template.report_type} onChange={(e) => setTemplate({ ...template, report_type: e.target.value })} />
-              <Select value={template.orientation} onValueChange={(orientation) => setTemplate({ ...template, orientation })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="landscape">Yatay</SelectItem>
-                  <SelectItem value="portrait">Dikey</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button onClick={() => create("pdf_templates", { ...template, template_json: { density: "compact", header: true, footer: true } })}>PDF sablon ekle</Button>
+            <p className="text-sm text-muted-foreground">PDF raporlari otomatik arsivlenir. Manuel sablon ekleme kapatildi.</p>
             <div className="grid gap-2 md:grid-cols-2">
-              {(data.pdf_templates || []).slice(0, 6).map((item) => (
+              {(data.pdf_archives || []).slice(0, 10).map((item) => (
                 <div key={item.id} className="rounded-xl border p-3 text-sm">
-                  <p className="font-bold">{item.name}</p>
-                  <p className="text-muted-foreground">{item.report_type} / {item.orientation}</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-bold">{item.title}</p>
+                      <p className="text-muted-foreground">{item.report_type} / {new Date(item.created_at).toLocaleString("tr-TR")}</p>
+                    </div>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500" onClick={() => remove("pdf_archives", item.id)} title="Sil">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
-              {(data.pdf_archives || []).slice(0, 6).map((item) => (
-                <div key={item.id} className="rounded-xl border p-3 text-sm">
-                  <p className="font-bold">{item.title}</p>
-                  <p className="text-muted-foreground">{item.report_type} / {new Date(item.created_at).toLocaleString("tr-TR")}</p>
-                </div>
-              ))}
+              {(data.pdf_archives || []).length === 0 ? <p className="text-sm text-muted-foreground">PDF arsiv kaydi yok.</p> : null}
             </div>
           </CardContent>
         </Card>
@@ -243,11 +334,61 @@ export default function OperasyonPage() {
           <CardContent className="space-y-3">
             <Input placeholder="Duyuru basligi" value={announcement.title} onChange={(e) => setAnnouncement({ ...announcement, title: e.target.value })} />
             <Textarea placeholder="Duyuru metni" value={announcement.body} onChange={(e) => setAnnouncement({ ...announcement, body: e.target.value })} />
-            <Button onClick={() => create("app_announcements", announcement)}>Duyuru ekle</Button>
-            {(data.app_announcements || []).slice(0, 5).map((item) => (
+            <div className="grid gap-3 md:grid-cols-3">
+              <Select value={announcement.level} onValueChange={(level) => setAnnouncement({ ...announcement, level })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="info">Bilgi</SelectItem>
+                  <SelectItem value="success">Basarili</SelectItem>
+                  <SelectItem value="warning">Uyari</SelectItem>
+                  <SelectItem value="error">Kritik</SelectItem>
+                </SelectContent>
+              </Select>
+              <label className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm font-semibold">
+                Her zaman
+                <Switch checked={announcement.always} onCheckedChange={(always) => setAnnouncement({ ...announcement, always })} />
+              </label>
+              <Button onClick={() => create("app_announcements", {
+                ...announcement,
+                starts_at: announcement.always || !announcement.starts_at ? null : new Date(announcement.starts_at).toISOString(),
+                ends_at: announcement.always || !announcement.ends_at ? null : new Date(announcement.ends_at).toISOString(),
+              })}>Duyuru ekle</Button>
+            </div>
+            {!announcement.always ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
+                  Baslangic
+                  <Input type="datetime-local" value={announcement.starts_at} onChange={(e) => setAnnouncement({ ...announcement, starts_at: e.target.value })} />
+                </label>
+                <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
+                  Bitis
+                  <Input type="datetime-local" value={announcement.ends_at} onChange={(e) => setAnnouncement({ ...announcement, ends_at: e.target.value })} />
+                </label>
+              </div>
+            ) : null}
+            {(data.app_announcements || []).slice(0, 12).map((item) => (
               <div key={item.id} className="rounded-xl border p-3 text-sm">
-                <p className="font-bold">{item.title}</p>
-                <p className="text-muted-foreground">{item.body}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-bold">{item.title}</p>
+                      <Badge variant={item.active ? "default" : "secondary"}>{item.active ? "Aktif" : "Pasif"}</Badge>
+                      <Badge variant="outline">{item.level}</Badge>
+                    </div>
+                    <p className="mt-1 text-muted-foreground">{item.body}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {item.starts_at ? new Date(item.starts_at).toLocaleString("tr-TR") : "Her zaman"} - {item.ends_at ? new Date(item.ends_at).toLocaleString("tr-TR") : "suresiz"}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <Button size="sm" variant="outline" onClick={() => patch("app_announcements", item.id, { ...item, active: !item.active })}>
+                      {item.active ? "Gizle" : "Goster"}
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500" onClick={() => remove("app_announcements", item.id)} title="Sil">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </div>
             ))}
           </CardContent>

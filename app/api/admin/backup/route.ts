@@ -39,6 +39,7 @@ const backupTables = [
   "app_settings",
   "device_licenses",
   "notification_rule_definitions",
+  "dashboard_permission_overrides",
   "overtime_approvals",
   "pdf_templates",
   "pdf_archives",

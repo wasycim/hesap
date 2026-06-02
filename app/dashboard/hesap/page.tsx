@@ -6,9 +6,11 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Mail, Lock, User, CheckCircle, AlertCircle, Shield } from "lucide-react"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 import { logSecurityEvent } from "@/lib/audit-log"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export default function HesapAyarlariPage() {
   const [email, setEmail] = useState("")
@@ -21,13 +23,30 @@ export default function HesapAyarlariPage() {
   const [passwordSaving, setPasswordSaving] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [startupEnabled, setStartupEnabled] = useState(false)
+  const [isDesktopApp, setIsDesktopApp] = useState(false)
 
   const supabase = createClient()
   const { markDirty, markClean, registerSaveHandler } = useUnsavedChanges()
 
   useEffect(() => {
     loadUser()
+    loadDesktopStartup()
   }, [])
+
+  async function loadDesktopStartup() {
+    if (!window.hesapDesktop?.getStartupEnabled) return
+    setIsDesktopApp(true)
+    const result = await window.hesapDesktop.getStartupEnabled().catch(() => null)
+    setStartupEnabled(Boolean(result?.enabled))
+  }
+
+  async function toggleDesktopStartup(enabled: boolean) {
+    setStartupEnabled(enabled)
+    const result = await window.hesapDesktop?.setStartupEnabled?.(enabled).catch(() => null)
+    if (result) setStartupEnabled(Boolean(result.enabled))
+    toast.success(enabled ? "Uygulama bilgisayar acilisinda baslayacak." : "Otomatik baslatma kapatildi.")
+  }
 
   const hasEmailChange = email.trim().toLowerCase() !== currentEmail.toLowerCase()
   const hasPasswordChange = Boolean(currentPassword || newPassword || confirmPassword)
@@ -246,6 +265,22 @@ export default function HesapAyarlariPage() {
           <span className="text-purple-800 font-medium">Admin Hesabı</span>
         </div>
       )}
+
+      <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-bold text-foreground">Gorunum ve uygulama</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Tema ve masaustu uygulama davranislari.</p>
+          </div>
+          <ThemeToggle />
+        </div>
+        {isDesktopApp ? (
+          <label className="mt-4 flex items-center justify-between gap-4 rounded-lg border p-3 text-sm font-semibold">
+            Bilgisayar acilinca Hesap uygulamasini baslat
+            <Switch checked={startupEnabled} onCheckedChange={toggleDesktopStartup} />
+          </label>
+        ) : null}
+      </div>
 
       <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-4">

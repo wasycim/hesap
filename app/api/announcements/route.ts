@@ -8,8 +8,10 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("app_announcements")
-    .select("id, title, body, level, created_at")
+    .select("id, title, body, level, starts_at, ends_at, created_at")
     .eq("active", true)
+    .or(`starts_at.is.null,starts_at.lte.${new Date().toISOString()}`)
+    .or(`ends_at.is.null,ends_at.gte.${new Date().toISOString()}`)
     .order("created_at", { ascending: false })
     .limit(5)
 

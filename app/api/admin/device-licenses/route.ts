@@ -9,12 +9,27 @@ export async function GET() {
   const admin = createAdminClient()
   const { data: licenses, error } = await admin
     .from("device_licenses")
-    .select("id, user_id, device_id, platform, label, active, revoked_at, last_ip, user_agent, last_seen_at, created_at, user_profiles:user_id(email, display_name, tc_kimlik)")
+    .select("id, user_id, device_id, platform, label, active, revoked_at, last_ip, user_agent, last_seen_at, created_at")
     .order("last_seen_at", { ascending: false })
     .limit(500)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ licenses: licenses || [] })
+
+  const userIds = Array.from(new Set((licenses || []).map((license: any) => license.user_id).filter(Boolean)))
+  const { data: profiles } = userIds.length
+    ? await admin
+        .from("user_profiles")
+        .select("user_id, email, display_name, tc_kimlik")
+        .in("user_id", userIds)
+    : { data: [] as any[] }
+  const profileByUserId = new Map((profiles || []).map((profile: any) => [String(profile.user_id), profile]))
+
+  return NextResponse.json({
+    licenses: (licenses || []).map((license: any) => ({
+      ...license,
+      user_profile: profileByUserId.get(String(license.user_id)) || null,
+    })),
+  })
 }
 
 export async function PATCH(request: NextRequest) {

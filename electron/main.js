@@ -351,11 +351,40 @@ function setAppBadge(count) {
 
 function configureStartup() {
   if (process.platform !== "win32" || !app.isPackaged) return
+  const openAtLogin = readStartupPreference()
   app.setLoginItemSettings({
-    openAtLogin: true,
+    openAtLogin,
     openAsHidden: false,
     path: app.getPath("exe"),
   })
+}
+
+function startupPreferencePath() {
+  return path.join(app.getPath("userData"), "startup-preference.json")
+}
+
+function readStartupPreference() {
+  try {
+    const raw = fs.readFileSync(startupPreferencePath(), "utf8")
+    const parsed = JSON.parse(raw)
+    return parsed?.openAtLogin === true
+  } catch {
+    return false
+  }
+}
+
+function writeStartupPreference(openAtLogin) {
+  const enabled = Boolean(openAtLogin)
+  fs.mkdirSync(app.getPath("userData"), { recursive: true })
+  fs.writeFileSync(startupPreferencePath(), JSON.stringify({ openAtLogin: enabled }, null, 2))
+  if (process.platform === "win32" && app.isPackaged) {
+    app.setLoginItemSettings({
+      openAtLogin: enabled,
+      openAsHidden: false,
+      path: app.getPath("exe"),
+    })
+  }
+  return enabled
 }
 
 async function checkForUpdates({ manual = false } = {}) {
@@ -483,6 +512,8 @@ ipcMain.handle("desktop:set-badge-count", (_event, count) => {
   setAppBadge(count)
   return { ok: true }
 })
+ipcMain.handle("desktop:get-startup-enabled", () => ({ enabled: readStartupPreference() }))
+ipcMain.handle("desktop:set-startup-enabled", (_event, enabled) => ({ enabled: writeStartupPreference(enabled) }))
 ipcMain.handle("desktop:save-pdf-report", async (_event, payload = {}) => {
   const title = sanitizeFileName(payload.title)
   const html = typeof payload.html === "string" ? payload.html : ""

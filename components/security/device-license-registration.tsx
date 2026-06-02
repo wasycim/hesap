@@ -7,6 +7,8 @@ declare global {
     hesapDesktop?: {
       getVersion?: () => Promise<string>
       setBadgeCount?: (count: number) => Promise<{ ok: boolean }>
+      getStartupEnabled?: () => Promise<{ enabled: boolean }>
+      setStartupEnabled?: (enabled: boolean) => Promise<{ enabled: boolean }>
     }
   }
 }

@@ -97,6 +97,31 @@ alter table public.notification_rule_definitions
   add constraint notification_rule_definitions_level_check
   check (level in ('info', 'success', 'warning', 'error'));
 
+create table if not exists public.dashboard_permission_overrides (
+  id uuid primary key default gen_random_uuid(),
+  scope_type text not null,
+  role_key text,
+  user_id uuid references auth.users(id) on delete cascade,
+  permission_key text not null,
+  allowed boolean not null default true,
+  note text,
+  active boolean not null default true,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.dashboard_permission_overrides
+  drop constraint if exists dashboard_permission_scope_check;
+
+alter table public.dashboard_permission_overrides
+  add constraint dashboard_permission_scope_check
+  check (
+    (scope_type = 'role' and role_key in ('developer', 'admin', 'user') and user_id is null)
+    or
+    (scope_type = 'user' and user_id is not null)
+  );
+
 create table if not exists public.overtime_approvals (
   id uuid primary key default gen_random_uuid(),
   attendance_log_id integer references public.attendance_logs(id) on delete cascade,
@@ -264,6 +289,7 @@ create table if not exists public.backup_snapshots (
 alter table public.app_settings enable row level security;
 alter table public.device_licenses enable row level security;
 alter table public.notification_rule_definitions enable row level security;
+alter table public.dashboard_permission_overrides enable row level security;
 alter table public.overtime_approvals enable row level security;
 alter table public.pdf_templates enable row level security;
 alter table public.pdf_archives enable row level security;
@@ -300,6 +326,18 @@ for all to authenticated using (public.is_dashboard_developer()) with check (pub
 drop policy if exists "notification_rules_admin_all" on public.notification_rule_definitions;
 create policy "notification_rules_admin_all" on public.notification_rule_definitions
 for all to authenticated using (public.is_dashboard_admin()) with check (public.is_dashboard_admin());
+
+drop policy if exists "dashboard_permissions_developer_all" on public.dashboard_permission_overrides;
+create policy "dashboard_permissions_developer_all" on public.dashboard_permission_overrides
+for all to authenticated using (public.is_dashboard_developer()) with check (public.is_dashboard_developer());
+
+drop policy if exists "dashboard_permissions_own_select" on public.dashboard_permission_overrides;
+create policy "dashboard_permissions_own_select" on public.dashboard_permission_overrides
+for select to authenticated using (
+  public.is_dashboard_developer()
+  or user_id = auth.uid()
+  or scope_type = 'role'
+);
 
 drop policy if exists "overtime_approvals_admin_all" on public.overtime_approvals;
 create policy "overtime_approvals_admin_all" on public.overtime_approvals
@@ -384,6 +422,12 @@ for all to authenticated using (public.is_dashboard_developer()) with check (pub
 create index if not exists idx_user_profiles_developer on public.user_profiles (is_developer);
 create index if not exists idx_device_licenses_user_platform on public.device_licenses (user_id, platform, active);
 create index if not exists idx_notification_rule_definitions_scope on public.notification_rule_definitions (sube_id, user_id, event_type, active);
+create unique index if not exists idx_dashboard_permission_overrides_unique_role
+  on public.dashboard_permission_overrides (role_key, permission_key)
+  where scope_type = 'role' and active = true;
+create unique index if not exists idx_dashboard_permission_overrides_unique_user
+  on public.dashboard_permission_overrides (user_id, permission_key)
+  where scope_type = 'user' and active = true;
 create index if not exists idx_overtime_approvals_status_date on public.overtime_approvals (status, work_date desc);
 create unique index if not exists idx_overtime_approvals_attendance_log
   on public.overtime_approvals (attendance_log_id)

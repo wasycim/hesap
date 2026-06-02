@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld("hesapDesktop", {
   checkForUpdates: () => ipcRenderer.invoke("desktop:check-for-updates"),
   savePdfReport: (payload) => ipcRenderer.invoke("desktop:save-pdf-report", payload),
   setBadgeCount: (count) => ipcRenderer.invoke("desktop:set-badge-count", count),
+  getStartupEnabled: () => ipcRenderer.invoke("desktop:get-startup-enabled"),
+  setStartupEnabled: (enabled) => ipcRenderer.invoke("desktop:set-startup-enabled", enabled),
   onUpdateStatus: (callback) => {
     if (typeof callback !== "function") return () => undefined
 

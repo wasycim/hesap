@@ -14,6 +14,7 @@ const adminTables = new Set([
 
 const developerTables = new Set([
   "app_settings",
+  "dashboard_permission_overrides",
   "system_health_alerts",
   "error_reports",
   "app_store_metadata",
@@ -61,6 +62,20 @@ function sanitizePayload(table: string, body: any, userId: string) {
       file_name: String(body.file_name || "").trim().slice(0, 180),
       html_snapshot: String(body.html_snapshot || "").slice(0, 200000),
       created_by: userId,
+    }
+  }
+  if (table === "dashboard_permission_overrides") {
+    const scopeType = body.scope_type === "user" ? "user" : "role"
+    return {
+      scope_type: scopeType,
+      role_key: scopeType === "role" && ["developer", "admin", "user"].includes(body.role_key) ? body.role_key : null,
+      user_id: scopeType === "user" ? body.user_id || null : null,
+      permission_key: String(body.permission_key || "").trim().slice(0, 100),
+      allowed: body.allowed !== false,
+      note: String(body.note || "").trim().slice(0, 500),
+      active: body.active !== false,
+      created_by: userId,
+      updated_at: now,
     }
   }
   if (table === "app_announcements") {
@@ -122,6 +137,7 @@ export async function GET(request: NextRequest) {
   if (table === "overtime_approvals") query = query.order("created_at", { ascending: false }).limit(300)
   else if (table === "offline_conflicts") query = query.order("created_at", { ascending: false }).limit(300)
   else if (table === "error_reports") query = query.order("created_at", { ascending: false }).limit(200)
+  else if (table === "dashboard_permission_overrides") query = query.order("created_at", { ascending: false }).limit(500)
   else if (table === "app_settings") query = query.order("key", { ascending: true })
   else query = query.order("created_at", { ascending: false }).limit(300)
 

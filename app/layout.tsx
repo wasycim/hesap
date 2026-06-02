@@ -7,6 +7,7 @@ import { ThemeUserSync } from '@/components/theme-user-sync'
 import { VercelToolbarBlocker } from '@/components/vercel-toolbar-blocker'
 import { NativeAppBridge } from '@/components/mobile/native-app-bridge'
 import { ConnectivityOverlay } from '@/components/mobile/connectivity-overlay'
+import { ServiceWorkerRegistration } from '@/components/mobile/service-worker-registration'
 import { ClientErrorReporter } from '@/components/system/client-error-reporter'
 import './globals.css'
 
@@ -60,6 +61,7 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem storageKey="hesap-theme">
           <ThemeUserSync />
           <ClientErrorReporter />
+          <ServiceWorkerRegistration />
           <VercelToolbarBlocker />
           {children}
           <ConnectivityOverlay />

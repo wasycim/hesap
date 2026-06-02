@@ -15,10 +15,7 @@ export default function CayPage() {
   const [myItems, setMyItems] = useState<any[]>([])
   const [requests, setRequests] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
-  const [branches, setBranches] = useState<any[]>([])
-  const [targetType, setTargetType] = useState("users")
   const [userId, setUserId] = useState("")
-  const [subeId, setSubeId] = useState("")
   const [message, setMessage] = useState("Cay hazir mi?")
   const [busy, setBusy] = useState(false)
 
@@ -35,7 +32,6 @@ export default function CayPage() {
     setMyItems(data.myItems || [])
     setRequests(data.requests || [])
     setUsers(data.users || [])
-    setBranches(data.branches || [])
   }
 
   useEffect(() => {
@@ -49,7 +45,7 @@ export default function CayPage() {
     const response = await fetch("/api/tea", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetType, userIds: userId ? [userId] : [], subeId, message }),
+      body: JSON.stringify({ userId, message }),
     })
     const data = await response.json().catch(() => ({}))
     setBusy(false)
@@ -57,7 +53,7 @@ export default function CayPage() {
       toast.error(data.error || "Cay bildirimi gonderilemedi.")
       return
     }
-    toast.success(`${data.recipients || 0} kisiye cay bildirimi gitti.`)
+    toast.success("Cay bildirimi gonderildi.")
     load()
   }
 
@@ -88,41 +84,19 @@ export default function CayPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Coffee className="h-5 w-5" /> Cay bildirimi gonder</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-4 lg:grid-cols-[200px_1fr_1fr_auto] lg:items-end">
+          <CardContent className="grid gap-4 lg:grid-cols-[1fr_1.2fr_auto] lg:items-end">
             <label className="grid gap-1.5 text-sm font-medium">
-              Hedef
-              <Select value={targetType} onValueChange={setTargetType}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="users">Tek kullanici</SelectItem>
-                  <SelectItem value="branch">Sube</SelectItem>
-                  <SelectItem value="all">Tum kullanicilar</SelectItem>
-                </SelectContent>
+              Kullanici
+              <Select value={userId} onValueChange={setUserId}>
+                <SelectTrigger><SelectValue placeholder="Kullanici sec" /></SelectTrigger>
+                <SelectContent>{users.map((user) => <SelectItem key={user.user_id} value={user.user_id}>{user.display_name || user.email || user.user_id}</SelectItem>)}</SelectContent>
               </Select>
             </label>
-            {targetType === "users" ? (
-              <label className="grid gap-1.5 text-sm font-medium">
-                Kullanici
-                <Select value={userId} onValueChange={setUserId}>
-                  <SelectTrigger><SelectValue placeholder="Kullanici sec" /></SelectTrigger>
-                  <SelectContent>{users.map((user) => <SelectItem key={user.user_id} value={user.user_id}>{user.display_name || user.email || user.user_id}</SelectItem>)}</SelectContent>
-                </Select>
-              </label>
-            ) : null}
-            {targetType === "branch" ? (
-              <label className="grid gap-1.5 text-sm font-medium">
-                Sube
-                <Select value={subeId} onValueChange={setSubeId}>
-                  <SelectTrigger><SelectValue placeholder="Sube sec" /></SelectTrigger>
-                  <SelectContent>{branches.map((branch) => <SelectItem key={branch.id} value={branch.id}>{branch.ad}</SelectItem>)}</SelectContent>
-                </Select>
-              </label>
-            ) : null}
             <label className="grid gap-1.5 text-sm font-medium">
               Mesaj
               <Textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={2} />
             </label>
-            <Button onClick={createTeaRequest} disabled={busy} className="gap-2">
+            <Button onClick={createTeaRequest} disabled={busy || !userId} className="gap-2">
               <Send className="h-4 w-4" />
               Gonder
             </Button>
@@ -159,22 +133,17 @@ export default function CayPage() {
             <CardContent className="space-y-3">
               {requests.map((request) => {
                 const recipients = request.tea_request_recipients || []
-                const ready = recipients.filter((item: any) => item.response === "ready").length
-                const notReady = recipients.filter((item: any) => item.response === "not_ready").length
-                const pending = recipients.filter((item: any) => item.response === "pending").length
+                const recipient = recipients[0]
+                const responseLabel = recipient?.response === "ready" ? "Hazir" : recipient?.response === "not_ready" ? "Hazir degil" : "Bekliyor"
                 return (
                   <div key={request.id} className="rounded-xl border p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <p className="font-bold">{request.message}</p>
+                        <p className="text-sm text-muted-foreground">{request.recipient_profile?.display_name || request.recipient_profile?.email || recipient?.user_id}</p>
                         <p className="text-xs text-muted-foreground">{new Date(request.created_at).toLocaleString("tr-TR")}</p>
                       </div>
-                      <Badge>{request.status}</Badge>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2 text-sm">
-                      <Badge variant="outline">Hazir: {ready}</Badge>
-                      <Badge variant="secondary">Hazir degil: {notReady}</Badge>
-                      <Badge variant="outline">Bekleyen: {pending}</Badge>
+                      <Badge variant={recipient?.response === "ready" ? "default" : recipient?.response === "not_ready" ? "secondary" : "outline"}>{responseLabel}</Badge>
                     </div>
                   </div>
                 )

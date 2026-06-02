@@ -1,94 +1,45 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { prisma } from "@/lib/prisma"
-import { formatMinutes } from "@/lib/qr-attendance/time"
 
-function recentDate(days: number) {
-  const date = new Date()
-  date.setUTCDate(date.getUTCDate() - days)
-  return date
-}
-
-export async function GET() {
+async function getCurrentUser() {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
+  return user
+}
 
+export async function GET() {
+  const user = await getCurrentUser()
   if (!user) return NextResponse.json({ notifications: [] })
 
   const admin = createAdminClient()
-  const { data: profile } = await admin
-    .from("user_profiles")
-    .select("tc_kimlik")
-    .eq("user_id", user.id)
-    .maybeSingle()
-
-  const appNotificationsPromise = admin
+  const { data, error } = await admin
     .from("app_notifications")
-    .select("id, title, body, href, level, read_at, created_at")
+    .select("id, user_id, title, body, href, level, read_at, created_at")
     .or(`user_id.eq.${user.id},user_id.is.null`)
     .order("created_at", { ascending: false })
     .limit(50)
 
-  const attendancePromise = profile?.tc_kimlik
-    ? prisma.attendanceLog.findMany({
-        where: {
-          user: { tcKimlik: profile.tc_kimlik },
-          workDate: { gte: recentDate(14) },
-          OR: [{ lateMinutes: { gt: 0 } }, { overtimeMinutes: { gt: 0 } }],
-        },
-        orderBy: [{ workDate: "desc" }, { checkInAt: "desc" }],
-        take: 10,
-      })
-    : Promise.resolve([])
-
-  const [{ data: stored }, attendanceLogs] = await Promise.all([appNotificationsPromise, attendancePromise])
-
-  const attendanceNotifications = attendanceLogs.flatMap((log) => {
-    const items = []
-    if (log.lateMinutes > 0) {
-      items.push({
-        id: `late-${log.id}`,
-        title: "Geç kalma uyarısı",
-        body: `${new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeZone: "Europe/Istanbul" }).format(log.workDate)} günü ${formatMinutes(log.lateMinutes)} geç giriş görünüyor.`,
-        href: "/dashboard/mesai-takip",
-        level: "warning",
-        read_at: null,
-        created_at: log.updatedAt.toISOString(),
-      })
-    }
-    if (log.overtimeMinutes > 0) {
-      items.push({
-        id: `overtime-${log.id}`,
-        title: "Fazla mesai oluştu",
-        body: `${new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeZone: "Europe/Istanbul" }).format(log.workDate)} günü ${formatMinutes(log.overtimeMinutes)} net fazla mesai kaydı var.`,
-        href: "/dashboard/mesai-takip",
-        level: "success",
-        read_at: null,
-        created_at: log.updatedAt.toISOString(),
-      })
-    }
-    return items
-  })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({
-    notifications: [...attendanceNotifications, ...(stored || [])].slice(0, 25),
+    notifications: (data || []).slice(0, 25).map((item: any) => ({
+      ...item,
+      deletable: item.user_id === user.id,
+    })),
   })
 }
 
 export async function PATCH(request: NextRequest) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) return NextResponse.json({ error: "Oturum bulunamadı." }, { status: 401 })
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: "Oturum bulunamadi." }, { status: 401 })
 
   const body = await request.json().catch(() => ({}))
+  const admin = createAdminClient()
+
   if (body.all === true) {
-    const admin = createAdminClient()
     const { error } = await admin
       .from("app_notifications")
       .update({ read_at: new Date().toISOString() })
@@ -99,16 +50,32 @@ export async function PATCH(request: NextRequest) {
   }
 
   const id = String(body.id || "").trim()
-  if (!id || id.startsWith("late-") || id.startsWith("overtime-")) {
-    return NextResponse.json({ ok: true })
-  }
+  if (!id) return NextResponse.json({ ok: true })
 
-  const admin = createAdminClient()
   const { error } = await admin
     .from("app_notifications")
     .update({ read_at: new Date().toISOString() })
     .eq("id", id)
+    .or(`user_id.eq.${user.id},user_id.is.null`)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
+
+export async function DELETE(request: NextRequest) {
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: "Oturum bulunamadi." }, { status: 401 })
+
+  const id = String(request.nextUrl.searchParams.get("id") || "").trim()
+  if (!id) return NextResponse.json({ error: "Bildirim id zorunlu." }, { status: 400 })
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from("app_notifications")
+    .delete()
+    .eq("id", id)
     .eq("user_id", user.id)
+    .not("read_at", "is", null)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })

@@ -12,6 +12,13 @@ const snapshotTables = [
   "attendance_logs",
   "vardiya_planlari",
   "app_notifications",
+  "device_licenses",
+  "dashboard_permission_overrides",
+  "app_announcements",
+  "tea_requests",
+  "tea_request_recipients",
+  "pdf_archives",
+  "offline_conflicts",
 ]
 
 export async function GET() {

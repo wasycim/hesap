@@ -67,23 +67,27 @@ function calculateTiming(log: {
   return { workedMinutes, beforeShiftMinutes, earlyMinutes, lateMinutes, afterShiftMinutes, overtimeMinutes }
 }
 
-async function requireDashboardAdmin() {
+async function getDashboardAccess() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return false
+  if (!user) return { user: null, isAdmin: false, profile: null }
 
   const { data: profile } = await supabase
     .from("user_profiles")
-    .select("is_admin, is_developer")
+    .select("user_id, display_name, tc_kimlik, sube_id, is_admin, is_developer, dashboard_access")
     .eq("user_id", user.id)
     .single()
 
-  return Boolean(profile?.is_admin || profile?.is_developer)
+  return {
+    user,
+    profile,
+    isAdmin: Boolean((profile?.is_admin || profile?.is_developer) && profile.dashboard_access !== false),
+  }
 }
 
 export async function GET(request: NextRequest) {
-  const isAdmin = await requireDashboardAdmin()
-  if (!isAdmin) {
+  const access = await getDashboardAccess()
+  if (!access.user || access.profile?.dashboard_access === false) {
     return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
   }
 
@@ -91,7 +95,8 @@ export async function GET(request: NextRequest) {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul" }).format(new Date())
   const from = dateParam(searchParams.get("from")) || today
   const to = dateParam(searchParams.get("to")) || from
-  const subeId = searchParams.get("subeId") || "all"
+  const requestedSubeId = searchParams.get("subeId") || "all"
+  const subeId = access.isAdmin ? requestedSubeId : access.profile?.sube_id || "none"
 
   const admin = createAdminClient()
   let personelQuery = admin
@@ -113,8 +118,12 @@ export async function GET(request: NextRequest) {
   if (personelError) return NextResponse.json({ error: personelError.message }, { status: 500 })
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
 
+  const visiblePersoneller = access.isAdmin
+    ? (personeller || [])
+    : (personeller || []).filter((personel) => normalizeName(personel.ad) === normalizeName(access.profile?.display_name))
   const branchById = new Map((branches || []).map((branch) => [branch.id, branch]))
-  const branchIds = new Set((personeller || []).map((personel) => personel.sube_id))
+  const branchIds = new Set(visiblePersoneller.map((personel) => personel.sube_id))
+  if (!access.isAdmin && access.profile?.sube_id) branchIds.add(access.profile.sube_id)
   const profileByTc = new Map((profiles || []).filter((profile) => profile.tc_kimlik).map((profile) => [profile.tc_kimlik, profile]))
   const profileByBranchAndName = new Map((profiles || []).map((profile) => [
     `${profile.sube_id || ""}:${normalizeName(profile.display_name)}`,
@@ -127,7 +136,11 @@ export async function GET(request: NextRequest) {
         gte: dateToPrisma(from),
         lte: dateToPrisma(to),
       },
-      ...(subeId !== "all"
+      ...(!access.isAdmin
+        ? {
+            user: { tcKimlik: access.profile?.tc_kimlik || "__no_tc__" },
+          }
+        : subeId !== "all"
         ? {
             user: {
               tcKimlik: {
@@ -160,13 +173,32 @@ export async function GET(request: NextRequest) {
     workedMinutes: number
   }>()
 
-  for (const personel of personeller || []) {
+  for (const personel of visiblePersoneller) {
     const branch = branchById.get(personel.sube_id) || null
     const profile = profileByBranchAndName.get(`${personel.sube_id || ""}:${normalizeName(personel.ad)}`)
     summaryByKey.set(`${personel.sube_id}:${normalizeName(personel.ad)}`, {
       personelId: personel.id,
       name: personel.ad,
       tcKimlik: profile?.tc_kimlik || null,
+      branch,
+      logCount: 0,
+      openCount: 0,
+      beforeShiftMinutes: 0,
+      earlyMinutes: 0,
+      lateMinutes: 0,
+      afterShiftMinutes: 0,
+      overtimeMinutes: 0,
+      payableOvertimeMinutes: 0,
+      workedMinutes: 0,
+    })
+  }
+
+  if (!access.isAdmin && access.profile && summaryByKey.size === 0) {
+    const branch = access.profile.sube_id ? branchById.get(access.profile.sube_id) || null : null
+    summaryByKey.set(`${access.profile.sube_id || ""}:${normalizeName(access.profile.display_name)}`, {
+      personelId: access.profile.user_id,
+      name: access.profile.display_name || "Personel",
+      tcKimlik: access.profile.tc_kimlik || null,
       branch,
       logCount: 0,
       openCount: 0,
@@ -255,7 +287,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-  if (overtimeApprovalRows.length > 0) {
+  if (access.isAdmin && overtimeApprovalRows.length > 0) {
     await admin
       .from("overtime_approvals")
       .upsert(overtimeApprovalRows, { onConflict: "attendance_log_id", ignoreDuplicates: true })

@@ -64,7 +64,7 @@ const menuItems = [
 const maasMenuItem = { key: "maaslar", title: "Maaşlar", href: "/dashboard/maaslar", icon: WalletCards, color: "text-emerald-500" }
 
 const adminMenuItems = [
-  { title: "Bildirim Gonder", href: "/dashboard/bildirim-gonder", icon: BellPlus, color: "text-emerald-500" },
+  { key: "bildirim_gonder", title: "Bildirim Gonder", href: "/dashboard/bildirim-gonder", icon: BellPlus, color: "text-emerald-500" },
   { title: "Şube Ciro Raporları", href: "/dashboard/sube-ciro-raporlari", icon: BarChart3, color: "text-emerald-500" },
   { title: "Sütun Ayarları", href: "/dashboard/sutun-ayarlar", icon: Columns3, color: "text-sky-500" },
   { title: "Görünüm Ayarları", href: "/dashboard/gorunum-ayarlar", icon: Eye, color: "text-indigo-500" },
@@ -87,6 +87,23 @@ const developerMenuItems = [
   { title: "Lisansli Cihazlar", href: "/dashboard/lisanslar", icon: MonitorCheck, color: "text-lime-500" },
   { title: "Operasyon Merkezi", href: "/dashboard/operasyon", icon: Wrench, color: "text-violet-500" },
 ]
+
+const permissionKeyByHref: Record<string, string> = {
+  "/dashboard/bildirim-gonder": "bildirim_gonder",
+  "/dashboard/sube-ciro-raporlari": "sube_ciro_raporlari",
+  "/dashboard/sutun-ayarlar": "sutun_ayarlar",
+  "/dashboard/gorunum-ayarlar": "gorunum_ayarlar",
+  "/dashboard/ayarlar": "ayarlar",
+  "/dashboard/guvenlik-ayarlar": "guvenlik_ayarlar",
+  "/dashboard/gelismis-log": "gelismis_log",
+  "/dashboard/sistem-sagligi": "sistem_sagligi",
+  "/dashboard/admin-ayarlar": "admin_ayarlar",
+  "/dashboard/lisanslar": "lisanslar",
+  "/dashboard/operasyon": "operasyon",
+  "/dashboard/cay": "cay",
+  "/dashboard/bildirimler": "bildirimler",
+  "/dashboard/hesap": "hesap",
+}
 
 const onDortNoSubMenuItems = [
   { title: "Gelir Kalemleri", href: "/dashboard/14-no-hesap/gelir-kalemleri" },
@@ -265,6 +282,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   const [isDeveloper, setIsDeveloper] = useState(false)
   const [subeMenuOpen, setSubeMenuOpen] = useState(false)
   const [menuVisibility, setMenuVisibility] = useState<Record<string, boolean>>({})
+  const [userPermissions, setUserPermissions] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     checkAdminStatus()
@@ -306,6 +324,16 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
 
     setIsAdmin(Boolean(profile?.is_admin || profile?.is_developer))
     setIsDeveloper(Boolean(profile?.is_developer))
+    fetchUserPermissions()
+  }
+
+  async function fetchUserPermissions() {
+    const response = await fetch("/api/user/permissions", { cache: "no-store" }).catch(() => null)
+    if (!response) return
+    const data = await response.json().catch(() => ({}))
+    if (response.ok && data.permissions && typeof data.permissions === "object") {
+      setUserPermissions(data.permissions)
+    }
   }
 
   async function fetchKargoFirmalar() {
@@ -336,8 +364,14 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   }
 
   function canSeeMenu(key: string) {
-    if (key === "vardiya" || key === "mesai_takip") return isAdmin
-    if (key === "maaslar") return isAdmin
+    if (isDeveloper) return userPermissions[key] !== false
+    if (!isAdmin && Object.keys(userPermissions).length === 0) {
+      return ["dashboard", "vardiya", "mesai", "mesai_takip", "cay", "bildirimler", "hesap"].includes(key)
+    }
+    if (userPermissions[key] === false) return false
+    if (Object.prototype.hasOwnProperty.call(userPermissions, key)) {
+      return userPermissions[key] === true && menuVisibility[key] !== false
+    }
     return isAdmin || menuVisibility[key] !== false
   }
 
@@ -463,7 +497,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
             </li>
           )}
 
-          {isAdmin && (
+          {canSeeMenu("on_dort_no") && (
             <li>
               <button
                 onClick={() => setOnDortNoOpen(prev => !prev)}
@@ -532,7 +566,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
             )
           })()}
 
-          {isAdmin && adminMenuItems.filter((item) => isDeveloper || !developerOnlyHrefs.has(item.href)).map((item) => {
+          {adminMenuItems.filter((item) => canSeeMenu(permissionKeyByHref[item.href] || (item as any).key || item.href) && (isDeveloper || !developerOnlyHrefs.has(item.href))).map((item) => {
             const isActive = pathname === item.href
             return (
               <li key={item.href}>
@@ -552,7 +586,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
               </li>
             )
           })}
-          {isDeveloper && developerMenuItems.map((item) => {
+          {developerMenuItems.filter((item) => canSeeMenu(permissionKeyByHref[item.href] || item.href)).map((item) => {
             const isActive = pathname === item.href
             return (
               <li key={item.href}>
@@ -622,7 +656,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
         )}
 
         <ul className="mb-3 space-y-1">
-          {bottomMenuItems.map((item) => {
+          {bottomMenuItems.filter((item) => canSeeMenu(permissionKeyByHref[item.href] || item.href)).map((item) => {
             const isActive = pathname === item.href
             return (
               <li key={item.href}>

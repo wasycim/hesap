@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { Bell, CheckCheck } from "lucide-react"
+import { Bell, CheckCheck, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -15,6 +15,7 @@ type NotificationItem = {
   level: "info" | "success" | "warning" | "error"
   read_at: string | null
   created_at: string
+  deletable?: boolean
 }
 
 export function NotificationCenter() {
@@ -55,6 +56,12 @@ export function NotificationCenter() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ all: true }),
     }).catch(() => undefined)
+  }
+
+  async function deleteNotification(item: NotificationItem) {
+    if (!item.deletable || !item.read_at) return
+    setItems((current) => current.filter((entry) => entry.id !== item.id))
+    await fetch(`/api/notifications?id=${encodeURIComponent(item.id)}`, { method: "DELETE" }).catch(() => undefined)
   }
 
   const unreadCount = useMemo(() => items.filter((item) => !item.read_at).length, [items])
@@ -107,6 +114,11 @@ export function NotificationCenter() {
                   {!item.read_at ? (
                     <button type="button" onClick={() => markRead(item)} className="rounded-md p-1 text-emerald-600 hover:bg-emerald-500/10" title="Okundu işaretle">
                       <CheckCheck className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                  {item.read_at && item.deletable ? (
+                    <button type="button" onClick={() => deleteNotification(item)} className="rounded-md p-1 text-red-500 hover:bg-red-500/10" title="Sil">
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   ) : null}
                 </div>

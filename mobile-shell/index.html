@@ -61,5 +61,13 @@
       <button type="button" onclick="location.reload()">Yeniden yukle</button>
       <small>Uygulama icinde kaydedilen islemler baglanti gelince senkronize edilir.</small>
     </main>
+    <script>
+      const appUrl = "https://pamukkaleturizm.info"
+      function openAppWhenOnline() {
+        if (navigator.onLine) window.location.replace(appUrl)
+      }
+      window.addEventListener("online", openAppWhenOnline)
+      window.setTimeout(openAppWhenOnline, 250)
+    </script>
   </body>
 </html>

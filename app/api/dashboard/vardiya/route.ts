@@ -21,15 +21,15 @@ async function requireDashboardAdmin() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) return { user: null, isAdmin: false }
+  if (!user) return { user: null, isAdmin: false, profile: null }
 
   const { data: profile } = await supabase
     .from("user_profiles")
-    .select("is_admin, sube_id")
+    .select("is_admin, is_developer, sube_id")
     .eq("user_id", user.id)
     .single()
 
-  return { user, isAdmin: Boolean(profile?.is_admin), profile }
+  return { user, isAdmin: Boolean(profile?.is_admin || profile?.is_developer), profile }
 }
 
 function monthRange(month: string) {
@@ -56,13 +56,14 @@ function dateRange(from: string | null, to: string | null) {
 }
 
 export async function GET(request: NextRequest) {
-  const { isAdmin } = await requireDashboardAdmin()
+  const { user, isAdmin, profile } = await requireDashboardAdmin()
 
-  if (!isAdmin) {
+  if (!user) {
     return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
   }
 
-  const subeId = request.nextUrl.searchParams.get("subeId")
+  const requestedSubeId = request.nextUrl.searchParams.get("subeId")
+  const subeId = isAdmin ? requestedSubeId : profile?.sube_id
   const month = request.nextUrl.searchParams.get("month")
   const range = dateRange(
     request.nextUrl.searchParams.get("from"),
@@ -153,6 +154,7 @@ export async function GET(request: NextRequest) {
     conflicts,
     fixedShiftDefinitions,
     shiftDefinitions: shiftRes.data || [],
+    readOnly: !isAdmin,
   })
 }
 

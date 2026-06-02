@@ -182,8 +182,7 @@ export default function MesaiTakipPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!subeLoading && isAdmin) loadData()
-    if (!subeLoading && !isAdmin) setLoading(false)
+    if (!subeLoading) loadData()
   }, [subeLoading, isAdmin, from, to, selectedSubeId])
 
   async function loadData() {
@@ -294,7 +293,7 @@ export default function MesaiTakipPage() {
     })
   }
 
-  if (!subeLoading && !isAdmin) {
+  if (false && !subeLoading && !isAdmin) {
     return (
       <main className="p-4 sm:p-6 lg:p-8">
         <Card>
@@ -330,7 +329,7 @@ export default function MesaiTakipPage() {
         <CardContent className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(190px,1fr)_minmax(190px,1fr)_minmax(210px,1fr)_150px]">
           <DatePicker label="Başlangıç" value={from} onChange={setFrom} />
           <DatePicker label="Bitiş" value={to} onChange={setTo} />
-          <label className="grid gap-1.5 text-xs font-semibold text-muted-foreground">
+          <label className="grid gap-1.5 text-xs font-semibold text-muted-foreground" style={{ display: isAdmin ? undefined : "none" }}>
             Şube
             <Select value={selectedSubeId} onValueChange={setSelectedSubeId}>
               <SelectTrigger className="h-11 rounded-xl bg-background/80 px-3 shadow-sm">

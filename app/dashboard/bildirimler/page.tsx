@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { BellRing, CheckCheck, RefreshCw } from "lucide-react"
+import { BellRing, CheckCheck, RefreshCw, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,6 +15,7 @@ type NotificationItem = {
   level: "info" | "success" | "warning" | "error"
   read_at: string | null
   created_at: string
+  deletable?: boolean
 }
 
 function formatDate(value: string) {
@@ -49,6 +50,12 @@ export default function BildirimlerPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ all: true }),
     }).catch(() => undefined)
+  }
+
+  async function deleteNotification(item: NotificationItem) {
+    if (!item.deletable || !item.read_at) return
+    setItems((current) => current.filter((entry) => entry.id !== item.id))
+    await fetch(`/api/notifications?id=${encodeURIComponent(item.id)}`, { method: "DELETE" }).catch(() => undefined)
   }
 
   const unreadCount = useMemo(() => items.filter((item) => !item.read_at).length, [items])
@@ -100,9 +107,16 @@ export default function BildirimlerPage() {
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.body}</p>
                   <p className="mt-2 text-xs text-muted-foreground">{formatDate(item.created_at)}</p>
                 </div>
-                <Button asChild variant="outline" size="sm">
-                  <Link href={item.href || "/dashboard"}>Ilgili sayfa</Link>
-                </Button>
+                <div className="flex shrink-0 gap-2">
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={item.href || "/dashboard"}>Ilgili sayfa</Link>
+                  </Button>
+                  {item.read_at && item.deletable ? (
+                    <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-red-500" onClick={() => deleteNotification(item)} title="Sil">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             </div>
           ))}

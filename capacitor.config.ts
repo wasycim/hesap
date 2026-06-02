@@ -5,10 +5,9 @@ const config: CapacitorConfig = {
   appName: "Hesap",
   webDir: "mobile-shell",
   server: {
-    url: "https://pamukkaleturizm.info",
-    cleartext: false,
     androidScheme: "https",
     iosScheme: "https",
+    allowNavigation: ["pamukkaleturizm.info"],
   },
   plugins: {
     SplashScreen: {
