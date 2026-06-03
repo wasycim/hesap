@@ -441,9 +441,14 @@ create unique index if not exists idx_dashboard_permission_overrides_unique_user
   on public.dashboard_permission_overrides (user_id, permission_key)
   where scope_type = 'user' and active = true;
 create index if not exists idx_overtime_approvals_status_date on public.overtime_approvals (status, work_date desc);
-create unique index if not exists idx_overtime_approvals_attendance_log
-  on public.overtime_approvals (attendance_log_id)
-  where attendance_log_id is not null;
+delete from public.overtime_approvals a
+using public.overtime_approvals b
+where a.attendance_log_id is not null
+  and a.attendance_log_id = b.attendance_log_id
+  and a.ctid < b.ctid;
+drop index if exists public.idx_overtime_approvals_attendance_log;
+create unique index idx_overtime_approvals_attendance_log
+  on public.overtime_approvals (attendance_log_id);
 create unique index if not exists idx_overtime_approvals_source_key
   on public.overtime_approvals (source_key)
   where source_key is not null and source_key <> '';
