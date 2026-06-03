@@ -2,7 +2,7 @@
   "name": "hesap",
   "version": "0.1.10",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE.md",
   "description": "Hesap web ve QR mesai takip sistemi",
   "main": "electron/main.js",
   "author": "wasycim",

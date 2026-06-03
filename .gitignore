@@ -12,6 +12,7 @@ next.user-config.*
 .env.*
 .env*.local
 !.env.example
+.secrets/
 
 # Common ignores
 node_modules

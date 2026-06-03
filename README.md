@@ -14,6 +14,7 @@
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
   <img alt="Supabase" src="https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white" />
   <img alt="Electron" src="https://img.shields.io/badge/Windows-EXE-47848F?style=for-the-badge&logo=electron&logoColor=white" />
+  <img alt="Repo views" src="https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fwasycim%2Fhesap&count_bg=%2310B981&title_bg=%23111827&icon=github.svg&icon_color=%23FFFFFF&title=views&edge_flat=false" />
 </p>
 
 ## İçindekiler
@@ -23,6 +24,7 @@
 - [Ana Modüller](#ana-modüller)
 - [Mesai ve Maaş Mantığı](#mesai-ve-maaş-mantığı)
 - [Offline Çalışma](#offline-çalışma)
+- [Backup ve Failover](#backup-ve-failover)
 - [Push Bildirim](#push-bildirim)
 - [Yetki Sistemi](#yetki-sistemi)
 - [Kurulum](#kurulum)
@@ -141,6 +143,28 @@ Sistem hem PWA, hem Android/iOS WebView kabuğu, hem Windows EXE için offline k
 | Bildirim merkezi | Son API cache'i |
 | Supabase realtime | Online gerekir |
 | İlk kez hiç açılmamış sayfa | Online ilk yükleme gerekir |
+
+## Backup ve Failover
+
+Production yedekleme üç katmanlıdır:
+
+1. **Cloudflare R2**: Supabase PostgreSQL dump dosyaları `hesap-backups` bucket'ına yüklenir.
+2. **VPS worker**: Ubuntu 24.04 üzerinde `systemd` timer ile her 6 saatte bir backup alır.
+3. **Yedek PostgreSQL**: Aynı VPS üzerinde PostgreSQL 17 çalışır ve son başarılı dump içindeki `public` uygulama şeması `hesap_failover` veritabanına restore edilir.
+
+Kurulan worker dosyaları:
+
+| Parça | Sunucu yolu | Amaç |
+| --- | --- | --- |
+| Backup script | `/usr/local/bin/hesap-backup` | `pg_dump` alır, R2'ye yükler, standby restore yapar. |
+| Health script | `/usr/local/bin/hesap-health` | PostgreSQL, R2 ve son backup durumunu JSON döndürür. |
+| Timer | `hesap-backup.timer` | Backup'ı 6 saatte bir otomatik çalıştırır. |
+| Secret env | `/etc/hesap/backup.env` | R2, Supabase ve failover bağlantı bilgilerini tutar. |
+| Local secret | `.secrets/hesap-vps.env` | Bu makinede saklanan erişim bilgileri; git'e girmez. |
+
+Failover otomatik açılmaz. Supabase uzun süreli arıza verirse developer sistem sağlığı ekranından yedek DB'yi kontrol eder ve Vercel ortam değişkenlerini bilinçli olarak `FAILOVER_DATABASE_URL` değerine geçirir. Bu yaklaşım veri çakışmasını azaltır.
+
+Detaylı VPS notları: [`infra/vps`](infra/vps).
 
 ## Push Bildirim
 
@@ -340,6 +364,9 @@ Native özellikler:
 - [ ] Reddedilen mesai için red nedeni zorunlu.
 - [ ] Gelir tablosu online açıldıktan sonra offline cache ile açılıyor.
 - [ ] Offline queue internet gelince senkronize oluyor.
+- [ ] VPS `hesap-backup.timer` aktif ve son backup başarılı.
+- [ ] Cloudflare R2 `hesap-backups` bucket içinde son dump görünüyor.
+- [ ] `FAILOVER_DATABASE_URL` developer sistem sağlığı ekranında erişilebilir görünüyor.
 - [ ] Windows EXE auto-update release dosyaları GitHub Releases içinde.
 
 ## Rota Haritası
@@ -393,6 +420,6 @@ GitHub Release içinde installer ve `latest.yml` doğru sürümle publish edilmi
 
 ## Lisans
 
-Bu proje özeldir ve `UNLICENSED` olarak tutulur.
+Bu proje özeldir ve `SEE LICENSE IN LICENSE.md` olarak tutulur.
 
-Kod, installer, APK, veritabanı şeması ve görsel varlıklar Wasy Systems izni olmadan kopyalanamaz, dağıtılamaz veya yeniden yayınlanamaz.
+Kod, installer, APK, veritabanı şeması ve görsel varlıklar Wasy Systems izni olmadan satılamaz, kopyalanamaz, dağıtılamaz veya yeniden yayınlanamaz. Detaylar için [`LICENSE.md`](LICENSE.md).

@@ -4,8 +4,42 @@ import { canSendAdminDigestEmail } from "@/lib/email/admin-digest"
 import { getPushProviderStatus } from "@/lib/notifications/push"
 import { prisma } from "@/lib/prisma"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { PrismaClient } from "@prisma/client"
 
 type ComponentStatus = "operational" | "degraded" | "down"
+
+async function checkFailoverDatabase(): Promise<{ status: ComponentStatus; message: string }> {
+  const failoverUrl = process.env.FAILOVER_DATABASE_URL?.trim()
+  if (!failoverUrl) {
+    return {
+      status: "degraded",
+      message: "FAILOVER_DATABASE_URL tanimli degil",
+    }
+  }
+
+  const failover = new PrismaClient({
+    datasources: {
+      db: {
+        url: failoverUrl,
+      },
+    },
+  })
+
+  try {
+    await failover.$queryRaw`select 1`
+    return {
+      status: "operational",
+      message: "Yedek PostgreSQL erisilebilir",
+    }
+  } catch (error) {
+    return {
+      status: "down",
+      message: error instanceof Error ? error.message : "Yedek PostgreSQL kontrolu basarisiz",
+    }
+  } finally {
+    await failover.$disconnect().catch(() => undefined)
+  }
+}
 
 async function assertSupabase<T extends { error: { message?: string } | null }>(promise: PromiseLike<T>) {
   const result = await promise
@@ -54,6 +88,23 @@ export async function GET() {
     name: "Otomatik rapor e-postası",
     status: canSendAdminDigestEmail() ? "operational" : "degraded",
     message: canSendAdminDigestEmail() ? "SMTP hazır" : "SMTP_HOST, SMTP_USER veya SMTP_PASS eksik",
+  })
+
+  components.push({
+    name: "Cloudflare R2 yedek deposu",
+    status: process.env.R2_ENDPOINT && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY && process.env.R2_BUCKET_NAME
+      ? "operational"
+      : "degraded",
+    message: process.env.R2_BUCKET_NAME
+      ? `Bucket hazir: ${process.env.R2_BUCKET_NAME}`
+      : "R2 ortam degiskenleri eksik",
+  })
+
+  const failoverStatus = await checkFailoverDatabase()
+  components.push({
+    name: "Yedek PostgreSQL failover",
+    status: failoverStatus.status,
+    message: failoverStatus.message,
   })
 
   const [
