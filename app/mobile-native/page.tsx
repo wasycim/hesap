@@ -40,7 +40,7 @@ export default function MobileNativePage() {
         <header className="rounded-[28px] border border-white/10 bg-white/[0.06] p-5 shadow-2xl shadow-black/30">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <img src="/w-logo.svg" alt="Hesap" className="h-11 w-11 rounded-2xl bg-white p-2" />
+              <img src="/iconw.png" alt="Hesap" className="h-11 w-11 object-contain" />
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-emerald-300">Wasy Systems</p>
                 <h1 className="text-xl font-black tracking-normal">Hesap Mobil</h1>

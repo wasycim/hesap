@@ -52,7 +52,7 @@ export async function sendAdminDigestEmail({ to, title, subtitle, metrics, detai
       <div style="margin:0;padding:32px;background:#eef4f8;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
         <div style="max-width:680px;margin:0 auto;border-radius:22px;overflow:hidden;background:#ffffff;border:1px solid #dbe3ee;">
           <div style="padding:28px;background:#0f172a;color:#ffffff;">
-            <table role="presentation" width="52" height="52" cellspacing="0" cellpadding="0" style="width:52px;height:52px;border-collapse:separate;border-radius:16px;background:#ffffff;">
+            <table role="presentation" width="52" height="52" cellspacing="0" cellpadding="0" style="width:52px;height:52px;border-collapse:separate;border-radius:16px;background:#111827;">
               <tr>
                 <td align="center" valign="middle" style="width:52px;height:52px;padding:0;">
                   <img src="https://pamukkaleturizm.info/mail-logo.png" width="46" height="46" alt="Hesap" style="display:block;width:46px;height:46px;max-width:46px;max-height:46px;border:0;outline:none;text-decoration:none;object-fit:contain;border-radius:12px;" />

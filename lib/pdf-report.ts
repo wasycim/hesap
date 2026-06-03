@@ -301,7 +301,7 @@ function buildPdfHtml({
             <main class="sheet">
               <header class="header">
                 <div class="brand">
-                  <div class="logoWrap"><img class="logo" src="${window.location.origin}/w-logo.svg" /></div>
+                  <div class="logoWrap"><img class="logo" src="${window.location.origin}/iconw.png" /></div>
                   <div>
                     <h1>${escapeHtml(title)}</h1>
                     ${subtitle ? `<div class="subtitle">${escapeHtml(subtitle)}</div>` : ""}

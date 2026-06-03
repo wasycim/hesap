@@ -80,7 +80,7 @@ export default function StoreScreenshotsPage() {
     <main className="min-h-screen bg-[#f3f7fb] px-8 py-10 text-slate-950">
       <header className="mx-auto max-w-7xl">
         <div className="flex items-center gap-3">
-          <img src="/w-logo.svg" alt="Hesap" className="h-12 w-12 rounded-2xl bg-white p-2 shadow" />
+          <img src="/iconw.png" alt="Hesap" className="h-12 w-12 object-contain drop-shadow" />
           <div>
             <p className="text-sm font-black uppercase tracking-wide text-emerald-700">Wasy Systems</p>
             <h1 className="text-3xl font-black tracking-normal">Hesap mobil mağaza ekranları</h1>
@@ -96,7 +96,7 @@ export default function StoreScreenshotsPage() {
               <div className={`min-h-[620px] rounded-[34px] bg-gradient-to-br ${screen.color} p-5 text-white`}>
                 <div className="mx-auto mb-5 h-1.5 w-24 rounded-full bg-white/18" />
                 <div className="flex items-center justify-between gap-3">
-                  <img src="/w-logo.svg" alt="" className="h-11 w-11 rounded-2xl bg-white p-2" />
+                  <img src="/iconw.png" alt="" className="h-11 w-11 object-contain" />
                   <span className="rounded-full bg-white/12 px-3 py-1 text-xs font-black">Hesap</span>
                 </div>
                 <div className="mt-9">

@@ -377,7 +377,7 @@ export default function SubeCiroRaporlariPage() {
               <h1>Şube Ciro Raporları</h1>
               <div class="muted">${formatDate(startDate)} - ${formatDate(endDate)}</div>
             </div>
-            <div class="logoWrap"><img class="logo" src="${window.location.origin}/w-logo.svg" /></div>
+            <div class="logoWrap"><img class="logo" src="${window.location.origin}/iconw.png" /></div>
           </div>
           <div class="cards">
             <div class="card"><div class="label">Toplam Satış</div><div class="value">${formatMoney(totals.satis)} TL</div></div>
