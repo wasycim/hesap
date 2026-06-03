@@ -76,7 +76,7 @@ flowchart LR
 | --- | --- |
 | Dashboard | Şube bazlı finans ve operasyon paneli. |
 | Gelir Tablosu | Gelir kayıtları, özel firma sütunları, PDF çıktı ve offline kayıt kuyruğu. |
-| Gider Tablosu | Gider kalemleri, personel payları, ortak avansları ve raporlama. |
+| Gider Tablosu | Gider kalemleri, personel payları, ortak avansları, offline kayıt kuyruğu ve raporlama. |
 | Çorbalar | Günlük çorba/ürün takibi. |
 | Kargo Cari | Firma bazlı cari borç/alacak takibi. |
 | Vardiya | Günlük/haftalık/aylık vardiya planlama, çakışma engeli, özel vardiya tanımları. |
@@ -129,7 +129,7 @@ Sistem hem PWA, hem Android/iOS WebView kabuğu, hem Windows EXE için offline k
 - `ConnectivityOverlay` internet yokken kullanıcıya bilgi verir.
 - İnternet geri gelince kuyruk otomatik senkronize olur.
 - Kullanıcı isterse `Senkronize et` butonuyla kuyruk işlemlerini elle zorlayabilir.
-- Gelir tablosu `/api/dashboard/gelir` üzerinden cache'lenebilir hale getirildiği için offline açılabilir.
+- Gelir ve gider tabloları `/api/dashboard/gelir` ve `/api/dashboard/gider` üzerinden cache'lenebilir hale getirildiği için offline açılabilir.
 - Şube/profil bilgileri `contexts/sube-context.tsx` içinde local cache'e düşer; internet yokken son bilinen şube ile ekran açılır.
 
 ### Offline Kapsam
@@ -139,6 +139,8 @@ Sistem hem PWA, hem Android/iOS WebView kabuğu, hem Windows EXE için offline k
 | Dashboard shell | Cache |
 | Gelir tablosu açılış | Son başarılı API cache'i |
 | Gelir kaydetme | Offline queue |
+| Gider tablosu açılış | Son başarılı API cache'i |
+| Gider kaydetme | Offline queue |
 | Mesai QR okutma | Özel offline mutation kuyruğu |
 | Bildirim merkezi | Son API cache'i |
 | Supabase realtime | Online gerekir |
@@ -149,7 +151,7 @@ Sistem hem PWA, hem Android/iOS WebView kabuğu, hem Windows EXE için offline k
 Production yedekleme üç katmanlıdır:
 
 1. **Cloudflare R2**: Supabase PostgreSQL dump dosyaları `hesap-backups` bucket'ına yüklenir.
-2. **VPS worker**: Ubuntu 24.04 üzerinde `systemd` timer ile her 6 saatte bir backup alır.
+2. **VPS worker**: Ubuntu 24.04 üzerinde `systemd` timer ile günde 1 kez backup alır.
 3. **Yedek PostgreSQL**: Aynı VPS üzerinde PostgreSQL 17 çalışır ve son başarılı dump içindeki `public` uygulama şeması `hesap_failover` veritabanına restore edilir.
 
 Kurulan worker dosyaları:
@@ -158,9 +160,11 @@ Kurulan worker dosyaları:
 | --- | --- | --- |
 | Backup script | `/usr/local/bin/hesap-backup` | `pg_dump` alır, R2'ye yükler, standby restore yapar. |
 | Health script | `/usr/local/bin/hesap-health` | PostgreSQL, R2 ve son backup durumunu JSON döndürür. |
-| Timer | `hesap-backup.timer` | Backup'ı 6 saatte bir otomatik çalıştırır. |
+| Timer | `hesap-backup.timer` | Backup'ı günde 1 kez otomatik çalıştırır. |
 | Secret env | `/etc/hesap/backup.env` | R2, Supabase ve failover bağlantı bilgilerini tutar. |
 | Local secret | `.secrets/hesap-vps.env` | Bu makinede saklanan erişim bilgileri; git'e girmez. |
+
+`/status` sayfası web, ana PostgreSQL, Supabase API, failover PostgreSQL, günlük full backup, R2, SMTP, FCM ve Vercel deploy durumunu tek ekranda gösterir. VPS backup başarılı olduğunda `security_events` içine `vps_backup_completed` olayı bırakır; public durum sayfası son yedeğin yaşına göre sağlıklı/kısmi sorun/kesinti bilgisini üretir.
 
 Failover otomatik açılmaz. Supabase uzun süreli arıza verirse developer sistem sağlığı ekranından yedek DB'yi kontrol eder ve Vercel ortam değişkenlerini bilinçli olarak `FAILOVER_DATABASE_URL` değerine geçirir. Bu yaklaşım veri çakışmasını azaltır.
 

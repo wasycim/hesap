@@ -13,6 +13,10 @@
     {
       "path": "/api/cron/attendance-alerts",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/daily-backup",
+      "schedule": "0 0 * * *"
     }
   ]
 }

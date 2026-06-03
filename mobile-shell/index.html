@@ -46,6 +46,12 @@
         font: inherit;
         font-weight: 800;
       }
+      .secondary {
+        margin-top: 10px;
+        border: 1px solid rgba(148, 163, 184, .35);
+        background: rgba(15, 23, 42, .8);
+        color: #e2e8f0;
+      }
       small {
         display: block;
         margin-top: 14px;
@@ -57,14 +63,18 @@
     <main>
       <img src="./icon.png" alt="Hesap" />
       <h1>Internet baglantisi yok</h1>
-      <p>Uygulama acilmak icin baglanti bekliyor. Internet geldikten sonra tekrar yukle.</p>
-      <button type="button" onclick="location.reload()">Yeniden yukle</button>
-      <small>Uygulama icinde kaydedilen islemler baglanti gelince senkronize edilir.</small>
+      <p>Uygulama acilmak icin baglanti bekliyor. Daha once acildiysa cache uzerinden cevrimdisi deneyebilirsin.</p>
+      <button type="button" onclick="openApp()">Uygulamayi ac</button>
+      <button class="secondary" type="button" onclick="location.reload()">Yeniden yukle</button>
+      <small>Kaydedilen islemler baglanti gelince otomatik senkronize edilir.</small>
     </main>
     <script>
       const appUrl = "https://pamukkaleturizm.info"
+      function openApp() {
+        window.location.replace(appUrl)
+      }
       function openAppWhenOnline() {
-        if (navigator.onLine) window.location.replace(appUrl)
+        if (navigator.onLine) openApp()
       }
       window.addEventListener("online", openAppWhenOnline)
       window.setTimeout(openAppWhenOnline, 250)

@@ -104,10 +104,6 @@ function normalizeSubeName(name: string): string {
   return name.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\u0131/g, "i")
 }
 
-function getGiderTotalKey(tarih: string, vardiya: string, isTekVardiya: boolean) {
-  return isTekVardiya ? tarih : `${tarih}__${vardiya || "S"}`
-}
-
 function compareDateVardiya(a: Pick<GiderRow, "tarih" | "vardiya">, b: Pick<GiderRow, "tarih" | "vardiya">) {
   const dateCompare = a.tarih.localeCompare(b.tarih)
   if (dateCompare !== 0) return dateCompare
@@ -121,6 +117,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
   const [columnSettings, setColumnSettings] = useState<TableColumnSetting[]>(mergeColumnSettings("gider", []))
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [offlineLoaded, setOfflineLoaded] = useState(false)
   const supabase = createClient()
   const { currentSube, refreshKey, userVardiya, isAdmin } = useSube()
   const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
@@ -169,88 +166,39 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
 
   async function loadData() {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !currentSube) return
-
-    const { data: settingsData } = await supabase
-      .from("kolon_ayarlari")
-      .select("*")
-      .eq("sube_id", currentSube.id)
-      .eq("table_type", "gider")
-      .order("sort_order", { ascending: true })
-
-    setColumnSettings(mergeColumnSettings("gider", settingsData as TableColumnSetting[] | null))
-
-    // Ortakları yükle (tüm şubelerde aynı)
-    const { data: ortakData } = await supabase
-      .from("ortaklar")
-      .select("*")
-      .eq("sube_id", currentSube.id)
-      .eq("aktif", true)
-      .order("sira", { ascending: true })
-    
-    if (ortakData) setOrtaklar(ortakData)
-
-    // Personelleri yükle (tüm şubelerde aynı)
-    const { data: personelData } = await supabase
-      .from("personeller")
-      .select("*")
-      .eq("sube_id", currentSube.id)
-      .eq("aktif", true)
-      .order("sira", { ascending: true })
-    
-    if (personelData) setPersoneller(personelData)
-    const mesaiRates = new Map((personelData || []).map(personel => [personel.id, Number(personel.saatlik_mesai_ucreti) || 0]))
-
-    // Şubeye göre gider kayıtlarını yükle
-    const { data, error } = await supabase
-      .from("gider_kayitlari")
-      .select("*")
-      .eq("sube_id", currentSube.id)
-      .eq("ay_yil", ayYil)
-      .order("tarih", { ascending: true })
-      .order("vardiya", { ascending: true })
-
-    if (!error && data) {
-      setRows(data.filter(row => isDateInSelectedMonth(row.tarih, month, year)).map(row => {
-        const mesaiDetails = row.personel_mesai_detaylari || {}
-        const mesaiTotal = Object.entries(mesaiDetails).reduce((sum, [personelId, hours]) => (
-          sum + ((Number(hours) || 0) * (mesaiRates.get(personelId) || 0))
-        ), 0)
-
-        return ({
-        id: row.id,
-        user_id: row.user_id,
-        sube_id: row.sube_id,
-        tarih: row.tarih,
-        vardiya: isTekVardiya ? "" : (row.vardiya || "S"),
-        el_fisi_odeme: Number(row.el_fisi_odeme) || 0,
-        ortak_paylari: row.ortak_pilarim || {},
-        personel_paylari: row.personel_paylari || {},
-        personel_mesai: mesaiTotal || Number(row.personel_mesai) || 0,
-        personel_mesai_detaylari: mesaiDetails,
-        bil_iade: Number(row.bil_iade) || 0,
-        inegol_donus: Number(row.inegol_donus) || 0,
-        pk_kredi_karti: Number(row.pk_kredi_karti) || 0,
-        yemek: Number(row.yemek) || 0,
-        yanmaz_bilet: Number(row.yanmaz_bilet) || 0,
-        diger: Number(row.diger) || 0,
-        ziraat_bankasi: Number(row.ziraat_bankasi) || 0,
-        is_bankasi: Number(row.is_bankasi) || 0,
-        kuveyt_turk: Number(row.kuveyt_turk) || 0,
-        bakiye_bilet: Number(row.bakiye_bilet) || 0,
-        kargo_cari: Number(row.kargo_cari) || 0,
-        hesaba_gelen: Number(row.hesaba_gelen) || 0,
-        on_dort_noya_giden: Number(row.on_dort_noya_giden) || 0,
-        carsi_bilet: Number(row.carsi_bilet) || 0,
-        darica_bilet: Number(row.darica_bilet) || 0,
-        kredi_karti_bakiye: Number(row.kredi_karti_bakiye) || 0,
-        bankaya_yatan: Number(row.bankaya_yatan) || 0,
-        genel_toplam: Number(row.genel_toplam) || 0,
-        custom_values: row.custom_values || {},
-      })}).sort(compareDateVardiya))
+    if (!currentSube) {
+      setLoading(false)
+      return
     }
-    setLoading(false)
+
+    const params = new URLSearchParams({
+      subeId: currentSube.id,
+      month,
+      year: String(year),
+      ayYil,
+    })
+
+    try {
+      const response = await fetch(`/api/dashboard/gider?${params.toString()}`, { cache: "no-store" })
+      const data = await response.json().catch(() => ({}))
+      const fromOfflineCache = response.headers.get("X-Hesap-Offline-Cache") === "1" || response.headers.get("X-Hesap-Offline") === "1" || data?.offline === true
+      setOfflineLoaded(fromOfflineCache)
+
+      if (!response.ok) {
+        toast.error(data.error || "Gider tablosu yuklenemedi.")
+        return
+      }
+
+      setColumnSettings(mergeColumnSettings("gider", data.columnSettings as TableColumnSetting[] | null))
+      setOrtaklar(data.ortaklar || [])
+      setPersoneller(data.personeller || [])
+      setRows(((data.rows || []) as GiderRow[]).filter(row => isDateInSelectedMonth(row.tarih, month, year)).sort(compareDateVardiya))
+    } catch {
+      toast.warning("Gider tablosu offline cache bulunamadigi icin bos acildi.")
+      setOfflineLoaded(true)
+    } finally {
+      setLoading(false)
+    }
   }
 
   function getNextDate(): string {
@@ -397,48 +345,13 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     markDirty()
   }
 
-  async function syncGelirGiderTotals() {
-    if (!currentSube) return
-
-    const { data: giderRows } = await supabase
-      .from("gider_kayitlari")
-      .select("tarih, vardiya, genel_toplam")
-      .eq("sube_id", currentSube.id)
-      .eq("ay_yil", ayYil)
-
-    const totalsByDate = new Map<string, number>()
-    ;(giderRows || []).forEach(row => {
-      const key = getGiderTotalKey(row.tarih, row.vardiya || "S", isTekVardiya)
-      totalsByDate.set(key, (totalsByDate.get(key) || 0) + (Number(row.genel_toplam) || 0))
-    })
-
-    const { data: gelirRows } = await supabase
-      .from("gelir_kayitlari")
-      .select("id, tarih, vardiya, toplam")
-      .eq("sube_id", currentSube.id)
-      .eq("ay_yil", ayYil)
-
-    for (const row of gelirRows || []) {
-      const giderler = totalsByDate.get(getGiderTotalKey(row.tarih, row.vardiya || "S", isTekVardiya)) || 0
-      await supabase
-        .from("gelir_kayitlari")
-        .update({
-          giderler,
-          kalan: (Number(row.toplam) || 0) - giderler,
-        })
-        .eq("id", row.id)
-    }
-  }
-
   async function saveData() {
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !currentSube) {
+    if (!currentSube) {
       setSaving(false)
       return false
     }
 
-    // Sadece düzenleyebildiğim vardiyaları filtrele
     const editableRows = rows.filter(row => {
       if (!isAdmin && row.tarih !== getLocalDateString()) return false
       if (isTekVardiya || isAdmin) return true
@@ -447,83 +360,37 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
 
     const invalidDateIndex = editableRows.findIndex(row => !isDateInSelectedMonth(row.tarih, month, year))
     if (invalidDateIndex !== -1) {
-      toast.error(`${invalidDateIndex + 1}. satır ${month} ${year} dışında olduğu için kaydedilemez.`)
+      toast.error(`${invalidDateIndex + 1}. satir ${month} ${year} disinda oldugu icin kaydedilemez.`)
       setSaving(false)
       return false
     }
 
-    // Önce bu ay/yıl için kendi kayıtlarımı sil (sadece düzenleyebildiğim vardiyalardan)
-    let deleteQuery = supabase
-      .from("gider_kayitlari")
-      .delete()
-      .eq("sube_id", currentSube.id)
-      .eq("ay_yil", ayYil)
-
-    if (!isAdmin) {
-      deleteQuery = deleteQuery.eq("user_id", user.id)
-      deleteQuery = deleteQuery.eq("tarih", getLocalDateString())
-    }
-    
-    if (!isTekVardiya && userVardiya && !isAdmin) {
-      deleteQuery = deleteQuery.eq("vardiya", userVardiya)
-    }
-    
-    const { error: deleteError } = await deleteQuery
-    if (deleteError) {
-      console.log("[v0] Gider silme hatası:", deleteError)
+    const response = await fetch("/api/dashboard/gider", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subeId: currentSube.id,
+        month,
+        year,
+        ayYil,
+        rows: editableRows,
+      }),
+    })
+    const result = await response.json().catch(() => ({}))
+    if (!response.ok && !result.queued) {
+      toast.error(result.error || "Gider kaydedilemedi.")
       setSaving(false)
       return false
     }
-
-    // Yeni kayıtları ekle
-    if (editableRows.length > 0) {
-      const insertData = editableRows.map(row => ({
-        user_id: row.user_id || user.id,
-        sube_id: currentSube.id,
-        ay_yil: ayYil,
-        tarih: row.tarih,
-        vardiya: row.vardiya,
-        el_fisi_odeme: row.el_fisi_odeme,
-        ortak_pilarim: row.ortak_paylari,
-        personel_paylari: row.personel_paylari,
-        personel_mesai: row.personel_mesai,
-        personel_mesai_detaylari: row.personel_mesai_detaylari,
-        bil_iade: row.bil_iade,
-        inegol_donus: row.inegol_donus,
-        pk_kredi_karti: row.pk_kredi_karti,
-        yemek: row.yemek,
-        yanmaz_bilet: row.yanmaz_bilet,
-        diger: row.diger,
-        ziraat_bankasi: row.ziraat_bankasi,
-        is_bankasi: row.is_bankasi,
-        kuveyt_turk: row.kuveyt_turk,
-        bakiye_bilet: row.bakiye_bilet,
-        kargo_cari: row.kargo_cari,
-        hesaba_gelen: row.hesaba_gelen,
-        on_dort_noya_giden: row.on_dort_noya_giden,
-        carsi_bilet: row.carsi_bilet,
-        darica_bilet: row.darica_bilet,
-        kredi_karti_bakiye: row.kredi_karti_bakiye,
-        bankaya_yatan: row.bankaya_yatan,
-        genel_toplam: row.genel_toplam,
-        custom_values: row.custom_values || {},
-      }))
-
-      const { error } = await supabase.from("gider_kayitlari").insert(insertData)
-      if (error) {
-        console.log("[v0] Gider kaydetme hatası:", error)
-        setSaving(false)
-        return false
-      }
-
-    }
-
-    await syncGelirGiderTotals()
 
     setSaving(false)
     markClean()
-    toast.success("Değişiklikler kaydedildi ✅")
-    loadData()
+    if (result.queued || response.status === 202) {
+      toast.success("Gider kaydi offline kuyruga alindi. Internet gelince senkronize edilecek.")
+    } else {
+      toast.success("Degisiklikler kaydedildi.")
+      loadData()
+    }
     return true
   }
 
@@ -665,6 +532,11 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
         <Button onClick={exportPdf} size="sm" variant="outline" disabled={rows.length === 0}>
           <FileText className="w-4 h-4 mr-1" /> PDF
         </Button>
+        {offlineLoaded ? (
+          <span className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-100">
+            Offline cache
+          </span>
+        ) : null}
       </div>
 
       {(ortaklar.length === 0 || personeller.length === 0) && (

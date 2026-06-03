@@ -1,17 +1,22 @@
-const CACHE_NAME = "hesap-shell-v5"
-const API_CACHE_NAME = "hesap-api-v3"
+const CACHE_NAME = "hesap-shell-v6"
+const API_CACHE_NAME = "hesap-api-v4"
 const SHELL_URLS = [
   "/offline.html",
   "/auth/giris",
   "/dashboard",
   "/dashboard/gelir",
+  "/dashboard/gider",
+  "/dashboard/corbalar",
+  "/dashboard/kargo-cari",
+  "/dashboard/14-no-hesap",
   "/dashboard/mesai",
   "/dashboard/mesai-takip",
   "/dashboard/vardiya",
   "/dashboard/hesap",
+  "/dashboard/bildirimler",
+  "/status",
   "/manifest.webmanifest",
   "/iconw.png",
-  "/icon.png",
 ]
 
 self.addEventListener("install", (event) => {

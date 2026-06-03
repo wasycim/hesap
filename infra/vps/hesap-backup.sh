@@ -70,6 +70,30 @@ SQL
     '{ok:($ok=="true"), startedAt:$started, completedAt:$completed, file:$file, size:$size, sha256:$sha256, bucket:$bucket, standbyRestore:($standby=="1")}' \
     > "$status_file"
 
+  psql "$PRIMARY_DATABASE_URL" \
+    -v ON_ERROR_STOP=1 \
+    -v file="$file" \
+    -v sha="$sha" \
+    -v size="$size" \
+    -v bucket="$R2_BUCKET_NAME" \
+    -v started="$started" \
+    -v completed="$completed" <<'SQL' || true
+insert into public.security_events (event_type, details)
+values (
+  'vps_backup_completed',
+  jsonb_build_object(
+    'file', :'file',
+    'sha256', :'sha',
+    'size', (:size)::bigint,
+    'bucket', :'bucket',
+    'startedAt', :'started',
+    'completedAt', :'completed',
+    'scope', 'full_postgresql_dump',
+    'includes', jsonb_build_array('gelir_kayitlari', 'gider_kayitlari', 'corbalar', 'attendance_logs')
+  )
+);
+SQL
+
   find /var/lib/hesap/backups -name 'hesap-postgres-*.dump' -type f -mtime +"${BACKUP_RETENTION_DAYS:-30}" -delete
   echo "[$completed] backup completed file=${file} size=${size} sha256=${sha}"
 } >> "$log_file" 2>&1

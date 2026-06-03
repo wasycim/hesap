@@ -1,35 +1,25 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { appSnapshotTables } from "@/lib/backup/tables"
 import { createAdminClient } from "@/lib/supabase/admin"
 
-const snapshotTables = [
-  "subeler",
-  "user_profiles",
-  "personeller",
-  "gelir_kayitlari",
-  "gider_kayitlari",
-  "corbalar",
-  "kargo_cari_kayitlar",
-  "attendance_logs",
-  "vardiya_planlari",
-  "app_notifications",
-  "device_licenses",
-  "dashboard_permission_overrides",
-  "app_announcements",
-  "tea_requests",
-  "tea_request_recipients",
-  "pdf_archives",
-  "offline_conflicts",
-]
+export async function GET(request: NextRequest) {
+  const secret = process.env.CRON_SECRET
+  const headerSecret = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "")
+  const querySecret = request.nextUrl.searchParams.get("secret")
+  if (secret && headerSecret !== secret && querySecret !== secret) {
+    return NextResponse.json({ error: "Yetkisiz islem." }, { status: 401 })
+  }
 
-export async function GET() {
   const admin = createAdminClient()
   const tables: Record<string, unknown[]> = {}
   const counts: Record<string, number> = {}
+  const skippedTables: string[] = []
 
-  for (const table of snapshotTables) {
-    const { data, error, count } = await admin.from(table).select("*", { count: "exact" }).limit(2000)
+  for (const table of appSnapshotTables) {
+    const { data, error, count } = await admin.from(table).select("*", { count: "exact" }).limit(10000)
     if (error) {
       counts[table] = -1
+      skippedTables.push(table)
       continue
     }
     tables[table] = data || []
@@ -45,8 +35,8 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   await admin.from("security_events").insert({
     event_type: "daily_backup_created",
-    details: { table_counts: counts },
+    details: { table_counts: counts, skipped_tables: skippedTables },
   })
 
-  return NextResponse.json({ ok: true, tableCounts: counts })
+  return NextResponse.json({ ok: true, tableCounts: counts, skippedTables })
 }

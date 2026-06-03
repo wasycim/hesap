@@ -7,7 +7,7 @@ Canli kurulumda VPS su isleri yapar:
 - Supabase PostgreSQL icin `pg_dump` alir.
 - Dump dosyasini Cloudflare R2 bucket'ina yukler.
 - Ayni dump icinden `public` uygulama semasini lokal PostgreSQL failover veritabanina restore eder.
-- `systemd` timer ile her 6 saatte bir otomatik calisir.
+- `systemd` timer ile gunde 1 kez otomatik calisir.
 - `/usr/local/bin/hesap-health` ile PostgreSQL, R2 ve son backup durumunu JSON olarak verir.
 
 ## Sunucu Dosyalari
@@ -17,6 +17,7 @@ Canli kurulumda VPS su isleri yapar:
 | `hesap-backup.sh` | `/usr/local/bin/hesap-backup` |
 | `hesap-health.sh` | `/usr/local/bin/hesap-health` |
 | `hesap-standby-prelude.sql` | `/usr/local/share/hesap-standby-prelude.sql` |
+| `hesap-backup.timer` | `/etc/systemd/system/hesap-backup.timer` |
 
 ## Secret Dosyalari
 
@@ -39,7 +40,7 @@ Mevcut kurulum:
 
 - OS: Ubuntu 24.04 LTS
 - PostgreSQL: 17
-- Backup araligi: 6 saat
+- Backup araligi: Gunde 1 kez, 00:00 UTC / yaklasik 03:00 Turkiye saati
 - Backup saklama: 30 gun lokal, R2 uzerinde manuel/lifecycle ile yonetilir
 - R2 bucket: `hesap-backups`
 - SSH: password login kapali, key login acik
