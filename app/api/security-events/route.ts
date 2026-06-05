@@ -44,12 +44,14 @@ async function getCurrentUserAndProfile() {
 
 export async function GET(request: NextRequest) {
   const { profile } = await getCurrentUserAndProfile()
+  const searchParams = request.nextUrl.searchParams
+  const scope = String(searchParams.get("scope") || "").trim()
+  const canReadSecurityScope = scope === "security" && Boolean(profile?.is_admin || profile?.is_developer)
 
-  if (!profile?.is_developer) {
+  if (!profile?.is_developer && !canReadSecurityScope) {
     return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
   }
 
-  const searchParams = request.nextUrl.searchParams
   const limit = Math.min(Math.max(Number(searchParams.get("limit")) || 100, 25), 250)
   const page = Math.max(Number(searchParams.get("page")) || 1, 1)
   const from = (page - 1) * limit

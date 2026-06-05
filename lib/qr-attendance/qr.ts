@@ -23,7 +23,7 @@ type DynamicQrClaims = {
 const qrIssuer = "hesap-mesai"
 const qrAudience = "hesap-mesai-terminal"
 export const dynamicQrTtlSeconds = 25
-export const terminalQrTtlSeconds = 20
+export const terminalQrTtlSeconds = 30
 
 export function createQrToken() {
   return crypto.randomBytes(32).toString("base64url")

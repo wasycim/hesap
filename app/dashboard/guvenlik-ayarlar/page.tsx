@@ -288,7 +288,7 @@ export default function GuvenlikAyarlarPage() {
       return
     }
 
-    const response = await fetch(`/api/security-events?page=${page}&limit=100`)
+    const response = await fetch(`/api/security-events?scope=security&page=${page}&limit=100`)
     const result = await response.json()
     setEvents(result.events || [])
     setHasMore(Boolean(result.hasMore))
