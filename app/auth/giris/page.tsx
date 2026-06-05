@@ -24,6 +24,13 @@ export default function GirisPage() {
   const router = useRouter()
   const supabase = createClient()
 
+  function getSafeNextPath() {
+    if (typeof window === "undefined") return ""
+    const next = new URLSearchParams(window.location.search).get("next") || ""
+    if (!next.startsWith("/") || next.startsWith("//") || next.startsWith("/auth/")) return ""
+    return next
+  }
+
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault()
     setLoading(true)
@@ -96,7 +103,7 @@ export default function GirisPage() {
       await supabase.auth.signOut()
 
       if (mesaiLoginOk) {
-        router.push("/mesai-qr")
+        router.push(getSafeNextPath() || "/mesai-qr")
         router.refresh()
         return
       }
@@ -111,7 +118,7 @@ export default function GirisPage() {
       login_method: loginMode,
       tc_kimlik: loginMode === "tc" ? cleanTc : undefined,
     })
-    router.push("/dashboard")
+    router.push(getSafeNextPath() || "/dashboard")
     router.refresh()
   }
 

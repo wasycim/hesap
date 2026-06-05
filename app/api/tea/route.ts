@@ -17,11 +17,27 @@ function todayStartIso() {
   return new Date(`${today}T00:00:00+03:00`).toISOString()
 }
 
+async function isTeaModuleEnabled(admin: ReturnType<typeof createAdminClient>) {
+  const { data } = await admin
+    .from("app_settings")
+    .select("value")
+    .eq("key", "tea_module")
+    .maybeSingle()
+
+  return Boolean((data?.value as { enabled?: boolean } | null)?.enabled)
+}
+
 export async function GET() {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: "Oturum bulunamadi." }, { status: 401 })
 
   const admin = createAdminClient()
+  const enabled = await isTeaModuleEnabled(admin)
+  if (!enabled) {
+    const adminGuard = await requireDashboardAdmin()
+    return NextResponse.json({ enabled: false, myItems: [], requests: [], users: [], isAdmin: adminGuard.ok })
+  }
+
   const [{ data: myItems, error: myError }, adminGuard] = await Promise.all([
     admin
       .from("tea_request_recipients")
@@ -59,7 +75,7 @@ export async function GET() {
     }))
   }
 
-  return NextResponse.json({ myItems: myItems || [], requests, users, isAdmin: adminGuard.ok })
+  return NextResponse.json({ enabled: true, myItems: myItems || [], requests, users, isAdmin: adminGuard.ok })
 }
 
 export async function POST(request: NextRequest) {
@@ -73,6 +89,10 @@ export async function POST(request: NextRequest) {
   if (userId === guard.user.id) return NextResponse.json({ error: "Yonetici kendi gonderdigi cay sorusuna cevap veremez." }, { status: 400 })
 
   const admin = createAdminClient()
+  if (!(await isTeaModuleEnabled(admin))) {
+    return NextResponse.json({ error: "Cay modulu Operasyon Merkezi'nden aktif edilmeden kullanilamaz." }, { status: 403 })
+  }
+
   const { data: profile, error: profileError } = await admin
     .from("user_profiles")
     .select("user_id, display_name, email")
@@ -147,6 +167,10 @@ export async function PATCH(request: NextRequest) {
   if (!id || !response) return NextResponse.json({ error: "Cevap gecersiz." }, { status: 400 })
 
   const admin = createAdminClient()
+  if (!(await isTeaModuleEnabled(admin))) {
+    return NextResponse.json({ error: "Cay modulu su anda aktif degil." }, { status: 403 })
+  }
+
   const { data: updated, error } = await admin
     .from("tea_request_recipients")
     .update({ response, responded_at: new Date().toISOString() })

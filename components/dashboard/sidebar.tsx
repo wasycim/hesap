@@ -11,6 +11,7 @@ import {
   Building2,
   CalendarDays,
   Camera,
+  DatabaseBackup,
   ChevronDown,
   ChevronRight,
   Columns3,
@@ -86,6 +87,7 @@ const developerOnlyHrefs = new Set(["/dashboard/gelismis-log", "/dashboard/siste
 const developerMenuItems = [
   { title: "Lisansli Cihazlar", href: "/dashboard/lisanslar", icon: MonitorCheck, color: "text-lime-500" },
   { title: "Operasyon Merkezi", href: "/dashboard/operasyon", icon: Wrench, color: "text-violet-500" },
+  { title: "Log Backup", href: "/dashboard/log-backup", icon: DatabaseBackup, color: "text-cyan-500" },
 ]
 
 const permissionKeyByHref: Record<string, string> = {
@@ -100,6 +102,7 @@ const permissionKeyByHref: Record<string, string> = {
   "/dashboard/admin-ayarlar": "admin_ayarlar",
   "/dashboard/lisanslar": "lisanslar",
   "/dashboard/operasyon": "operasyon",
+  "/dashboard/log-backup": "log_backup",
   "/dashboard/cay": "cay",
   "/dashboard/bildirimler": "bildirimler",
   "/dashboard/hesap": "hesap",

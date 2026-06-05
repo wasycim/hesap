@@ -1,7 +1,8 @@
-const CACHE_NAME = "hesap-shell-v6"
-const API_CACHE_NAME = "hesap-api-v4"
+const CACHE_NAME = "hesap-shell-v7"
+const API_CACHE_NAME = "hesap-api-v5"
 const SHELL_URLS = [
   "/offline.html",
+  "/",
   "/auth/giris",
   "/dashboard",
   "/dashboard/gelir",
@@ -12,6 +13,11 @@ const SHELL_URLS = [
   "/dashboard/mesai",
   "/dashboard/mesai-takip",
   "/dashboard/vardiya",
+  "/dashboard/cay",
+  "/dashboard/guvenlik-ayarlar",
+  "/dashboard/sistem-sagligi",
+  "/dashboard/operasyon",
+  "/dashboard/log-backup",
   "/dashboard/hesap",
   "/dashboard/bildirimler",
   "/status",
@@ -57,7 +63,12 @@ self.addEventListener("fetch", (event) => {
           return response
         })
         .catch(async () => {
-          return (await caches.match(request)) || (await caches.match("/dashboard")) || (await caches.match("/offline.html"))
+          return (
+            (await caches.match(request)) ||
+            (await caches.match("/dashboard")) ||
+            (await caches.match("/auth/giris")) ||
+            (await caches.match("/offline.html"))
+          )
         }),
     )
     return

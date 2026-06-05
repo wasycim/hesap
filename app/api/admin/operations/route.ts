@@ -272,7 +272,25 @@ export async function PATCH(request: NextRequest) {
     payload = sanitizePayload(table, body, guard.user.id)
   }
 
-  const keyColumn = table === "app_settings" ? "key" : "id"
+  if (table === "app_settings") {
+    const { data, error } = await admin
+      .from(table)
+      .upsert({ key: id, ...payload }, { onConflict: "key" })
+      .select("*")
+      .single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    await admin.from("security_events").insert({
+      user_id: guard.user.id,
+      user_email: guard.profile?.email || guard.user.email,
+      event_type: `${table}_update`,
+      details: { id },
+    })
+
+    return NextResponse.json({ ok: true, item: data })
+  }
+
+  const keyColumn = "id"
   const { data, error } = await admin.from(table).update(payload).eq(keyColumn, id).select("*").single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

@@ -24,6 +24,7 @@ const allPermissionKeys = [
   "admin_ayarlar",
   "lisanslar",
   "operasyon",
+  "log_backup",
   "cay",
   "bildirimler",
   "hesap",
@@ -41,6 +42,7 @@ function defaultsForRole(role: "developer" | "admin" | "user") {
     permissions.sistem_sagligi = false
     permissions.lisanslar = false
     permissions.operasyon = false
+    permissions.log_backup = false
     return permissions
   }
 
@@ -52,7 +54,6 @@ function defaultsForRole(role: "developer" | "admin" | "user") {
   permissions.vardiya = true
   permissions.mesai = true
   permissions.mesai_takip = true
-  permissions.cay = true
   permissions.bildirimler = true
   permissions.hesap = true
   return permissions
@@ -99,5 +100,21 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ role, permissions, keys: allPermissionKeys })
+  const { data: teaSetting } = await admin
+    .from("app_settings")
+    .select("value")
+    .eq("key", "tea_module")
+    .maybeSingle()
+
+  const teaEnabled = Boolean((teaSetting?.value as { enabled?: boolean } | null)?.enabled)
+  if (!teaEnabled) permissions.cay = false
+
+  return NextResponse.json({
+    role,
+    permissions,
+    keys: allPermissionKeys,
+    features: {
+      tea: teaEnabled,
+    },
+  })
 }

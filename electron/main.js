@@ -22,6 +22,7 @@ function normalizeAppUrl(value) {
 
 const appUrl = normalizeAppUrl(process.env.HESAP_DESKTOP_URL)
 const appOrigin = new URL(appUrl).origin
+const appShellUrl = `${appOrigin}/dashboard`
 const allowedOrigins = new Set([new URL(defaultAppUrl).origin, appOrigin])
 let isShowingOfflinePage = false
 
@@ -202,8 +203,17 @@ function getOfflinePageUrl() {
 }
 
 function showOfflinePage() {
-  if (!mainWindow || mainWindow.isDestroyed() || isShowingOfflinePage) return
-  isShowingOfflinePage = true
+  if (!mainWindow || mainWindow.isDestroyed()) return
+
+  if (!isShowingOfflinePage) {
+    isShowingOfflinePage = true
+    mainWindow.loadURL(`${appShellUrl}?desktopOffline=1`).catch(() => {
+      if (!mainWindow || mainWindow.isDestroyed()) return
+      mainWindow.loadURL(getOfflinePageUrl()).catch(() => undefined)
+    })
+    return
+  }
+
   mainWindow.loadURL(getOfflinePageUrl()).catch(() => undefined)
 }
 
@@ -284,7 +294,7 @@ function createWindow() {
 
   mainWindow.webContents.on("did-start-navigation", (_event, url, isInPlace, isMainFrame) => {
     if (!isMainFrame || isInPlace) return
-    if (isAllowedUrl(url)) isShowingOfflinePage = false
+    if (isAllowedUrl(url) && !String(url).includes("desktopOffline=1")) isShowingOfflinePage = false
   })
 
   mainWindow.webContents.on("did-fail-load", (_event, errorCode, _errorDescription, validatedURL, isMainFrame) => {
@@ -292,7 +302,7 @@ function createWindow() {
     showOfflinePage()
   })
 
-  mainWindow.loadURL(appUrl).catch(() => {
+  mainWindow.loadURL(appShellUrl).catch(() => {
     showOfflinePage()
   })
 }

@@ -2,6 +2,7 @@ import crypto from "crypto"
 import jwt from "jsonwebtoken"
 import type { User } from "@prisma/client"
 import { jwtSecret } from "@/lib/qr-attendance/auth"
+import { publicAppOrigin } from "@/lib/public-app-url"
 
 export type QrPayload = {
   userId: number
@@ -57,6 +58,9 @@ export function parseQrPayload(value: unknown): QrPayload | null {
 export function parseTerminalQrPayload(value: unknown): TerminalQrPayload | null {
   if (typeof value !== "string") return null
 
+  const fromUrl = parseTerminalQrUrl(value)
+  if (fromUrl) return fromUrl
+
   try {
     const payload = JSON.parse(value) as Partial<TerminalQrPayload>
     if (payload.terminalId !== "fixed-terminal" || typeof payload.token !== "string") {
@@ -70,6 +74,22 @@ export function parseTerminalQrPayload(value: unknown): TerminalQrPayload | null
     return {
       terminalId: payload.terminalId,
       token: payload.token,
+    }
+  } catch {
+    return null
+  }
+}
+
+function parseTerminalQrUrl(value: string): TerminalQrPayload | null {
+  try {
+    const url = new URL(value)
+    const token = url.searchParams.get("t") || url.searchParams.get("token")
+    if (!token) return null
+    if (!url.pathname.startsWith("/mesai-qr/okut")) return null
+    if (token.length < 32 || token.length > 2048) return null
+    return {
+      terminalId: "fixed-terminal",
+      token,
     }
   } catch {
     return null
@@ -106,7 +126,7 @@ export function createDynamicQrPayload(user: Pick<User, "id" | "qrToken">) {
   }
 }
 
-export function createTerminalQrPayload() {
+export function createTerminalQrPayload(origin = publicAppOrigin()) {
   const expiresAt = new Date(Date.now() + terminalQrTtlSeconds * 1000)
   const token = jwt.sign(
     {
@@ -121,13 +141,16 @@ export function createTerminalQrPayload() {
       audience: "hesap-mesai-personnel",
     },
   )
+  const scanUrl = `${origin.replace(/\/+$/, "")}/mesai-qr/okut?t=${encodeURIComponent(token)}`
 
   return {
     terminalId: "fixed-terminal",
     token,
     expiresAt,
     ttlSeconds: terminalQrTtlSeconds,
-    qr: JSON.stringify({ terminalId: "fixed-terminal", token }),
+    qr: scanUrl,
+    payload: JSON.stringify({ terminalId: "fixed-terminal", token }),
+    scanUrl,
   }
 }
 

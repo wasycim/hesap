@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { CalendarDays, FileText, Megaphone, ShieldAlert, Trash2, Wrench } from "lucide-react"
+import { CalendarDays, Coffee, FileText, Megaphone, ShieldAlert, Trash2, Wrench } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -63,6 +63,7 @@ export default function OperasyonPage() {
 
   const settings = useMemo(() => new Map((data.app_settings || []).map((item) => [item.key, item.value || {}])), [data])
   const maintenance = settings.get("maintenance_mode") || {}
+  const teaModule = settings.get("tea_module") || { enabled: false }
 
   async function updateSetting(key: string, value: any) {
     const response = await fetch(`/api/admin/operations?table=app_settings`, {
@@ -128,7 +129,7 @@ export default function OperasyonPage() {
         <p className="text-sm text-muted-foreground">Developer seviyesinde kural motoru, PDF, bakim, hata ve store paket yonetimi.</p>
       </header>
 
-      <section className="grid gap-4 xl:grid-cols-3">
+      <section className="grid gap-4 xl:grid-cols-4">
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><Wrench className="h-5 w-5" /> Bakim modu</CardTitle></CardHeader>
           <CardContent className="space-y-4">
@@ -145,6 +146,26 @@ export default function OperasyonPage() {
               rows={3}
             />
             <Button onClick={() => updateSetting("maintenance_mode", maintenance)} variant="outline">Mesaji kaydet</Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Coffee className="h-5 w-5" /> Cay modulu</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <label className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm font-semibold">
+              Cay menusu aktif
+              <Switch
+                checked={Boolean(teaModule.enabled)}
+                onCheckedChange={(enabled) => updateSetting("tea_module", {
+                  ...teaModule,
+                  enabled,
+                  updatedAt: new Date().toISOString(),
+                })}
+              />
+            </label>
+            <p className="text-xs leading-5 text-muted-foreground">
+              Kapaliyken Cay menusu tum hesaplardan gizlenir ve API islem kabul etmez. Acildiginda yetkili hesaplar menuden kullanabilir.
+            </p>
           </CardContent>
         </Card>
 

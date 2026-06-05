@@ -167,12 +167,11 @@ export function PersonnelTerminalScanner({ userName, dashboardMode = false }: Pe
         await scanner.start(
           { facingMode: "environment" },
           {
-            fps: 10,
+            fps: 12,
             qrbox: (viewfinderWidth, viewfinderHeight) => {
-              const edge = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.72)
+              const edge = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.92)
               return { width: edge, height: edge }
             },
-            aspectRatio: 1,
           },
           handleScan,
           () => undefined,
@@ -242,7 +241,11 @@ export function PersonnelTerminalScanner({ userName, dashboardMode = false }: Pe
           <div className="relative min-h-[58dvh] bg-black">
             <div id={scannerId} className="h-full min-h-[58dvh] w-full [&_video]:h-full [&_video]:w-full [&_video]:object-cover" />
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
-              <div className="h-[min(68vw,48dvh)] w-[min(68vw,48dvh)] rounded-2xl border-4 border-emerald-300 shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" />
+              <div className="grid h-[min(86vw,62dvh)] w-[min(86vw,62dvh)] place-items-center rounded-3xl border-2 border-dashed border-emerald-300/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.16)]">
+                <div className="rounded-full bg-black/45 px-3 py-1 text-xs font-bold text-emerald-100 backdrop-blur">
+                  QR bu alanin icinde gorunsun yeterli
+                </div>
+              </div>
             </div>
           </div>
 

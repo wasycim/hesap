@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 
 export default function CayPage() {
   const [loading, setLoading] = useState(true)
+  const [enabled, setEnabled] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const [myItems, setMyItems] = useState<any[]>([])
   const [requests, setRequests] = useState<any[]>([])
@@ -28,6 +29,7 @@ export default function CayPage() {
       toast.error(data.error || "Cay bilgileri yuklenemedi.")
       return
     }
+    setEnabled(data.enabled !== false)
     setIsAdmin(Boolean(data.isAdmin))
     setMyItems(data.myItems || [])
     setRequests(data.requests || [])
@@ -79,6 +81,19 @@ export default function CayPage() {
         <p className="text-sm text-muted-foreground">Yoneticiler cay hazir mi diye sorar; kullanicilar tek tikla cevaplar.</p>
       </header>
 
+      {!enabled ? (
+        <Card>
+          <CardContent className="p-6">
+            <p className="font-bold">Cay modulu kapali</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Bu ozellik yalnizca developer tarafindan Operasyon Merkezi'nden aktif edilirse kullanilabilir.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {enabled ? (
+        <>
       {isAdmin ? (
         <Card>
           <CardHeader>
@@ -152,6 +167,8 @@ export default function CayPage() {
           </Card>
         ) : null}
       </section>
+        </>
+      ) : null}
     </div>
   )
 }

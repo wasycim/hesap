@@ -464,8 +464,9 @@ create index if not exists idx_backup_snapshots_created on public.backup_snapsho
 insert into public.app_settings (key, value)
 values
   ('maintenance_mode', '{"enabled":false,"message":"Sistem bakim modunda.","allowDeveloper":true}'::jsonb),
-  ('security_policy', '{"qrTtlSeconds":20,"tooFastScanSeconds":20,"strictTerminalIp":true,"strictCamera":true}'::jsonb),
-  ('health_alerts', '{"smtp":true,"fcm":true,"vercel":true,"supabase":true}'::jsonb)
+  ('security_policy', '{"qrTtlSeconds":30,"tooFastScanSeconds":20,"strictTerminalIp":true,"strictCamera":true}'::jsonb),
+  ('health_alerts', '{"smtp":true,"fcm":true,"vercel":true,"supabase":true}'::jsonb),
+  ('tea_module', '{"enabled":false}'::jsonb)
 on conflict (key) do nothing;
 
 insert into public.holidays (holiday_date, name, type)
