@@ -65,6 +65,7 @@ function getBranchDeleteErrorMessage(error: { code?: string; message?: string })
 
 export default function AdminAyarlarPage() {
   const { subeler, isAdmin } = useSube()
+  const [isDeveloper, setIsDeveloper] = useState(false)
   const [users, setUsers] = useState<AdminUser[]>([])
   const [email, setEmail] = useState("")
   const [tcKimlik, setTcKimlik] = useState("")
@@ -93,14 +94,41 @@ export default function AdminAyarlarPage() {
     () => users.find(user => user.user_id === selectedUserId) || null,
     [users, selectedUserId]
   )
+  const selectedUserIsPrivileged = Boolean(selectedUser?.is_admin || selectedUser?.is_developer)
+  const canEditSelectedUser = Boolean(selectedUser && (isDeveloper || !selectedUserIsPrivileged))
+  const accountTypeOptions = isDeveloper
+    ? [
+        { value: "user", label: "Kullanıcı" },
+        { value: "admin", label: "Yönetici" },
+        { value: "developer", label: "Developer" },
+        { value: "attendance_only", label: "Sadece Mesai" },
+      ]
+    : [
+        { value: "user", label: "Kullanıcı" },
+        { value: "attendance_only", label: "Sadece Mesai" },
+      ]
+  const editAccountTypeOptions = !isDeveloper && selectedUserIsPrivileged
+    ? [
+        { value: editRole, label: editRole === "developer" ? "Developer" : "Yönetici" },
+      ]
+    : accountTypeOptions
 
   useEffect(() => {
     if (subeler.length > 0 && !subeId) setSubeId(subeler[0].id)
   }, [subeler, subeId])
 
   useEffect(() => {
-    if (isAdmin) loadUsers()
+    if (isAdmin) {
+      loadUsers()
+      loadCurrentRole()
+    }
   }, [isAdmin])
+
+  useEffect(() => {
+    if (!isDeveloper && (role === "admin" || role === "developer")) {
+      setRole("user")
+    }
+  }, [isDeveloper, role])
 
   useEffect(() => {
     if (!selectedUser) return
@@ -117,6 +145,12 @@ export default function AdminAyarlarPage() {
     const response = await fetch("/api/admin/users")
     const result = await response.json()
     setUsers(result.users || [])
+  }
+
+  async function loadCurrentRole() {
+    const response = await fetch("/api/user/permissions", { cache: "no-store" }).catch(() => null)
+    const result = await response?.json().catch(() => ({}))
+    setIsDeveloper(result?.role === "developer")
   }
 
   async function createUser() {
@@ -382,10 +416,9 @@ export default function AdminAyarlarPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="user">Kullanıcı</SelectItem>
-                    <SelectItem value="admin">Yönetici</SelectItem>
-                    <SelectItem value="developer">Developer</SelectItem>
-                    <SelectItem value="attendance_only">Sadece Mesai</SelectItem>
+                    {accountTypeOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -435,11 +468,11 @@ export default function AdminAyarlarPage() {
             </div>
             <div className="space-y-2">
               <Label>E-posta</Label>
-              <Input value={editEmail} onChange={(event) => setEditEmail(event.target.value)} placeholder="kullanici@mail.com" disabled={!selectedUser} />
+              <Input value={editEmail} onChange={(event) => setEditEmail(event.target.value)} placeholder="kullanici@mail.com" disabled={!canEditSelectedUser} />
             </div>
             <div className="space-y-2">
               <Label>Görünen ad</Label>
-              <Input value={editDisplayName} onChange={(event) => setEditDisplayName(event.target.value)} placeholder="Sol menüde görünecek ad" disabled={!selectedUser} />
+              <Input value={editDisplayName} onChange={(event) => setEditDisplayName(event.target.value)} placeholder="Sol menüde görünecek ad" disabled={!canEditSelectedUser} />
             </div>
             <div className="space-y-2">
               <Label>TC Kimlik No</Label>
@@ -449,7 +482,7 @@ export default function AdminAyarlarPage() {
                 placeholder="11 haneli TC"
                 inputMode="numeric"
                 maxLength={11}
-                disabled={!selectedUser}
+                disabled={!canEditSelectedUser}
               />
             </div>
             <div className="space-y-2">
@@ -458,13 +491,13 @@ export default function AdminAyarlarPage() {
                 value={editTrustedIps}
                 onChange={(event) => setEditTrustedIps(event.target.value)}
                 placeholder="88.230.254.101, 192.168.1.10"
-                disabled={!selectedUser}
+                disabled={!canEditSelectedUser}
               />
               <p className="text-xs text-muted-foreground">Birden fazla IP için virgül, boşluk veya yeni satır kullanabilirsiniz.</p>
             </div>
             <div className="space-y-2">
               <Label>Şube</Label>
-              <Select value={editSubeId} onValueChange={setEditSubeId} disabled={!selectedUser}>
+              <Select value={editSubeId} onValueChange={setEditSubeId} disabled={!canEditSelectedUser}>
                 <SelectTrigger>
                   <SelectValue placeholder="Şube seçin" />
                 </SelectTrigger>
@@ -478,21 +511,20 @@ export default function AdminAyarlarPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Yetki</Label>
-                <Select value={editRole} onValueChange={setEditRole} disabled={!selectedUser}>
+                <Select value={editRole} onValueChange={setEditRole} disabled={!canEditSelectedUser}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="user">Kullanıcı</SelectItem>
-                    <SelectItem value="admin">Yönetici</SelectItem>
-                    <SelectItem value="developer">Developer</SelectItem>
-                    <SelectItem value="attendance_only">Sadece Mesai</SelectItem>
+                    {editAccountTypeOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label>Vardiya</Label>
-                <Select value={editVardiya} onValueChange={setEditVardiya} disabled={!selectedUser}>
+                <Select value={editVardiya} onValueChange={setEditVardiya} disabled={!canEditSelectedUser}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -504,13 +536,18 @@ export default function AdminAyarlarPage() {
                 </Select>
               </div>
             </div>
-            <Button onClick={updateUser} disabled={!selectedUser || savingEdit} className="w-full gap-2">
+            {selectedUserIsPrivileged && !isDeveloper ? (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-100">
+                Yönetici ve developer hesaplarını sadece developer düzenleyebilir.
+              </p>
+            ) : null}
+            <Button onClick={updateUser} disabled={!canEditSelectedUser || savingEdit} className="w-full gap-2">
               <UserCog className="h-4 w-4" />
               {savingEdit ? "Kaydediliyor..." : "Kullanıcıyı Güncelle"}
             </Button>
             <Button
               onClick={deleteUser}
-              disabled={!selectedUser || deletingUser}
+              disabled={!canEditSelectedUser || deletingUser}
               variant="destructive"
               className="w-full gap-2"
             >

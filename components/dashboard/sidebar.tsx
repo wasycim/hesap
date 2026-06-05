@@ -81,7 +81,7 @@ const bottomMenuItems = [
   { title: "Hesap Ayarları", href: "/dashboard/hesap", icon: UserCog, color: "text-purple-500" },
 ]
 
-const developerOnlyHrefs = new Set(["/dashboard/gelismis-log", "/dashboard/sistem-sagligi", "/dashboard/admin-ayarlar"])
+const developerOnlyHrefs = new Set(["/dashboard/gelismis-log", "/dashboard/sistem-sagligi"])
 
 const developerMenuItems = [
   { title: "Lisansli Cihazlar", href: "/dashboard/lisanslar", icon: MonitorCheck, color: "text-lime-500" },

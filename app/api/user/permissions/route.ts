@@ -39,7 +39,6 @@ function defaultsForRole(role: "developer" | "admin" | "user") {
     for (const key of allPermissionKeys) permissions[key] = true
     permissions.gelismis_log = false
     permissions.sistem_sagligi = false
-    permissions.admin_ayarlar = false
     permissions.lisanslar = false
     permissions.operasyon = false
     return permissions
