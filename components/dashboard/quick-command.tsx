@@ -28,27 +28,27 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { createClient } from "@/lib/supabase/client"
 import { useSube } from "@/contexts/sube-context"
+import { createClient } from "@/lib/supabase/client"
 
 const NAV_ITEMS = [
-  { title: "Genel Bakış", href: "/dashboard", adminOnly: false, icon: LayoutDashboard, color: "text-slate-500" },
-  { title: "Gelir Tablosu", href: "/dashboard/gelir", adminOnly: false, icon: TrendingUp, color: "text-emerald-500" },
-  { title: "Gider Tablosu", href: "/dashboard/gider", adminOnly: false, icon: TrendingDown, color: "text-red-500" },
-  { title: "Çorbalar", href: "/dashboard/corbalar", adminOnly: false, icon: Soup, color: "text-orange-500" },
-  { title: "Maaşlar", href: "/dashboard/maaslar", adminOnly: true, icon: WalletCards, color: "text-emerald-500" },
-  { title: "Mesai", href: "/dashboard/mesai", adminOnly: false, icon: Camera, color: "text-amber-500" },
-  { title: "Vardiya", href: "/dashboard/vardiya", adminOnly: true, icon: CalendarDays, color: "text-violet-500" },
-  { title: "Mesai Takip", href: "/dashboard/mesai-takip", adminOnly: true, icon: CalendarDays, color: "text-amber-500" },
-  { title: "Şube Ciro Raporları", href: "/dashboard/sube-ciro-raporlari", adminOnly: true, icon: BarChart3, color: "text-emerald-500" },
-  { title: "Sütun Ayarları", href: "/dashboard/sutun-ayarlar", adminOnly: true, icon: Columns3, color: "text-sky-500" },
-  { title: "Görünüm Ayarları", href: "/dashboard/gorunum-ayarlar", adminOnly: true, icon: Eye, color: "text-indigo-500" },
-  { title: "Genel Ayarlar", href: "/dashboard/ayarlar", adminOnly: true, icon: Settings, color: "text-gray-500" },
-  { title: "Güvenlik Ayarları", href: "/dashboard/guvenlik-ayarlar", adminOnly: true, icon: Shield, color: "text-emerald-500" },
-  { title: "Gelişmiş Log", href: "/dashboard/gelismis-log", adminOnly: true, icon: FileSearch, color: "text-rose-500" },
-  { title: "Sistem Sağlığı", href: "/dashboard/sistem-sagligi", adminOnly: true, icon: Activity, color: "text-cyan-500" },
-  { title: "Admin Ayarları", href: "/dashboard/admin-ayarlar", adminOnly: true, icon: ShieldCheck, color: "text-amber-500" },
-  { title: "Hesap Ayarları", href: "/dashboard/hesap", adminOnly: false, icon: UserCog, color: "text-purple-500" },
+  { key: "dashboard", title: "Genel Bakış", href: "/dashboard", icon: LayoutDashboard, color: "text-slate-500" },
+  { key: "gelir", title: "Gelir Tablosu", href: "/dashboard/gelir", icon: TrendingUp, color: "text-emerald-500" },
+  { key: "gider", title: "Gider Tablosu", href: "/dashboard/gider", icon: TrendingDown, color: "text-red-500" },
+  { key: "corbalar", title: "Çorbalar", href: "/dashboard/corbalar", icon: Soup, color: "text-orange-500" },
+  { key: "maaslar", title: "Maaşlar", href: "/dashboard/maaslar", icon: WalletCards, color: "text-emerald-500" },
+  { key: "mesai", title: "Mesai", href: "/dashboard/mesai", icon: Camera, color: "text-amber-500" },
+  { key: "vardiya", title: "Vardiya", href: "/dashboard/vardiya", icon: CalendarDays, color: "text-violet-500" },
+  { key: "mesai_takip", title: "Mesai Takip", href: "/dashboard/mesai-takip", icon: CalendarDays, color: "text-amber-500" },
+  { key: "sube_ciro_raporlari", title: "Şube Ciro Raporları", href: "/dashboard/sube-ciro-raporlari", icon: BarChart3, color: "text-emerald-500" },
+  { key: "sutun_ayarlar", title: "Sütun Ayarları", href: "/dashboard/sutun-ayarlar", icon: Columns3, color: "text-sky-500" },
+  { key: "gorunum_ayarlar", title: "Görünüm Ayarları", href: "/dashboard/gorunum-ayarlar", icon: Eye, color: "text-indigo-500" },
+  { key: "ayarlar", title: "Genel Ayarlar", href: "/dashboard/ayarlar", icon: Settings, color: "text-gray-500" },
+  { key: "guvenlik_ayarlar", title: "Güvenlik Ayarları", href: "/dashboard/guvenlik-ayarlar", icon: Shield, color: "text-emerald-500" },
+  { key: "gelismis_log", title: "Gelişmiş Log", href: "/dashboard/gelismis-log", icon: FileSearch, color: "text-rose-500" },
+  { key: "sistem_sagligi", title: "Sistem Sağlığı", href: "/dashboard/sistem-sagligi", icon: Activity, color: "text-cyan-500" },
+  { key: "admin_ayarlar", title: "Admin Ayarları", href: "/dashboard/admin-ayarlar", icon: ShieldCheck, color: "text-amber-500" },
+  { key: "hesap", title: "Hesap Ayarları", href: "/dashboard/hesap", icon: UserCog, color: "text-purple-500" },
 ]
 
 const ON_DORT_NO_ITEMS = [
@@ -69,8 +69,12 @@ export function QuickCommand() {
   const [onDortNoOpen, setOnDortNoOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [kargoFirmalar, setKargoFirmalar] = useState<Array<{ id: string; ad: string }>>([])
+  const [menuVisibility, setMenuVisibility] = useState<Record<string, boolean>>({})
+  const [userPermissions, setUserPermissions] = useState<Record<string, boolean> | null>(null)
 
   useEffect(() => {
+    fetchUserPermissions()
+
     function onKeyDown(event: KeyboardEvent) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase("tr-TR") === "k") {
         event.preventDefault()
@@ -84,44 +88,91 @@ export function QuickCommand() {
   }, [])
 
   useEffect(() => {
-    async function loadKargoFirmalar() {
+    if (open) fetchUserPermissions()
+  }, [open])
+
+  useEffect(() => {
+    async function loadCurrentSubeData() {
       if (!currentSube) {
         setKargoFirmalar([])
+        setMenuVisibility({})
         return
       }
 
-      const { data } = await supabase
-        .from("kargo_cari_firmalar")
-        .select("id, ad")
-        .eq("sube_id", currentSube.id)
-        .eq("aktif", true)
-        .order("sira", { ascending: true })
+      const [firmalarResult, visibilityResult] = await Promise.all([
+        supabase
+          .from("kargo_cari_firmalar")
+          .select("id, ad")
+          .eq("sube_id", currentSube.id)
+          .eq("aktif", true)
+          .order("sira", { ascending: true }),
+        supabase
+          .from("sube_menu_izinleri")
+          .select("menu_key, visible")
+          .eq("sube_id", currentSube.id),
+      ])
 
-      setKargoFirmalar(data || [])
+      setKargoFirmalar(firmalarResult.data || [])
+      setMenuVisibility((visibilityResult.data || []).reduce((acc, item) => ({
+        ...acc,
+        [item.menu_key]: item.visible,
+      }), {} as Record<string, boolean>))
     }
 
-    loadKargoFirmalar()
+    loadCurrentSubeData()
   }, [currentSube?.id])
+
+  async function fetchUserPermissions() {
+    const response = await fetch("/api/user/permissions", { cache: "no-store" }).catch(() => null)
+    if (!response) {
+      setUserPermissions({})
+      return
+    }
+
+    const data = await response.json().catch(() => ({}))
+    if (response.ok && data.permissions && typeof data.permissions === "object") {
+      setUserPermissions(data.permissions)
+      return
+    }
+
+    setUserPermissions({})
+  }
+
+  function canSeeMenu(key: string) {
+    if (userPermissions === null) return key === "dashboard"
+    if (userPermissions[key] === false) return false
+    if (userPermissions[key] === true) return menuVisibility[key] !== false
+    if (isAdmin) return menuVisibility[key] !== false
+    return false
+  }
 
   const results = useMemo(() => {
     const cleanQuery = normalize(query.trim())
     return NAV_ITEMS
-      .filter(item => isAdmin || !item.adminOnly)
+      .filter(item => canSeeMenu(item.key))
       .filter(item => !cleanQuery || normalize(item.title).includes(cleanQuery))
       .slice(0, 10)
-  }, [isAdmin, query])
+  }, [isAdmin, query, menuVisibility, userPermissions])
 
   const cleanQuery = normalize(query.trim())
-  const showKargoGroup = !cleanQuery || normalize("Kargo Cari").includes(cleanQuery) || kargoFirmalar.some(firma => normalize(firma.ad).includes(cleanQuery))
+  const showKargoGroup = canSeeMenu("kargo_cari") && (
+    !cleanQuery ||
+    normalize("Kargo Cari").includes(cleanQuery) ||
+    kargoFirmalar.some(firma => normalize(firma.ad).includes(cleanQuery))
+  )
   const shouldOpenKargo = kargoOpen || Boolean(cleanQuery)
-  const visibleKargoFirmalar = kargoFirmalar.filter(firma => !cleanQuery || normalize("Kargo Cari").includes(cleanQuery) || normalize(firma.ad).includes(cleanQuery))
+  const visibleKargoFirmalar = kargoFirmalar.filter(firma => (
+    !cleanQuery ||
+    normalize("Kargo Cari").includes(cleanQuery) ||
+    normalize(firma.ad).includes(cleanQuery)
+  ))
   const visibleOnDortNoItems = ON_DORT_NO_ITEMS.filter(item => (
     !cleanQuery ||
     normalize("14 No Hesap").includes(cleanQuery) ||
     normalize(item.title).includes(cleanQuery) ||
     normalize(`14 No Hesap ${item.title}`).includes(cleanQuery)
   ))
-  const showOnDortNoGroup = isAdmin && visibleOnDortNoItems.length > 0
+  const showOnDortNoGroup = canSeeMenu("on_dort_no") && visibleOnDortNoItems.length > 0
   const shouldOpenOnDortNo = onDortNoOpen || Boolean(cleanQuery)
 
   if (!open) return null
@@ -154,6 +205,7 @@ export function QuickCommand() {
               <span>{item.title}</span>
             </Link>
           ))}
+
           {showKargoGroup && (
             <div>
               <button
@@ -197,6 +249,7 @@ export function QuickCommand() {
               )}
             </div>
           )}
+
           {showOnDortNoGroup && (
             <div>
               <button
@@ -227,6 +280,7 @@ export function QuickCommand() {
               )}
             </div>
           )}
+
           {results.length === 0 && !showKargoGroup && !showOnDortNoGroup && (
             <div className="px-3 py-8 text-center text-sm text-muted-foreground">Sonuç bulunamadı.</div>
           )}

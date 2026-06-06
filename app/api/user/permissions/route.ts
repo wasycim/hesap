@@ -84,20 +84,18 @@ export async function GET() {
 
   const { data: overrides } = await admin
     .from("dashboard_permission_overrides")
-    .select("scope_type, role_key, user_id, permission_key, allowed, active, created_at")
+    .select("scope_type, role_key, user_id, permission_key, allowed, active, created_at, updated_at")
     .eq("active", true)
     .or(`scope_type.eq.role,user_id.eq.${user.id}`)
-    .order("created_at", { ascending: true })
+    .order("updated_at", { ascending: true })
 
-  for (const override of overrides || []) {
+  const roleOverrides = (overrides || []).filter((override) => override.scope_type === "role" && override.role_key === role)
+  const userOverrides = (overrides || []).filter((override) => override.scope_type === "user" && override.user_id === user.id)
+
+  for (const override of [...roleOverrides, ...userOverrides]) {
     const key = String(override.permission_key || "")
     if (!key || !(key in permissions)) continue
-    if (override.scope_type === "role" && override.role_key === role) {
-      permissions[key] = Boolean(override.allowed)
-    }
-    if (override.scope_type === "user" && override.user_id === user.id) {
-      permissions[key] = Boolean(override.allowed)
-    }
+    permissions[key] = Boolean(override.allowed)
   }
 
   const { data: teaSetting } = await admin

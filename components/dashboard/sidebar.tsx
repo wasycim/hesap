@@ -285,10 +285,23 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   const [isDeveloper, setIsDeveloper] = useState(false)
   const [subeMenuOpen, setSubeMenuOpen] = useState(false)
   const [menuVisibility, setMenuVisibility] = useState<Record<string, boolean>>({})
-  const [userPermissions, setUserPermissions] = useState<Record<string, boolean>>({})
+  const [userPermissions, setUserPermissions] = useState<Record<string, boolean> | null>(null)
 
   useEffect(() => {
     checkAdminStatus()
+  }, [])
+
+  useEffect(() => {
+    const refreshPermissions = () => {
+      if (document.visibilityState !== "hidden") fetchUserPermissions()
+    }
+
+    window.addEventListener("focus", refreshPermissions)
+    document.addEventListener("visibilitychange", refreshPermissions)
+    return () => {
+      window.removeEventListener("focus", refreshPermissions)
+      document.removeEventListener("visibilitychange", refreshPermissions)
+    }
   }, [])
 
   useEffect(() => {
@@ -332,11 +345,16 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
 
   async function fetchUserPermissions() {
     const response = await fetch("/api/user/permissions", { cache: "no-store" }).catch(() => null)
-    if (!response) return
+    if (!response) {
+      setUserPermissions({})
+      return
+    }
     const data = await response.json().catch(() => ({}))
     if (response.ok && data.permissions && typeof data.permissions === "object") {
       setUserPermissions(data.permissions)
+      return
     }
+    setUserPermissions({})
   }
 
   async function fetchKargoFirmalar() {
@@ -367,15 +385,11 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   }
 
   function canSeeMenu(key: string) {
-    if (isDeveloper) return userPermissions[key] !== false
-    if (!isAdmin && Object.keys(userPermissions).length === 0) {
-      return ["dashboard", "vardiya", "mesai", "mesai_takip", "cay", "bildirimler", "hesap"].includes(key)
-    }
+    if (userPermissions === null) return key === "dashboard"
     if (userPermissions[key] === false) return false
-    if (Object.prototype.hasOwnProperty.call(userPermissions, key)) {
-      return userPermissions[key] === true && menuVisibility[key] !== false
-    }
-    return isAdmin || menuVisibility[key] !== false
+    if (userPermissions[key] === true) return menuVisibility[key] !== false
+    if (isDeveloper || isAdmin) return menuVisibility[key] !== false
+    return false
   }
 
   const handleLogout = async () => {
