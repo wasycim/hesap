@@ -1,3 +1,5 @@
+import { headers } from "next/headers"
+
 type StatusPayload = {
   overall: "operational" | "degraded" | "down"
   checkedAt: string
@@ -11,7 +13,11 @@ type StatusPayload = {
 
 async function getStatus(): Promise<StatusPayload | null> {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://pamukkaleturizm.info"
+    const headerStore = await headers()
+    const host = headerStore.get("x-forwarded-host") || headerStore.get("host")
+    const protocol = headerStore.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https")
+    const baseUrl = host ? `${protocol}://${host}` : process.env.NEXT_PUBLIC_APP_URL || "https://pamukkaleturizm.info"
+
     const response = await fetch(`${baseUrl.replace(/\/+$/, "")}/api/status`, {
       cache: "no-store",
     })
@@ -47,7 +53,7 @@ export default async function StatusPage() {
               <p className="text-sm font-bold uppercase tracking-[0.18em] text-emerald-300">Hesap durum sayfası</p>
               <h1 className="mt-3 text-3xl font-black tracking-normal sm:text-4xl">Sistem Sağlığı</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-                Web, veritabanı ve Supabase servislerinin canlı durumunu buradan takip edebilirsiniz.
+                Web, veritabanı, Supabase, bildirim ve yedekleme servislerinin canlı durumunu buradan takip edebilirsiniz.
               </p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">

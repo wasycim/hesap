@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
         details: { id: data.id },
       })
 
-      return NextResponse.json({ ok: true, item: data })
+      return NextResponse.json({ ok: true, item: data, action: "updated" })
     }
   }
 
@@ -224,7 +224,7 @@ export async function POST(request: NextRequest) {
       details: { id: data.id, attendance_log_id: payload.attendance_log_id },
     })
 
-    return NextResponse.json({ ok: true, item: data })
+    return NextResponse.json({ ok: true, item: data, action: "updated" })
   }
 
   const { data, error } = await admin.from(table).insert(payload).select("*").single()
@@ -237,7 +237,7 @@ export async function POST(request: NextRequest) {
     details: { id: data.id || data.key },
   })
 
-  return NextResponse.json({ ok: true, item: data })
+  return NextResponse.json({ ok: true, item: data, action: "created" })
 }
 
 export async function PATCH(request: NextRequest) {

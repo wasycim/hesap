@@ -25,6 +25,34 @@ const tables = [
   "backup_snapshots",
 ]
 
+const permissionOptions = [
+  "dashboard",
+  "gelir",
+  "gider",
+  "vardiya",
+  "mesai",
+  "mesai_takip",
+  "corbalar",
+  "kargo_cari",
+  "on_dort_no",
+  "maaslar",
+  "bildirim_gonder",
+  "sube_ciro_raporlari",
+  "sutun_ayarlar",
+  "gorunum_ayarlar",
+  "ayarlar",
+  "guvenlik_ayarlar",
+  "gelismis_log",
+  "sistem_sagligi",
+  "admin_ayarlar",
+  "lisanslar",
+  "operasyon",
+  "log_backup",
+  "cay",
+  "bildirimler",
+  "hesap",
+]
+
 async function fetchTable(table: string) {
   const response = await fetch(`/api/admin/operations?table=${table}`, { cache: "no-store" })
   const data = await response.json().catch(() => ({}))
@@ -110,7 +138,11 @@ export default function OperasyonPage() {
         return { ...current, [table]: [result.item, ...filtered] }
       })
     }
-    toast.success(table === "dashboard_permission_overrides" ? "Yetki kaydedildi." : "Kayit eklendi.")
+    if (table === "dashboard_permission_overrides") {
+      toast.success(result.action === "updated" ? "Mevcut yetki güncellendi." : "Yetki eklendi.")
+    } else {
+      toast.success("Kayit eklendi.")
+    }
     await load()
     return true
   }
@@ -272,11 +304,7 @@ export default function OperasyonPage() {
               <Select value={permission.permission_key} onValueChange={(permission_key) => setPermission({ ...permission, permission_key })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {[
-                    "gelir", "gider", "corbalar", "kargo_cari", "vardiya", "mesai", "mesai_takip", "maaslar",
-                    "bildirim_gonder", "sube_ciro_raporlari", "ayarlar", "guvenlik_ayarlar", "gelismis_log",
-                    "sistem_sagligi", "admin_ayarlar", "lisanslar", "operasyon", "cay", "bildirimler", "hesap",
-                  ].map((key) => <SelectItem key={key} value={key}>{key}</SelectItem>)}
+                  {permissionOptions.map((key) => <SelectItem key={key} value={key}>{key}</SelectItem>)}
                 </SelectContent>
               </Select>
             </label>
