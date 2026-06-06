@@ -9,6 +9,7 @@ import { NativeAppBridge } from '@/components/mobile/native-app-bridge'
 import { ConnectivityOverlay } from '@/components/mobile/connectivity-overlay'
 import { ServiceWorkerRegistration } from '@/components/mobile/service-worker-registration'
 import { ClientErrorReporter } from '@/components/system/client-error-reporter'
+import { DesktopUpdateManager } from '@/components/desktop/desktop-update-manager'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -66,6 +67,7 @@ export default function RootLayout({
           {children}
           <ConnectivityOverlay />
           <NativeAppBridge />
+          <DesktopUpdateManager />
           <Toaster
             position="top-right"
             richColors

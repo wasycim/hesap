@@ -1,7 +1,10 @@
 !macro customInit
   ; During auto-update the previous Hesap.exe can stay hidden in the tray.
-  ; Close it before NSIS starts file replacement so the installer does not get stuck.
-  nsExec::ExecToLog 'taskkill /F /T /IM Hesap.exe'
+  ; Close only the app process before NSIS starts file replacement. Do not use /T:
+  ; the updater installer can be a child process, and killing the whole tree can
+  ; interrupt its own install flow.
+  nsExec::ExecToLog 'taskkill /F /IM Hesap.exe'
+  Sleep 1000
 !macroend
 
 !macro customInstall

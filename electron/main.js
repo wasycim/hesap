@@ -9,6 +9,8 @@ let tray = null
 let isQuitting = false
 let hasShownTrayHint = false
 let updateCheckInFlight = false
+let updateInstallInProgress = false
+let downloadedUpdateInfo = null
 
 function normalizeAppUrl(value) {
   try {
@@ -260,7 +262,7 @@ function createWindow() {
   })
 
   mainWindow.on("close", (event) => {
-    if (isQuitting || process.platform === "darwin") return
+    if (isQuitting || updateInstallInProgress || process.platform === "darwin") return
     event.preventDefault()
     mainWindow.hide()
 
@@ -328,8 +330,7 @@ function createTray() {
     {
       label: "Tamamen kapat",
       click: () => {
-        isQuitting = true
-        app.quit()
+        quitApplication()
       },
     },
   ]))
@@ -375,10 +376,37 @@ function prepareForRealQuit() {
     tray.destroy()
     tray = null
   }
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.removeAllListeners("close")
-    mainWindow.close()
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) window.removeAllListeners("close")
   }
+}
+
+function quitApplication() {
+  prepareForRealQuit()
+  app.quit()
+}
+
+function installDownloadedUpdate() {
+  if (updateInstallInProgress) {
+    return { ok: true, installing: true }
+  }
+
+  if (!downloadedUpdateInfo) {
+    return { ok: false, error: "Indirilmis guncelleme bulunamadi." }
+  }
+
+  updateInstallInProgress = true
+  sendUpdateStatus("installing", {
+    version: downloadedUpdateInfo?.version,
+    message: "Uygulama kapatiliyor ve guncelleme kuruluyor.",
+  })
+  prepareForRealQuit()
+
+  setTimeout(() => {
+    autoUpdater.quitAndInstall(true, true)
+  }, 250)
+
+  return { ok: true }
 }
 
 function startupPreferencePath() {
@@ -411,6 +439,11 @@ function writeStartupPreference(openAtLogin) {
 
 async function checkForUpdates({ manual = false } = {}) {
   if (updateCheckInFlight) return { status: "checking" }
+
+  if (downloadedUpdateInfo) {
+    sendUpdateStatus("downloaded", { version: downloadedUpdateInfo.version })
+    return { status: "downloaded", updateInfo: downloadedUpdateInfo }
+  }
 
   if (!app.isPackaged) {
     if (manual) {
@@ -447,7 +480,7 @@ async function checkForUpdates({ manual = false } = {}) {
 
 function configureAutoUpdater() {
   autoUpdater.autoDownload = true
-  autoUpdater.autoInstallOnAppQuit = true
+  autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.allowPrerelease = false
   autoUpdater.allowDowngrade = false
 
@@ -459,17 +492,8 @@ function configureAutoUpdater() {
     sendUpdateStatus("not-available")
   })
 
-  autoUpdater.on("update-available", async (info) => {
+  autoUpdater.on("update-available", (info) => {
     sendUpdateStatus("available", { version: info.version })
-    await dialog.showMessageBox(mainWindow, {
-      type: "info",
-      title: "Yeni guncelleme var",
-      message: "Guncelleme yapmaniz gerekmektedir",
-      detail: `Hesap ${info.version} surumu hazir. Uygulama guncellemeyi indirip kurulum icin hazirlayacak.`,
-      buttons: ["Tamam"],
-      defaultId: 0,
-      cancelId: 0,
-    })
     sendUpdateStatus("downloading", { version: info.version })
   })
 
@@ -482,24 +506,15 @@ function configureAutoUpdater() {
   })
 
   autoUpdater.on("update-downloaded", async (info) => {
-    sendUpdateStatus("downloaded", { version: info.version })
-    await dialog.showMessageBox(mainWindow, {
-      type: "info",
-      title: "Guncelleme indirildi",
-      message: "Guncelleme hazir",
-      detail: "Uygulama yeniden baslatilacak ve yeni surum otomatik kurulacak.",
-      buttons: ["Yeniden baslat ve kur"],
-      defaultId: 0,
-      cancelId: 0,
+    downloadedUpdateInfo = info
+    sendUpdateStatus("downloaded", {
+      version: info.version,
+      message: "Guncelleme indirildi. Kurulumu uygulama icinden baslatabilirsiniz.",
     })
-
-    prepareForRealQuit()
-    setTimeout(() => {
-      autoUpdater.quitAndInstall(false, true)
-    }, 300)
   })
 
   autoUpdater.on("before-quit-for-update", () => {
+    updateInstallInProgress = true
     prepareForRealQuit()
   })
 
@@ -537,6 +552,12 @@ app.on("before-quit", () => {
 
 ipcMain.handle("desktop:get-version", () => app.getVersion())
 ipcMain.handle("desktop:check-for-updates", () => checkForUpdates({ manual: true }))
+ipcMain.handle("desktop:install-downloaded-update", () => installDownloadedUpdate())
+ipcMain.handle("desktop:get-update-state", () => ({
+  downloaded: Boolean(downloadedUpdateInfo),
+  version: downloadedUpdateInfo?.version || null,
+  installing: updateInstallInProgress,
+}))
 ipcMain.handle("desktop:set-badge-count", (_event, count) => {
   setAppBadge(count)
   return { ok: true }
