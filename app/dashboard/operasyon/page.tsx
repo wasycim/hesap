@@ -64,6 +64,13 @@ export default function OperasyonPage() {
   const settings = useMemo(() => new Map((data.app_settings || []).map((item) => [item.key, item.value || {}])), [data])
   const maintenance = settings.get("maintenance_mode") || {}
   const teaModule = settings.get("tea_module") || { enabled: false }
+  const permissionOverrides = useMemo(() => {
+    return [...(data.dashboard_permission_overrides || [])].sort((a, b) => {
+      const left = new Date(a.updated_at || a.created_at || 0).getTime()
+      const right = new Date(b.updated_at || b.created_at || 0).getTime()
+      return right - left
+    })
+  }, [data.dashboard_permission_overrides])
 
   async function updateSetting(key: string, value: any) {
     const response = await fetch(`/api/admin/operations?table=app_settings`, {
@@ -81,6 +88,11 @@ export default function OperasyonPage() {
   }
 
   async function create(table: string, payload: any) {
+    if (table === "dashboard_permission_overrides" && payload.scope_type === "user" && !payload.user_id) {
+      toast.error("Once hesap secmelisin.")
+      return false
+    }
+
     const response = await fetch(`/api/admin/operations?table=${table}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -91,8 +103,15 @@ export default function OperasyonPage() {
       toast.error(result.error || "Kayit eklenemedi.")
       return false
     }
-    toast.success("Kayit eklendi.")
-    load()
+    if (result.item?.id) {
+      setData((current) => {
+        const items = current[table] || []
+        const filtered = items.filter((item) => item.id !== result.item.id)
+        return { ...current, [table]: [result.item, ...filtered] }
+      })
+    }
+    toast.success(table === "dashboard_permission_overrides" ? "Yetki kaydedildi." : "Kayit eklendi.")
+    await load()
     return true
   }
 
@@ -271,8 +290,12 @@ export default function OperasyonPage() {
               user_id: permission.scope_type === "user" ? permission.user_id : null,
             })}>Kaydet</Button>
           </div>
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {(data.dashboard_permission_overrides || []).slice(0, 18).map((item) => (
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>Kayitlar son guncellenme zamanina gore siralanir.</span>
+            <span>{permissionOverrides.length} yetki kaydi</span>
+          </div>
+          <div className="grid max-h-[520px] gap-2 overflow-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
+            {permissionOverrides.map((item) => (
               <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm">
                 <div>
                   <p className="font-bold">{item.permission_key}</p>
@@ -288,6 +311,7 @@ export default function OperasyonPage() {
                 </div>
               </div>
             ))}
+            {permissionOverrides.length === 0 ? <p className="text-sm text-muted-foreground">Henuz hesap yetki kaydi yok.</p> : null}
           </div>
         </CardContent>
       </Card>

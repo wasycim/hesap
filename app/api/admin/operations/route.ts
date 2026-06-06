@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
   if (table === "overtime_approvals") query = query.order("created_at", { ascending: false }).limit(300)
   else if (table === "offline_conflicts") query = query.order("created_at", { ascending: false }).limit(300)
   else if (table === "error_reports") query = query.order("created_at", { ascending: false }).limit(200)
-  else if (table === "dashboard_permission_overrides") query = query.order("created_at", { ascending: false }).limit(500)
+  else if (table === "dashboard_permission_overrides") query = query.order("updated_at", { ascending: false }).limit(500)
   else if (table === "app_settings") query = query.order("key", { ascending: true })
   else query = query.order("created_at", { ascending: false }).limit(300)
 
