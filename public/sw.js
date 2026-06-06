@@ -1,4 +1,4 @@
-const CACHE_NAME = "hesap-shell-v8"
+const CACHE_NAME = "hesap-shell-v9"
 const API_CACHE_NAME = "hesap-api-v5"
 const SHELL_URLS = [
   "/offline.html",
