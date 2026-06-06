@@ -13,6 +13,7 @@ import {
   FileSearch,
   Landmark,
   LayoutDashboard,
+  Mail,
   Package,
   Search,
   Settings,
@@ -30,6 +31,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useSube } from "@/contexts/sube-context"
 import { createClient } from "@/lib/supabase/client"
+import {
+  readCachedDashboardPermissions,
+  readCachedMenuVisibility,
+  writeCachedDashboardPermissions,
+  writeCachedMenuVisibility,
+} from "@/lib/dashboard-permissions-cache"
 
 const NAV_ITEMS = [
   { key: "dashboard", title: "Genel Bakış", href: "/dashboard", icon: LayoutDashboard, color: "text-slate-500" },
@@ -47,6 +54,7 @@ const NAV_ITEMS = [
   { key: "guvenlik_ayarlar", title: "Güvenlik Ayarları", href: "/dashboard/guvenlik-ayarlar", icon: Shield, color: "text-emerald-500" },
   { key: "gelismis_log", title: "Gelişmiş Log", href: "/dashboard/gelismis-log", icon: FileSearch, color: "text-rose-500" },
   { key: "sistem_sagligi", title: "Sistem Sağlığı", href: "/dashboard/sistem-sagligi", icon: Activity, color: "text-cyan-500" },
+  { key: "mail_islemleri", title: "Mail İşlemleri", href: "/dashboard/mail-islemleri", icon: Mail, color: "text-emerald-500" },
   { key: "admin_ayarlar", title: "Admin Ayarları", href: "/dashboard/admin-ayarlar", icon: ShieldCheck, color: "text-amber-500" },
   { key: "hesap", title: "Hesap Ayarları", href: "/dashboard/hesap", icon: UserCog, color: "text-purple-500" },
 ]
@@ -73,6 +81,8 @@ export function QuickCommand() {
   const [userPermissions, setUserPermissions] = useState<Record<string, boolean> | null>(null)
 
   useEffect(() => {
+    const cached = readCachedDashboardPermissions()
+    if (cached) setUserPermissions(cached.permissions)
     fetchUserPermissions()
 
     function onKeyDown(event: KeyboardEvent) {
@@ -99,6 +109,9 @@ export function QuickCommand() {
         return
       }
 
+      const cachedVisibility = readCachedMenuVisibility(currentSube.id)
+      if (cachedVisibility) setMenuVisibility(cachedVisibility)
+
       const [firmalarResult, visibilityResult] = await Promise.all([
         supabase
           .from("kargo_cari_firmalar")
@@ -113,10 +126,14 @@ export function QuickCommand() {
       ])
 
       setKargoFirmalar(firmalarResult.data || [])
-      setMenuVisibility((visibilityResult.data || []).reduce((acc, item) => ({
+      if (visibilityResult.error) return
+
+      const nextVisibility = (visibilityResult.data || []).reduce((acc, item) => ({
         ...acc,
         [item.menu_key]: item.visible,
-      }), {} as Record<string, boolean>))
+      }), {} as Record<string, boolean>)
+      setMenuVisibility(nextVisibility)
+      writeCachedMenuVisibility(currentSube.id, nextVisibility)
     }
 
     loadCurrentSubeData()
@@ -125,17 +142,23 @@ export function QuickCommand() {
   async function fetchUserPermissions() {
     const response = await fetch("/api/user/permissions", { cache: "no-store" }).catch(() => null)
     if (!response) {
-      setUserPermissions({})
+      const cached = readCachedDashboardPermissions()
+      setUserPermissions(cached?.permissions || {})
       return
     }
 
     const data = await response.json().catch(() => ({}))
     if (response.ok && data.permissions && typeof data.permissions === "object") {
       setUserPermissions(data.permissions)
+      writeCachedDashboardPermissions({
+        permissions: data.permissions,
+        role: data.role || null,
+      })
       return
     }
 
-    setUserPermissions({})
+    const cached = readCachedDashboardPermissions()
+    setUserPermissions(cached?.permissions || {})
   }
 
   function canSeeMenu(key: string) {

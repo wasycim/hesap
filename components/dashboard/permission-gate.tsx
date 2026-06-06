@@ -2,6 +2,10 @@
 
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
+import {
+  readCachedDashboardPermissions,
+  writeCachedDashboardPermissions,
+} from "@/lib/dashboard-permissions-cache"
 
 const routePermissions: Array<{ prefix: string; key: string }> = [
   { prefix: "/dashboard/gelir", key: "gelir" },
@@ -21,6 +25,7 @@ const routePermissions: Array<{ prefix: string; key: string }> = [
   { prefix: "/dashboard/guvenlik-ayarlar", key: "guvenlik_ayarlar" },
   { prefix: "/dashboard/gelismis-log", key: "gelismis_log" },
   { prefix: "/dashboard/sistem-sagligi", key: "sistem_sagligi" },
+  { prefix: "/dashboard/mail-islemleri", key: "mail_islemleri" },
   { prefix: "/dashboard/admin-ayarlar", key: "admin_ayarlar" },
   { prefix: "/dashboard/lisanslar", key: "lisanslar" },
   { prefix: "/dashboard/operasyon", key: "operasyon" },
@@ -48,7 +53,17 @@ export function DashboardPermissionGate({ children }: { children: React.ReactNod
       setAllowed(null)
       const response = await fetch("/api/user/permissions", { cache: "no-store" }).catch(() => null)
       const data = await response?.json().catch(() => ({}))
-      const permissions = data?.permissions && typeof data.permissions === "object" ? data.permissions : {}
+      const permissions = data?.permissions && typeof data.permissions === "object"
+        ? data.permissions
+        : readCachedDashboardPermissions()?.permissions || {}
+
+      if (data?.permissions && typeof data.permissions === "object") {
+        writeCachedDashboardPermissions({
+          permissions: data.permissions,
+          role: data.role || null,
+        })
+      }
+
       const nextAllowed = permissions[permissionKey] !== false && permissions[permissionKey] === true
 
       if (cancelled) return

@@ -31,6 +31,7 @@
 ## İçindekiler
 
 - [Özet](#özet)
+- [Ekran Görselleri](#ekran-görselleri)
 - [Sistem Mantığı](#sistem-mantığı)
 - [Mimari](#mimari)
 - [Teknoloji Stack](#teknoloji-stack)
@@ -59,6 +60,25 @@
 Hesap Rapor Sistemi; şube bazlı finans takibi, QR destekli personel mesaisi, vardiya planlama, maaş hesaplama, PDF raporlama, push bildirim, cihaz lisansı, offline işlem kuyruğu ve günlük yedeklemeyi tek uygulamada toplar.
 
 Sistem web, Windows EXE ve Android/iOS kabuklarında aynı iş mantığını kullanır. Ana hedef; işletme operasyonlarını tek yerden yönetmek, mesai ve maaş tarafında hatayı azaltmak, bağlantı kesilse bile veriyi kaybetmemek ve kritik durumları görünür hale getirmektir.
+
+## Ekran Görselleri
+
+<details>
+  <summary><strong>Mobil ve store hazırlık ekranları</strong></summary>
+  <br />
+  <p align="center">
+    <img src="docs/store-screenshots/store-screenshots-overview.png" alt="Hesap store ekran görüntüleri" width="860" />
+  </p>
+</details>
+
+<details>
+  <summary><strong>Native mobil destek ekranları</strong></summary>
+  <br />
+  <p align="center">
+    <img src="docs/store-screenshots/mobile-native-phone.png" alt="Hesap native mobil ekran" width="320" />
+    <img src="docs/store-screenshots/mobile-support-phone.png" alt="Hesap mobil destek ekranı" width="320" />
+  </p>
+</details>
 
 ## Sistem Mantığı
 
@@ -129,9 +149,10 @@ flowchart LR
 | Mesai Takip | Giriş/çıkış detayları, geç kalma, fazla mesai, onay/red ve manuel mesai. |
 | Maaşlar | Maaş, avans ve yalnızca onaylanmış fazla mesai hesapları. |
 | Bildirim Gönder | Yönetici tarafından kullanıcı/şube bazlı bildirim gönderimi. |
+| Mail İşlemleri | Günlük/haftalık rapor alıcıları, rol hedefleri, PDF/HTML ekleri ve detay seviyesi. |
 | Çay | Developer tarafından aktif edilirse seçili kullanıcıya çay durumu bildirimi. |
 | Duyurular | Tarih aralıklı veya sürekli gösterilen duyuru yönetimi. |
-| Lisanslar | PC, web ve mobil cihaz lisansları, uzaktan iptal. |
+| Lisanslar | PC, web ve mobil cihaz lisansları, arama/filtreli sade kart arayüzü ve uzaktan iptal. |
 | Sistem Sağlığı | Supabase, SMTP, FCM, backup, failover ve deploy kontrolleri. |
 | Gelişmiş Log | Developer rolüne özel denetim ve güvenlik kayıtları. |
 | Log Backup | Gelişmiş logları indirme, yükleme ve silme yönetimi. |
@@ -242,8 +263,9 @@ Yani 45 dakika ve üzeri bir üst saate tamamlanır; 45 dakika altı maaşa mesa
 2. Mesai Takip ekranında yöneticiye onay bekleyen kayıt gösterilir.
 3. Yönetici onaylarsa fazla mesai Maaşlar ekranına yansır.
 4. Yönetici reddederse red nedeni zorunludur.
-5. Hatalı kayıt varsa yönetici manuel mesai ekleyebilir.
-6. Manuel eklenen mesai gerekirse silinebilir.
+5. Onaylanan veya reddedilen kayıt tekrar onay/red işlemine açılamaz; karar geçmiş olarak kilitlenir.
+6. Hatalı kayıt varsa yönetici manuel mesai ekleyebilir.
+7. Manuel eklenen mesai gerekirse silinebilir.
 
 ## Bildirim Sistemi
 
@@ -256,6 +278,14 @@ Bildirim katmanları:
 - Yönetici manuel bildirim gönderimi
 - Geç kalma/fazla mesai otomatik bildirimleri
 - Günlük/haftalık yönetici özetleri
+
+Mail İşlemleri ekranı:
+
+- Günlük ve haftalık raporun aktif olup olmadığını belirler.
+- Hangi saatte ve hangi haftalık günde rapor beklendiğini kaydeder.
+- Hedef rolleri seçer: developer, yönetici veya personel.
+- Tek tek kullanıcıların rapor e-postasını, günlük ve haftalık aboneliğini yönetir.
+- Mail gövdesine ek olarak detaylı HTML özet ve PDF rapor eki üretir.
 
 FCM akışı:
 
@@ -279,9 +309,11 @@ Nasıl çalışır:
 
 - Service Worker uygulama shell dosyalarını cache’ler.
 - Kritik GET API cevapları son başarılı veri olarak saklanır.
+- Sol menü, Ctrl+K hızlı arama ve route izinleri son başarılı yetki cache’iyle çalışır.
 - Güvenli POST/PATCH/DELETE işlemleri offline queue’ya alınır.
 - İnternet geldiğinde kuyruk otomatik senkronize olur.
 - Kullanıcı gerekirse `Senkronize et` butonuyla elle tetikleyebilir.
+- Senkron tamamlanınca kullanıcıya “çevrimdışı veriler sisteme işlendi” bildirimi gösterilir.
 
 | Alan | Offline Davranış |
 | --- | --- |
@@ -291,6 +323,7 @@ Nasıl çalışır:
 | Gelir/gider kayıt | Kuyruğa alınır |
 | Mesai QR işlemi | Özel offline mutation kuyruğuna alınır |
 | Bildirim merkezi | Son bilinen veriyi gösterir |
+| Sol menü / yetkiler | Son başarılı yetki ve şube menü cache’iyle görünür kalır |
 | İlk kez açılmamış sayfa | İlk yükleme için internet gerekir |
 | Supabase realtime | Online gerekir |
 
@@ -527,6 +560,7 @@ npm run supabase:auth-config
 | `/dashboard/maaslar` | Maaş, avans, onaylı mesai |
 | `/dashboard/bildirimler` | Kullanıcı bildirim geçmişi |
 | `/dashboard/bildirim-gonder` | Yönetici bildirim gönderimi |
+| `/dashboard/mail-islemleri` | Otomatik mail alıcıları, rapor zamanları ve PDF/HTML ek ayarları |
 | `/dashboard/lisanslar` | Lisanslı cihazlar |
 | `/dashboard/sistem-sagligi` | Sistem sağlık paneli |
 | `/dashboard/gelismis-log` | Developer gelişmiş log |
@@ -544,6 +578,7 @@ npm run supabase:auth-config
 - [ ] Şifre sıfırlama maili Türkçe ve production link üretiyor.
 - [ ] Supabase RLS kritik tablolar için aktif.
 - [ ] SMTP test maili başarılı.
+- [ ] Mail İşlemleri ekranında günlük/haftalık alıcılar ve PDF/HTML ekleri doğru ayarlı.
 - [ ] FCM cihaz token kaydı ve test push başarılı.
 - [ ] `/status` public durum sayfası çalışıyor.
 - [ ] `/dashboard/sistem-sagligi` developer için detaylı bileşenleri gösteriyor.
@@ -553,6 +588,8 @@ npm run supabase:auth-config
 - [ ] Aynı güne çift vardiya atanamıyor.
 - [ ] Gelir/gider tabloları online açıldıktan sonra offline cache ile açılıyor.
 - [ ] Offline queue internet gelince senkronize oluyor.
+- [ ] Offline durumda sol menü ve Ctrl+K son başarılı yetkilere göre görünür kalıyor.
+- [ ] Senkron tamamlanınca kullanıcıya “sistem güncel” bildirimi geliyor.
 - [ ] Windows EXE auto-update `latest.yml` üzerinden son sürümü görüyor.
 - [ ] Windows installer uygulama açıkken takılmadan güncelliyor.
 - [ ] Cloudflare R2 günlük backup dosyası oluşuyor.

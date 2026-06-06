@@ -257,41 +257,18 @@ function ApprovalActions({
 
   if (item.approvalStatus === "approved") {
     return (
-      <div className="flex flex-wrap gap-2">
+      <div className="grid gap-1">
         <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Onaylandi</Badge>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-8 gap-1 border-red-500/40 text-red-600"
-          disabled={disabled}
-          onClick={reject}
-        >
-          <X className="h-3.5 w-3.5" />
-          Reddet
-        </Button>
+        {item.approvalNote ? <span className="max-w-[240px] text-xs text-muted-foreground">{item.approvalNote}</span> : null}
       </div>
     )
   }
 
   if (item.approvalStatus === "rejected") {
     return (
-      <div className="flex flex-wrap gap-2">
-        <div className="grid gap-1">
-          <Badge variant="outline" className="w-fit border-red-500/50 text-red-600">Reddedildi</Badge>
-          {item.approvalNote ? <span className="max-w-[240px] text-xs text-muted-foreground">Neden: {item.approvalNote}</span> : null}
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-8 gap-1 border-emerald-500/40 text-emerald-600"
-          disabled={disabled}
-          onClick={() => onUpdate(item, "approved")}
-        >
-          <Check className="h-3.5 w-3.5" />
-          Onayla
-        </Button>
+      <div className="grid gap-1">
+        <Badge variant="outline" className="w-fit border-red-500/50 text-red-600">Reddedildi</Badge>
+        {item.approvalNote ? <span className="max-w-[240px] text-xs text-muted-foreground">Neden: {item.approvalNote}</span> : null}
       </div>
     )
   }

@@ -21,6 +21,7 @@ const allPermissionKeys = [
   "guvenlik_ayarlar",
   "gelismis_log",
   "sistem_sagligi",
+  "mail_islemleri",
   "admin_ayarlar",
   "lisanslar",
   "operasyon",

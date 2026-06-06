@@ -1,4 +1,4 @@
-const CACHE_NAME = "hesap-shell-v7"
+const CACHE_NAME = "hesap-shell-v8"
 const API_CACHE_NAME = "hesap-api-v5"
 const SHELL_URLS = [
   "/offline.html",
@@ -16,6 +16,8 @@ const SHELL_URLS = [
   "/dashboard/cay",
   "/dashboard/guvenlik-ayarlar",
   "/dashboard/sistem-sagligi",
+  "/dashboard/mail-islemleri",
+  "/dashboard/lisanslar",
   "/dashboard/operasyon",
   "/dashboard/log-backup",
   "/dashboard/hesap",

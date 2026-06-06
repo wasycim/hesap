@@ -20,6 +20,7 @@ import {
   Landmark,
   LayoutDashboard,
   LogOut,
+  Mail,
   Menu,
   MonitorCheck,
   Package,
@@ -41,6 +42,12 @@ import { useSube } from "@/contexts/sube-context"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "@/components/theme-toggle"
+import {
+  readCachedDashboardPermissions,
+  readCachedMenuVisibility,
+  writeCachedDashboardPermissions,
+  writeCachedMenuVisibility,
+} from "@/lib/dashboard-permissions-cache"
 
 interface SidebarProps {
   userEmail: string
@@ -73,6 +80,7 @@ const adminMenuItems = [
   { title: "Güvenlik Ayarları", href: "/dashboard/guvenlik-ayarlar", icon: Shield, color: "text-emerald-500" },
   { title: "Gelişmiş Log", href: "/dashboard/gelismis-log", icon: FileSearch, color: "text-rose-500" },
   { title: "Sistem Sağlığı", href: "/dashboard/sistem-sagligi", icon: Activity, color: "text-cyan-500" },
+  { title: "Mail İşlemleri", href: "/dashboard/mail-islemleri", icon: Mail, color: "text-emerald-500" },
   { title: "Admin Ayarları", href: "/dashboard/admin-ayarlar", icon: ShieldCheck, color: "text-amber-500" },
 ]
 
@@ -99,6 +107,7 @@ const permissionKeyByHref: Record<string, string> = {
   "/dashboard/guvenlik-ayarlar": "guvenlik_ayarlar",
   "/dashboard/gelismis-log": "gelismis_log",
   "/dashboard/sistem-sagligi": "sistem_sagligi",
+  "/dashboard/mail-islemleri": "mail_islemleri",
   "/dashboard/admin-ayarlar": "admin_ayarlar",
   "/dashboard/lisanslar": "lisanslar",
   "/dashboard/operasyon": "operasyon",
@@ -289,6 +298,8 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
 
   useEffect(() => {
     checkAdminStatus()
+    const cached = readCachedDashboardPermissions()
+    if (cached) setUserPermissions(cached.permissions)
   }, [])
 
   useEffect(() => {
@@ -346,15 +357,21 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   async function fetchUserPermissions() {
     const response = await fetch("/api/user/permissions", { cache: "no-store" }).catch(() => null)
     if (!response) {
-      setUserPermissions({})
+      const cached = readCachedDashboardPermissions()
+      setUserPermissions(cached?.permissions || {})
       return
     }
     const data = await response.json().catch(() => ({}))
     if (response.ok && data.permissions && typeof data.permissions === "object") {
       setUserPermissions(data.permissions)
+      writeCachedDashboardPermissions({
+        permissions: data.permissions,
+        role: data.role || null,
+      })
       return
     }
-    setUserPermissions({})
+    const cached = readCachedDashboardPermissions()
+    setUserPermissions(cached?.permissions || {})
   }
 
   async function fetchKargoFirmalar() {
@@ -373,15 +390,23 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   async function fetchMenuVisibility() {
     if (!currentSube) return
 
-    const { data } = await supabase
+    const cached = readCachedMenuVisibility(currentSube.id)
+    if (cached) setMenuVisibility(cached)
+
+    const { data, error } = await supabase
       .from("sube_menu_izinleri")
       .select("menu_key, visible")
       .eq("sube_id", currentSube.id)
 
-    setMenuVisibility((data || []).reduce((acc, item) => ({
+    if (error) return
+
+    const visibility = (data || []).reduce((acc, item) => ({
       ...acc,
       [item.menu_key]: item.visible,
-    }), {} as Record<string, boolean>))
+    }), {} as Record<string, boolean>)
+
+    setMenuVisibility(visibility)
+    writeCachedMenuVisibility(currentSube.id, visibility)
   }
 
   function canSeeMenu(key: string) {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { RefreshCw, WifiOff } from "lucide-react"
+import { toast } from "sonner"
 import { flushOfflineMutations, getOfflineQueueCount, installOfflineMutationQueue } from "@/lib/offline-sync"
 
 export function ConnectivityOverlay() {
@@ -31,7 +32,10 @@ export function ConnectivityOverlay() {
     if (!online || queueCount === 0) return
     setSyncing(true)
     flushOfflineMutations()
-      .then((result) => setQueueCount(result.remaining))
+      .then((result) => {
+        setQueueCount(result.remaining)
+        notifySyncComplete(result.synced, result.remaining)
+      })
       .finally(() => setSyncing(false))
   }, [online, queueCount])
 
@@ -39,6 +43,7 @@ export function ConnectivityOverlay() {
     setSyncing(true)
     const result = await flushOfflineMutations().catch(() => ({ synced: 0, remaining: queueCount }))
     setQueueCount(result.remaining)
+    notifySyncComplete(result.synced, result.remaining)
     setSyncing(false)
   }
 
@@ -84,4 +89,22 @@ export function ConnectivityOverlay() {
       </div>
     </div>
   )
+}
+
+function notifySyncComplete(synced: number, remaining: number) {
+  if (synced <= 0 || remaining > 0) return
+
+  const title = "Sistem guncel"
+  const body = "Cevrimdisi veriler kaydedildi ve sisteme islendi."
+  toast.success(body)
+
+  if (typeof window === "undefined" || !("Notification" in window)) return
+  if (Notification.permission === "granted") {
+    new Notification(title, {
+      body,
+      icon: "/iconw.png",
+      badge: "/iconw.png",
+      tag: "hesap-offline-sync-complete",
+    })
+  }
 }

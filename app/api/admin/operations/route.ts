@@ -210,6 +210,16 @@ export async function POST(request: NextRequest) {
   }
 
   if (table === "overtime_approvals" && payload.attendance_log_id) {
+    const { data: existingApproval, error: existingApprovalError } = await admin
+      .from(table)
+      .select("id, status")
+      .eq("attendance_log_id", payload.attendance_log_id)
+      .maybeSingle()
+    if (existingApprovalError) return NextResponse.json({ error: existingApprovalError.message }, { status: 500 })
+    if (existingApproval?.id && existingApproval.status !== "pending") {
+      return NextResponse.json({ error: "Bu mesai icin karar verilmis. Onay/red tekrar degistirilemez." }, { status: 409 })
+    }
+
     const { data, error } = await admin
       .from(table)
       .upsert(payload, { onConflict: "attendance_log_id" })
@@ -255,6 +265,15 @@ export async function PATCH(request: NextRequest) {
     payload = { value: body.value && typeof body.value === "object" ? body.value : {}, updated_by: guard.user.id, updated_at: new Date().toISOString() }
   } else if (table === "overtime_approvals") {
     const status = ["pending", "approved", "rejected"].includes(body.status) ? body.status : "pending"
+    const { data: currentApproval, error: currentApprovalError } = await admin
+      .from(table)
+      .select("status")
+      .eq("id", id)
+      .maybeSingle()
+    if (currentApprovalError) return NextResponse.json({ error: currentApprovalError.message }, { status: 500 })
+    if (currentApproval?.status && currentApproval.status !== "pending" && currentApproval.status !== status) {
+      return NextResponse.json({ error: "Bu mesai icin karar verilmis. Onay/red tekrar degistirilemez." }, { status: 409 })
+    }
     const nextPayableMinutes = body.payable_minutes === undefined
       ? undefined
       : Math.max(0, Math.round(Number(body.payable_minutes) || 0))

@@ -44,6 +44,7 @@ const permissionOptions = [
   "guvenlik_ayarlar",
   "gelismis_log",
   "sistem_sagligi",
+  "mail_islemleri",
   "admin_ayarlar",
   "lisanslar",
   "operasyon",
@@ -497,8 +498,29 @@ export default function OperasyonPage() {
                 <p className="font-bold">{item.personel_name || item.user_profile_id}</p>
                 <p className="text-muted-foreground">{item.raw_minutes} dk / {item.payable_minutes} dk</p>
                 <div className="mt-2 flex gap-2">
-                  <Button size="sm" onClick={() => patch("overtime_approvals", item.id, { status: "approved" })}>Onayla</Button>
-                  <Button size="sm" variant="outline" onClick={() => patch("overtime_approvals", item.id, { status: "rejected" })}>Reddet</Button>
+                  {item.status === "pending" ? (
+                    <>
+                      <Button size="sm" onClick={() => patch("overtime_approvals", item.id, { status: "approved" })}>Onayla</Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const reason = window.prompt("Red nedeni:")
+                          if (!reason?.trim()) {
+                            toast.error("Red nedeni zorunlu.")
+                            return
+                          }
+                          patch("overtime_approvals", item.id, { status: "rejected", note: `Red nedeni: ${reason.trim()}` })
+                        }}
+                      >
+                        Reddet
+                      </Button>
+                    </>
+                  ) : (
+                    <Badge variant={item.status === "approved" ? "default" : "destructive"}>
+                      {item.status === "approved" ? "Onaylandı" : "Reddedildi"}
+                    </Badge>
+                  )}
                 </div>
               </div>
             ))}
