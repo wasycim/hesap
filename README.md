@@ -1,111 +1,229 @@
 # Hesap Rapor Sistemi
 
 <p align="center">
-  <img src="public/iconw.png" alt="Hesap W logosu" width="132" />
+  <img src="public/iconw.png" alt="Hesap W logosu" width="138" />
 </p>
 
 <p align="center">
-  <strong>Gelir, gider, vardiya, QR mesai, maaş, bildirim ve cihaz yönetimini tek panelde toplayan üretim odaklı işletme sistemi.</strong>
+  <strong>Gelir, gider, vardiya, QR mesai, maaş, bildirim, cihaz lisansı ve yedeklemeyi tek panelde birleştiren production odaklı işletme yönetim sistemi.</strong>
 </p>
 
 <p align="center">
-  <a href="https://github.com/wasycim/hesap"><img alt="GitHub" src="https://img.shields.io/badge/repo-wasycim%2Fhesap-111827?style=for-the-badge&logo=github" /></a>
+  <a href="https://github.com/wasycim/hesap"><img alt="GitHub repo" src="https://img.shields.io/badge/repo-wasycim%2Fhesap-111827?style=for-the-badge&logo=github" /></a>
+  <img alt="Version" src="https://img.shields.io/badge/version-0.1.13-10B981?style=for-the-badge" />
   <img alt="Next.js" src="https://img.shields.io/badge/Next.js-App%20Router-000000?style=for-the-badge&logo=nextdotjs" />
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
   <img alt="Supabase" src="https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white" />
   <img alt="Electron" src="https://img.shields.io/badge/Windows-EXE-47848F?style=for-the-badge&logo=electron&logoColor=white" />
-  <img alt="Repo views" src="https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fwasycim%2Fhesap&count_bg=%2310B981&title_bg=%23111827&icon=github.svg&icon_color=%23FFFFFF&title=views&edge_flat=false" />
+  <img alt="Repo views" src="https://komarev.com/ghpvc/?username=wasycim-hesap&style=for-the-badge&color=10b981&label=views" />
+</p>
+
+<p align="center">
+  <a href="https://pamukkaleturizm.info">Production</a>
+  ·
+  <a href="https://pamukkaleturizm.info/status">Sistem Durumu</a>
+  ·
+  <a href="https://github.com/wasycim/hesap/releases/latest">Son Windows Sürümü</a>
+  ·
+  <a href="LICENSE.md">Lisans</a>
 </p>
 
 ## İçindekiler
 
 - [Özet](#özet)
+- [Sistem Mantığı](#sistem-mantığı)
 - [Mimari](#mimari)
+- [Teknoloji Stack](#teknoloji-stack)
 - [Ana Modüller](#ana-modüller)
-- [Mesai ve Maaş Mantığı](#mesai-ve-maaş-mantığı)
+- [Rol ve Yetki Sistemi](#rol-ve-yetki-sistemi)
+- [Mesai Akışı](#mesai-akışı)
+- [Vardiya ve Mesai Hesabı](#vardiya-ve-mesai-hesabı)
+- [Maaş ve Fazla Mesai](#maaş-ve-fazla-mesai)
+- [Bildirim Sistemi](#bildirim-sistemi)
 - [Offline Çalışma](#offline-çalışma)
-- [Backup ve Failover](#backup-ve-failover)
-- [Push Bildirim](#push-bildirim)
-- [Yetki Sistemi](#yetki-sistemi)
+- [Yedekleme ve Failover](#yedekleme-ve-failover)
+- [Cihaz Lisansı](#cihaz-lisansı)
+- [Windows EXE](#windows-exe)
+- [Android ve iOS](#android-ve-ios)
 - [Kurulum](#kurulum)
 - [Ortam Değişkenleri](#ortam-değişkenleri)
 - [Veritabanı ve Scriptler](#veritabanı-ve-scriptler)
-- [Çalıştırma Komutları](#çalıştırma-komutları)
-- [Windows EXE](#windows-exe)
-- [Android ve iOS Hazırlığı](#android-ve-ios-hazırlığı)
+- [Komutlar](#komutlar)
+- [Rotalar](#rotalar)
 - [Production Kontrol Listesi](#production-kontrol-listesi)
-- [Rota Haritası](#rota-haritası)
 - [Sorun Giderme](#sorun-giderme)
 - [Lisans](#lisans)
 
 ## Özet
 
-Hesap; şube bazlı işletme raporlarını, QR destekli personel mesai takibini, vardiya planlamayı, maaş hesabını, PDF raporlamayı, FCM push bildirimlerini, cihaz lisanslarını ve offline senkronizasyonu aynı sistemde birleştirir.
+Hesap Rapor Sistemi; şube bazlı finans takibi, QR destekli personel mesaisi, vardiya planlama, maaş hesaplama, PDF raporlama, push bildirim, cihaz lisansı, offline işlem kuyruğu ve günlük yedeklemeyi tek uygulamada toplar.
 
-Sistem özellikle şu iş akışlarına göre tasarlanmıştır:
+Sistem web, Windows EXE ve Android/iOS kabuklarında aynı iş mantığını kullanır. Ana hedef; işletme operasyonlarını tek yerden yönetmek, mesai ve maaş tarafında hatayı azaltmak, bağlantı kesilse bile veriyi kaybetmemek ve kritik durumları görünür hale getirmektir.
 
-- Şubelerin gelir, gider, çorba, kargo cari ve 14 no hesap kayıtlarını yönetmek.
-- Personelin TC ve şifre ile giriş yapıp sabit terminal QR kodunu kendi kamerası ile okutmasını sağlamak.
-- Mesaiyi vardiya planına göre hesaplamak, ancak maaşa yansımadan önce yönetici onayı istemek.
-- Hatalı mesai kaydında yöneticinin red nedeni girmesini ve manuel mesai ekleyebilmesini sağlamak.
-- İnternet yokken uygulamanın açılabilmesi, kayıtları kuyruklayabilmesi ve internet gelince senkronize etmesi.
-- Windows `.exe`, Android APK ve ileride iOS/TestFlight dağıtımı için aynı web çekirdeğini kullanmak.
+## Sistem Mantığı
+
+Temel kullanım akışı:
+
+1. Kullanıcı `/auth/giris` üzerinden TC kimlik no ve şifre ile giriş yapar.
+2. Kullanıcı yalnızca mesai yetkisine sahipse otomatik mesai QR ekranına yönlendirilir.
+3. Dashboard yetkisi varsa menüden finans, vardiya, mesai takip, maaş ve yönetim ekranlarına erişir.
+4. Personel, sabit `/terminal` ekranında sürekli değişen QR kodu kendi cihaz kamerasıyla okutur.
+5. Açık mesaisi yoksa giriş kaydı, açık mesaisi varsa çıkış kaydı oluşturulur.
+6. Fazla mesai maaşa otomatik yazılmaz; önce yönetici onayı gerekir.
+7. Offline durumda güvenli işlemler yerel kuyruğa alınır ve internet gelince senkronize edilir.
+8. Günlük yedekleme Cloudflare R2 ve failover PostgreSQL tarafına işlenir.
 
 ## Mimari
 
 ```mermaid
 flowchart LR
-  U["Kullanıcı / Personel"] --> WEB["Next.js Web App"]
-  ADM["Yönetici / Developer"] --> WEB
-  WEB --> AUTH["Supabase Auth"]
+  PERSONEL["Personel"] --> WEB["Next.js Web App"]
+  ADMIN["Yönetici"] --> WEB
+  DEV["Developer"] --> WEB
+
   WEB --> API["Next.js API Routes"]
-  API --> PG["Supabase PostgreSQL"]
+  API --> SUPA["Supabase Auth + PostgreSQL"]
   API --> PRISMA["Prisma Attendance DB"]
+  API --> SMTP["Zoho SMTP"]
   API --> FCM["Firebase Cloud Messaging"]
-  API --> SMTP["SMTP / Zoho Mail"]
+  API --> R2["Cloudflare R2 Backup"]
+
   WEB --> SW["Service Worker + Offline Queue"]
-  DESK["Windows EXE / Electron"] --> WEB
-  MOB["Android / iOS / Capacitor"] --> WEB
-  MOB --> FCM
-  DESK --> BADGE["Windows Badge + Native Notification"]
+  DESKTOP["Windows EXE / Electron"] --> WEB
+  ANDROID["Android / Capacitor"] --> WEB
+  IOS["iOS / Capacitor"] --> WEB
+
+  VPS["VPS Backup Worker"] --> SUPA
+  VPS --> R2
+  VPS --> FAILOVER["Failover PostgreSQL"]
 ```
+
+## Teknoloji Stack
+
+| Katman | Teknoloji |
+| --- | --- |
+| Frontend | Next.js App Router, React, TypeScript, TailwindCSS |
+| Backend | Next.js API Routes, Prisma, Supabase |
+| Database | PostgreSQL, Supabase Auth |
+| Auth | JWT, Supabase session, bcrypt password hash |
+| Mesai QR | Dinamik terminal QR, QR token doğrulama |
+| PDF | Browser print, native Electron PDF save bridge |
+| Bildirim | Firebase Cloud Messaging, web notification, Windows badge |
+| Desktop | Electron, electron-updater, NSIS installer |
+| Mobile | Capacitor Android/iOS |
+| Offline | Service Worker, IndexedDB/local queue, cached API responses |
+| Backup | Cloudflare R2, VPS worker, failover PostgreSQL |
+| Deploy | Vercel, GitHub Releases |
 
 ## Ana Modüller
 
 | Modül | Açıklama |
 | --- | --- |
-| Dashboard | Şube bazlı finans ve operasyon paneli. |
-| Gelir Tablosu | Gelir kayıtları, özel firma sütunları, PDF çıktı ve offline kayıt kuyruğu. |
-| Gider Tablosu | Gider kalemleri, personel payları, ortak avansları, offline kayıt kuyruğu ve raporlama. |
-| Çorbalar | Günlük çorba/ürün takibi. |
+| Dashboard | Şube bazlı operasyon ana ekranı. |
+| Gelir | Gelir kayıtları, firma sütunları, PDF ve offline queue desteği. |
+| Gider | Gider kalemleri, personel payları, avanslar, PDF ve offline queue desteği. |
+| Çorbalar | Günlük ürün/çorba kayıtları. |
 | Kargo Cari | Firma bazlı cari borç/alacak takibi. |
-| Vardiya | Günlük/haftalık/aylık vardiya planlama, çakışma engeli, özel vardiya tanımları. |
-| Mesai | Personelin terminal QR okutma ekranı. |
-| Mesai Takip | Şube/personel bazlı giriş-çıkış, geç kalma, fazla mesai, onay ve manuel mesai. |
-| Maaşlar | Maaş, avans ve yalnızca onaylanmış mesai ücretleri. |
-| Sistem Sağlığı | Supabase, SMTP, FCM, terminal, cihaz ve rapor kontrolleri. |
-| Gelişmiş Log | Developer rolüne özel detaylı denetim kayıtları. |
-| Lisanslar | PC, web ve mobil cihaz lisansları; uzaktan iptal. |
-| Bildirimler | Uygulama içi bildirim, push geçmişi, okundu/silindi durumu. |
+| Vardiya | Günlük, haftalık, aylık ve tarih aralıklı vardiya planlama. |
+| Mesai | Personelin QR okutarak giriş/çıkış yaptığı ekran. |
+| Mesai Takip | Giriş/çıkış detayları, geç kalma, fazla mesai, onay/red ve manuel mesai. |
+| Maaşlar | Maaş, avans ve yalnızca onaylanmış fazla mesai hesapları. |
+| Bildirim Gönder | Yönetici tarafından kullanıcı/şube bazlı bildirim gönderimi. |
+| Çay | Developer tarafından aktif edilirse seçili kullanıcıya çay durumu bildirimi. |
+| Duyurular | Tarih aralıklı veya sürekli gösterilen duyuru yönetimi. |
+| Lisanslar | PC, web ve mobil cihaz lisansları, uzaktan iptal. |
+| Sistem Sağlığı | Supabase, SMTP, FCM, backup, failover ve deploy kontrolleri. |
+| Gelişmiş Log | Developer rolüne özel denetim ve güvenlik kayıtları. |
+| Log Backup | Gelişmiş logları indirme, yükleme ve silme yönetimi. |
+| Operasyon Merkezi | Developer özellik bayrakları, izinler ve kritik sistem ayarları. |
 
-## Mesai ve Maaş Mantığı
+## Rol ve Yetki Sistemi
 
-Mesai sistemi kritik iş kuralıdır. Maaşa para yazmadan önce şu kurallar uygulanır:
+| Rol | Ne Görebilir? | Ne Yapabilir? |
+| --- | --- | --- |
+| Personel | Kendi mesaisi, kendi şubesi için izin verilen vardiyalar, hesap ayarları | Mesai giriş/çıkış, kendi bildirimleri, tema tercihi |
+| Yönetici | Şube operasyonları, mesai takip, vardiya, maaş, admin ayarları | Personel/yetki yönetimi, mesai onayı, bildirim gönderimi, PDF rapor |
+| Developer | Yönetici üstü tüm kritik ekranlar | Gelişmiş log, sistem sağlığı, operasyon merkezi, rol/izin matrisi, log backup |
 
-1. Personel TC ve şifre ile `/auth/giris` üzerinden giriş yapar.
-2. Sadece mesai yetkisi varsa otomatik `/mesai-qr` sayfasına gider.
-3. Personel kendi kamerası ile sabit `/terminal` ekranındaki dinamik QR kodu okutur.
-4. Açık mesai yoksa giriş, açık mesai varsa çıkış oluşur.
-5. Aynı gün içindeki parçalı kayıtlar tek günlük çalışma gibi hesaplanır.
-6. Örneğin `12:26 - 19:29` ve `19:31 - 06:49` arası yalnızca `2 dk` ara ise ikinci giriş geç kalma sayılmaz.
-7. Geç kalma sadece günün ilk girişine göre, mesai sonrası sadece son çıkışa göre hesaplanır.
-8. Toplam çalışma tüm parçaların toplamıdır; ara süre ayrıca gösterilir.
-9. Fazla mesai maaşa otomatik eklenmez.
-10. Yönetici Mesai Takip ekranında `Onayla` veya `Reddet` kararı verir.
-11. Yönetici reddederse red nedeni zorunludur ve kayda yazılır.
-12. Kayıtta hata varsa yönetici manuel mesai ekleyebilir veya eklenen manuel mesaiyi silebilir.
+Önemli kurallar:
+
+- Yönetici, developer hesabı oluşturamaz.
+- Yönetici, developer’a özel gelişmiş log ve sistem operasyonlarını göremez.
+- Developer, yönetici ve developer hesapları dahil tüm yetki matrisini yönetebilir.
+- Kullanıcı bazlı görünürlük ve işlem izinleri Operasyon Merkezi üzerinden ayarlanabilir.
+
+## Mesai Akışı
+
+Mesai sistemi kullanıcı tarafında çok basit tutulur:
+
+1. Personel TC kimlik no ve şifre ile giriş yapar.
+2. Karşısına kamera ekranı çıkar.
+3. Personel kendi cihaz kamerasıyla sabit terminaldeki QR kodu okutur.
+4. Terminal QR kodu belirli aralıklarla yenilenir.
+5. QR token doğrulanır.
+6. Açık mesai yoksa `check-in`, açık mesai varsa `check-out` yapılır.
+7. İşlem sonrası kamera kapanır ve kullanıcıya sonuç gösterilir.
+
+Terminal tarafı:
+
+- `/terminal` sabit ekranda tam ekran çalışır.
+- QR sürekli yenilenir.
+- QR içinde güvenli token bulunur.
+- Telefonun kendi QR okuyucusuyla okutma için `/mesai-qr/okut?t=...` bağlantısı desteklenir.
+
+## Vardiya ve Mesai Hesabı
+
+Varsayılan vardiyalar:
+
+| Vardiya | Saat |
+| --- | --- |
+| Sabah | 06:00 - 16:00 |
+| Ara | 11:00 - 21:00 |
+| Akşam | 16:00 - 02:00 |
+
+Vardiya özellikleri:
+
+- Vardiya tanımları ayarlardan değiştirilebilir.
+- Vardiya adı, başlangıç saati, bitiş saati ve simgesi yönetilebilir.
+- Aynı personele aynı gün çift vardiya verilmesi engellenir.
+- Günlük, haftalık, aylık veya özel tarih aralığına göre filtreleme yapılabilir.
+- Sabit vardiya seçimi aktif filtre aralığına uygulanır. Örneğin haftalık görünümde “sabit akşam” seçilirse yalnızca o hafta için atanır.
+- Personel kendi şubesi için belirlenen vardiyaları görebilir ama değiştiremez.
+
+## Maaş ve Fazla Mesai
+
+Fazla mesai hesaplaması maaş için doğrudan yazılmaz; önce yönetici onayı gerekir.
+
+Mesai takipte gösterilen detaylar:
+
+- Planlanan vardiya
+- İlk giriş saati
+- Son çıkış saati
+- Toplam çalışma süresi
+- Parça sayısı
+- Ara süresi
+- Geç kalma
+- Erken gelme
+- Mesai sonrası çalışma
+- Net fazla mesai
+- Maaşa işlenecek yuvarlanmış saat
+
+### Parçalı Çalışma Kuralı
+
+Aynı gün içinde personel birden fazla giriş/çıkış yaptıysa sistem kayıtları tek gün olarak toplar.
+
+Örnek:
+
+| Parça | Giriş | Çıkış |
+| --- | --- | --- |
+| 1 | 12:26 | 19:29 |
+| 2 | 19:31 | 06:49 |
+
+Bu örnekte iki parça arasında yalnızca `2 dk` ara vardır. İkinci giriş ayrı bir geç kalma olarak sayılmaz. Geç kalma günün ilk girişine göre, mesai sonrası çalışma günün son çıkışına göre hesaplanır.
 
 ### Fazla Mesai Yuvarlama
+
+Maaşa işlenecek fazla mesai kuralı:
 
 | Gerçek fazla mesai | Maaşa işlenecek |
 | --- | --- |
@@ -116,82 +234,171 @@ Mesai sistemi kritik iş kuralıdır. Maaşa para yazmadan önce şu kurallar uy
 | 8 sa 37 dk | 8 saat |
 | 8 sa 45 dk | 9 saat |
 
-Bu kural `lib/mesai/overtime.ts` içinde merkezi olarak uygulanır.
+Yani 45 dakika ve üzeri bir üst saate tamamlanır; 45 dakika altı maaşa mesai olarak işlenmez.
+
+### Onay Akışı
+
+1. Sistem fazla mesaiyi hesaplar.
+2. Mesai Takip ekranında yöneticiye onay bekleyen kayıt gösterilir.
+3. Yönetici onaylarsa fazla mesai Maaşlar ekranına yansır.
+4. Yönetici reddederse red nedeni zorunludur.
+5. Hatalı kayıt varsa yönetici manuel mesai ekleyebilir.
+6. Manuel eklenen mesai gerekirse silinebilir.
+
+## Bildirim Sistemi
+
+Bildirim katmanları:
+
+- Uygulama içi bildirim merkezi
+- Web notification
+- Android/iOS FCM push
+- Windows EXE taskbar badge
+- Yönetici manuel bildirim gönderimi
+- Geç kalma/fazla mesai otomatik bildirimleri
+- Günlük/haftalık yönetici özetleri
+
+FCM akışı:
+
+1. Mobil uygulama açılır.
+2. Cihaz push token alır.
+3. Token `/api/mobile/register-device` ile sisteme kaydedilir.
+4. Sistem Sağlığı ekranından `FCM senkronize et` ile token kaydı yeniden denenebilir.
+5. `Test push gönder` ile gerçek cihaz gönderimi kontrol edilebilir.
+
+Windows EXE için:
+
+- Uygulama açık veya arka planda ise bildirim ve badge çalışır.
+- PC tamamen kapalıysa bildirim alınamaz.
+- İleride Windows background service ile uygulama kapalıyken bildirim desteği genişletilebilir.
 
 ## Offline Çalışma
 
-Sistem hem PWA, hem Android/iOS WebView kabuğu, hem Windows EXE için offline katmana sahiptir.
+Offline katman hem web/PWA, hem Android/iOS, hem Windows EXE için tasarlanmıştır.
 
-### Nasıl Çalışır?
+Nasıl çalışır:
 
-- `public/sw.js` uygulama shell'ini ve API GET cevaplarını cache'ler.
-- `lib/offline-sync.ts` güvenli POST/PATCH/DELETE isteklerini offline kuyruğa alır.
-- `ConnectivityOverlay` internet yokken kullanıcıya bilgi verir.
-- İnternet geri gelince kuyruk otomatik senkronize olur.
-- Kullanıcı isterse `Senkronize et` butonuyla kuyruk işlemlerini elle zorlayabilir.
-- Gelir ve gider tabloları `/api/dashboard/gelir` ve `/api/dashboard/gider` üzerinden cache'lenebilir hale getirildiği için offline açılabilir.
-- Şube/profil bilgileri `contexts/sube-context.tsx` içinde local cache'e düşer; internet yokken son bilinen şube ile ekran açılır.
+- Service Worker uygulama shell dosyalarını cache’ler.
+- Kritik GET API cevapları son başarılı veri olarak saklanır.
+- Güvenli POST/PATCH/DELETE işlemleri offline queue’ya alınır.
+- İnternet geldiğinde kuyruk otomatik senkronize olur.
+- Kullanıcı gerekirse `Senkronize et` butonuyla elle tetikleyebilir.
 
-### Offline Kapsam
-
-| Alan | Durum |
+| Alan | Offline Davranış |
 | --- | --- |
-| Dashboard shell | Cache |
-| Gelir tablosu açılış | Son başarılı API cache'i |
-| Gelir kaydetme | Offline queue |
-| Gider tablosu açılış | Son başarılı API cache'i |
-| Gider kaydetme | Offline queue |
-| Mesai QR okutma | Özel offline mutation kuyruğu |
-| Bildirim merkezi | Son API cache'i |
+| Dashboard shell | Cache üzerinden açılır |
+| Gelir tablosu | Son başarılı API cache’iyle açılır |
+| Gider tablosu | Son başarılı API cache’iyle açılır |
+| Gelir/gider kayıt | Kuyruğa alınır |
+| Mesai QR işlemi | Özel offline mutation kuyruğuna alınır |
+| Bildirim merkezi | Son bilinen veriyi gösterir |
+| İlk kez açılmamış sayfa | İlk yükleme için internet gerekir |
 | Supabase realtime | Online gerekir |
-| İlk kez hiç açılmamış sayfa | Online ilk yükleme gerekir |
 
-## Backup ve Failover
+Offline tasarımın amacı, bağlantı kısa süreli kesildiğinde kullanıcıya “web sayfası mevcut değil” hatası göstermek yerine uygulama deneyimini korumaktır.
 
-Production yedekleme üç katmanlıdır:
+## Yedekleme ve Failover
 
-1. **Cloudflare R2**: Supabase PostgreSQL dump dosyaları `hesap-backups` bucket'ına yüklenir.
-2. **VPS worker**: Ubuntu 24.04 üzerinde `systemd` timer ile günde 1 kez backup alır.
-3. **Yedek PostgreSQL**: Aynı VPS üzerinde PostgreSQL 17 çalışır ve son başarılı dump içindeki `public` uygulama şeması `hesap_failover` veritabanına restore edilir.
+Production yedekleme üç katmandan oluşur:
 
-Kurulan worker dosyaları:
+1. Supabase PostgreSQL ana veritabanı.
+2. Cloudflare R2 üzerinde günlük dump yedekleri.
+3. VPS üzerinde failover PostgreSQL restore alanı.
 
-| Parça | Sunucu yolu | Amaç |
+VPS worker bileşenleri:
+
+| Parça | Konum | Amaç |
 | --- | --- | --- |
-| Backup script | `/usr/local/bin/hesap-backup` | `pg_dump` alır, R2'ye yükler, standby restore yapar. |
-| Health script | `/usr/local/bin/hesap-health` | PostgreSQL, R2 ve son backup durumunu JSON döndürür. |
-| Timer | `hesap-backup.timer` | Backup'ı günde 1 kez otomatik çalıştırır. |
-| Secret env | `/etc/hesap/backup.env` | R2, Supabase ve failover bağlantı bilgilerini tutar. |
-| Local secret | `.secrets/hesap-vps.env` | Bu makinede saklanan erişim bilgileri; git'e girmez. |
+| Backup script | `/usr/local/bin/hesap-backup` | Günlük dump alır, R2’ye yükler, failover restore yapar |
+| Health script | `/usr/local/bin/hesap-health` | R2, PostgreSQL ve son backup durumunu JSON döndürür |
+| Timer | `hesap-backup.timer` | Günlük otomatik backup tetikler |
+| Secret env | `/etc/hesap/backup.env` | R2, Supabase ve failover bağlantı bilgileri |
+| Local secret | `.secrets/hesap-vps.env` | Yerel makinedeki gizli bilgiler, git’e girmez |
 
-`/status` sayfası web, ana PostgreSQL, Supabase API, failover PostgreSQL, günlük full backup, R2, SMTP, FCM ve Vercel deploy durumunu tek ekranda gösterir. VPS backup başarılı olduğunda `security_events` içine `vps_backup_completed` olayı bırakır; public durum sayfası son yedeğin yaşına göre sağlıklı/kısmi sorun/kesinti bilgisini üretir.
+`/status` sayfası public durum ekranıdır. Supabase, web, SMTP, FCM, backup, R2, failover ve deploy durumunu tek yerden izlemek için kullanılır.
 
-Failover otomatik açılmaz. Supabase uzun süreli arıza verirse developer sistem sağlığı ekranından yedek DB'yi kontrol eder ve Vercel ortam değişkenlerini bilinçli olarak `FAILOVER_DATABASE_URL` değerine geçirir. Bu yaklaşım veri çakışmasını azaltır.
+## Cihaz Lisansı
 
-Detaylı VPS notları: [`infra/vps`](infra/vps).
+Cihaz lisansı, uygulamanın hangi PC veya telefonda çalıştığını izlemek için kullanılır.
 
-## Push Bildirim
+Özellikler:
 
-Push sistemi Firebase Cloud Messaging kullanır.
+- Web, desktop, Android ve iOS cihaz ayrımı.
+- Cihaz ID üretimi.
+- Lisanslı cihaz listesi.
+- Uzaktan iptal.
+- Bloklanan cihazı `/device-blocked` ekranına yönlendirme.
+- Developer/yönetici kontrol paneli.
 
-- Mobil uygulama açıldığında cihaz tokenı `/api/mobile/register-device` ile kaydedilir.
-- Sistem Sağlığı ekranında `FCM senkronize et` butonu native cihaz token kaydını yeniden tetikler.
-- `Test push gönder` butonu mevcut hesaba kayıtlı cihazlara gerçek FCM gönderimi yapar.
-- Push sonucu `push_delivery_logs` tablosunda saklanır.
-- Bildirim geçmişi `/dashboard/bildirimler` ekranında görünür.
-- Windows EXE içinde uygulama açıkken web notification ve taskbar badge sayısı çalışır.
+Amaç; uygulamanın izinsiz cihazlarda kullanılmasını azaltmak ve terminal/mesai güvenliğini güçlendirmektir.
 
-> Not: PC tamamen kapalıysa bildirim alınamaz. Windows uygulaması açık veya arka planda çalışıyorsa bildirim/badge görülebilir.
+## Windows EXE
 
-## Yetki Sistemi
+Windows uygulaması Electron ile paketlenir.
 
-| Rol | Yetki |
-| --- | --- |
-| Personel | Kendi mesai girişi, kendi mesai takibi, sınırlı şube görünümü. |
-| Yönetici | Şube operasyonları, mesai onayı, manuel bildirim, vardiya ve maaş yönetimi. |
-| Developer | Yönetici üstü rol; sistem sağlığı, gelişmiş log, izin merkezi, kritik operasyonlar. |
+Özellikler:
 
-Developer rolü, yönetici hesabından oluşturulamaz. Developer hesabı yönetici ve developer yetkilerini yönetebilir.
+- W logosu ile installer ve uygulama ikonu.
+- `wasy.system.hesap` app id.
+- GitHub Releases üzerinden auto-update.
+- Uygulama içi güncelleme paneli.
+- Sessiz NSIS kurulum akışı.
+- Eski uninstall kayıtlarını temizleyen installer fix.
+- Taskbar badge desteği.
+- Native PDF kaydetme köprüsü.
+- Otomatik başlatma tercihi.
+
+Son yayınlanan sürüm:
+
+- `v0.1.13`
+- `Hesap-Setup-0.1.13.exe`
+- GitHub Releases: <https://github.com/wasycim/hesap/releases/latest>
+
+Build:
+
+```bash
+npm run desktop:dist
+```
+
+Publish:
+
+```bash
+npm run desktop:publish
+```
+
+Not: GitHub Actions build job’u hesap/billing kısıtına düşerse release dosyaları lokal build sonrası manuel yüklenebilir.
+
+## Android ve iOS
+
+Mobil uygulama Capacitor ile hazırlanır.
+
+Native yetenekler:
+
+- Push Notifications
+- Local Notifications
+- Network status
+- Preferences
+- Haptics
+- Splash Screen
+- Status Bar
+- Native alt menü
+- Offline overlay
+- PDF indirme/yazdırma akışı
+
+Android:
+
+```bash
+npm run mobile:sync
+npm run mobile:open:android
+```
+
+iOS:
+
+```bash
+npm run mobile:sync
+npm run mobile:open:ios
+```
+
+iOS build için Mac veya Codemagic gibi bulut Mac gerekir. App Store/TestFlight yayını için Apple Developer hesabı zorunludur.
 
 ## Kurulum
 
@@ -201,13 +408,13 @@ cd hesap
 npm install
 ```
 
-Geliştirme sunucusu:
+Geliştirme:
 
 ```bash
 npm run dev
 ```
 
-Production build:
+Production:
 
 ```bash
 npm run build
@@ -228,6 +435,7 @@ SUPABASE_PROJECT_REF=...
 
 DATABASE_URL=postgresql://...
 DIRECT_URL=postgresql://...
+FAILOVER_DATABASE_URL=postgresql://...
 
 JWT_SECRET=change-me
 QR_SECRET=change-me
@@ -242,30 +450,29 @@ FCM_PROJECT_ID=...
 FCM_CLIENT_EMAIL=...
 FCM_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 
+R2_ACCOUNT_ID=...
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_BUCKET_NAME=hesap-backups
+
 VERCEL_PROJECT_ID=...
 VERCEL_TEAM_ID=...
 VERCEL_TOKEN=...
 ```
 
-Güvenlik notu: gerçek secret, SMTP şifresi, FCM private key veya Supabase service role key kesinlikle README, issue, commit veya screenshot içine yazılmamalıdır.
+Güvenlik notu:
+
+- Gerçek secret değerleri README’ye yazılmaz.
+- SMTP şifresi, Supabase service role key, FCM private key ve R2 secret key commit edilmez.
+- Production secret’ları Vercel, Supabase, VPS env veya yerel `.secrets` altında saklanır.
 
 ## Veritabanı ve Scriptler
 
-Prisma client üret:
+Prisma:
 
 ```bash
 npm run prisma:generate
-```
-
-Prisma schema push:
-
-```bash
 npm run prisma:push
-```
-
-Seed:
-
-```bash
 npm run prisma:seed
 ```
 
@@ -278,152 +485,118 @@ npm run supabase:notification-rules-schema
 npm run supabase:advanced-ops-schema
 ```
 
-Auth redirect ve mail template ayarları:
+Supabase Auth redirect ve mail template:
 
 ```bash
 npm run supabase:auth-config
 ```
 
-## Çalıştırma Komutları
+## Komutlar
 
 | Komut | Açıklama |
 | --- | --- |
-| `npm run dev` | Local Next.js geliştirme sunucusu. |
-| `npm run build` | Prisma generate + Next production build. |
-| `npx tsc --noEmit` | TypeScript kontrolü. |
-| `npm run desktop:dev` | Electron geliştirme modu. |
-| `npm run desktop:dist` | Windows NSIS installer üretir. |
-| `npm run desktop:publish` | GitHub Releases için publish akışı. |
-| `npm run mobile:sync` | Capacitor Android/iOS asset ve native sync. |
-| `npm run mobile:open:android` | Android Studio projesini açar. |
-| `npm run mobile:open:ios` | iOS native projeyi açar; Mac gerekir. |
+| `npm run dev` | Local Next.js geliştirme sunucusu |
+| `npm run build` | Prisma generate + Next production build |
+| `npx tsc --noEmit` | TypeScript kontrolü |
+| `npm run desktop:dev` | Electron geliştirme modu |
+| `npm run desktop:dist` | Windows NSIS installer üretir |
+| `npm run desktop:publish` | GitHub Releases publish akışı |
+| `npm run mobile:sync` | Capacitor asset ve native sync |
+| `npm run mobile:open:android` | Android Studio projesini açar |
+| `npm run mobile:open:ios` | iOS native projeyi açar |
 
-## Windows EXE
-
-Electron uygulaması `wasy.system.hesap` app id ile paketlenir.
-
-Özellikler:
-
-- W logosu ile installer ve uygulama ikonu.
-- GitHub Releases üzerinden auto-update.
-- Taskbar badge sayısı.
-- Native PDF kaydetme/yazdırma köprüsü.
-- Uygulama arka planda açıkken desktop notification.
-- Hesap ayarlarından otomatik başlatma tercihi.
-
-Build:
-
-```bash
-npm run desktop:dist
-```
-
-Release:
-
-```bash
-npm run desktop:publish
-```
-
-## Android ve iOS Hazırlığı
-
-Mobil katman Capacitor kullanır.
-
-Android:
-
-```bash
-npm run mobile:sync
-npm run mobile:open:android
-```
-
-iOS:
-
-```bash
-npm run mobile:sync
-npm run mobile:open:ios
-```
-
-iOS build için Mac veya Codemagic gibi bulut Mac gerekir. Apple Developer hesabı olmadan App Store/TestFlight dağıtımı yapılamaz.
-
-Native özellikler:
-
-- Push Notifications
-- Network status
-- Preferences
-- Local Notifications
-- Haptic feedback
-- SplashScreen
-- StatusBar
-- Native alt menü
-- Offline overlay
-- PDF indirme akışı
-
-## Production Kontrol Listesi
-
-- [ ] Supabase RLS politikaları aktif.
-- [ ] Supabase Auth redirect URL: `https://pamukkaleturizm.info/auth/callback`.
-- [ ] SMTP test maili başarılı.
-- [ ] FCM provider hazır ve cihaz tokenı kayıtlı.
-- [ ] `/status` public durum sayfası çalışıyor.
-- [ ] `/dashboard/sistem-sagligi` tüm kritik bileşenleri gösteriyor.
-- [ ] Mesai onayı olmadan maaşa fazla mesai eklenmiyor.
-- [ ] Reddedilen mesai için red nedeni zorunlu.
-- [ ] Gelir tablosu online açıldıktan sonra offline cache ile açılıyor.
-- [ ] Offline queue internet gelince senkronize oluyor.
-- [ ] VPS `hesap-backup.timer` aktif ve son backup başarılı.
-- [ ] Cloudflare R2 `hesap-backups` bucket içinde son dump görünüyor.
-- [ ] `FAILOVER_DATABASE_URL` developer sistem sağlığı ekranında erişilebilir görünüyor.
-- [ ] Windows EXE auto-update release dosyaları GitHub Releases içinde.
-
-## Rota Haritası
+## Rotalar
 
 | Rota | Amaç |
 | --- | --- |
-| `/auth/giris` | Ana giriş ekranı. |
-| `/auth/sifremi-unuttum` | TC ile şifre sıfırlama maili. |
-| `/auth/sifre-sifirla` | Recovery link ile yeni şifre belirleme. |
-| `/terminal` | Sabit terminal QR ekranı. |
-| `/mesai-qr` | Personel kamera ile QR okutma ekranı. |
-| `/dashboard` | Ana panel. |
-| `/dashboard/gelir` | Gelir tablosu. |
-| `/dashboard/gider` | Gider tablosu. |
-| `/dashboard/vardiya` | Vardiya planlama. |
-| `/dashboard/mesai-takip` | Mesai takip, onay, red nedeni, manuel mesai. |
-| `/dashboard/maaslar` | Maaş, avans, onaylı mesai. |
-| `/dashboard/sistem-sagligi` | Sağlık kontrolleri, FCM, SMTP, yedekleme. |
-| `/dashboard/lisanslar` | Lisanslı cihazlar. |
-| `/dashboard/operasyon` | Developer operasyon merkezi. |
-| `/dashboard/bildirimler` | Kullanıcı bildirim geçmişi. |
-| `/status` | Public sistem durumu. |
-| `/privacy-policy` | Gizlilik politikası. |
-| `/data-deletion` | Veri silme açıklaması. |
+| `/` | Oturuma göre yönlendirme |
+| `/auth/giris` | Ana giriş ekranı |
+| `/auth/sifremi-unuttum` | TC ile şifre sıfırlama maili |
+| `/auth/sifre-sifirla` | Recovery link ile yeni şifre belirleme |
+| `/terminal` | Sabit terminal QR ekranı |
+| `/mesai-qr` | Personel kamera ile QR okutma ekranı |
+| `/mesai-qr/okut` | Telefonun native QR okuyucusu ile okutma yönlendirmesi |
+| `/dashboard` | Ana panel |
+| `/dashboard/gelir` | Gelir tablosu |
+| `/dashboard/gider` | Gider tablosu |
+| `/dashboard/corbalar` | Çorba/ürün takibi |
+| `/dashboard/kargo-cari` | Cari hesap takibi |
+| `/dashboard/vardiya` | Vardiya planlama |
+| `/dashboard/mesai` | Dashboard içi mesai okutma |
+| `/dashboard/mesai-takip` | Mesai takip, onay, red ve manuel mesai |
+| `/dashboard/maaslar` | Maaş, avans, onaylı mesai |
+| `/dashboard/bildirimler` | Kullanıcı bildirim geçmişi |
+| `/dashboard/bildirim-gonder` | Yönetici bildirim gönderimi |
+| `/dashboard/lisanslar` | Lisanslı cihazlar |
+| `/dashboard/sistem-sagligi` | Sistem sağlık paneli |
+| `/dashboard/gelismis-log` | Developer gelişmiş log |
+| `/dashboard/log-backup` | Developer log backup |
+| `/dashboard/operasyon` | Developer operasyon merkezi |
+| `/status` | Public sistem durumu |
+| `/privacy-policy` | Gizlilik politikası |
+| `/data-deletion` | Veri silme açıklaması |
+
+## Production Kontrol Listesi
+
+- [ ] `/auth/giris` production domainde çalışıyor.
+- [ ] `/login` kullanılmıyor; giriş akışı `/auth/giris` üzerinden.
+- [ ] Supabase Auth redirect URL production domaini gösteriyor.
+- [ ] Şifre sıfırlama maili Türkçe ve production link üretiyor.
+- [ ] Supabase RLS kritik tablolar için aktif.
+- [ ] SMTP test maili başarılı.
+- [ ] FCM cihaz token kaydı ve test push başarılı.
+- [ ] `/status` public durum sayfası çalışıyor.
+- [ ] `/dashboard/sistem-sagligi` developer için detaylı bileşenleri gösteriyor.
+- [ ] Mesai onayı olmadan fazla mesai maaşa yansımıyor.
+- [ ] Mesai reddinde red nedeni zorunlu.
+- [ ] Manuel mesai ekleme ve silme çalışıyor.
+- [ ] Aynı güne çift vardiya atanamıyor.
+- [ ] Gelir/gider tabloları online açıldıktan sonra offline cache ile açılıyor.
+- [ ] Offline queue internet gelince senkronize oluyor.
+- [ ] Windows EXE auto-update `latest.yml` üzerinden son sürümü görüyor.
+- [ ] Windows installer uygulama açıkken takılmadan güncelliyor.
+- [ ] Cloudflare R2 günlük backup dosyası oluşuyor.
+- [ ] VPS `hesap-backup.timer` aktif.
+- [ ] Failover PostgreSQL son yedeği restore edebiliyor.
 
 ## Sorun Giderme
 
+### GitHub views badge görünmüyor
+
+Eski `hits.seeyoufarm.com` endpoint’i 404 döndürdüğü için sayaç görünmüyordu. README artık çalışan `komarev.com` SVG badge’ini kullanır:
+
+```text
+https://komarev.com/ghpvc/?username=wasycim-hesap&style=for-the-badge&color=10b981&label=views
+```
+
+### EXE güncelleme “uygulamayı kapatın” hatası veriyor
+
+`v0.1.13` installer akışı eski uninstall kayıtlarını kurulum başında temizler ve açık `Hesap.exe` süreçlerini güvenli biçimde kapatır. Uygulama içi güncelleme paneli üzerinden kurulum başlatılır.
+
 ### Mesai onay butonu pasif görünüyor
 
-Yeni akışta onay kaydı daha önce oluşmadıysa buton tıklanınca kayıt otomatik oluşturulur. Reddetme için red nedeni zorunludur.
+Yetki ve kayıt durumu kontrol edilir. Yönetici rolü onay verebilir; developer da yönetici üstü yetkiyle bu işlemi yapabilir.
 
-### Reddedilen mesai maaşa gidiyor mu?
+### Reddedilen mesai maaşa yansır mı?
 
-Hayır. Maaş sayfası yalnızca `overtime_approvals.status = approved` olan otomatik veya manuel mesaileri hesaba katar.
+Hayır. Maaşlar ekranı yalnızca onaylanmış otomatik veya manuel mesai kayıtlarını hesaba katar.
 
 ### Gelir tablosu offline açılmıyor
 
-İlgili ay ve şube online iken en az bir kez açılmış olmalıdır. İlk online açılıştan sonra API cevabı cache'e düşer.
+İlgili sayfa online iken en az bir kez açılmış olmalıdır. İlk başarılı API cevabından sonra cache üzerinden offline açılabilir.
 
 ### FCM cihaz 0 görünüyor
 
-Mobil uygulamada oturum açın, Sistem Sağlığı ekranında `FCM senkronize et` butonuna basın, ardından `Test push gönder` çalıştırın. Android cihazda bildirim izninin açık olduğundan emin olun.
+Mobil uygulamada oturum açın, Sistem Sağlığı ekranında `FCM senkronize et` butonuna basın ve ardından test push gönderin. Android bildirim izninin açık olduğundan emin olun.
 
 ### Şifre sıfırlama linki localhost geliyor
 
 `NEXT_PUBLIC_SITE_URL` ve Supabase Auth redirect ayarları production domaine göre güncellenmelidir.
 
-### EXE güncelleme uyarısı gelmiyor
-
-GitHub Release içinde installer ve `latest.yml` doğru sürümle publish edilmiş olmalıdır. Uygulama eski sürümle açıldığında auto-updater GitHub release feed'ini kontrol eder.
-
 ## Lisans
 
-Bu proje özeldir ve `SEE LICENSE IN LICENSE.md` olarak tutulur.
+Bu proje public depoda görüntülenebilir; ancak açık kaynak değildir.
 
-Kod, installer, APK, veritabanı şeması ve görsel varlıklar Wasy Systems izni olmadan satılamaz, kopyalanamaz, dağıtılamaz veya yeniden yayınlanamaz. Detaylar için [`LICENSE.md`](LICENSE.md).
+Kod, installer, APK, iOS paketi, veritabanı şeması, logo, marka varlıkları ve sistem tasarımı Wasy Systems izni olmadan satılamaz, kopyalanamaz, dağıtılamaz veya yeniden yayınlanamaz.
+
+Detaylar için: [`LICENSE.md`](LICENSE.md)
