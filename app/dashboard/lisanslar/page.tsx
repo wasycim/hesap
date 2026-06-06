@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { Laptop, MonitorCheck, Search, Smartphone, Tablet, XCircle } from "lucide-react"
+import { Laptop, MonitorCheck, RefreshCcw, Search, Smartphone, Tablet, Trash2, XCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -47,6 +47,7 @@ export default function LisanslarPage() {
   const [query, setQuery] = useState("")
   const [platform, setPlatform] = useState("all")
   const [status, setStatus] = useState("all")
+  const [resetBusy, setResetBusy] = useState<"revoked" | "all" | null>(null)
 
   async function load() {
     setLoading(true)
@@ -76,6 +77,31 @@ export default function LisanslarPage() {
       return
     }
     toast.success(active ? "Cihaz tekrar aktif." : "Cihaz iptal edildi.")
+    load()
+  }
+
+  async function resetLicenses(scope: "revoked" | "all") {
+    const message = scope === "all"
+      ? "Tüm lisanslı cihaz kayıtları silinecek. Cihazlar tekrar giriş yaptıkça yeniden kaydolur. Devam edilsin mi?"
+      : "Sadece iptal edilmiş lisans kayıtları silinecek. Devam edilsin mi?"
+
+    if (!window.confirm(message)) return
+
+    setResetBusy(scope)
+    const response = await fetch("/api/admin/device-licenses", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scope }),
+    })
+    const data = await response.json().catch(() => ({}))
+    setResetBusy(null)
+
+    if (!response.ok) {
+      toast.error(data.error || "Lisans kayıtları sıfırlanamadı.")
+      return
+    }
+
+    toast.success(`${data.deleted || 0} cihaz lisansı temizlendi.`)
     load()
   }
 
@@ -122,9 +148,19 @@ export default function LisanslarPage() {
             Hangi PC/telefon aktif, kimin cihazı, son IP ve son görülme bilgisi.
           </p>
         </div>
-        <Button variant="outline" onClick={load} disabled={loading}>
-          {loading ? "Yükleniyor..." : "Yenile"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={load} disabled={loading}>
+            {loading ? "Yükleniyor..." : "Yenile"}
+          </Button>
+          <Button variant="outline" onClick={() => resetLicenses("revoked")} disabled={Boolean(resetBusy)}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            {resetBusy === "revoked" ? "Temizleniyor..." : "İptalleri temizle"}
+          </Button>
+          <Button variant="destructive" onClick={() => resetLicenses("all")} disabled={Boolean(resetBusy)}>
+            <RefreshCcw className="mr-2 h-4 w-4" />
+            {resetBusy === "all" ? "Sıfırlanıyor..." : "Tümünü sıfırla"}
+          </Button>
+        </div>
       </header>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">

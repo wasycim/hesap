@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { getShiftBusinessDate } from "@/lib/shift-business-date"
 
 const VARDIYASIZ_SUBELER = ["carsi", "darica"]
 
@@ -176,7 +177,7 @@ export async function POST(request: NextRequest) {
   if (!sube) return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 })
 
   const isTekVardiya = VARDIYASIZ_SUBELER.includes(normalizeSubeName(sube.ad)) || (!isAdmin && (!profile?.vardiya || profile.vardiya === "T"))
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul" }).format(new Date())
+  const today = getShiftBusinessDate(profile?.vardiya)
   const editableRows = rows.filter((row: any) => {
     if (!dateInMonth(String(row.tarih || ""), month, year)) return false
     if (!isAdmin && row.tarih !== today) return false

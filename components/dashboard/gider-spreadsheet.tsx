@@ -14,9 +14,10 @@ import {
   getColumnTextColor,
   mergeColumnSettings,
 } from "@/lib/table-column-settings"
-import { getLocalDateString, getMonthYearFromDate, getNextDateWithinMonth, isDateInSelectedMonth } from "@/lib/date-navigation"
+import { getMonthYearFromDate, getNextDateWithinMonth, isDateInSelectedMonth } from "@/lib/date-navigation"
 import { logSecurityEvent } from "@/lib/audit-log"
 import { openPdfReport } from "@/lib/pdf-report"
+import { getShiftBusinessDate } from "@/lib/shift-business-date"
 
 interface Ortak {
   id: string
@@ -235,9 +236,9 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
   }
 
   function addRow() {
-    const today = getLocalDateString()
-    const todayMonthYear = getMonthYearFromDate(today)
-    const nextDate = isAdmin ? getNextDate() : today
+    const businessDate = getShiftBusinessDate(userVardiya)
+    const todayMonthYear = getMonthYearFromDate(businessDate)
+    const nextDate = isAdmin ? getNextDate() : businessDate
 
     if (!nextDate || !isDateInSelectedMonth(nextDate, month, year)) {
       toast.error(`${month} ${year} ayı için eklenecek yeni gün kalmadı.`)
@@ -252,8 +253,8 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     // Vardiyasız şubelerde tek satır, vardiyalı şubelerde admin için S ve A eklenir.
     const vardiyalarToAdd = isTekVardiya ? [""] : (isAdmin ? ["S", "A"] : [userVardiya || "S"])
 
-    if (!isAdmin && vardiyalarToAdd.some(vardiya => rows.some(row => row.tarih === today && row.vardiya === vardiya))) {
-      toast.error("Bugün için zaten bir satır var.")
+    if (!isAdmin && vardiyalarToAdd.some(vardiya => rows.some(row => row.tarih === nextDate && row.vardiya === vardiya))) {
+      toast.error("Bu iş günü için zaten bir satır var.")
       return
     }
     
@@ -352,8 +353,9 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       return false
     }
 
+    const businessDate = getShiftBusinessDate(userVardiya)
     const editableRows = rows.filter(row => {
-      if (!isAdmin && row.tarih !== getLocalDateString()) return false
+      if (!isAdmin && row.tarih !== businessDate) return false
       if (isTekVardiya || isAdmin) return true
       return row.vardiya === userVardiya
     })
@@ -564,7 +566,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
           <tbody>
             {rows.map((row, rowIndex) => {
               // Vardiya kontrolü: userVardiya null ise hepsini düzenleyebilir, değilse sadece kendi vardiyasını
-              const canEditVardiya = isAdmin || (row.tarih === getLocalDateString() && (isTekVardiya || userVardiya === row.vardiya))
+              const canEditVardiya = isAdmin || (row.tarih === getShiftBusinessDate(userVardiya) && (isTekVardiya || userVardiya === row.vardiya))
               
               return (
               <tr key={rowIndex} className={`hover:bg-muted/50 ${!canEditVardiya ? "bg-muted/50 opacity-70" : ""}`}>

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getLocalDateString, isDateInSelectedMonth } from "@/lib/date-navigation"
+import { isDateInSelectedMonth } from "@/lib/date-navigation"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { getShiftBusinessDate } from "@/lib/shift-business-date"
 
 const VARDIYASIZ_SUBELER = ["carsi", "darica"]
 
@@ -170,7 +171,7 @@ export async function POST(request: NextRequest) {
   if (!sube) return NextResponse.json({ error: "Sube bulunamadi." }, { status: 404 })
 
   const isTekVardiya = isSingleShiftBranch(sube.ad, isAdmin, profile?.vardiya)
-  const today = getLocalDateString()
+  const today = getShiftBusinessDate(profile?.vardiya)
   const editableRows = rows.filter((row: any) => {
     if (!isDateInSelectedMonth(String(row.tarih || ""), month, year)) return false
     if (!isAdmin && row.tarih !== today) return false

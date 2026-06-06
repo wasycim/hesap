@@ -65,3 +65,36 @@ export async function PATCH(request: NextRequest) {
 
   return NextResponse.json({ ok: true, license: data })
 }
+
+export async function DELETE(request: NextRequest) {
+  const guard = await requireDashboardDeveloper()
+  if (!guard.ok) return guard.response
+
+  const body = await request.json().catch(() => ({}))
+  const scope = String(body.scope || "revoked").trim()
+  if (!["revoked", "all"].includes(scope)) {
+    return NextResponse.json({ error: "Gecersiz sifirlama kapsami." }, { status: 400 })
+  }
+
+  const admin = createAdminClient()
+  let deleteQuery = admin.from("device_licenses").delete()
+  deleteQuery = scope === "revoked"
+    ? deleteQuery.eq("active", false)
+    : deleteQuery.not("id", "is", null)
+
+  const { data, error } = await deleteQuery.select("id, user_id, platform, device_id")
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  await admin.from("security_events").insert({
+    user_id: guard.user.id,
+    user_email: guard.profile?.email || guard.user.email,
+    event_type: "device_license_reset",
+    details: {
+      scope,
+      deleted_count: data?.length || 0,
+      sample: (data || []).slice(0, 20),
+    },
+  })
+
+  return NextResponse.json({ ok: true, deleted: data?.length || 0, scope })
+}

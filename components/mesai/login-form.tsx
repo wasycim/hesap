@@ -1,21 +1,40 @@
 "use client"
 
-import { FormEvent, useState } from "react"
+import { FormEvent, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { LockKeyhole, LogIn, Moon, Sun, UserRound } from "lucide-react"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+
+const savedLoginKey = "hesap.savedLogin"
 
 export function LoginForm() {
   const router = useRouter()
   const { theme, setTheme } = useTheme()
   const [tcKimlik, setTcKimlik] = useState("")
   const [password, setPassword] = useState("")
+  const [rememberCredentials, setRememberCredentials] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(savedLoginKey)
+      if (!raw) return
+      const saved = JSON.parse(raw) as { tcKimlik?: string; password?: string; remember?: boolean }
+      if (saved.remember) {
+        setTcKimlik(String(saved.tcKimlik || "").replace(/\D/g, "").slice(0, 11))
+        setPassword(String(saved.password || ""))
+        setRememberCredentials(true)
+      }
+    } catch {
+      window.localStorage.removeItem(savedLoginKey)
+    }
+  }, [])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -34,6 +53,12 @@ export function LoginForm() {
     if (!response.ok) {
       setError(payload.error ?? "Giriş yapılamadı.")
       return
+    }
+
+    if (rememberCredentials) {
+      window.localStorage.setItem(savedLoginKey, JSON.stringify({ tcKimlik, password, remember: true }))
+    } else {
+      window.localStorage.removeItem(savedLoginKey)
     }
 
     router.replace(payload.user?.role === "ADMIN" ? "/personel-mesai" : "/mesai-qr")
@@ -70,6 +95,7 @@ export function LoginForm() {
                 <UserRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="tcKimlik"
+                  name="username"
                   value={tcKimlik}
                   onChange={(event) => setTcKimlik(event.target.value.replace(/\D/g, "").slice(0, 11))}
                   className="pl-9"
@@ -87,6 +113,7 @@ export function LoginForm() {
                 <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="password"
+                  name="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   className="pl-9"
@@ -97,6 +124,20 @@ export function LoginForm() {
                 />
               </div>
             </div>
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border bg-muted/30 p-3 text-sm">
+              <Checkbox
+                checked={rememberCredentials}
+                onCheckedChange={(checked) => setRememberCredentials(checked === true)}
+                className="mt-0.5"
+              />
+              <span>
+                <span className="block font-semibold">Bu cihazda TC ve şifreyi hatırla</span>
+                <span className="block text-xs text-muted-foreground">
+                  EXE veya tarayıcı bu cihazda açıldığında giriş alanları otomatik dolar.
+                </span>
+              </span>
+            </label>
 
             {error ? <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}
 
