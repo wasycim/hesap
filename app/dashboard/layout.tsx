@@ -34,7 +34,7 @@ export default async function DashboardLayout({
   return (
     <SubeProvider>
   <UnsavedChangesProvider>
-    <div className="flex h-dvh bg-background lg:flex-row">
+    <div className="dashboard-shell flex h-dvh bg-background lg:flex-row">
       <DashboardSidebar userEmail={user.email ?? ""} displayName={String(user.user_metadata?.display_name || "")} />
       <QuickCommand />
       <NotificationCenter />

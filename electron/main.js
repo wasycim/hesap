@@ -24,7 +24,8 @@ function normalizeAppUrl(value) {
 
 const appUrl = normalizeAppUrl(process.env.HESAP_DESKTOP_URL)
 const appOrigin = new URL(appUrl).origin
-const appShellUrl = `${appOrigin}/dashboard`
+const appShellUrl = `${appOrigin}/dashboard?desktopApp=1`
+const appOfflineShellUrl = `${appOrigin}/dashboard?desktopApp=1&desktopOffline=1`
 const allowedOrigins = new Set([new URL(defaultAppUrl).origin, appOrigin])
 let isShowingOfflinePage = false
 
@@ -195,7 +196,7 @@ function getOfflinePageUrl() {
   </main>
   <script>
     document.getElementById("reload").addEventListener("click", function () {
-      window.location.href = ${JSON.stringify(appUrl)}
+      window.location.href = ${JSON.stringify(appShellUrl)}
     })
   </script>
 </body>
@@ -209,7 +210,7 @@ function showOfflinePage() {
 
   if (!isShowingOfflinePage) {
     isShowingOfflinePage = true
-    mainWindow.loadURL(`${appShellUrl}?desktopOffline=1`).catch(() => {
+    mainWindow.loadURL(appOfflineShellUrl).catch(() => {
       if (!mainWindow || mainWindow.isDestroyed()) return
       mainWindow.loadURL(getOfflinePageUrl()).catch(() => undefined)
     })
@@ -227,6 +228,14 @@ function sendUpdateStatus(status, payload = {}) {
   })
 }
 
+function sendWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  mainWindow.webContents.send("desktop:window-state", {
+    isMaximized: mainWindow.isMaximized(),
+    isFullScreen: mainWindow.isFullScreen(),
+  })
+}
+
 function configurePermissions() {
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
     const requestUrl = details.requestingUrl || appUrl
@@ -237,15 +246,17 @@ function configurePermissions() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 860,
-    minWidth: 1024,
-    minHeight: 700,
+    width: 1440,
+    height: 920,
+    minWidth: 1180,
+    minHeight: 760,
     title: "Hesap",
     icon: getIconPath(),
     backgroundColor: "#0f172a",
+    frame: false,
     show: false,
     autoHideMenuBar: true,
+    titleBarStyle: "hidden",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -260,6 +271,11 @@ function createWindow() {
     if (!mainWindow || mainWindow.isDestroyed()) return
     mainWindow.show()
   })
+
+  mainWindow.on("maximize", () => sendWindowState())
+  mainWindow.on("unmaximize", () => sendWindowState())
+  mainWindow.on("enter-full-screen", () => sendWindowState())
+  mainWindow.on("leave-full-screen", () => sendWindowState())
 
   mainWindow.on("close", (event) => {
     if (isQuitting || updateInstallInProgress || process.platform === "darwin") return
@@ -551,6 +567,42 @@ app.on("before-quit", () => {
 })
 
 ipcMain.handle("desktop:get-version", () => app.getVersion())
+ipcMain.handle("desktop:get-context", () => ({
+  version: app.getVersion(),
+  platform: process.platform,
+  appName: "Hesap",
+  desktopMode: true,
+  isPackaged: app.isPackaged,
+  isMaximized: Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isMaximized()),
+}))
+ipcMain.handle("desktop:window-control", (_event, action) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return { ok: false }
+
+  if (action === "minimize") {
+    mainWindow.minimize()
+    return { ok: true }
+  }
+
+  if (action === "toggle-maximize") {
+    if (mainWindow.isMaximized()) mainWindow.unmaximize()
+    else mainWindow.maximize()
+    sendWindowState()
+    return { ok: true, maximized: mainWindow.isMaximized() }
+  }
+
+  if (action === "close") {
+    mainWindow.close()
+    return { ok: true }
+  }
+
+  if (action === "reload") {
+    isShowingOfflinePage = false
+    mainWindow.loadURL(appShellUrl).catch(() => showOfflinePage())
+    return { ok: true }
+  }
+
+  return { ok: false }
+})
 ipcMain.handle("desktop:check-for-updates", () => checkForUpdates({ manual: true }))
 ipcMain.handle("desktop:install-downloaded-update", () => installDownloadedUpdate())
 ipcMain.handle("desktop:get-update-state", () => ({

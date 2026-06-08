@@ -9,6 +9,7 @@ import { NativeAppBridge } from '@/components/mobile/native-app-bridge'
 import { ConnectivityOverlay } from '@/components/mobile/connectivity-overlay'
 import { ServiceWorkerRegistration } from '@/components/mobile/service-worker-registration'
 import { ClientErrorReporter } from '@/components/system/client-error-reporter'
+import { DesktopAppShell } from '@/components/desktop/desktop-app-shell'
 import { DesktopUpdateManager } from '@/components/desktop/desktop-update-manager'
 import './globals.css'
 
@@ -64,7 +65,7 @@ export default function RootLayout({
           <ClientErrorReporter />
           <ServiceWorkerRegistration />
           <VercelToolbarBlocker />
-          {children}
+          <DesktopAppShell>{children}</DesktopAppShell>
           <ConnectivityOverlay />
           <NativeAppBridge />
           <DesktopUpdateManager />

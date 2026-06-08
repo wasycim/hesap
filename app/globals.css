@@ -130,6 +130,109 @@
   padding-right: env(safe-area-inset-right);
 }
 
+.desktop-shell-root[data-desktop-app="true"] {
+  display: grid;
+  grid-template-rows: 44px minmax(0, 1fr);
+  height: 100dvh;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 1) 44px),
+    hsl(var(--background));
+}
+
+.desktop-shell-root[data-desktop-app="false"] {
+  min-height: 100dvh;
+}
+
+.desktop-titlebar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  background:
+    linear-gradient(90deg, rgba(2, 6, 23, 0.98), rgba(15, 23, 42, 0.96) 48%, rgba(2, 6, 23, 0.98)),
+    #020617;
+  box-shadow: 0 14px 34px rgba(2, 6, 23, 0.28);
+  color: #e2e8f0;
+  user-select: none;
+}
+
+.desktop-titlebar-drag {
+  height: 100%;
+  padding-left: 12px;
+  -webkit-app-region: drag;
+}
+
+.desktop-no-drag,
+.desktop-window-button,
+.desktop-tool-button {
+  -webkit-app-region: no-drag;
+}
+
+.desktop-app-mark {
+  display: grid;
+  height: 34px;
+  width: 34px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(248, 250, 252, 0.96);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24);
+}
+
+.desktop-tool-button,
+.desktop-window-button {
+  display: grid;
+  height: 34px;
+  width: 38px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #cbd5e1;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.desktop-tool-button {
+  width: 34px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.78);
+}
+
+.desktop-tool-button:hover,
+.desktop-window-button:hover {
+  background: rgba(148, 163, 184, 0.16);
+  color: #ffffff;
+}
+
+.desktop-window-close:hover {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.desktop-shell-content {
+  min-height: 0;
+}
+
+.desktop-shell-root[data-desktop-app="true"] .desktop-shell-content {
+  overflow: hidden;
+}
+
+.desktop-app .dashboard-shell {
+  height: 100%;
+}
+
+.desktop-app .desktop-shell-content > main.min-h-screen {
+  min-height: 100%;
+}
+
+.desktop-app .sticky-table-scroll,
+.desktop-app .visible-x-scroll,
+.desktop-app main {
+  scrollbar-width: thin;
+}
+
 .mobile-scroll {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
