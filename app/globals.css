@@ -279,19 +279,43 @@
   right: 56px;
 }
 
-.desktop-app *,
 .desktop-app .sticky-table-scroll,
 .desktop-app .visible-x-scroll,
 .desktop-app main {
-  scrollbar-width: none !important;
+  scrollbar-width: auto !important;
 }
 
 .desktop-app *::-webkit-scrollbar,
 .desktop-app .sticky-table-scroll::-webkit-scrollbar,
 .desktop-app .visible-x-scroll::-webkit-scrollbar {
+  width: 0 !important;
+  height: 10px !important;
+}
+
+.desktop-app *::-webkit-scrollbar:vertical,
+.desktop-app .sticky-table-scroll::-webkit-scrollbar:vertical,
+.desktop-app .visible-x-scroll::-webkit-scrollbar:vertical {
   display: none !important;
   width: 0 !important;
-  height: 0 !important;
+}
+
+.desktop-app *::-webkit-scrollbar:horizontal,
+.desktop-app .sticky-table-scroll::-webkit-scrollbar:horizontal,
+.desktop-app .visible-x-scroll::-webkit-scrollbar:horizontal {
+  display: block !important;
+  height: 10px !important;
+}
+
+.desktop-app *::-webkit-scrollbar-track:horizontal {
+  background: rgba(148, 163, 184, 0.12);
+  border-radius: 999px;
+}
+
+.desktop-app *::-webkit-scrollbar-thumb:horizontal {
+  background: rgba(148, 163, 184, 0.55);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
 }
 
 .mobile-scroll {

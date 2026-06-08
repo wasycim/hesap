@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 import { getShiftLabel, shiftBoundary } from "@/lib/qr-attendance/time"
 import { roundOvertimeToPaidMinutes } from "@/lib/mesai/overtime"
+import { getDashboardShiftCatalog } from "@/lib/qr-attendance/dashboard-vardiya"
+import type { DashboardShift } from "@/lib/qr-attendance/dashboard-vardiya"
 
 function dateParam(value: string | null) {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
@@ -136,6 +138,14 @@ function workDateKey(value: Date) {
   return value.toISOString().slice(0, 10)
 }
 
+type ResolvedShift = {
+  id: string | number
+  name: string
+  startMinute: number
+  endMinute: number
+  label?: string
+}
+
 async function getDashboardAccess() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -170,7 +180,7 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient()
   let personelQuery = admin
     .from("personeller")
-    .select("id, ad, sube_id, aktif, sira")
+    .select("id, ad, sube_id, aktif, sira, sabit_vardiya")
     .eq("aktif", true)
     .order("sira", { ascending: true })
     .order("ad", { ascending: true })
@@ -198,6 +208,7 @@ export async function GET(request: NextRequest) {
     `${profile.sube_id || ""}:${normalizeName(profile.display_name)}`,
     profile,
   ]))
+  const personelMetaBySummaryKey = new Map<string, { personelId: string; subeId: string; sabitVardiya: string | null }>()
 
   const logs = await prisma.attendanceLog.findMany({
     where: {
@@ -245,7 +256,13 @@ export async function GET(request: NextRequest) {
   for (const personel of visiblePersoneller) {
     const branch = branchById.get(personel.sube_id) || null
     const profile = profileByBranchAndName.get(`${personel.sube_id || ""}:${normalizeName(personel.ad)}`)
-    summaryByKey.set(`${personel.sube_id}:${normalizeName(personel.ad)}`, {
+    const summaryKey = `${personel.sube_id}:${normalizeName(personel.ad)}`
+    personelMetaBySummaryKey.set(summaryKey, {
+      personelId: String(personel.id),
+      subeId: String(personel.sube_id || ""),
+      sabitVardiya: personel.sabit_vardiya ? String(personel.sabit_vardiya) : null,
+    })
+    summaryByKey.set(summaryKey, {
       personelId: personel.id,
       name: personel.ad,
       tcKimlik: profile?.tc_kimlik || null,
@@ -281,6 +298,66 @@ export async function GET(request: NextRequest) {
     })
   }
 
+  const shiftCatalogByBranch = new Map<string, DashboardShift[]>()
+  try {
+    const catalogEntries = await Promise.all(
+      Array.from(branchIds)
+        .filter(Boolean)
+        .map(async (branchId) => [branchId, await getDashboardShiftCatalog(branchId)] as const),
+    )
+    for (const [branchId, catalog] of catalogEntries) {
+      shiftCatalogByBranch.set(branchId, catalog)
+    }
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Vardiya tanimlari okunamadi." },
+      { status: 500 },
+    )
+  }
+
+  const visiblePersonelIds = Array.from(new Set(Array.from(personelMetaBySummaryKey.values()).map((meta) => meta.personelId)))
+  const { data: plannedShiftRows, error: plannedShiftError } = visiblePersonelIds.length
+    ? await admin
+        .from("vardiya_planlari")
+        .select("sube_id, personel_id, tarih, vardiya")
+        .in("personel_id", visiblePersonelIds)
+        .gte("tarih", from)
+        .lte("tarih", to)
+    : { data: [], error: null }
+
+  if (plannedShiftError) {
+    return NextResponse.json({ error: plannedShiftError.message }, { status: 500 })
+  }
+
+  const plannedShiftByKey = new Map(
+    (plannedShiftRows || []).map((row) => [`${row.sube_id}:${row.personel_id}:${row.tarih}`, String(row.vardiya || "")]),
+  )
+
+  function resolveCurrentShift(summaryKey: string, workDate: Date, savedShift: ResolvedShift | null): ResolvedShift | null {
+    const meta = personelMetaBySummaryKey.get(summaryKey)
+    if (!meta?.subeId || !meta.personelId) return savedShift
+
+    const date = workDateKey(workDate)
+    const plannedCode = plannedShiftByKey.get(`${meta.subeId}:${meta.personelId}:${date}`)
+    const code = String(plannedCode !== undefined ? plannedCode : meta.sabitVardiya || "").trim()
+
+    if (code === "I") return null
+    if (code) {
+      const dashboardShift = shiftCatalogByBranch.get(meta.subeId)?.find((shift) => shift.code === code)
+      if (dashboardShift) {
+        return {
+          id: dashboardShift.code,
+          name: dashboardShift.name,
+          startMinute: dashboardShift.startMinute,
+          endMinute: dashboardShift.endMinute,
+          label: dashboardShift.label,
+        }
+      }
+    }
+
+    return savedShift
+  }
+
   const groupedLogs = new Map<string, typeof logs[number][]>()
 
   for (const log of logs) {
@@ -308,10 +385,11 @@ export async function GET(request: NextRequest) {
       const branch = profile?.sube_id ? branchById.get(profile.sube_id) || null : null
       const summaryKey = `${profile?.sube_id || ""}:${normalizeName(profile?.display_name || firstLog.user.name)}`
       const summary = summaryByKey.get(summaryKey)
+      const currentShift = resolveCurrentShift(summaryKey, firstLog.workDate, firstLog.shift)
       const timing = calculateGroupedTiming({
         intervals: orderedLogs.map((log) => ({ checkInAt: log.checkInAt, checkOutAt: log.checkOutAt })),
         workDate: firstLog.workDate,
-        shift: firstLog.shift,
+        shift: currentShift,
       })
 
       if (summary) {
@@ -358,7 +436,7 @@ export async function GET(request: NextRequest) {
         approvalNote: null as string | null,
         approvalStatus: payableOvertimeMinutes > 0 ? "pending" as const : null,
         status: timing.checkOutAt ? "CLOSED" as const : "OPEN" as const,
-        shift: firstLog.shift ? { id: String(firstLog.shift.id), name: firstLog.shift.name, label: getShiftLabel(firstLog.shift) } : null,
+        shift: currentShift ? { id: String(currentShift.id), name: currentShift.name, label: currentShift.label || getShiftLabel(currentShift) } : null,
       }
     })
     .sort((a, b) => new Date(b.workDate).getTime() - new Date(a.workDate).getTime() || new Date(b.checkInAt).getTime() - new Date(a.checkInAt).getTime())
@@ -381,19 +459,90 @@ export async function GET(request: NextRequest) {
       }
     })
 
-  if (access.isAdmin && overtimeApprovalRows.length > 0) {
-    await admin
+  const approvalIds = rawDetails.map((detail) => detail.id).filter(Boolean)
+  let approvalRows: any[] = []
+  if (approvalIds.length) {
+    const { data, error } = await admin
       .from("overtime_approvals")
-      .upsert(overtimeApprovalRows, { onConflict: "attendance_log_id", ignoreDuplicates: true })
+      .select("id, attendance_log_id, status, raw_minutes, payable_minutes, manual_minutes, note")
+      .in("attendance_log_id", approvalIds)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    approvalRows = data || []
   }
 
-  const approvalIds = rawDetails.map((detail) => detail.id).filter(Boolean)
-  const { data: approvalRows } = approvalIds.length
-    ? await admin
+  if (access.isAdmin && approvalIds.length) {
+    let approvalRowsChanged = false
+    const currentApprovalByLogId = new Map(approvalRows.map((approval: any) => [Number(approval.attendance_log_id), approval]))
+    const nextApprovalByLogId = new Map(overtimeApprovalRows.map((approval) => [Number(approval.attendance_log_id), approval]))
+    const missingApprovals = overtimeApprovalRows.filter((approval) => !currentApprovalByLogId.has(Number(approval.attendance_log_id)))
+
+    if (missingApprovals.length > 0) {
+      const { error } = await admin.from("overtime_approvals").insert(missingApprovals)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      approvalRowsChanged = true
+    }
+
+    for (const existing of approvalRows) {
+      const attendanceLogId = Number(existing.attendance_log_id)
+      const nextApproval = nextApprovalByLogId.get(attendanceLogId)
+
+      if (!nextApproval) {
+        const shouldClear = Number(existing.raw_minutes || 0) !== 0 || Number(existing.payable_minutes || 0) !== 0 || existing.status === "approved"
+        if (!shouldClear) continue
+
+        const { error } = await admin
+          .from("overtime_approvals")
+          .update({
+            raw_minutes: 0,
+            payable_minutes: 0,
+            status: "rejected",
+            note: "Vardiya plani degistigi icin fazla mesai otomatik sifirlandi.",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id)
+
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+        approvalRowsChanged = true
+        continue
+      }
+
+      const rawChanged = Number(existing.raw_minutes || 0) !== Number(nextApproval.raw_minutes || 0)
+      const payableChanged = Number(existing.payable_minutes || 0) !== Number(nextApproval.payable_minutes || 0)
+      if (!rawChanged && !payableChanged) continue
+
+      const resetDecision = existing.status !== "pending"
+      const { error } = await admin
+        .from("overtime_approvals")
+        .update({
+          raw_minutes: nextApproval.raw_minutes,
+          payable_minutes: nextApproval.payable_minutes,
+          ...(resetDecision
+            ? {
+                status: "pending",
+                approved_by: null,
+                approved_at: null,
+                note: `Vardiya plani degistigi icin mesai yeniden hesaplandi. Onceki karar: ${existing.status}.`,
+              }
+            : {}),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id)
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      approvalRowsChanged = true
+    }
+
+    if (approvalRowsChanged) {
+      const { data, error } = await admin
         .from("overtime_approvals")
         .select("id, attendance_log_id, status, raw_minutes, payable_minutes, manual_minutes, note")
         .in("attendance_log_id", approvalIds)
-    : { data: [] }
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      approvalRows = data || []
+    }
+  }
 
   const approvalByLogId = new Map((approvalRows || []).map((approval: any) => [Number(approval.attendance_log_id), approval]))
   for (const summary of summaryByKey.values()) {
@@ -401,7 +550,7 @@ export async function GET(request: NextRequest) {
   }
 
   const details = rawDetails.map(({ summaryKey, ...detail }) => {
-    const approval = approvalByLogId.get(Number(detail.id))
+    const approval = detail.payableOvertimeMinutes > 0 ? approvalByLogId.get(Number(detail.id)) : null
     const approvedPayableOvertimeMinutes = approval?.status === "approved"
       ? Number(approval.payable_minutes) || 0
       : 0
