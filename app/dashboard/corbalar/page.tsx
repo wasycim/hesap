@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -15,7 +15,6 @@ import {
   START_YEAR,
   getInitialMonth,
   getInitialYear,
-  getLocalDateString,
   getMonthYearFromDate,
   getNextDateWithinMonth,
   isDateInSelectedMonth,
@@ -23,6 +22,7 @@ import {
 } from "@/lib/date-navigation"
 import { logSecurityEvent } from "@/lib/audit-log"
 import { openPdfReport } from "@/lib/pdf-report"
+import { getCorbaBusinessDate } from "@/lib/corba-business-date"
 
 interface Personel {
   id: string
@@ -36,6 +36,15 @@ interface CorbaRow {
   personel_values: Record<string, number>
 }
 
+function corbaCellKey(tarih: string, personelId: string) {
+  return `${tarih}__${personelId}`
+}
+
+function parseCorbaCellKey(key: string) {
+  const [tarih, personelId] = key.split("__")
+  return { tarih, personelId }
+}
+
 export default function CorbalarPage() {
   const [month, setMonth] = useState(getInitialMonth())
   const [year, setYear] = useState(getInitialYear())
@@ -43,8 +52,15 @@ export default function CorbalarPage() {
   const [rows, setRows] = useState<CorbaRow[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [currentTime, setCurrentTime] = useState(() => new Date())
+  const [dirtyCellKeys, setDirtyCellKeys] = useState<Set<string>>(() => new Set())
+  const [deletedRowDates, setDeletedRowDates] = useState<Set<string>>(() => new Set())
+  const [createdRowDates, setCreatedRowDates] = useState<Set<string>>(() => new Set())
+  const dirtyCellKeysRef = useRef(dirtyCellKeys)
+  const deletedRowDatesRef = useRef(deletedRowDates)
+  const createdRowDatesRef = useRef(createdRowDates)
   const supabase = createClient()
-  const { currentSube, isAdmin } = useSube()
+  const { currentSube, isAdmin, userVardiya } = useSube()
   const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
   const years = makeYearWindow(year)
   
@@ -66,6 +82,13 @@ export default function CorbalarPage() {
           filter: `sube_id=eq.${currentSube.id}`,
         },
         () => {
+          if (
+            dirtyCellKeysRef.current.size > 0 ||
+            deletedRowDatesRef.current.size > 0 ||
+            createdRowDatesRef.current.size > 0
+          ) {
+            return
+          }
           loadData()
         }
       )
@@ -79,7 +102,24 @@ export default function CorbalarPage() {
   useEffect(() => {
     registerSaveHandler(saveData)
     return () => registerSaveHandler(null)
-  }, [rows, personeller, currentSube?.id, ayYil, registerSaveHandler])
+  }, [rows, personeller, currentSube?.id, ayYil, userVardiya, isAdmin, dirtyCellKeys, deletedRowDates, createdRowDates, registerSaveHandler])
+
+  useEffect(() => {
+    dirtyCellKeysRef.current = dirtyCellKeys
+  }, [dirtyCellKeys])
+
+  useEffect(() => {
+    deletedRowDatesRef.current = deletedRowDates
+  }, [deletedRowDates])
+
+  useEffect(() => {
+    createdRowDatesRef.current = createdRowDates
+  }, [createdRowDates])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(new Date()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   async function loadData() {
     setLoading(true)
@@ -164,20 +204,21 @@ export default function CorbalarPage() {
 
   function addRow() {
     if (!isAdmin) {
-      const today = getLocalDateString()
-      const todayMonthYear = getMonthYearFromDate(today)
+      const editableDate = getCorbaBusinessDate(userVardiya)
+      const editableMonthYear = getMonthYearFromDate(editableDate)
 
-      if (month !== todayMonthYear.month || year !== todayMonthYear.year) {
-        toast.error("Normal kullanıcılar sadece bugünün olduğu ayda satır ekleyebilir.")
+      if (month !== editableMonthYear.month || year !== editableMonthYear.year) {
+        toast.error("Normal kullanıcılar sadece aktif çorba iş gününün olduğu ayda satır ekleyebilir.")
         return
       }
 
-      if (rows.some(row => row.tarih === today)) {
-        toast.error("Bugün için zaten bir satır var.")
+      if (rows.some(row => row.tarih === editableDate)) {
+        toast.error("Aktif çorba iş günü için zaten bir satır var.")
         return
       }
 
-      setRows([...rows, { tarih: today, personel_values: {} }].sort((a, b) => a.tarih.localeCompare(b.tarih)))
+      setRows([...rows, { tarih: editableDate, personel_values: {} }].sort((a, b) => a.tarih.localeCompare(b.tarih)))
+      setCreatedRowDates(current => new Set(current).add(editableDate))
       markDirty()
       return
     }
@@ -201,6 +242,21 @@ export default function CorbalarPage() {
     const deletedRow = newRows[index]
     newRows.splice(index, 1)
     setRows(newRows)
+    if (deletedRow?.tarih) {
+      setDeletedRowDates(current => new Set(current).add(deletedRow.tarih))
+      setCreatedRowDates(current => {
+        const next = new Set(current)
+        next.delete(deletedRow.tarih)
+        return next
+      })
+      setDirtyCellKeys(current => {
+        const next = new Set(current)
+        current.forEach(key => {
+          if (parseCorbaCellKey(key).tarih === deletedRow.tarih) next.delete(key)
+        })
+        return next
+      })
+    }
     markDirty()
     logSecurityEvent("row_delete", {
       table: "corbalar",
@@ -211,8 +267,21 @@ export default function CorbalarPage() {
 
   function updateCell(rowIndex: number, personelId: string, value: number) {
     const newRows = [...rows]
-    newRows[rowIndex].personel_values[personelId] = value
+    const row = {
+      ...newRows[rowIndex],
+      personel_values: {
+        ...newRows[rowIndex].personel_values,
+        [personelId]: value,
+      },
+    }
+    newRows[rowIndex] = row
     setRows(newRows)
+    setDirtyCellKeys(current => new Set(current).add(corbaCellKey(row.tarih, personelId)))
+    setDeletedRowDates(current => {
+      const next = new Set(current)
+      next.delete(row.tarih)
+      return next
+    })
     markDirty()
   }
 
@@ -224,8 +293,20 @@ export default function CorbalarPage() {
       return false
     }
 
-    // Bu ay için tüm çorba kayıtlarını sil
-    const editableRows = isAdmin ? rows : rows.filter(row => row.tarih === getLocalDateString())
+    const editableDate = getCorbaBusinessDate(userVardiya)
+    const editableRows = isAdmin ? rows : rows.filter(row => row.tarih === editableDate)
+    const editedPersonelIds = Array.from(dirtyCellKeys)
+      .map(parseCorbaCellKey)
+      .filter(item => item.tarih === editableDate && item.personelId)
+      .map(item => item.personelId)
+    const deletedCurrentDate = deletedRowDates.has(editableDate)
+    const createdCurrentDate = createdRowDates.has(editableDate)
+
+    if (!isAdmin && !isDateInSelectedMonth(editableDate, month, year)) {
+      toast.error("Kaydetmek için aktif çorba iş gününün olduğu ayı seçmelisiniz.")
+      setSaving(false)
+      return false
+    }
 
     const invalidDateIndex = editableRows.findIndex(row => !isDateInSelectedMonth(row.tarih, month, year))
     if (invalidDateIndex !== -1) {
@@ -234,54 +315,95 @@ export default function CorbalarPage() {
       return false
     }
 
-    let deleteQuery = supabase
-      .from("corbalar")
-      .delete()
-      .eq("sube_id", currentSube.id)
-      .eq("ay_yil", ayYil)
-
-    if (!isAdmin) {
-      deleteQuery = deleteQuery.eq("user_id", user.id).eq("tarih", getLocalDateString())
+    if (!isAdmin && !deletedCurrentDate && editedPersonelIds.length === 0 && !createdCurrentDate) {
+      setSaving(false)
+      markClean()
+      toast.success("Kaydedilecek yeni çorba değişikliği yok.")
+      return true
     }
 
-    const { error: deleteError } = await deleteQuery
+    if (isAdmin || deletedCurrentDate || editedPersonelIds.length > 0) {
+      let deleteQuery = supabase
+        .from("corbalar")
+        .delete()
+        .eq("sube_id", currentSube.id)
+        .eq("ay_yil", ayYil)
 
-    if (deleteError) {
-      console.log("Çorba silme hatası:", deleteError)
-      setSaving(false)
-      return false
+      if (!isAdmin) {
+        deleteQuery = deleteQuery.eq("tarih", editableDate)
+        if (!deletedCurrentDate) {
+          deleteQuery = deleteQuery.in("personel_id", editedPersonelIds)
+        }
+      }
+
+      const { error: deleteError } = await deleteQuery
+
+      if (deleteError) {
+        console.log("Çorba silme hatası:", deleteError)
+        setSaving(false)
+        return false
+      }
     }
 
     // Yeni kayıtları ekle
     const insertData: any[] = []
-    editableRows.forEach(row => {
-      let hasValue = false
-      personeller.forEach(personel => {
-        const miktar = row.personel_values[personel.id] || 0
-        if (miktar > 0) {
-          hasValue = true
+
+    if (isAdmin) {
+      editableRows.forEach(row => {
+        let hasValue = false
+        personeller.forEach(personel => {
+          const miktar = row.personel_values[personel.id] || 0
+          if (miktar > 0) {
+            hasValue = true
+            insertData.push({
+              user_id: user.id,
+              sube_id: currentSube.id,
+              ay_yil: ayYil,
+              tarih: row.tarih,
+              personel_id: personel.id,
+              miktar: miktar,
+            })
+          }
+        })
+
+        if (!hasValue && personeller[0]) {
           insertData.push({
             user_id: user.id,
             sube_id: currentSube.id,
             ay_yil: ayYil,
             tarih: row.tarih,
-            personel_id: personel.id,
-            miktar: miktar,
+            personel_id: personeller[0].id,
+            miktar: 0,
+          })
+        }
+      })
+    } else if (!deletedCurrentDate) {
+      const row = editableRows[0]
+      editedPersonelIds.forEach(personelId => {
+        const miktar = row?.personel_values[personelId] || 0
+        if (miktar > 0) {
+          insertData.push({
+            user_id: user.id,
+            sube_id: currentSube.id,
+            ay_yil: ayYil,
+            tarih: editableDate,
+            personel_id: personelId,
+            miktar,
           })
         }
       })
 
-      if (!hasValue && personeller[0]) {
+      if (insertData.length === 0 && createdCurrentDate && personeller[0]) {
         insertData.push({
           user_id: user.id,
           sube_id: currentSube.id,
           ay_yil: ayYil,
-          tarih: row.tarih,
+          tarih: editableDate,
           personel_id: personeller[0].id,
           miktar: 0,
         })
       }
-    })
+    }
 
     if (insertData.length > 0) {
       const { error: insertError } = await supabase.from("corbalar").insert(insertData)
@@ -293,6 +415,9 @@ export default function CorbalarPage() {
     }
 
     setSaving(false)
+    setDirtyCellKeys(new Set())
+    setDeletedRowDates(new Set())
+    setCreatedRowDates(new Set())
     markClean()
     toast.success("Değişiklikler kaydedildi ✅")
     loadData()
@@ -348,6 +473,7 @@ export default function CorbalarPage() {
     acc[personel.id] = rows.reduce((sum, row) => sum + (row.personel_values[personel.id] || 0), 0)
     return acc
   }, {} as Record<string, number>)
+  const editableDate = getCorbaBusinessDate(userVardiya, currentTime)
 
   if (loading) {
     return <div className="flex items-center justify-center h-64">Yükleniyor...</div>
@@ -458,7 +584,7 @@ export default function CorbalarPage() {
                 </thead>
                 <tbody>
                   {rows.map((row, rowIndex) => {
-                    const canEditRow = isAdmin || row.tarih === getLocalDateString()
+                    const canEditRow = isAdmin || row.tarih === editableDate
                     return (
                     <tr key={rowIndex} className="hover:bg-muted/50">
                       <td className="border p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
