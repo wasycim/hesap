@@ -12,9 +12,9 @@ import {
   MONTHS,
   START_MONTH_INDEX,
   START_YEAR,
+  getFirstMissingDateWithinMonth,
   getInitialMonth,
   getInitialYear,
-  getNextDateWithinMonth,
   isDateInSelectedMonth,
   makeYearWindow,
 } from "@/lib/date-navigation"
@@ -665,7 +665,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
   }
 
   function addRow() {
-    const nextDate = getNextDateWithinMonth(rows.map(row => row.tarih), month, year)
+    const nextDate = getFirstMissingDateWithinMonth(rows.map(row => row.tarih), month, year)
     if (!nextDate) {
       toast.error(`${month} ${year} ayı için eklenecek yeni gün kalmadı.`)
       return

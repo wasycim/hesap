@@ -168,7 +168,7 @@ export function DesktopAppShell({ children }: { children: React.ReactNode }) {
         <header className="desktop-titlebar">
           <div className="desktop-titlebar-drag flex min-w-0 flex-1 items-center gap-3">
             <div className="desktop-app-mark">
-              <img src="/iconw.png" alt="" className="h-7 w-7 object-contain" />
+              <img src="/iconw.png" alt="" className="h-10 w-10 object-contain" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">

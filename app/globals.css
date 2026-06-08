@@ -171,14 +171,14 @@
 
 .desktop-app-mark {
   display: grid;
-  height: 34px;
-  width: 34px;
+  height: 42px;
+  width: 42px;
   flex-shrink: 0;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
-  background: rgba(248, 250, 252, 0.96);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.42));
 }
 
 .desktop-status-chip {

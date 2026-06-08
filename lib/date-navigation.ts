@@ -103,6 +103,21 @@ export function getNextDateWithinMonth(existingDates: string[], month: string, y
   return isDateInSelectedMonth(nextDateString, month, year) ? nextDateString : null
 }
 
+export function getFirstMissingDateWithinMonth(existingDates: string[], month: string, year: number) {
+  const monthIndex = getMonthIndex(month)
+  if (monthIndex < 0) return null
+
+  const existing = new Set(existingDates.filter(date => isDateInSelectedMonth(date, month, year)))
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate()
+
+  for (let day = 1; day <= lastDay; day += 1) {
+    const date = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+    if (!existing.has(date)) return date
+  }
+
+  return null
+}
+
 export function getMonthYearFromDate(dateStr: string) {
   const [year, month] = dateStr.split("-").map(Number)
   return {

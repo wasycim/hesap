@@ -7,7 +7,7 @@ import { FileText, Plus, Save, Trash2 } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 import { FIRMALAR_GROUP_KEY, TableColumnSetting, getColumnTextColor, mergeColumnSettings } from "@/lib/table-column-settings"
-import { getMonthYearFromDate, getNextDateWithinMonth, isDateInSelectedMonth } from "@/lib/date-navigation"
+import { getFirstMissingDateWithinMonth, getMonthYearFromDate, isDateInSelectedMonth } from "@/lib/date-navigation"
 import { logSecurityEvent } from "@/lib/audit-log"
 import { openPdfReport } from "@/lib/pdf-report"
 import { getShiftBusinessDate } from "@/lib/shift-business-date"
@@ -183,14 +183,21 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     }
   }
 
-  function getNextDate(): string {
-    return getNextDateWithinMonth(rows.map(row => row.tarih), month, year) || ""
+  function getNextAdminDate(requiredVardiyalar: string[]): string {
+    const completeDates = rows
+      .filter(row => isDateInSelectedMonth(row.tarih, month, year))
+      .map(row => row.tarih)
+      .filter((date, index, dates) => dates.indexOf(date) === index)
+      .filter(date => requiredVardiyalar.every(vardiya => rows.some(row => row.tarih === date && row.vardiya === vardiya)))
+
+    return getFirstMissingDateWithinMonth(completeDates, month, year) || ""
   }
 
   function addRow() {
     const businessDate = getShiftBusinessDate(userVardiya)
     const todayMonthYear = getMonthYearFromDate(businessDate)
-    const nextDate = isAdmin ? getNextDate() : businessDate
+    const vardiyalarToAdd = isTekVardiya ? [""] : (isAdmin ? ["S", "A"] : [userVardiya || "S"])
+    const nextDate = isAdmin ? getNextAdminDate(vardiyalarToAdd) : businessDate
 
     if (!nextDate || !isDateInSelectedMonth(nextDate, month, year)) {
       toast.error(`${month} ${year} ayı için eklenecek yeni gün kalmadı.`)
@@ -203,14 +210,21 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     }
     
     // Vardiyasız şubelerde tek satır, vardiyalı şubelerde admin için S ve A eklenir.
-    const vardiyalarToAdd = isTekVardiya ? [""] : (isAdmin ? ["S", "A"] : [userVardiya || "S"])
-
     if (!isAdmin && vardiyalarToAdd.some(vardiya => rows.some(row => row.tarih === nextDate && row.vardiya === vardiya))) {
       toast.error("Bu iş günü için zaten bir satır var.")
       return
     }
     
-    const newRowsToAdd: GelirRow[] = vardiyalarToAdd.map(vardiya => ({
+    const vardiyalarToCreate = isAdmin
+      ? vardiyalarToAdd.filter(vardiya => !rows.some(row => row.tarih === nextDate && row.vardiya === vardiya))
+      : vardiyalarToAdd
+
+    if (vardiyalarToCreate.length === 0) {
+      toast.error("Bu gun icin eklenecek eksik vardiya yok.")
+      return
+    }
+
+    const newRowsToAdd: GelirRow[] = vardiyalarToCreate.map(vardiya => ({
       tarih: nextDate,
       vardiya,
       pamukkale_turizm: 0,

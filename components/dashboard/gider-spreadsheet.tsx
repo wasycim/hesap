@@ -14,7 +14,7 @@ import {
   getColumnTextColor,
   mergeColumnSettings,
 } from "@/lib/table-column-settings"
-import { getMonthYearFromDate, getNextDateWithinMonth, isDateInSelectedMonth } from "@/lib/date-navigation"
+import { getFirstMissingDateWithinMonth, getMonthYearFromDate, isDateInSelectedMonth } from "@/lib/date-navigation"
 import { logSecurityEvent } from "@/lib/audit-log"
 import { openPdfReport } from "@/lib/pdf-report"
 import { getShiftBusinessDate } from "@/lib/shift-business-date"
@@ -202,8 +202,14 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     }
   }
 
-  function getNextDate(): string {
-    return getNextDateWithinMonth(rows.map(row => row.tarih), month, year) || ""
+  function getNextAdminDate(requiredVardiyalar: string[]): string {
+    const completeDates = rows
+      .filter(row => isDateInSelectedMonth(row.tarih, month, year))
+      .map(row => row.tarih)
+      .filter((date, index, dates) => dates.indexOf(date) === index)
+      .filter(date => requiredVardiyalar.every(vardiya => rows.some(row => row.tarih === date && row.vardiya === vardiya)))
+
+    return getFirstMissingDateWithinMonth(completeDates, month, year) || ""
   }
 
   function calculateTotal(row: GiderRow): number {
@@ -238,7 +244,8 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
   function addRow() {
     const businessDate = getShiftBusinessDate(userVardiya)
     const todayMonthYear = getMonthYearFromDate(businessDate)
-    const nextDate = isAdmin ? getNextDate() : businessDate
+    const vardiyalarToAdd = isTekVardiya ? [""] : (isAdmin ? ["S", "A"] : [userVardiya || "S"])
+    const nextDate = isAdmin ? getNextAdminDate(vardiyalarToAdd) : businessDate
 
     if (!nextDate || !isDateInSelectedMonth(nextDate, month, year)) {
       toast.error(`${month} ${year} ayı için eklenecek yeni gün kalmadı.`)
@@ -250,15 +257,21 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       return
     }
     
-    // Vardiyasız şubelerde tek satır, vardiyalı şubelerde admin için S ve A eklenir.
-    const vardiyalarToAdd = isTekVardiya ? [""] : (isAdmin ? ["S", "A"] : [userVardiya || "S"])
-
     if (!isAdmin && vardiyalarToAdd.some(vardiya => rows.some(row => row.tarih === nextDate && row.vardiya === vardiya))) {
       toast.error("Bu iş günü için zaten bir satır var.")
       return
     }
     
-    const newRowsToAdd: GiderRow[] = vardiyalarToAdd.map(vardiya => ({
+    const vardiyalarToCreate = isAdmin
+      ? vardiyalarToAdd.filter(vardiya => !rows.some(row => row.tarih === nextDate && row.vardiya === vardiya))
+      : vardiyalarToAdd
+
+    if (vardiyalarToCreate.length === 0) {
+      toast.error("Bu gun icin eklenecek eksik vardiya yok.")
+      return
+    }
+
+    const newRowsToAdd: GiderRow[] = vardiyalarToCreate.map(vardiya => ({
       tarih: nextDate,
       vardiya,
       el_fisi_odeme: 0,
