@@ -541,7 +541,26 @@ function configureAutoUpdater() {
 
 app.setAppUserModelId("wasy.system.hesap")
 
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+
+if (!gotSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on("second-instance", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      createWindow()
+      return
+    }
+
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  })
+}
+
 app.whenReady().then(() => {
+  if (!gotSingleInstanceLock) return
+
   Menu.setApplicationMenu(null)
   configureStartup()
   configurePermissions()

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Maximize2, Minus, RefreshCcw, Square, X } from "lucide-react"
 
 type DesktopContext = {
@@ -16,7 +16,8 @@ type DesktopBridge = {
   getContext?: () => Promise<DesktopContext>
   getVersion?: () => Promise<string>
   windowControl?: (action: "minimize" | "toggle-maximize" | "close" | "reload") => Promise<{ ok: boolean; maximized?: boolean }>
-  checkForUpdates?: () => Promise<unknown>
+  checkForUpdates?: () => Promise<{ status?: string } | unknown>
+  onUpdateStatus?: (callback: (payload: { status?: string; version?: string; message?: string }) => void) => () => void
   onWindowState?: (callback: (payload: { isMaximized?: boolean; isFullScreen?: boolean }) => void) => () => void
 }
 
@@ -37,7 +38,27 @@ export function DesktopAppShell({ children }: { children: React.ReactNode }) {
   const [active, setActive] = useState(false)
   const [context, setContext] = useState<DesktopContext>({})
   const [isMaximized, setIsMaximized] = useState(false)
+  const [isOnline, setIsOnline] = useState(true)
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
+  const [updateNotice, setUpdateNotice] = useState<string | null>(null)
   const [clock, setClock] = useState(() => formatClock(new Date()))
+  const noticeTimerRef = useRef<number | null>(null)
+
+  function showUpdateNotice(message: string | null, timeout = 3500) {
+    if (noticeTimerRef.current) {
+      window.clearTimeout(noticeTimerRef.current)
+      noticeTimerRef.current = null
+    }
+
+    setUpdateNotice(message)
+
+    if (message && timeout > 0) {
+      noticeTimerRef.current = window.setTimeout(() => {
+        setUpdateNotice(null)
+        noticeTimerRef.current = null
+      }, timeout)
+    }
+  }
 
   useEffect(() => {
     const bridge = getDesktopBridge()
@@ -45,6 +66,7 @@ export function DesktopAppShell({ children }: { children: React.ReactNode }) {
 
     setActive(true)
     document.documentElement.classList.add("desktop-app")
+    setIsOnline(window.navigator.onLine)
 
     bridge.getContext?.().then((next) => {
       setContext(next || {})
@@ -59,17 +81,58 @@ export function DesktopAppShell({ children }: { children: React.ReactNode }) {
       setIsMaximized(Boolean(payload?.isMaximized))
     })
 
+    const unsubscribeUpdates = bridge.onUpdateStatus?.((payload) => {
+      if (!payload?.status) return
+
+      if (payload.status === "checking") {
+        setIsCheckingUpdate(true)
+        showUpdateNotice("Guncellemeler kontrol ediliyor.", 0)
+        return
+      }
+
+      if (payload.status === "not-available") {
+        setIsCheckingUpdate(false)
+        showUpdateNotice("Uygulama guncel.")
+        return
+      }
+
+      if (payload.status === "available" || payload.status === "downloading" || payload.status === "download-progress") {
+        setIsCheckingUpdate(payload.status !== "download-progress")
+        showUpdateNotice("Guncelleme indiriliyor.", 0)
+        return
+      }
+
+      if (payload.status === "downloaded") {
+        setIsCheckingUpdate(false)
+        showUpdateNotice(payload.version ? `Guncelleme hazir: v${payload.version}` : "Guncelleme hazir.")
+        return
+      }
+
+      if (payload.status === "error") {
+        setIsCheckingUpdate(false)
+        showUpdateNotice(payload.message || "Guncelleme kontrol edilemedi.")
+      }
+    })
+
+    const updateNetworkState = () => setIsOnline(window.navigator.onLine)
+    window.addEventListener("online", updateNetworkState)
+    window.addEventListener("offline", updateNetworkState)
+
     const timer = window.setInterval(() => setClock(formatClock(new Date())), 30_000)
 
     return () => {
+      if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current)
       unsubscribe?.()
+      unsubscribeUpdates?.()
+      window.removeEventListener("online", updateNetworkState)
+      window.removeEventListener("offline", updateNetworkState)
       window.clearInterval(timer)
       document.documentElement.classList.remove("desktop-app")
     }
   }, [])
 
   const versionLabel = useMemo(() => {
-    const version = context.version || "2.0.0"
+    const version = context.version || "2.0.1"
     return version.startsWith("v") ? version : `v${version}`
   }, [context.version])
 
@@ -81,7 +144,22 @@ export function DesktopAppShell({ children }: { children: React.ReactNode }) {
   }
 
   async function checkUpdates() {
-    await getDesktopBridge()?.checkForUpdates?.().catch(() => undefined)
+    if (isCheckingUpdate) return
+
+    setIsCheckingUpdate(true)
+    showUpdateNotice("Guncellemeler kontrol ediliyor.", 0)
+
+    const result = await getDesktopBridge()?.checkForUpdates?.().catch(() => null)
+
+    if (!result || typeof result !== "object" || !("status" in result)) {
+      window.setTimeout(() => setIsCheckingUpdate(false), 1200)
+      return
+    }
+
+    if (result.status === "development") {
+      setIsCheckingUpdate(false)
+      showUpdateNotice("Guncelleme kontrolu paketli EXE surumunde calisir.")
+    }
   }
 
   return (
@@ -98,18 +176,23 @@ export function DesktopAppShell({ children }: { children: React.ReactNode }) {
                 <span className="rounded-md border border-emerald-400/25 bg-emerald-400/10 px-1.5 py-0.5 text-[10px] font-black text-emerald-200">
                   {versionLabel}
                 </span>
+                <span className={isOnline ? "desktop-status-chip desktop-status-online" : "desktop-status-chip desktop-status-offline"}>
+                  {isOnline ? "Online" : "Cevrimdisi Mod"}
+                </span>
               </div>
-              <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400">Wasy Systems masaustu operasyon uygulamasi</p>
+              <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400">Wasy Systems masaustu hesap uygulamasi</p>
             </div>
           </div>
 
           <div className="desktop-no-drag hidden items-center gap-2 text-xs font-semibold text-slate-300 md:flex">
-            <span className="rounded-lg border border-slate-700 bg-slate-900/70 px-2.5 py-1">Canli</span>
+            {updateNotice ? (
+              <span className="desktop-update-notice" aria-live="polite">{updateNotice}</span>
+            ) : null}
             <span className="rounded-lg border border-slate-700 bg-slate-900/70 px-2.5 py-1">{clock}</span>
             <button
               type="button"
               onClick={checkUpdates}
-              className="desktop-tool-button"
+              className={`desktop-tool-button${isCheckingUpdate ? " is-checking" : ""}`}
               title="Guncellemeyi kontrol et"
               aria-label="Guncellemeyi kontrol et"
             >

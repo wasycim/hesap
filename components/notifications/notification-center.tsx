@@ -71,7 +71,7 @@ export function NotificationCenter() {
   }, [unreadCount])
 
   return (
-    <div className="fixed right-4 top-[calc(0.75rem+env(safe-area-inset-top))] z-50 lg:right-5">
+    <div className="notification-center-floating fixed right-4 top-[calc(0.75rem+env(safe-area-inset-top))] z-50 lg:right-5">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button variant="outline" size="icon" className="relative rounded-full bg-background/95 shadow-sm backdrop-blur">
