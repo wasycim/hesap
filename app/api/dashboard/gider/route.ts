@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       .order("sira", { ascending: true }),
     admin
       .from("personeller")
-      .select("id, ad, saatlik_mesai_ucreti")
+      .select("id, ad")
       .eq("sube_id", sube.id)
       .eq("aktif", true)
       .order("sira", { ascending: true }),
@@ -99,14 +99,11 @@ export async function GET(request: NextRequest) {
     if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 })
   }
 
-  const personelRates = new Map((personelRes.data || []).map((personel: any) => [personel.id, Number(personel.saatlik_mesai_ucreti) || 0]))
   const rows = (giderRes.data || [])
     .filter((row: any) => isDateInSelectedMonth(row.tarih, month, year))
     .map((row: any) => {
-      const mesaiDetails = row.personel_mesai_detaylari || {}
-      const mesaiTotal = Object.entries(mesaiDetails).reduce((sum, [personelId, hours]) => {
-        return sum + ((Number(hours) || 0) * (personelRates.get(personelId) || 0))
-      }, 0)
+      const mesaiDetails = (row.personel_mesai_detaylari || {}) as Record<string, unknown>
+      const mesaiTotal = Object.values(mesaiDetails).reduce<number>((sum, amount) => sum + (Number(amount) || 0), 0)
 
       return {
         id: row.id,

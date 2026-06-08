@@ -27,7 +27,6 @@ interface Ortak {
 interface Personel {
   id: string
   ad: string
-  saatlik_mesai_ucreti?: number
 }
 
 interface GiderRow {
@@ -235,10 +234,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
   }
 
   function calculateMesaiTotal(details: Record<string, number>): number {
-    return Object.entries(details || {}).reduce((sum, [personelId, hours]) => {
-      const personel = personeller.find(item => item.id === personelId)
-      return sum + ((Number(hours) || 0) * (Number(personel?.saatlik_mesai_ucreti) || 0))
-    }, 0)
+    return Object.values(details || {}).reduce((sum, amount) => sum + (Number(amount) || 0), 0)
   }
 
   function addRow() {
@@ -637,7 +633,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
                               ))}
                             </select>
                             <div className="flex flex-wrap gap-1">
-                              {Object.entries(row.personel_mesai_detaylari || {}).map(([personelId, hours]) => {
+                              {Object.entries(row.personel_mesai_detaylari || {}).map(([personelId, amount]) => {
                                 const personel = personeller.find(item => item.id === personelId)
                                 if (!personel) return null
                                 return (
@@ -646,11 +642,12 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
                                     <input
                                       type="number"
                                       min="0"
-                                      step="0.5"
-                                      value={hours || ""}
+                                      step="0.01"
+                                      value={amount || ""}
                                       onChange={(event) => updateCell(rowIndex, personelId, Number(event.target.value) || 0, "mesai")}
-                                      className="h-7 w-14 bg-transparent text-right outline-none"
-                                      placeholder="saat"
+                                      className="h-7 w-20 bg-transparent text-right outline-none"
+                                      placeholder="TL"
+                                      title="Mesai tutarı"
                                     />
                                     <button
                                       type="button"

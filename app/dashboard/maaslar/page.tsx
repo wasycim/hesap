@@ -163,15 +163,15 @@ export default function MaaslarPage() {
         advances.push({ tarih: row.tarih, amount: advanceAmount, description: "Alinan avans" })
       }
 
-      const hours = Number(row.personel_mesai_detaylari?.[personel.id]) || 0
-      if (hours > 0) {
+      const manualAmount = Number(row.personel_mesai_detaylari?.[personel.id]) || 0
+      if (manualAmount > 0) {
         overtime.push({
           tarih: row.tarih,
-          amount: hours * hourlyRate,
-          description: `Manuel mesai: ${formatDurationFromMinutes(Math.round(hours * 60))} x ${formatMoney(hourlyRate)} TL`,
-          hours,
-          rate: hourlyRate,
-          minutes: Math.round(hours * 60),
+          amount: manualAmount,
+          description: `Gider tablosu manuel mesai tutarı: ${formatMoney(manualAmount)} TL`,
+          hours: 0,
+          rate: 0,
+          minutes: 0,
           source: "manual",
         })
       }
@@ -304,15 +304,18 @@ export default function MaaslarPage() {
         },
         {
           title: "Mesailer",
-          headers: ["Tarih", "Kaynak", "Saat", "Saatlik Ücret", "Tutar"],
+          headers: ["Tarih", "Kaynak", "Mesai", "Saatlik Ücret", "Tutar"],
           firstColumnWidth: "28%",
-          rows: item.overtime.map(detail => [
-            formatDate(detail.tarih),
-            detail.source === "attendance" ? "Mesai takip" : "Manuel",
-            formatDurationFromMinutes(detail.minutes),
-            `${formatMoney(detail.rate)} TL`,
-            `+${formatMoney(detail.amount)} TL`,
-          ]),
+          rows: item.overtime.map(detail => {
+            const isDirectAmount = detail.source === "manual" && detail.minutes === 0 && detail.rate === 0
+            return [
+              formatDate(detail.tarih),
+              detail.source === "attendance" ? "Mesai takip" : isDirectAmount ? "Gider manuel" : "Manuel",
+              isDirectAmount ? "Doğrudan tutar" : formatDurationFromMinutes(detail.minutes),
+              isDirectAmount ? "-" : `${formatMoney(detail.rate)} TL`,
+              `+${formatMoney(detail.amount)} TL`,
+            ]
+          }),
         },
       ],
     })
@@ -450,7 +453,7 @@ export default function MaaslarPage() {
             </CardHeader>
             <CardContent className="grid gap-4 lg:grid-cols-2">
               <DetailList title="Alınan avanslar" items={selectedPersonel.advances} empty="Avans yok." totalLabel="Toplam alınan avanslar" variant="expense" />
-              <DetailList title={`Mesailer (${formatMoney(selectedPersonel.hourlyRate)} TL/saat)`} items={selectedPersonel.overtime} empty="Mesai yok." totalLabel="Toplam mesailer" variant="income" />
+              <DetailList title={`Mesailer ve manuel tutarlar (${formatMoney(selectedPersonel.hourlyRate)} TL/saat)`} items={selectedPersonel.overtime} empty="Mesai yok." totalLabel="Toplam mesailer" variant="income" />
             </CardContent>
           </Card>
         )}
