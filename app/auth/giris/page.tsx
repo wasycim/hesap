@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation"
 import { IdCard, Loader2, LockKeyhole, Mail } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,33 +21,13 @@ export default function GirisPage() {
   const [tcKimlik, setTcKimlik] = useState("")
   const [password, setPassword] = useState("")
   const [loginMode, setLoginMode] = useState<"email" | "tc">("tc")
-  const [rememberCredentials, setRememberCredentials] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(savedAuthLoginKey)
-      if (!raw) return
-      const saved = JSON.parse(raw) as {
-        email?: string
-        tcKimlik?: string
-        password?: string
-        loginMode?: "email" | "tc"
-        remember?: boolean
-      }
-
-      if (!saved.remember) return
-      setLoginMode(saved.loginMode === "email" ? "email" : "tc")
-      setEmail(String(saved.email || ""))
-      setTcKimlik(String(saved.tcKimlik || "").replace(/\D/g, "").slice(0, 11))
-      setPassword(String(saved.password || ""))
-      setRememberCredentials(true)
-    } catch {
-      window.localStorage.removeItem(savedAuthLoginKey)
-    }
+    window.localStorage.removeItem(savedAuthLoginKey)
   }, [])
 
   function getSafeNextPath() {
@@ -58,18 +37,7 @@ export default function GirisPage() {
     return next
   }
 
-  function persistSavedLogin(loginEmail: string, cleanTc: string) {
-    if (rememberCredentials) {
-      window.localStorage.setItem(savedAuthLoginKey, JSON.stringify({
-        email: loginMode === "email" ? loginEmail : "",
-        tcKimlik: loginMode === "tc" ? cleanTc : "",
-        password,
-        loginMode,
-        remember: true,
-      }))
-      return
-    }
-
+  function clearSavedLogin() {
     window.localStorage.removeItem(savedAuthLoginKey)
   }
 
@@ -145,7 +113,7 @@ export default function GirisPage() {
       await supabase.auth.signOut()
 
       if (mesaiLoginOk) {
-        persistSavedLogin(loginEmail, mesaiTc)
+        clearSavedLogin()
         router.push(getSafeNextPath() || "/mesai-qr")
         router.refresh()
         return
@@ -161,7 +129,7 @@ export default function GirisPage() {
       login_method: loginMode,
       tc_kimlik: loginMode === "tc" ? cleanTc : undefined,
     })
-    persistSavedLogin(loginEmail, cleanTc)
+    clearSavedLogin()
     router.push(getSafeNextPath() || "/dashboard")
     router.refresh()
   }
@@ -267,19 +235,6 @@ export default function GirisPage() {
                 </div>
               </div>
 
-              <label className="flex cursor-pointer items-start gap-3 rounded-xl border bg-muted/30 p-3 text-sm">
-                <Checkbox
-                  checked={rememberCredentials}
-                  onCheckedChange={(checked) => setRememberCredentials(checked === true)}
-                  className="mt-0.5"
-                />
-                <span>
-                  <span className="block font-semibold">Bu cihazda TC ve şifreyi hatırla</span>
-                  <span className="block text-xs text-muted-foreground">
-                    EXE veya tarayıcı bu cihazda açıldığında giriş alanları otomatik dolar.
-                  </span>
-                </span>
-              </label>
             </CardContent>
             <CardFooter className="px-8 pb-8 md:px-10 md:pb-10">
               <Button type="submit" className="h-11 w-full" disabled={loading}>

@@ -9,9 +9,11 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { useSube } from "@/contexts/sube-context"
 import { openPdfReport } from "@/lib/pdf-report"
 
@@ -222,11 +224,13 @@ function ApprovalActions({
   isAdmin,
   busy,
   onUpdate,
+  onRejectRequest,
 }: {
   item: Detail
   isAdmin: boolean
   busy: string | null
-  onUpdate: (detail: Detail, status: "approved" | "rejected", rejectReason?: string) => void
+  onUpdate: (detail: Detail, status: "approved") => void
+  onRejectRequest: (detail: Detail) => void
 }) {
   if (!item.payableOvertimeMinutes && !item.approvalStatus) {
     return <span className="text-muted-foreground">-</span>
@@ -244,16 +248,6 @@ function ApprovalActions({
 
   const busyKey = item.approvalId || `new:${item.id}`
   const disabled = busy === busyKey
-  const reject = () => {
-    const reason = window.prompt("Mesai reddedilecek. Red nedenini yazın:")
-    if (reason === null) return
-    const trimmed = reason.trim()
-    if (!trimmed) {
-      toast.error("Red nedeni zorunlu.")
-      return
-    }
-    onUpdate(item, "rejected", trimmed)
-  }
 
   if (item.approvalStatus === "approved") {
     return (
@@ -291,7 +285,7 @@ function ApprovalActions({
         variant="outline"
         className="h-8 gap-1 border-red-500/40 text-red-600"
         disabled={disabled}
-        onClick={reject}
+        onClick={() => onRejectRequest(item)}
       >
         <X className="h-3.5 w-3.5" />
         Reddet
@@ -308,6 +302,8 @@ export default function MesaiTakipPage() {
   const [payload, setPayload] = useState<Payload | null>(null)
   const [loading, setLoading] = useState(true)
   const [approvalBusy, setApprovalBusy] = useState<string | null>(null)
+  const [rejectTarget, setRejectTarget] = useState<Detail | null>(null)
+  const [rejectReason, setRejectReason] = useState("")
   const [manualPersonelId, setManualPersonelId] = useState("")
   const [manualDate, setManualDate] = useState(today())
   const [manualHours, setManualHours] = useState("")
@@ -351,7 +347,7 @@ export default function MesaiTakipPage() {
     const rejectionNote = rejectReason?.trim()
     if (status === "rejected" && !rejectionNote) {
       toast.error("Red nedeni zorunlu.")
-      return
+      return false
     }
 
     const approvalNote = status === "approved"
@@ -359,35 +355,59 @@ export default function MesaiTakipPage() {
       : `Red nedeni: ${rejectionNote}`
 
     setApprovalBusy(detail.approvalId || `new:${detail.id}`)
-    const isPatch = Boolean(detail.approvalId)
-    const response = await fetch("/api/admin/operations?table=overtime_approvals", {
-      method: isPatch ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(isPatch ? {
-        id: detail.approvalId,
-        status,
-        payable_minutes: status === "approved" ? detail.payableOvertimeMinutes : 0,
-        note: approvalNote,
-      } : {
-        attendance_log_id: detail.id,
-        personel_id: detail.personelId,
-        personel_name: detail.personel,
-        branch_name: detail.branch?.ad || null,
-        work_date: detail.workDate,
-        raw_minutes: detail.overtimeMinutes,
-        payable_minutes: status === "approved" ? detail.payableOvertimeMinutes : 0,
-        status,
-        note: approvalNote,
-      }),
-    })
-    setApprovalBusy(null)
-    if (!response.ok) {
-      const result = await response.json().catch(() => ({}))
-      toast.error(result.error || "Mesai onayi guncellenemedi.")
+    try {
+      const isPatch = Boolean(detail.approvalId)
+      const response = await fetch("/api/admin/operations?table=overtime_approvals", {
+        method: isPatch ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(isPatch ? {
+          id: detail.approvalId,
+          status,
+          payable_minutes: status === "approved" ? detail.payableOvertimeMinutes : 0,
+          note: approvalNote,
+        } : {
+          attendance_log_id: detail.id,
+          personel_id: detail.personelId,
+          personel_name: detail.personel,
+          branch_name: detail.branch?.ad || null,
+          work_date: detail.workDate,
+          raw_minutes: detail.overtimeMinutes,
+          payable_minutes: status === "approved" ? detail.payableOvertimeMinutes : 0,
+          status,
+          note: approvalNote,
+        }),
+      })
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}))
+        toast.error(result.error || "Mesai onayi guncellenemedi.")
+        return false
+      }
+      toast.success(status === "approved" ? "Mesai maaşa işlenmek üzere onaylandı." : "Mesai reddedildi.")
+      await loadData()
+      return true
+    } finally {
+      setApprovalBusy(null)
+    }
+  }
+
+  function openRejectDialog(detail: Detail) {
+    setRejectTarget(detail)
+    setRejectReason("")
+  }
+
+  async function submitReject() {
+    if (!rejectTarget) return
+    const reason = rejectReason.trim()
+    if (!reason) {
+      toast.error("Red nedeni zorunlu.")
       return
     }
-    toast.success(status === "approved" ? "Mesai maaşa işlenmek üzere onaylandı." : "Mesai reddedildi.")
-    loadData()
+
+    const ok = await updateApproval(rejectTarget, "rejected", reason)
+    if (ok) {
+      setRejectTarget(null)
+      setRejectReason("")
+    }
   }
 
   async function createManualOvertime() {
@@ -559,6 +579,57 @@ export default function MesaiTakipPage() {
   return (
     <main className="space-y-5 p-4 sm:p-6 lg:p-8">
       <RefreshAnimationStyle />
+      <Dialog
+        open={Boolean(rejectTarget)}
+        onOpenChange={(open) => {
+          if (open || approvalBusy) return
+          setRejectTarget(null)
+          setRejectReason("")
+        }}
+      >
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle>Mesaiyi reddet</DialogTitle>
+            <DialogDescription>
+              Reddedilen mesai maaşa işlenmez. Red nedenini yaz; bu not kayıtta ve PDF detaylarında görünür.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <label className="text-sm font-semibold" htmlFor="reject-reason">
+              Red nedeni
+            </label>
+            <Textarea
+              id="reject-reason"
+              value={rejectReason}
+              onChange={(event) => setRejectReason(event.target.value)}
+              placeholder="Örn. Hatalı çıkış kaydı, vardiya dışı işlem..."
+              className="min-h-28 resize-none"
+              autoFocus
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={Boolean(approvalBusy)}
+              onClick={() => {
+                setRejectTarget(null)
+                setRejectReason("")
+              }}
+            >
+              Vazgeç
+            </Button>
+            <Button
+              type="button"
+              className="bg-red-600 text-white hover:bg-red-700"
+              disabled={Boolean(approvalBusy)}
+              onClick={submitReject}
+            >
+              Reddet
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-normal">Mesai Takip</h1>
@@ -896,7 +967,13 @@ export default function MesaiTakipPage() {
                       />
                     </td>
                     <td className="p-3">
-                      <ApprovalActions item={item} isAdmin={isAdmin} busy={approvalBusy} onUpdate={updateApproval} />
+                      <ApprovalActions
+                        item={item}
+                        isAdmin={isAdmin}
+                        busy={approvalBusy}
+                        onUpdate={(detail, status) => { void updateApproval(detail, status) }}
+                        onRejectRequest={openRejectDialog}
+                      />
                     </td>
                     <td className="p-3">
                       <DetailStatusBadge status={item.status} />

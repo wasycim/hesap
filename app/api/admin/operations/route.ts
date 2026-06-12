@@ -45,9 +45,13 @@ function sanitizePayload(table: string, body: any, userId: string) {
   }
   if (table === "overtime_approvals") {
     const rawMinutes = Math.max(0, Math.round(Number(body.raw_minutes) || 0))
-    const payableMinutes = Math.max(0, Math.round(Number(body.payable_minutes) || Number(body.manual_minutes) || rawMinutes || 0))
     const manualMinutes = Math.max(0, Math.round(Number(body.manual_minutes) || 0))
     const status = ["pending", "approved", "rejected"].includes(body.status) ? body.status : "pending"
+    const hasPayableMinutes = body.payable_minutes !== undefined && body.payable_minutes !== null && body.payable_minutes !== ""
+    const payableSource = hasPayableMinutes ? body.payable_minutes : manualMinutes || rawMinutes || 0
+    const payableMinutes = status === "rejected"
+      ? 0
+      : Math.max(0, Math.round(Number(payableSource) || 0))
     return {
       attendance_log_id: body.attendance_log_id ? Number(body.attendance_log_id) : null,
       personel_id: body.personel_id || null,
@@ -283,7 +287,11 @@ export async function PATCH(request: NextRequest) {
       approved_by: status === "pending" ? null : guard.user.id,
       approved_at: status === "pending" ? null : new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      ...(nextPayableMinutes === undefined ? {} : { payable_minutes: nextPayableMinutes }),
+      ...(status === "rejected"
+        ? { payable_minutes: 0 }
+        : nextPayableMinutes === undefined
+          ? {}
+          : { payable_minutes: nextPayableMinutes }),
     }
   } else if (table === "offline_conflicts") {
     payload = { status: String(body.status || "resolved"), resolved_by: guard.user.id, resolved_at: new Date().toISOString() }

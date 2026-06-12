@@ -14,6 +14,16 @@ function getGiderTotalKey(tarih: string, vardiya: string, isTekVardiya: boolean)
   return isTekVardiya ? tarih : `${tarih}__${vardiya || "S"}`
 }
 
+function rowKey(row: { tarih: string; vardiya?: string | null }) {
+  return `${row.tarih}__${row.vardiya || ""}`
+}
+
+function dedupeRowsByKey<T extends { tarih: string; vardiya?: string | null }>(rows: T[]) {
+  const uniqueRows = new Map<string, T>()
+  for (const row of rows) uniqueRows.set(rowKey(row), row)
+  return Array.from(uniqueRows.values())
+}
+
 async function getAccess() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -169,29 +179,12 @@ export async function POST(request: NextRequest) {
 
   const isTekVardiya = isSingleShiftBranch(sube.ad, isAdmin, profile?.vardiya)
   const today = getShiftBusinessDate(profile?.vardiya)
-  const editableRows = rows.filter((row: any) => {
+  const editableRows = dedupeRowsByKey(rows.filter((row: any) => {
     if (!isDateInSelectedMonth(String(row.tarih || ""), month, year)) return false
     if (!isAdmin && row.tarih !== today) return false
     if (isTekVardiya || isAdmin) return true
     return row.vardiya === profile?.vardiya
-  })
-
-  let deleteQuery = admin
-    .from("gider_kayitlari")
-    .delete()
-    .eq("sube_id", sube.id)
-    .eq("ay_yil", ayYil)
-
-  if (!isAdmin) {
-    deleteQuery = deleteQuery.eq("user_id", user.id).eq("tarih", today)
-  }
-
-  if (!isTekVardiya && profile?.vardiya && !isAdmin) {
-    deleteQuery = deleteQuery.eq("vardiya", profile.vardiya)
-  }
-
-  const { error: deleteError } = await deleteQuery
-  if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 })
+  }))
 
   if (editableRows.length > 0) {
     const insertData = editableRows.map((row: any) => ({
@@ -226,7 +219,31 @@ export async function POST(request: NextRequest) {
       custom_values: row.custom_values || {},
     }))
 
-    const { error } = await admin.from("gider_kayitlari").insert(insertData)
+    const { error } = await admin
+      .from("gider_kayitlari")
+      .upsert(insertData, { onConflict: "sube_id,ay_yil,tarih,vardiya" })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  let existingQuery = admin
+    .from("gider_kayitlari")
+    .select("id, tarih, vardiya")
+    .eq("sube_id", sube.id)
+    .eq("ay_yil", ayYil)
+
+  if (!isAdmin) existingQuery = existingQuery.eq("tarih", today)
+  if (!isTekVardiya && profile?.vardiya && !isAdmin) existingQuery = existingQuery.eq("vardiya", profile.vardiya)
+
+  const { data: existingRows, error: existingError } = await existingQuery
+  if (existingError) return NextResponse.json({ error: existingError.message }, { status: 500 })
+
+  const editableKeys = new Set(editableRows.map((row: any) => rowKey({ tarih: row.tarih, vardiya: row.vardiya || "" })))
+  const staleIds = (existingRows || [])
+    .filter((row: any) => !editableKeys.has(rowKey({ tarih: row.tarih, vardiya: row.vardiya || "" })))
+    .map((row: any) => row.id)
+
+  if (staleIds.length > 0) {
+    const { error } = await admin.from("gider_kayitlari").delete().in("id", staleIds)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 

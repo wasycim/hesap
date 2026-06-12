@@ -511,22 +511,31 @@ export async function GET(request: NextRequest) {
       const payableChanged = Number(existing.payable_minutes || 0) !== Number(nextApproval.payable_minutes || 0)
       if (!rawChanged && !payableChanged) continue
 
-      const resetDecision = existing.status !== "pending"
+      const updatePayload = existing.status === "rejected"
+        ? {
+            raw_minutes: nextApproval.raw_minutes,
+            payable_minutes: 0,
+            updated_at: new Date().toISOString(),
+          }
+        : existing.status === "approved"
+          ? {
+              raw_minutes: nextApproval.raw_minutes,
+              payable_minutes: nextApproval.payable_minutes,
+              status: "pending",
+              approved_by: null,
+              approved_at: null,
+              note: `Vardiya plani degistigi icin mesai yeniden hesaplandi. Onceki karar: ${existing.status}.`,
+              updated_at: new Date().toISOString(),
+            }
+          : {
+              raw_minutes: nextApproval.raw_minutes,
+              payable_minutes: nextApproval.payable_minutes,
+              updated_at: new Date().toISOString(),
+            }
+
       const { error } = await admin
         .from("overtime_approvals")
-        .update({
-          raw_minutes: nextApproval.raw_minutes,
-          payable_minutes: nextApproval.payable_minutes,
-          ...(resetDecision
-            ? {
-                status: "pending",
-                approved_by: null,
-                approved_at: null,
-                note: `Vardiya plani degistigi icin mesai yeniden hesaplandi. Onceki karar: ${existing.status}.`,
-              }
-            : {}),
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq("id", existing.id)
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
