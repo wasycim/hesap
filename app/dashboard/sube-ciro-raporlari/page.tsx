@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ModernDatePicker } from "@/components/ui/modern-date-picker"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSube } from "@/contexts/sube-context"
@@ -75,6 +76,8 @@ function DatePickerField({
   value: string
   onChange: (value: string) => void
 }) {
+  return <ModernDatePicker label={label} value={value} onChange={onChange} />
+
   const selectedDate = parseLocalDate(value)
 
   return (

@@ -14,7 +14,7 @@ export const MONTHS = [
 ]
 
 export const START_YEAR = 2026
-export const START_MONTH_INDEX = 3
+export const START_MONTH_INDEX = 0
 export const INITIAL_END_YEAR = 2030
 
 export function getInitialMonth() {

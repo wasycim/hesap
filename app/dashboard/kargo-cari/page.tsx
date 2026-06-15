@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FileText, Package, TrendingUp, TrendingDown, Wallet, Save, Loader2 } from "lucide-react"
-import { MONTHS, getInitialMonth, getInitialYear, makeYearWindow } from "@/lib/date-navigation"
+import { MONTHS, getInitialMonth, getInitialYear, getLocalDateString, makeYearWindow } from "@/lib/date-navigation"
 import { openPdfReport } from "@/lib/pdf-report"
 
 interface KargoFirma {
@@ -26,10 +26,24 @@ interface FirmaBorcOzet {
   kalan_borc: number
 }
 
+interface OdemeHareketi {
+  id: string
+  tarih: string
+  firma_id: string
+  firma_ad: string
+  toplam_borc: number
+  odenen: number
+  kalan_borc: number
+  notlar: string
+  created_at: string | null
+}
+
 export default function KargoCariOzetPage() {
   const [firmalar, setFirmalar] = useState<KargoFirma[]>([])
   const [borcOzetleri, setBorcOzetleri] = useState<FirmaBorcOzet[]>([])
   const [odemeler, setOdemeler] = useState<Record<string, number>>({})
+  const [kayitliOdemeler, setKayitliOdemeler] = useState<Record<string, number>>({})
+  const [odemeHareketleri, setOdemeHareketleri] = useState<OdemeHareketi[]>([])
   const [scope, setScope] = useState<"monthly" | "all">("monthly")
   const [month, setMonth] = useState(getInitialMonth())
   const [year, setYear] = useState(getInitialYear())
@@ -49,7 +63,7 @@ export default function KargoCariOzetPage() {
   useEffect(() => {
     registerSaveHandler(saveOdemeler)
     return () => registerSaveHandler(null)
-  }, [odemeler, currentSube?.id, firmalar, scope, ayYil])
+  }, [odemeler, kayitliOdemeler, borcOzetleri, currentSube?.id, firmalar, scope, ayYil])
 
   async function checkAdminAndLoadData() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -136,6 +150,64 @@ export default function KargoCariOzetPage() {
 
     setBorcOzetleri(ozetler)
     setOdemeler(odemeVerileri)
+    setKayitliOdemeler(odemeVerileri)
+    await loadOdemeHareketleri(firmaList)
+  }
+
+  async function loadOdemeHareketleri(firmaList: KargoFirma[]) {
+    if (!currentSube) return
+
+    let query = supabase
+      .from("kargo_cari_odeme_hareketleri")
+      .select("id, tarih, firma_id, toplam_borc, odenen, kalan_borc, notlar, created_at")
+      .eq("sube_id", currentSube.id)
+      .order("tarih", { ascending: false })
+      .order("created_at", { ascending: false })
+
+    if (scope === "monthly") {
+      query = query.eq("ay_yil", ayYil)
+    }
+
+    const { data, error } = await query.limit(150)
+    if (error) {
+      setOdemeHareketleri([])
+      if (error.code === "42P01") {
+        toast.error("Ödeme listesi tablosu yok. 019 kargo cari ödeme geçmişi migration dosyasını uygulayın.")
+      } else {
+        toast.error("Ödeme listesi okunamadı: " + error.message)
+      }
+      return
+    }
+
+    const firmaAdlari = new Map(firmaList.map(firma => [firma.id, firma.ad]))
+    setOdemeHareketleri((data || []).map(item => ({
+      id: item.id,
+      tarih: item.tarih,
+      firma_id: item.firma_id,
+      firma_ad: firmaAdlari.get(item.firma_id) || "Firma",
+      toplam_borc: Number(item.toplam_borc) || 0,
+      odenen: Number(item.odenen) || 0,
+      kalan_borc: Number(item.kalan_borc) || 0,
+      notlar: item.notlar || "",
+      created_at: item.created_at,
+    })))
+  }
+
+  function handleOdemeNotuChange(hareketId: string, value: string) {
+    setOdemeHareketleri(prev => prev.map(hareket => (
+      hareket.id === hareketId ? { ...hareket, notlar: value } : hareket
+    )))
+  }
+
+  async function saveOdemeNotu(hareketId: string, value: string) {
+    const { error } = await supabase
+      .from("kargo_cari_odeme_hareketleri")
+      .update({ notlar: value })
+      .eq("id", hareketId)
+
+    if (error) {
+      toast.error("Ödeme notu kaydedilemedi: " + error.message)
+    }
   }
 
   async function handleOdemeChange(firmaId: string, value: string) {
@@ -177,6 +249,12 @@ export default function KargoCariOzetPage() {
 
     try {
       for (const [firmaId, odenen] of Object.entries(odemeler)) {
+        const oncekiOdeme = kayitliOdemeler[firmaId] || 0
+        const odemeFarki = Number(odenen) - oncekiOdeme
+        const firmaOzeti = borcOzetleri.find(ozet => ozet.firma_id === firmaId)
+        const toplamBorc = firmaOzeti?.toplam_borc || 0
+        const kalanBorc = toplamBorc - Number(odenen)
+
         const { error } = await supabase
           .from("kargo_cari_odemeler")
           .upsert({
@@ -191,6 +269,24 @@ export default function KargoCariOzetPage() {
           })
 
         if (error) throw error
+
+        if (odemeFarki !== 0) {
+          const { error: hareketError } = await supabase
+            .from("kargo_cari_odeme_hareketleri")
+            .insert({
+              user_id: user.id,
+              sube_id: currentSube.id,
+              firma_id: firmaId,
+              ay_yil: ayYil,
+              tarih: getLocalDateString(),
+              toplam_borc: toplamBorc,
+              odenen: odemeFarki,
+              kalan_borc: kalanBorc,
+              notlar: "",
+            })
+
+          if (hareketError) throw hareketError
+        }
       }
 
       await loadBorcOzetleri(firmalar)
@@ -216,6 +312,11 @@ export default function KargoCariOzetPage() {
 
   function formatNumber(num: number): string {
     return num.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  }
+
+  function formatDate(dateStr: string): string {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" })
   }
 
   function exportBorcPdf() {
@@ -246,6 +347,18 @@ export default function KargoCariOzetPage() {
             `${formatNumber(genelToplam.kalan_borc)} TL`,
           ],
         ],
+      }, {
+        title: "Ödeme Listesi",
+        headers: ["Tarih", "Firma", "Toplam Borç", "Ödenen Borç", "Kalan Borç", "Not"],
+        firstColumnWidth: "18%",
+        rows: odemeHareketleri.map(hareket => [
+          formatDate(hareket.tarih),
+          hareket.firma_ad,
+          `${formatNumber(hareket.toplam_borc)} TL`,
+          `${formatNumber(hareket.odenen)} TL`,
+          `${formatNumber(hareket.kalan_borc)} TL`,
+          hareket.notlar || "-",
+        ]),
       }],
     })
   }
@@ -434,6 +547,64 @@ export default function KargoCariOzetPage() {
                     </td>
                   </tr>
                 </tfoot>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="overflow-hidden border-emerald-100 shadow-sm dark:border-emerald-500/20">
+        <CardHeader className="border-b bg-muted/30">
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <Wallet className="h-5 w-5 text-emerald-500" />
+            Ödeme Listesi
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {odemeHareketleri.length === 0 ? (
+            <div className="px-4 py-8 text-center text-muted-foreground">
+              Bu dönem için kayıtlı ödeme hareketi yok.
+            </div>
+          ) : (
+            <div className="sticky-table-scroll">
+              <table className="sticky-table w-full min-w-[980px] text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/60">
+                    <th className="p-3 text-left font-semibold text-foreground">TARİH</th>
+                    <th className="p-3 text-left font-semibold text-foreground">FİRMA</th>
+                    <th className="p-3 text-right font-semibold text-blue-700 dark:text-blue-200">TOPLAM BORÇ</th>
+                    <th className="p-3 text-right font-semibold text-emerald-700 dark:text-emerald-200">ÖDENEN BORÇ</th>
+                    <th className="p-3 text-right font-semibold text-orange-700 dark:text-orange-200">KALAN BORÇ</th>
+                    <th className="p-3 text-left font-semibold text-foreground">NOT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {odemeHareketleri.map(hareket => (
+                    <tr key={hareket.id} className="border-b transition-colors hover:bg-emerald-50/60 dark:hover:bg-emerald-500/10">
+                      <td className="p-4 font-medium text-muted-foreground">{formatDate(hareket.tarih)}</td>
+                      <td className="p-4 font-semibold text-foreground">{hareket.firma_ad}</td>
+                      <td className="p-4 text-right font-semibold text-blue-700 dark:text-blue-200">
+                        {formatNumber(hareket.toplam_borc)} TL
+                      </td>
+                      <td className={`p-4 text-right font-bold ${hareket.odenen < 0 ? "text-red-600 dark:text-red-200" : "text-emerald-600 dark:text-emerald-200"}`}>
+                        {formatNumber(hareket.odenen)} TL
+                      </td>
+                      <td className={`p-4 text-right font-bold ${hareket.kalan_borc > 0 ? "text-orange-600 dark:text-orange-200" : "text-emerald-600 dark:text-emerald-200"}`}>
+                        {formatNumber(hareket.kalan_borc)} TL
+                      </td>
+                      <td className="p-3">
+                        <Input
+                          type="text"
+                          value={hareket.notlar || ""}
+                          onChange={(event) => handleOdemeNotuChange(hareket.id, event.target.value)}
+                          onBlur={(event) => saveOdemeNotu(hareket.id, event.target.value)}
+                          className="h-10 min-w-56"
+                          placeholder="Not yaz..."
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
               </table>
             </div>
           )}

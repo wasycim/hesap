@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { ModernDatePicker } from "@/components/ui/modern-date-picker"
 import { useSube } from "@/contexts/sube-context"
 import { openPdfReport } from "@/lib/pdf-report"
 
@@ -223,11 +224,11 @@ export default function GelismisLogPage() {
         <CardContent className="grid gap-3 p-4 md:grid-cols-[1fr_1fr_1fr_1.2fr_auto]">
           <label className="space-y-1 text-sm">
             <span className="font-medium">Başlangıç</span>
-            <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+            <ModernDatePicker label="Başlangıç" value={from} onChange={setFrom} />
           </label>
           <label className="space-y-1 text-sm">
             <span className="font-medium">Bitiş</span>
-            <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+            <ModernDatePicker label="Bitiş" value={to} onChange={setTo} />
           </label>
           <label className="space-y-1 text-sm">
             <span className="font-medium">Olay tipi</span>

@@ -4,7 +4,9 @@ import { useState, useEffect, use } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { FileText, Plus, Save, Trash2, ChevronLeft, ChevronRight } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { ModernDatePicker } from "@/components/ui/modern-date-picker"
+import { FileText, Plus, Save, Trash2, ChevronLeft, ChevronRight, StickyNote } from "lucide-react"
 import { toast } from "sonner"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
@@ -12,6 +14,9 @@ import {
   MONTHS,
   START_MONTH_INDEX,
   START_YEAR,
+  getLocalDateString,
+  getMonthEndDate,
+  getMonthStartDate,
   isDateInSelectedMonth,
   makeYearWindow,
 } from "@/lib/date-navigation"
@@ -30,6 +35,13 @@ interface KargoRow {
 interface KargoFirma {
   id: string
   ad: string
+}
+
+interface KargoFirmaNotu {
+  id?: string
+  tarih: string
+  not_metni: string
+  created_at?: string | null
 }
 
 const currentDate = new Date()
@@ -58,16 +70,21 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   const resolvedParams = use(params)
   const [firma, setFirma] = useState<KargoFirma | null>(null)
   const [rows, setRows] = useState<KargoRow[]>([])
+  const [notlar, setNotlar] = useState<KargoFirmaNotu[]>([])
+  const [deletedNotIds, setDeletedNotIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingNotes, setSavingNotes] = useState(false)
   const [month, setMonth] = useState(MONTHS[currentDate.getMonth()])
   const [year, setYear] = useState(currentDate.getFullYear())
   const years = makeYearWindow(year)
   const supabase = createClient()
-  const { currentSube } = useSube()
+  const { currentSube, isAdmin } = useSube()
   const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
 
   const ayYil = `${month}-${year}`
+  const selectedMonthStart = getMonthStartDate(month, year)
+  const selectedMonthEnd = getMonthEndDate(month, year)
 
   useEffect(() => {
     if (currentSube) {
@@ -141,13 +158,24 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
       return
     }
 
-    const { data, error } = await supabase
-      .from("kargo_cari_kayitlar")
-      .select("*")
-      .eq("sube_id", currentSube.id)
-      .eq("firma_id", firma.id)
-      .eq("ay_yil", ayYil)
-      .order("tarih", { ascending: true })
+    const [{ data, error }, notlarResult] = await Promise.all([
+      supabase
+        .from("kargo_cari_kayitlar")
+        .select("*")
+        .eq("sube_id", currentSube.id)
+        .eq("firma_id", firma.id)
+        .eq("ay_yil", ayYil)
+        .order("tarih", { ascending: true }),
+      supabase
+        .from("kargo_cari_notlari")
+        .select("id, tarih, not_metni, created_at")
+        .eq("sube_id", currentSube.id)
+        .eq("firma_id", firma.id)
+        .gte("tarih", selectedMonthStart)
+        .lte("tarih", selectedMonthEnd)
+        .order("tarih", { ascending: false })
+        .order("created_at", { ascending: false }),
+    ])
 
     if (!error && data) {
       setRows(data.filter(row => isDateInSelectedMonth(row.tarih, month, year)).map(row => ({
@@ -159,6 +187,20 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         satilan_tutar: Number(row.satilan_tutar) || 0,
         kalan_kar: Number(row.kalan_kar) || 0,
       })))
+    }
+
+    if (!notlarResult.error) {
+      setNotlar((notlarResult.data || []).map(item => ({
+        id: item.id,
+        tarih: item.tarih,
+        not_metni: item.not_metni || "",
+        created_at: item.created_at,
+      })))
+      setDeletedNotIds([])
+    } else if (notlarResult.error.code === "42P01") {
+      toast.error("Firma notları tablosu yok. 020 migration dosyasını uygulayın.")
+    } else {
+      toast.error("Firma notları okunamadı: " + notlarResult.error.message)
     }
     setLoading(false)
   }
@@ -183,6 +225,70 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     return `${year}-${String(selectedMonth + 1).padStart(2, "0")}-${day}`
   }
 
+  function formatEditableDate(value: string): string {
+    const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (!isoMatch) return value
+    return `${isoMatch[3]}.${isoMatch[2]}.${isoMatch[1]}`
+  }
+
+  function normalizeEditableDate(value: string): string | null {
+    const raw = value.trim()
+    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    const shortMatch = raw.match(/^(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?$/)
+
+    let dateYear: number
+    let dateMonth: number
+    let dateDay: number
+
+    if (isoMatch) {
+      dateYear = Number(isoMatch[1])
+      dateMonth = Number(isoMatch[2])
+      dateDay = Number(isoMatch[3])
+    } else if (shortMatch) {
+      dateDay = Number(shortMatch[1])
+      dateMonth = Number(shortMatch[2])
+      dateYear = shortMatch[3] ? Number(shortMatch[3]) : year
+      if (dateYear < 100) dateYear += 2000
+    } else {
+      return null
+    }
+
+    const parsed = new Date(dateYear, dateMonth - 1, dateDay)
+    if (
+      parsed.getFullYear() !== dateYear ||
+      parsed.getMonth() !== dateMonth - 1 ||
+      parsed.getDate() !== dateDay
+    ) {
+      return null
+    }
+
+    return `${dateYear}-${String(dateMonth).padStart(2, "0")}-${String(dateDay).padStart(2, "0")}`
+  }
+
+  function commitDateCell(rowIndex: number, value: string) {
+    const normalized = normalizeEditableDate(value)
+    if (!normalized) {
+      toast.error("Tarih formatı geçersiz. Örnek: 12.06 veya 12.06.2026")
+      return
+    }
+    updateCell(rowIndex, "tarih", normalized)
+  }
+
+  function normalizeRowsBeforeSave(): KargoRow[] | null {
+    const normalizedRows: KargoRow[] = []
+
+    for (const [index, row] of rows.entries()) {
+      const normalizedDate = normalizeEditableDate(row.tarih)
+      if (!normalizedDate) {
+        toast.error(`${index + 1}. satırdaki tarih geçersiz. Örnek: 12.06 veya 12.06.2026`)
+        return null
+      }
+      normalizedRows.push({ ...row, tarih: normalizedDate })
+    }
+
+    return normalizedRows
+  }
+
   function addRow() {
     const newRow: KargoRow = {
       tarih: getKargoBusinessDate(),
@@ -204,6 +310,94 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   }
 
   // Fiş No'yu 6 haneli formata çevir
+  function addNote() {
+    const today = getLocalDateString()
+    setNotlar(prev => [{ tarih: isDateInSelectedMonth(today, month, year) ? today : selectedMonthStart, not_metni: "" }, ...prev])
+  }
+
+  function updateNote(index: number, patch: Partial<KargoFirmaNotu>) {
+    setNotlar(prev => prev.map((note, noteIndex) => (
+      noteIndex === index ? { ...note, ...patch } : note
+    )))
+  }
+
+  function deleteNote(index: number) {
+    const note = notlar[index]
+    if (note?.id) {
+      setDeletedNotIds(prev => [...prev, note.id!])
+    }
+    setNotlar(prev => prev.filter((_, noteIndex) => noteIndex !== index))
+  }
+
+  async function saveNotes() {
+    if (!firma || !currentSube) return false
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return false
+
+    const invalidIndex = notlar.findIndex(note => !note.tarih || !note.not_metni.trim())
+    if (invalidIndex !== -1) {
+      toast.error(`${invalidIndex + 1}. not için tarih ve not alanı zorunludur.`)
+      return false
+    }
+
+    const invalidMonthIndex = notlar.findIndex(note => !isDateInSelectedMonth(note.tarih, month, year))
+    if (invalidMonthIndex !== -1) {
+      toast.error(`${invalidMonthIndex + 1}. not seçili ayın dışında.`)
+      return false
+    }
+
+    setSavingNotes(true)
+
+    try {
+      if (deletedNotIds.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("kargo_cari_notlari")
+          .delete()
+          .in("id", deletedNotIds)
+
+        if (deleteError) throw deleteError
+      }
+
+      for (const note of notlar) {
+        if (note.id) {
+          const { error } = await supabase
+            .from("kargo_cari_notlari")
+            .update({
+              tarih: note.tarih,
+              not_metni: note.not_metni.trim(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", note.id)
+
+          if (error) throw error
+        } else {
+          const { error } = await supabase
+            .from("kargo_cari_notlari")
+            .insert({
+              user_id: user.id,
+              sube_id: currentSube.id,
+              firma_id: firma.id,
+              tarih: note.tarih,
+              not_metni: note.not_metni.trim(),
+            })
+
+          if (error) throw error
+        }
+      }
+
+      setDeletedNotIds([])
+      await loadData()
+      toast.success("Firma notları kaydedildi.")
+      setSavingNotes(false)
+      return true
+    } catch (error: any) {
+      toast.error(error?.message || "Firma notları kaydedilemedi.")
+      setSavingNotes(false)
+      return false
+    }
+  }
+
   function formatFisNo(value: string): string {
     // Sadece rakamları al
     const numericValue = value.replace(/\D/g, "")
@@ -216,7 +410,9 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     const newRows = [...rows]
     const row = { ...newRows[rowIndex] }
 
-    if (column === "fis_no") {
+    if (column === "tarih") {
+      row.tarih = String(value)
+    } else if (column === "fis_no") {
       // Fiş no için sadece sayı girişi
       const numericValue = String(value).replace(/\D/g, "")
       row.fis_no = numericValue
@@ -237,13 +433,16 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   async function saveData() {
     if (!firma) return
 
-    const invalidDateIndex = rows.findIndex(row => !isDateInSelectedMonth(row.tarih, month, year))
+    const rowsToSave = normalizeRowsBeforeSave()
+    if (!rowsToSave) return false
+
+    const invalidDateIndex = rowsToSave.findIndex(row => !isDateInSelectedMonth(row.tarih, month, year))
     if (invalidDateIndex !== -1) {
       toast.error(`${invalidDateIndex + 1}. satır ${month} ${year} dışında olduğu için kaydedilemez.`)
       return false
     }
 
-    const missingFisIndex = rows.findIndex(row => !row.fis_no?.trim())
+    const missingFisIndex = rowsToSave.findIndex(row => !row.fis_no?.trim())
     if (missingFisIndex !== -1) {
       toast.error(`${missingFisIndex + 1}. satır için fiş no zorunludur.`)
       return false
@@ -272,8 +471,8 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     }
 
     // Yeni kayıtları ekle
-    if (rows.length > 0) {
-      const insertData = rows.map(row => ({
+    if (rowsToSave.length > 0) {
+      const insertData = rowsToSave.map(row => ({
         user_id: user.id,
         sube_id: currentSube.id,
         firma_id: firma.id,
@@ -298,6 +497,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
 
     setSaving(false)
     markClean()
+    setRows(rowsToSave)
     loadData()
     toast.success("Kargo cari kaydedildi.")
     return true
@@ -348,6 +548,13 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         { label: "Kalan Kar", value: `${formatNumber(columnTotals.kalan_kar)} TL` },
       ],
       tables: [{
+        title: "Firma Notları",
+        headers: ["Tarih", "Not"],
+        firstColumnWidth: "82px",
+        rows: notlar.length
+          ? notlar.map(note => [formatDate(note.tarih), note.not_metni || "-"])
+          : [["-", "Kayıtlı not yok"]],
+      }, {
         title: "Aylık Firma Detayı",
         headers: ["Tarih", "Fiş No", "Gönderilen Yer", "Alınan Tutar", "Satılan Tutar", "Kalan Kar"],
         firstColumnWidth: "82px",
@@ -441,6 +648,53 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         </Button>
       </div>
 
+      <div className="rounded-lg border bg-card">
+        <div className="flex flex-col gap-3 border-b bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <StickyNote className="h-5 w-5 text-amber-500" />
+            <div>
+              <h2 className="font-semibold text-foreground">Firma Notları</h2>
+              <p className="text-sm text-muted-foreground">Bu firmaya ait tarihli notlar.</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={addNote}>
+              <Plus className="mr-1 h-4 w-4" /> Not Ekle
+            </Button>
+            <Button type="button" size="sm" onClick={saveNotes} disabled={savingNotes}>
+              <Save className="mr-1 h-4 w-4" /> {savingNotes ? "Kaydediliyor..." : "Notları Kaydet"}
+            </Button>
+          </div>
+        </div>
+        <div className="space-y-3 p-4">
+          {notlar.length === 0 ? (
+            <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+              Bu firma için not yok. Not Ekle butonuyla yeni not oluşturabilirsiniz.
+            </div>
+          ) : (
+            notlar.map((note, index) => (
+              <div key={note.id || `new-${index}`} className="grid gap-2 rounded-md border bg-muted/20 p-3 md:grid-cols-[160px_1fr_auto]">
+                <ModernDatePicker
+                  label="Not tarihi"
+                  value={note.tarih}
+                  onChange={(value) => updateNote(index, { tarih: value })}
+                  buttonClassName="h-10 rounded-md"
+                />
+                <Textarea
+                  value={note.not_metni}
+                  onChange={(event) => updateNote(index, { not_metni: event.target.value })}
+                  rows={2}
+                  placeholder="Not yaz..."
+                />
+                <Button type="button" variant="outline" size="icon" onClick={() => deleteNote(index)} className="text-red-500">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
       {/* Table */}
       <div className="sticky-table-scroll rounded-lg border bg-card">
         <table className="sticky-table w-full min-w-[760px] text-sm">
@@ -481,9 +735,21 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                   {COLUMNS.map(col => (
                     <td key={col} className="p-0 border">
                       {col === "tarih" ? (
-                        <div className="bg-muted px-2 py-1 text-center font-medium text-foreground">
-                          {formatDate(row.tarih)}
-                        </div>
+                        isAdmin ? (
+                          <input
+                            type="text"
+                            value={formatEditableDate(row.tarih)}
+                            onChange={(e) => updateCell(rowIndex, col, e.target.value)}
+                            onBlur={(e) => commitDateCell(rowIndex, e.target.value)}
+                            className="w-full bg-muted px-2 py-1 text-center font-medium text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"
+                            placeholder="12.06"
+                            aria-label="Tarih"
+                          />
+                        ) : (
+                          <div className="bg-muted px-2 py-1 text-center font-medium text-foreground">
+                            {formatDate(row.tarih)}
+                          </div>
+                        )
                       ) : col === "kalan_kar" ? (
                         <div className={`px-2 py-1 text-right font-semibold ${
                           row.kalan_kar >= 0 ? "bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-200" : "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-200"
@@ -517,7 +783,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                           onChange={(e) => {
                             const onlyLetters = e.target.value
                               .replace(/[^a-zA-ZğüşöçıİĞÜŞÖÇ\s]/g, "") // sadece harf + boşluk
-                              .toUpperCase()
+                              .toLocaleUpperCase("tr-TR")
                             updateCell(rowIndex, col, onlyLetters)
                           }}
                           className="w-full bg-transparent px-2 py-1 text-left text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"

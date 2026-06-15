@@ -95,7 +95,7 @@ function normalizeSubeName(name: string): string {
 }
 
 function compareDateVardiya(a: Pick<GelirRow, "tarih" | "vardiya">, b: Pick<GelirRow, "tarih" | "vardiya">) {
-  const dateCompare = a.tarih.localeCompare(b.tarih)
+  const dateCompare = b.tarih.localeCompare(a.tarih)
   if (dateCompare !== 0) return dateCompare
   return (VARDIYA_SIRASI[a.vardiya] ?? 99) - (VARDIYA_SIRASI[b.vardiya] ?? 99)
 }
@@ -120,7 +120,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     if (col.column_key === FIRMALAR_GROUP_KEY) {
       return firmalar.map(firma => ({
         column_key: `firma_${firma.id}`,
-        label: firma.ad.toUpperCase(),
+        label: firma.ad.toLocaleUpperCase("tr-TR"),
         color: firma.color || col.color,
       }))
     }

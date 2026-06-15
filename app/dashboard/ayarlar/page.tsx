@@ -132,7 +132,7 @@ export default function AyarlarPage() {
     await supabase.from("ortaklar").insert({
       user_id: user.id,
       sube_id: currentSube.id,
-      ad: yeniOrtak.toUpperCase(),
+      ad: yeniOrtak.toLocaleUpperCase("tr-TR"),
       sira: ortaklar.length,
       aktif: true,
     })
@@ -150,7 +150,7 @@ export default function AyarlarPage() {
     await supabase.from("personeller").insert({
       user_id: user.id,
       sube_id: currentSube.id,
-      ad: yeniPersonel.toUpperCase(),
+      ad: yeniPersonel.toLocaleUpperCase("tr-TR"),
       aylik_maas: aylikMaas,
       saatlik_mesai_ucreti: saatlikMesaiUcreti,
       sira: personeller.length,
@@ -169,7 +169,7 @@ export default function AyarlarPage() {
     await supabase.from("kargo_cari_firmalar").insert({
       user_id: user.id,
       sube_id: currentSube.id,
-      ad: yeniKargoFirma.toUpperCase(),
+      ad: yeniKargoFirma.toLocaleUpperCase("tr-TR"),
       sira: kargoFirmalar.length,
       aktif: true,
     })
@@ -186,7 +186,7 @@ export default function AyarlarPage() {
     await supabase.from("gelir_firmalar").insert({
       user_id: user.id,
       sube_id: currentSube.id,
-      ad: yeniGelirFirma.toUpperCase(),
+      ad: yeniGelirFirma.toLocaleUpperCase("tr-TR"),
       komisyon_orani: 20,
       color: "bg-yellow-500",
       sira: gelirFirmalar.length,
@@ -249,7 +249,7 @@ export default function AyarlarPage() {
       await supabase
         .from("gelir_firmalar")
         .update({
-          ad: firma.ad.trim().toUpperCase(),
+          ad: firma.ad.trim().toLocaleUpperCase("tr-TR"),
           komisyon_orani: firma.komisyon_orani,
           color: firma.color,
           aktif: firma.aktif,

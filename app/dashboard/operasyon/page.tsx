@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { ModernDatePicker, ModernDateTimePicker } from "@/components/ui/modern-date-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
@@ -432,11 +433,11 @@ export default function OperasyonPage() {
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
                   Baslangic
-                  <Input type="datetime-local" value={announcement.starts_at} onChange={(e) => setAnnouncement({ ...announcement, starts_at: e.target.value })} />
+                  <ModernDateTimePicker label="Başlangıç" value={announcement.starts_at} onChange={(value) => setAnnouncement({ ...announcement, starts_at: value })} />
                 </label>
                 <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
                   Bitis
-                  <Input type="datetime-local" value={announcement.ends_at} onChange={(e) => setAnnouncement({ ...announcement, ends_at: e.target.value })} />
+                  <ModernDateTimePicker label="Bitiş" value={announcement.ends_at} onChange={(value) => setAnnouncement({ ...announcement, ends_at: value })} />
                 </label>
               </div>
             ) : null}
@@ -472,7 +473,7 @@ export default function OperasyonPage() {
           <CardHeader><CardTitle className="flex items-center gap-2"><CalendarDays className="h-5 w-5" /> Resmi tatil ve ozel gun</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="grid gap-3 md:grid-cols-[160px_1fr_160px]">
-              <Input type="date" value={holiday.holiday_date} onChange={(e) => setHoliday({ ...holiday, holiday_date: e.target.value })} />
+              <ModernDatePicker label="Tarih" value={holiday.holiday_date} onChange={(value) => setHoliday({ ...holiday, holiday_date: value })} />
               <Input placeholder="Gun adi" value={holiday.name} onChange={(e) => setHoliday({ ...holiday, name: e.target.value })} />
               <Input placeholder="Tip" value={holiday.type} onChange={(e) => setHoliday({ ...holiday, type: e.target.value })} />
             </div>

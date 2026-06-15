@@ -1,17 +1,14 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { format, parseISO } from "date-fns"
-import { tr } from "date-fns/locale"
-import { CalendarDays, Check, ChevronDown, FileText, Filter, RefreshCw, TimerReset, UsersRound, X } from "lucide-react"
+import { CalendarDays, Check, FileText, Filter, RefreshCw, TimerReset, UsersRound, X } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { ModernDatePicker } from "@/components/ui/modern-date-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useSube } from "@/contexts/sube-context"
@@ -990,54 +987,7 @@ export default function MesaiTakipPage() {
 }
 
 function DatePicker({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  const selected = parseISO(value)
-
-  return (
-    <label className="grid gap-1.5 text-xs font-semibold text-muted-foreground">
-      {label}
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 justify-between rounded-xl bg-background/80 px-3 text-left font-normal shadow-sm"
-          >
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-amber-500/12 text-amber-700 dark:text-amber-300">
-                <CalendarDays className="h-4 w-4" />
-              </span>
-              <span className="truncate text-sm font-semibold text-foreground">
-                {format(selected, "d MMMM yyyy", { locale: tr })}
-              </span>
-            </span>
-            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-auto overflow-hidden rounded-2xl border bg-card p-0 shadow-2xl">
-          <div className="bg-slate-950 px-4 py-3 text-white">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <div className="text-sm font-bold">{label} tarihi</div>
-                <div className="mt-0.5 text-xs text-white/65">{format(selected, "d MMMM yyyy", { locale: tr })}</div>
-              </div>
-              <div className="grid h-9 w-9 place-items-center rounded-lg bg-white/10">
-                <CalendarDays className="h-4 w-4" />
-              </div>
-            </div>
-          </div>
-          <Calendar
-            mode="single"
-            selected={selected}
-            onSelect={(date) => {
-              if (date) onChange(format(date, "yyyy-MM-dd"))
-            }}
-            locale={tr}
-            className="rounded-xl p-3 [--cell-size:--spacing(9)]"
-          />
-        </PopoverContent>
-      </Popover>
-    </label>
-  )
+  return <ModernDatePicker label={label} value={value} onChange={onChange} />
 }
 
 function RefreshAnimationStyle() {

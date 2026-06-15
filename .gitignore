@@ -17,6 +17,8 @@ next.user-config.*
 # Common ignores
 node_modules
 .next/
+.codex-tmp/
+apk/
 desktop/release/
 desktop/build/icon.ico
 desktop/build/icon.png

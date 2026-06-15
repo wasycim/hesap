@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { ModernDatePicker } from "@/components/ui/modern-date-picker"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { openPdfReport } from "@/lib/pdf-report"
 
@@ -312,8 +313,8 @@ export function AdminAttendanceDashboard({ adminName }: DashboardProps) {
                 </Button>
               </div>
               <div className="grid gap-3 md:grid-cols-5">
-                <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
-                <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+                <ModernDatePicker label="Başlangıç" value={from} onChange={setFrom} />
+                <ModernDatePicker label="Bitiş" value={to} onChange={setTo} />
                 <select value={branchId} onChange={(event) => setBranchId(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
                   <option value="all">Tüm şubeler</option>
                   {branches.map((branch) => (

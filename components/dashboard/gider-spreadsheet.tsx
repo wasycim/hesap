@@ -105,7 +105,7 @@ function normalizeSubeName(name: string): string {
 }
 
 function compareDateVardiya(a: Pick<GiderRow, "tarih" | "vardiya">, b: Pick<GiderRow, "tarih" | "vardiya">) {
-  const dateCompare = a.tarih.localeCompare(b.tarih)
+  const dateCompare = b.tarih.localeCompare(a.tarih)
   if (dateCompare !== 0) return dateCompare
   return (VARDIYA_SIRASI[a.vardiya] ?? 99) - (VARDIYA_SIRASI[b.vardiya] ?? 99)
 }
@@ -423,7 +423,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     if (col.key === ORTAKLAR_GROUP_KEY) {
       return ortaklar.map(o => ({
         key: `ortak_${o.id}`,
-        label: o.ad.toUpperCase(),
+        label: o.ad.toLocaleUpperCase("tr-TR"),
         color: col.color || ORTAK_COLOR,
         editable: true,
         type: "ortak" as const,
@@ -433,7 +433,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     if (col.key === PERSONELLER_GROUP_KEY) {
       return personeller.map(p => ({
         key: `personel_${p.id}`,
-        label: p.ad.toUpperCase(),
+        label: p.ad.toLocaleUpperCase("tr-TR"),
         color: col.color || PERSONEL_COLOR,
         editable: true,
         type: "personel" as const,

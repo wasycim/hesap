@@ -207,7 +207,7 @@ export default function SutunAyarlarPage() {
         sube_id: currentSube.id,
         table_type: tableType,
         column_key: makeCustomColumnKey(label),
-        label: label.toUpperCase(),
+        label: label.toLocaleUpperCase("tr-TR"),
         color: "bg-blue-600",
         sort_order: items.length,
         aktif: true,
@@ -302,7 +302,7 @@ export default function SutunAyarlarPage() {
         return firmalar.map(firma => ({
           ...column,
           column_key: `firma_${firma.id}`,
-          label: firma.ad.toUpperCase(),
+          label: firma.ad.toLocaleUpperCase("tr-TR"),
           color: firma.color || column.color,
         }))
       }
@@ -311,7 +311,7 @@ export default function SutunAyarlarPage() {
         return ortaklar.map(ortak => ({
           ...column,
           column_key: `ortak_${ortak.id}`,
-          label: ortak.ad.toUpperCase(),
+          label: ortak.ad.toLocaleUpperCase("tr-TR"),
         }))
       }
 
@@ -319,7 +319,7 @@ export default function SutunAyarlarPage() {
         return personeller.map(personel => ({
           ...column,
           column_key: `personel_${personel.id}`,
-          label: personel.ad.toUpperCase(),
+          label: personel.ad.toLocaleUpperCase("tr-TR"),
         }))
       }
 
@@ -432,7 +432,7 @@ export default function SutunAyarlarPage() {
                   <td className="p-3">
                     <Input
                       value={column.label}
-                      onChange={(event) => updateColumn(tableType, column.column_key, { label: event.target.value.toUpperCase() })}
+                      onChange={(event) => updateColumn(tableType, column.column_key, { label: event.target.value.toLocaleUpperCase("tr-TR") })}
                       disabled={
                         column.column_key === "tarih" ||
                         column.column_key === "vardiya" ||
