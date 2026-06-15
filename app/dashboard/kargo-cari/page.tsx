@@ -1,15 +1,16 @@
 "use client"
 
+import { useEffect, useMemo, useState } from "react"
+import { toast } from "sonner"
+import { CreditCard, FileText, History, Loader2, Package, Save, TrendingDown, TrendingUp, Wallet } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
-import { useState, useEffect } from "react"
-import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { FileText, Package, TrendingUp, TrendingDown, Wallet, Save, Loader2 } from "lucide-react"
+import { ModernDatePicker } from "@/components/ui/modern-date-picker"
 import { MONTHS, getInitialMonth, getInitialYear, getLocalDateString, makeYearWindow } from "@/lib/date-navigation"
 import { openPdfReport } from "@/lib/pdf-report"
 
@@ -38,12 +39,24 @@ interface OdemeHareketi {
   created_at: string | null
 }
 
+interface OdemeFormu {
+  firmaId: string
+  tarih: string
+  odenen: string
+  notlar: string
+}
+
 export default function KargoCariOzetPage() {
   const [firmalar, setFirmalar] = useState<KargoFirma[]>([])
   const [borcOzetleri, setBorcOzetleri] = useState<FirmaBorcOzet[]>([])
-  const [odemeler, setOdemeler] = useState<Record<string, number>>({})
-  const [kayitliOdemeler, setKayitliOdemeler] = useState<Record<string, number>>({})
   const [odemeHareketleri, setOdemeHareketleri] = useState<OdemeHareketi[]>([])
+  const [odemeFormu, setOdemeFormu] = useState<OdemeFormu>({
+    firmaId: "",
+    tarih: getLocalDateString(),
+    odenen: "",
+    notlar: "",
+  })
+  const [odemeFormuKirli, setOdemeFormuKirli] = useState(false)
   const [scope, setScope] = useState<"monthly" | "all">("monthly")
   const [month, setMonth] = useState(getInitialMonth())
   const [year, setYear] = useState(getInitialYear())
@@ -56,40 +69,63 @@ export default function KargoCariOzetPage() {
   const years = makeYearWindow(year)
   const ayYil = `${month}-${year}`
 
+  const selectedOzet = useMemo(
+    () => borcOzetleri.find(ozet => ozet.firma_id === odemeFormu.firmaId) || null,
+    [borcOzetleri, odemeFormu.firmaId],
+  )
+  const odemeTutari = Number(odemeFormu.odenen) || 0
+  const formKalanBorc = selectedOzet ? selectedOzet.kalan_borc - odemeTutari : 0
+  const genelToplam = useMemo(() => borcOzetleri.reduce((acc, ozet) => ({
+    toplam_borc: acc.toplam_borc + ozet.toplam_borc,
+    odenen: acc.odenen + ozet.odenen,
+    kalan_borc: acc.kalan_borc + ozet.kalan_borc,
+  }), { toplam_borc: 0, odenen: 0, kalan_borc: 0 }), [borcOzetleri])
+
   useEffect(() => {
     if (currentSube) checkAdminAndLoadData()
   }, [currentSube?.id, scope, month, year])
 
   useEffect(() => {
-    registerSaveHandler(saveOdemeler)
+    registerSaveHandler(saveYeniOdeme)
     return () => registerSaveHandler(null)
-  }, [odemeler, kayitliOdemeler, borcOzetleri, currentSube?.id, firmalar, scope, ayYil])
+  }, [odemeFormu, odemeFormuKirli, selectedOzet, currentSube?.id, scope, ayYil])
 
   async function checkAdminAndLoadData() {
+    setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !currentSube) return
+    if (!user || !currentSube) {
+      setLoading(false)
+      return
+    }
 
-    // Admin kontrolü
     const { data: profile } = await supabase
       .from("user_profiles")
-      .select("is_admin")
+      .select("is_admin, is_developer")
       .eq("user_id", user.id)
       .single()
 
-    setIsAdmin(profile?.is_admin || false)
+    setIsAdmin(Boolean(profile?.is_admin || profile?.is_developer))
 
-    // Firmaları yükle
-    const { data: firmaData } = await supabase
+    const { data: firmaData, error } = await supabase
       .from("kargo_cari_firmalar")
       .select("id, ad")
       .eq("sube_id", currentSube.id)
       .eq("aktif", true)
       .order("sira", { ascending: true })
 
-    if (firmaData) {
-      setFirmalar(firmaData)
-      await loadBorcOzetleri(firmaData)
+    if (error) {
+      toast.error("Kargo firmaları okunamadı: " + error.message)
+      setLoading(false)
+      return
     }
+
+    const firmaList = firmaData || []
+    setFirmalar(firmaList)
+    setOdemeFormu(prev => ({
+      ...prev,
+      firmaId: prev.firmaId && firmaList.some(firma => firma.id === prev.firmaId) ? prev.firmaId : firmaList[0]?.id || "",
+    }))
+    await loadBorcOzetleri(firmaList)
     setLoading(false)
   }
 
@@ -97,60 +133,46 @@ export default function KargoCariOzetPage() {
     if (!currentSube) return
 
     const ozetler: FirmaBorcOzet[] = []
-    const odemeVerileri: Record<string, number> = {}
 
     for (const firma of firmaList) {
-      // Tüm kayıtlardan toplam borcu hesapla (alınan tutar = bize olan borç)
       let kayitQuery = supabase
         .from("kargo_cari_kayitlar")
         .select("alinan_tutar")
         .eq("sube_id", currentSube.id)
         .eq("firma_id", firma.id)
 
-      if (scope === "monthly") {
-        kayitQuery = kayitQuery.eq("ay_yil", ayYil)
-      }
-
-      const { data: kayitlar } = await kayitQuery
-
-      let toplamBorc = 0
-      if (kayitlar) {
-        kayitlar.forEach(kayit => {
-          toplamBorc += Number(kayit.alinan_tutar) || 0
-        })
-      }
-
-      // Ödenen tutarı al
       let odemeQuery = supabase
         .from("kargo_cari_odemeler")
-        .select("odenen, ay_yil")
+        .select("odenen")
         .eq("sube_id", currentSube.id)
         .eq("firma_id", firma.id)
- 
+
       if (scope === "monthly") {
+        kayitQuery = kayitQuery.eq("ay_yil", ayYil)
         odemeQuery = odemeQuery.eq("ay_yil", ayYil)
       }
 
-      const { data: odemeData, error: odemeError } = await odemeQuery
-      if (odemeError) {
-        toast.error("Kargo cari ödemeleri ay bazlı okunamadı. 007 migration dosyasını uygulayın.")
-      }
+      const [{ data: kayitlar, error: kayitError }, { data: odemeData, error: odemeError }] = await Promise.all([
+        kayitQuery,
+        odemeQuery,
+      ])
 
+      if (kayitError) toast.error(`${firma.ad} borçları okunamadı: ${kayitError.message}`)
+      if (odemeError) toast.error(`${firma.ad} ödemeleri okunamadı: ${odemeError.message}`)
+
+      const toplamBorc = (kayitlar || []).reduce((sum, kayit) => sum + (Number(kayit.alinan_tutar) || 0), 0)
       const odenen = (odemeData || []).reduce((sum, item) => sum + (Number(item.odenen) || 0), 0)
-      odemeVerileri[firma.id] = odenen
 
       ozetler.push({
         firma_id: firma.id,
         firma_ad: firma.ad,
         toplam_borc: toplamBorc,
-        odenen: odenen,
+        odenen,
         kalan_borc: toplamBorc - odenen,
       })
     }
 
     setBorcOzetleri(ozetler)
-    setOdemeler(odemeVerileri)
-    setKayitliOdemeler(odemeVerileri)
     await loadOdemeHareketleri(firmaList)
   }
 
@@ -164,17 +186,15 @@ export default function KargoCariOzetPage() {
       .order("tarih", { ascending: false })
       .order("created_at", { ascending: false })
 
-    if (scope === "monthly") {
-      query = query.eq("ay_yil", ayYil)
-    }
+    if (scope === "monthly") query = query.eq("ay_yil", ayYil)
 
-    const { data, error } = await query.limit(150)
+    const { data, error } = await query.limit(200)
     if (error) {
       setOdemeHareketleri([])
       if (error.code === "42P01") {
-        toast.error("Ödeme listesi tablosu yok. 019 kargo cari ödeme geçmişi migration dosyasını uygulayın.")
+        toast.error("Ödeme hareketleri tablosu yok. 019 migration dosyasını uygulayın.")
       } else {
-        toast.error("Ödeme listesi okunamadı: " + error.message)
+        toast.error("Ödeme hareketleri okunamadı: " + error.message)
       }
       return
     }
@@ -193,6 +213,18 @@ export default function KargoCariOzetPage() {
     })))
   }
 
+  function updateOdemeFormu(patch: Partial<OdemeFormu>) {
+    const nextForm = { ...odemeFormu, ...patch }
+    const isDirty = Boolean(nextForm.odenen || nextForm.notlar)
+    setOdemeFormu(nextForm)
+    setOdemeFormuKirli(isDirty)
+    if (isDirty) {
+      markDirty()
+    } else {
+      markClean()
+    }
+  }
+
   function handleOdemeNotuChange(hareketId: string, value: string) {
     setOdemeHareketleri(prev => prev.map(hareket => (
       hareket.id === hareketId ? { ...hareket, notlar: value } : hareket
@@ -205,37 +237,53 @@ export default function KargoCariOzetPage() {
       .update({ notlar: value })
       .eq("id", hareketId)
 
-    if (error) {
-      toast.error("Ödeme notu kaydedilemedi: " + error.message)
-    }
+    if (error) toast.error("Ödeme notu kaydedilemedi: " + error.message)
   }
 
-  async function handleOdemeChange(firmaId: string, value: string) {
-    if (scope !== "monthly") {
-      toast.error("Ödeme düzenlemek için aylık görünümü seçin.")
-      return
-    }
+  async function getFreshDebtForFirm(firmaId: string) {
+    if (!currentSube) return null
 
-    const numValue = Number(value) || 0
-    setOdemeler(prev => ({ ...prev, [firmaId]: numValue }))
-    markDirty()
-    
-    // Özeti güncelle
-    setBorcOzetleri(prev => prev.map(ozet => {
-      if (ozet.firma_id === firmaId) {
-        return {
-          ...ozet,
-          odenen: numValue,
-          kalan_borc: ozet.toplam_borc - numValue
-        }
-      }
-      return ozet
-    }))
+    const [{ data: kayitlar, error: kayitError }, { data: odemeler, error: odemeError }] = await Promise.all([
+      supabase
+        .from("kargo_cari_kayitlar")
+        .select("alinan_tutar")
+        .eq("sube_id", currentSube.id)
+        .eq("firma_id", firmaId)
+        .eq("ay_yil", ayYil),
+      supabase
+        .from("kargo_cari_odemeler")
+        .select("odenen")
+        .eq("sube_id", currentSube.id)
+        .eq("firma_id", firmaId)
+        .eq("ay_yil", ayYil),
+    ])
+
+    if (kayitError) throw kayitError
+    if (odemeError) throw odemeError
+
+    const toplamBorc = (kayitlar || []).reduce((sum, kayit) => sum + (Number(kayit.alinan_tutar) || 0), 0)
+    const odenen = (odemeler || []).reduce((sum, odeme) => sum + (Number(odeme.odenen) || 0), 0)
+    return { toplamBorc, odenen, kalanBorc: toplamBorc - odenen }
   }
 
-  async function saveOdemeler() {
+  async function saveYeniOdeme() {
+    if (!odemeFormuKirli && !odemeFormu.odenen) return true
     if (scope !== "monthly") {
-      toast.error("Ödemeler yalnızca seçili aya kaydedilebilir.")
+      toast.error("Ödeme girmek için aylık görünümü seçin.")
+      return false
+    }
+
+    const amount = Number(odemeFormu.odenen) || 0
+    if (!odemeFormu.firmaId) {
+      toast.error("Ödeme için firma seçin.")
+      return false
+    }
+    if (!odemeFormu.tarih) {
+      toast.error("Ödeme tarihi seçin.")
+      return false
+    }
+    if (amount <= 0) {
+      toast.error("Ödenen tutar 0'dan büyük olmalı.")
       return false
     }
 
@@ -248,54 +296,58 @@ export default function KargoCariOzetPage() {
     }
 
     try {
-      for (const [firmaId, odenen] of Object.entries(odemeler)) {
-        const oncekiOdeme = kayitliOdemeler[firmaId] || 0
-        const odemeFarki = Number(odenen) - oncekiOdeme
-        const firmaOzeti = borcOzetleri.find(ozet => ozet.firma_id === firmaId)
-        const toplamBorc = firmaOzeti?.toplam_borc || 0
-        const kalanBorc = toplamBorc - Number(odenen)
-
-        const { error } = await supabase
-          .from("kargo_cari_odemeler")
-          .upsert({
-            user_id: user.id,
-            sube_id: currentSube.id,
-            firma_id: firmaId,
-            ay_yil: ayYil,
-            odenen: odenen,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: "sube_id,firma_id,ay_yil"
-          })
-
-        if (error) throw error
-
-        if (odemeFarki !== 0) {
-          const { error: hareketError } = await supabase
-            .from("kargo_cari_odeme_hareketleri")
-            .insert({
-              user_id: user.id,
-              sube_id: currentSube.id,
-              firma_id: firmaId,
-              ay_yil: ayYil,
-              tarih: getLocalDateString(),
-              toplam_borc: toplamBorc,
-              odenen: odemeFarki,
-              kalan_borc: kalanBorc,
-              notlar: "",
-            })
-
-          if (hareketError) throw hareketError
-        }
+      const freshDebt = await getFreshDebtForFirm(odemeFormu.firmaId)
+      if (!freshDebt) throw new Error("Firma borcu hesaplanamadı.")
+      if (freshDebt.kalanBorc <= 0) {
+        throw new Error("Bu firmanın ödenecek borcu kalmamış.")
+      }
+      if (amount > freshDebt.kalanBorc) {
+        throw new Error(`Ödeme kalan borçtan büyük olamaz. Güncel kalan borç: ${formatNumber(freshDebt.kalanBorc)} TL`)
       }
 
-      await loadBorcOzetleri(firmalar)
+      const yeniToplamOdeme = freshDebt.odenen + amount
+      const yeniKalanBorc = freshDebt.toplamBorc - yeniToplamOdeme
+
+      const { error: odemeError } = await supabase
+        .from("kargo_cari_odemeler")
+        .upsert({
+          user_id: user.id,
+          sube_id: currentSube.id,
+          firma_id: odemeFormu.firmaId,
+          ay_yil: ayYil,
+          odenen: yeniToplamOdeme,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: "sube_id,firma_id,ay_yil",
+        })
+
+      if (odemeError) throw odemeError
+
+      const { error: hareketError } = await supabase
+        .from("kargo_cari_odeme_hareketleri")
+        .insert({
+          user_id: user.id,
+          sube_id: currentSube.id,
+          firma_id: odemeFormu.firmaId,
+          ay_yil: ayYil,
+          tarih: odemeFormu.tarih,
+          toplam_borc: freshDebt.kalanBorc,
+          odenen: amount,
+          kalan_borc: yeniKalanBorc,
+          notlar: odemeFormu.notlar.trim(),
+        })
+
+      if (hareketError) throw hareketError
+
+      setOdemeFormu(prev => ({ ...prev, odenen: "", notlar: "" }))
+      setOdemeFormuKirli(false)
       markClean()
-      toast.success("Ödemeler kaydedildi.")
+      await loadBorcOzetleri(firmalar)
+      toast.success("Ödeme kaydedildi ve borçtan düşüldü.")
       setSaving(false)
       return true
     } catch (error: any) {
-      const message = error?.message || "Ödemeler kaydedilemedi."
+      const message = error?.message || "Ödeme kaydedilemedi."
       if (
         message.includes("kargo_cari_odemeler_user_id_firma_id_key") ||
         message.includes("kargo_cari_odemeler_sube_firma_unique") ||
@@ -348,8 +400,8 @@ export default function KargoCariOzetPage() {
           ],
         ],
       }, {
-        title: "Ödeme Listesi",
-        headers: ["Tarih", "Firma", "Toplam Borç", "Ödenen Borç", "Kalan Borç", "Not"],
+        title: "Ödeme Hareketleri",
+        headers: ["Tarih", "Firma", "Güncel Borç", "Ödenen", "Kalan Borç", "Not"],
         firstColumnWidth: "18%",
         rows: odemeHareketleri.map(hareket => [
           formatDate(hareket.tarih),
@@ -363,22 +415,15 @@ export default function KargoCariOzetPage() {
     })
   }
 
-  // Genel toplamlar
-  const genelToplam = borcOzetleri.reduce((acc, ozet) => ({
-    toplam_borc: acc.toplam_borc + ozet.toplam_borc,
-    odenen: acc.odenen + ozet.odenen,
-    kalan_borc: acc.kalan_borc + ozet.kalan_borc,
-  }), { toplam_borc: 0, odenen: 0, kalan_borc: 0 })
-
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">Yükleniyor...</div>
+    return <div className="flex h-64 items-center justify-center text-muted-foreground">Yükleniyor...</div>
   }
 
   if (!isAdmin) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex h-64 items-center justify-center">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-foreground mb-2">Erişim Engellendi</h2>
+          <h2 className="mb-2 text-xl font-semibold text-foreground">Erişim Engellendi</h2>
           <p className="text-muted-foreground">Bu sayfaya sadece yöneticiler erişebilir.</p>
         </div>
       </div>
@@ -387,12 +432,11 @@ export default function KargoCariOzetPage() {
 
   return (
     <div className="space-y-6 p-4 sm:p-6 lg:p-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Kargo Cari Borç Özeti</h1>
-          <p className="text-muted-foreground mt-1">
-            {scope === "monthly" ? `${month} ${year} borç durumu` : "Tüm firmaların borç durumu (tüm zamanlar)"}
+          <p className="mt-1 text-muted-foreground">
+            {scope === "monthly" ? `${month} ${year} borç ve ödeme durumu` : "Tüm firmaların borç durumu"}
           </p>
         </div>
 
@@ -406,16 +450,14 @@ export default function KargoCariOzetPage() {
               <SelectItem value="all">Tüm zamanlar</SelectItem>
             </SelectContent>
           </Select>
-          {scope === "monthly" && (
+          {scope === "monthly" ? (
             <>
               <Select value={month} onValueChange={setMonth}>
                 <SelectTrigger className="w-full sm:w-36">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {MONTHS.map(item => (
-                    <SelectItem key={item} value={item}>{item}</SelectItem>
-                  ))}
+                  {MONTHS.map(item => <SelectItem key={item} value={item}>{item}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={year.toString()} onValueChange={(value) => setYear(Number(value))}>
@@ -423,17 +465,11 @@ export default function KargoCariOzetPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {years.map(item => (
-                    <SelectItem key={item} value={item.toString()}>{item}</SelectItem>
-                  ))}
+                  {years.map(item => <SelectItem key={item} value={item.toString()}>{item}</SelectItem>)}
                 </SelectContent>
               </Select>
             </>
-          )}
-          <Button onClick={saveOdemeler} disabled={saving || scope !== "monthly"} className="gap-2">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Odemeleri Kaydet
-          </Button>
+          ) : null}
           <Button onClick={exportBorcPdf} variant="outline" className="gap-2" disabled={borcOzetleri.length === 0}>
             <FileText className="h-4 w-4" />
             PDF
@@ -441,16 +477,13 @@ export default function KargoCariOzetPage() {
         </div>
       </div>
 
-      {/* Genel Toplam Kartlari */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card className="border-blue-200 bg-blue-50 dark:border-blue-500/30 dark:bg-blue-500/15">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="mb-1 text-sm font-medium text-blue-600 dark:text-blue-200">Toplam Borç</p>
-                <p className="text-2xl font-bold text-blue-700 dark:text-blue-100">
-                  {formatNumber(genelToplam.toplam_borc)} <span className="text-base font-normal">TL</span>
-                </p>
+                <p className="text-2xl font-bold text-blue-700 dark:text-blue-100">{formatNumber(genelToplam.toplam_borc)} <span className="text-base font-normal">TL</span></p>
               </div>
               <div className="rounded-full bg-blue-100 p-3 dark:bg-blue-500/20">
                 <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-200" />
@@ -464,9 +497,7 @@ export default function KargoCariOzetPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="mb-1 text-sm font-medium text-green-600 dark:text-green-200">Toplam Ödenen</p>
-                <p className="text-2xl font-bold text-green-700 dark:text-green-100">
-                  {formatNumber(genelToplam.odenen)} <span className="text-base font-normal">TL</span>
-                </p>
+                <p className="text-2xl font-bold text-green-700 dark:text-green-100">{formatNumber(genelToplam.odenen)} <span className="text-base font-normal">TL</span></p>
               </div>
               <div className="rounded-full bg-green-100 p-3 dark:bg-green-500/20">
                 <TrendingDown className="h-6 w-6 text-green-600 dark:text-green-200" />
@@ -475,14 +506,12 @@ export default function KargoCariOzetPage() {
           </CardContent>
         </Card>
 
-        <Card className={`${genelToplam.kalan_borc > 0 ? "border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/15" : "border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/15"}`}>
+        <Card className={genelToplam.kalan_borc > 0 ? "border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/15" : "border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/15"}>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className={`mb-1 text-sm font-medium ${genelToplam.kalan_borc > 0 ? "text-red-600 dark:text-red-200" : "text-emerald-600 dark:text-emerald-200"}`}>Kalan Borç</p>
-                <p className={`text-2xl font-bold ${genelToplam.kalan_borc > 0 ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"}`}>
-                  {formatNumber(genelToplam.kalan_borc)} <span className="text-base font-normal">TL</span>
-                </p>
+                <p className={`text-2xl font-bold ${genelToplam.kalan_borc > 0 ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"}`}>{formatNumber(genelToplam.kalan_borc)} <span className="text-base font-normal">TL</span></p>
               </div>
               <div className={`rounded-full p-3 ${genelToplam.kalan_borc > 0 ? "bg-red-100 dark:bg-red-500/20" : "bg-emerald-100 dark:bg-emerald-500/20"}`}>
                 <Wallet className={`h-6 w-6 ${genelToplam.kalan_borc > 0 ? "text-red-600 dark:text-red-200" : "text-emerald-600 dark:text-emerald-200"}`} />
@@ -492,7 +521,6 @@ export default function KargoCariOzetPage() {
         </Card>
       </div>
 
-      {/* Firma Bazlı Borç Tablosu */}
       <Card className="overflow-hidden border-cyan-100 shadow-sm dark:border-cyan-500/20">
         <CardHeader className="border-b bg-muted/30">
           <CardTitle className="flex items-center gap-2 text-xl">
@@ -500,54 +528,44 @@ export default function KargoCariOzetPage() {
             Firma Bazlı Borç Durumu
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          {firmalar.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Henüz firma eklenmemiş. Ayarlar sayfasından firma ekleyebilirsiniz.
-            </div>
+        <CardContent className="p-4">
+          {borcOzetleri.length === 0 ? (
+            <div className="py-8 text-center text-muted-foreground">Henüz firma veya borç kaydı yok.</div>
           ) : (
-            <div className="sticky-table-scroll">
-              <table className="sticky-table w-full min-w-[700px] text-sm">
-                <thead>
-                  <tr className="border-b bg-slate-950 text-white dark:bg-slate-900">
-                    <th className="bg-muted p-3 text-left font-semibold text-foreground">FİRMA ADI</th>
-                    <th className="bg-blue-50 p-3 text-right font-semibold text-blue-700 dark:bg-blue-500/15 dark:text-blue-200">TOPLAM BORÇ</th>
-                    <th className="bg-green-50 p-3 text-center font-semibold text-green-700 dark:bg-green-500/15 dark:text-green-200">ÖDENEN (Giriniz)</th>
-                    <th className="bg-orange-50 p-3 text-right font-semibold text-orange-700 dark:bg-orange-500/15 dark:text-orange-200">KALAN BORÇ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {borcOzetleri.map((ozet) => (
-                    <tr key={ozet.firma_id} className="border-b text-center transition-colors hover:bg-cyan-50/60 dark:hover:bg-cyan-500/10">
-                      <td className="p-4 font-semibold">{ozet.firma_ad}</td>
-                      <td className="p-4 font-semibold text-blue-700 dark:text-blue-200">{formatNumber(ozet.toplam_borc)} TL</td>
-                      <td className="p-3">
-                        <Input
-                          type="number"
-                          value={odemeler[ozet.firma_id] || ""}
-                          onChange={(e) => handleOdemeChange(ozet.firma_id, e.target.value)}
-                          disabled={scope !== "monthly"}
-                          className="mx-auto h-10 w-40 rounded-md border-emerald-200 bg-emerald-50 text-center font-semibold dark:border-emerald-500/30 dark:bg-emerald-500/15"
-                          placeholder="0.00"
-                        />
-                      </td>
-                      <td className={`p-4 font-bold ${ozet.kalan_borc > 0 ? "text-red-600 dark:text-red-200" : "text-emerald-600 dark:text-emerald-200"}`}>
-                        {formatNumber(ozet.kalan_borc)} TL
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-muted/70 text-center font-bold text-foreground">
-                    <td className="p-4">GENEL TOPLAM</td>
-                    <td className="p-4 text-blue-700 dark:text-blue-200">{formatNumber(genelToplam.toplam_borc)} TL</td>
-                    <td className="p-4 text-green-700 dark:text-green-200">{formatNumber(genelToplam.odenen)} TL</td>
-                    <td className={`p-4 ${genelToplam.kalan_borc > 0 ? "text-red-600 dark:text-red-200" : "text-emerald-600 dark:text-emerald-200"}`}>
-                      {formatNumber(genelToplam.kalan_borc)} TL
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {borcOzetleri.map(ozet => {
+                const percent = ozet.toplam_borc > 0 ? Math.min(100, Math.max(0, (ozet.odenen / ozet.toplam_borc) * 100)) : 0
+                return (
+                  <div key={ozet.firma_id} className="rounded-lg border bg-background p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-base font-bold text-foreground">{ozet.firma_ad}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Ödeme oranı %{percent.toFixed(0)}</p>
+                      </div>
+                      <div className={`rounded-full px-2.5 py-1 text-xs font-bold ${ozet.kalan_borc > 0 ? "bg-orange-500/10 text-orange-700 dark:text-orange-200" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-200"}`}>
+                        {ozet.kalan_borc > 0 ? "Borç var" : "Kapandı"}
+                      </div>
+                    </div>
+                    <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+                      <div className="rounded-md bg-blue-500/10 p-2">
+                        <p className="text-[11px] font-semibold text-muted-foreground">Toplam</p>
+                        <p className="mt-1 font-bold text-blue-700 dark:text-blue-200">{formatNumber(ozet.toplam_borc)} TL</p>
+                      </div>
+                      <div className="rounded-md bg-emerald-500/10 p-2">
+                        <p className="text-[11px] font-semibold text-muted-foreground">Ödenen</p>
+                        <p className="mt-1 font-bold text-emerald-700 dark:text-emerald-200">{formatNumber(ozet.odenen)} TL</p>
+                      </div>
+                      <div className="rounded-md bg-orange-500/10 p-2">
+                        <p className="text-[11px] font-semibold text-muted-foreground">Kalan</p>
+                        <p className="mt-1 font-bold text-orange-700 dark:text-orange-200">{formatNumber(ozet.kalan_borc)} TL</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${percent}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
         </CardContent>
@@ -556,15 +574,101 @@ export default function KargoCariOzetPage() {
       <Card className="overflow-hidden border-emerald-100 shadow-sm dark:border-emerald-500/20">
         <CardHeader className="border-b bg-muted/30">
           <CardTitle className="flex items-center gap-2 text-xl">
-            <Wallet className="h-5 w-5 text-emerald-500" />
+            <CreditCard className="h-5 w-5 text-emerald-500" />
             Ödeme Listesi
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {odemeHareketleri.length === 0 ? (
-            <div className="px-4 py-8 text-center text-muted-foreground">
-              Bu dönem için kayıtlı ödeme hareketi yok.
+          <div className="sticky-table-scroll">
+            <table className="sticky-table w-full min-w-[1120px] text-sm">
+              <thead>
+                <tr className="border-b bg-muted/60">
+                  <th className="p-3 text-left font-semibold text-foreground">FİRMA</th>
+                  <th className="p-3 text-right font-semibold text-blue-700 dark:text-blue-200">GÜNCEL BORÇ</th>
+                  <th className="p-3 text-left font-semibold text-foreground">ÖDEME TARİHİ</th>
+                  <th className="p-3 text-right font-semibold text-emerald-700 dark:text-emerald-200">ÖDENEN</th>
+                  <th className="p-3 text-right font-semibold text-orange-700 dark:text-orange-200">KALAN BORÇ</th>
+                  <th className="p-3 text-left font-semibold text-foreground">NOT</th>
+                  <th className="p-3 text-right font-semibold text-foreground">İŞLEM</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b">
+                  <td className="p-3">
+                    <Select value={odemeFormu.firmaId} onValueChange={(value) => updateOdemeFormu({ firmaId: value })} disabled={scope !== "monthly"}>
+                      <SelectTrigger className="h-10 min-w-60">
+                        <SelectValue placeholder="Firma seç" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {firmalar.map(firma => <SelectItem key={firma.id} value={firma.id}>{firma.ad}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </td>
+                  <td className="p-3 text-right font-bold text-blue-700 dark:text-blue-200">
+                    {formatNumber(selectedOzet?.kalan_borc || 0)} TL
+                  </td>
+                  <td className="p-3">
+                    <ModernDatePicker
+                      label="Ödeme tarihi"
+                      value={odemeFormu.tarih}
+                      onChange={(value) => updateOdemeFormu({ tarih: value })}
+                      disabled={scope !== "monthly"}
+                      buttonClassName="h-10 rounded-md"
+                    />
+                  </td>
+                  <td className="p-3">
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={odemeFormu.odenen}
+                      onChange={(event) => updateOdemeFormu({ odenen: event.target.value })}
+                      disabled={scope !== "monthly"}
+                      className="ml-auto h-10 w-36 text-right font-semibold"
+                      placeholder="0.00"
+                    />
+                  </td>
+                  <td className={`p-3 text-right font-bold ${formKalanBorc > 0 ? "text-orange-600 dark:text-orange-200" : "text-emerald-600 dark:text-emerald-200"}`}>
+                    {formatNumber(formKalanBorc)} TL
+                  </td>
+                  <td className="p-3">
+                    <Input
+                      type="text"
+                      value={odemeFormu.notlar}
+                      onChange={(event) => updateOdemeFormu({ notlar: event.target.value })}
+                      disabled={scope !== "monthly"}
+                      className="h-10 min-w-60"
+                      placeholder="Not yaz..."
+                    />
+                  </td>
+                  <td className="p-3 text-right">
+                    <Button onClick={saveYeniOdeme} disabled={saving || scope !== "monthly"} className="gap-2">
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      Ödemeyi Kaydet
+                    </Button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          {scope !== "monthly" ? (
+            <div className="border-t bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-700 dark:text-amber-200">
+              Ödeme girmek için aylık görünümü seçin.
             </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card className="overflow-hidden border-slate-200 shadow-sm dark:border-slate-700">
+        <CardHeader className="border-b bg-muted/30">
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <History className="h-5 w-5 text-slate-500" />
+            Ödeme Hareketleri
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {odemeHareketleri.length === 0 ? (
+            <div className="px-4 py-8 text-center text-muted-foreground">Bu dönem için kayıtlı ödeme hareketi yok.</div>
           ) : (
             <div className="sticky-table-scroll">
               <table className="sticky-table w-full min-w-[980px] text-sm">
@@ -572,26 +676,20 @@ export default function KargoCariOzetPage() {
                   <tr className="border-b bg-muted/60">
                     <th className="p-3 text-left font-semibold text-foreground">TARİH</th>
                     <th className="p-3 text-left font-semibold text-foreground">FİRMA</th>
-                    <th className="p-3 text-right font-semibold text-blue-700 dark:text-blue-200">TOPLAM BORÇ</th>
-                    <th className="p-3 text-right font-semibold text-emerald-700 dark:text-emerald-200">ÖDENEN BORÇ</th>
+                    <th className="p-3 text-right font-semibold text-blue-700 dark:text-blue-200">GÜNCEL BORÇ</th>
+                    <th className="p-3 text-right font-semibold text-emerald-700 dark:text-emerald-200">ÖDENEN</th>
                     <th className="p-3 text-right font-semibold text-orange-700 dark:text-orange-200">KALAN BORÇ</th>
                     <th className="p-3 text-left font-semibold text-foreground">NOT</th>
                   </tr>
                 </thead>
                 <tbody>
                   {odemeHareketleri.map(hareket => (
-                    <tr key={hareket.id} className="border-b transition-colors hover:bg-emerald-50/60 dark:hover:bg-emerald-500/10">
+                    <tr key={hareket.id} className="border-b transition-colors hover:bg-slate-50/70 dark:hover:bg-slate-500/10">
                       <td className="p-4 font-medium text-muted-foreground">{formatDate(hareket.tarih)}</td>
                       <td className="p-4 font-semibold text-foreground">{hareket.firma_ad}</td>
-                      <td className="p-4 text-right font-semibold text-blue-700 dark:text-blue-200">
-                        {formatNumber(hareket.toplam_borc)} TL
-                      </td>
-                      <td className={`p-4 text-right font-bold ${hareket.odenen < 0 ? "text-red-600 dark:text-red-200" : "text-emerald-600 dark:text-emerald-200"}`}>
-                        {formatNumber(hareket.odenen)} TL
-                      </td>
-                      <td className={`p-4 text-right font-bold ${hareket.kalan_borc > 0 ? "text-orange-600 dark:text-orange-200" : "text-emerald-600 dark:text-emerald-200"}`}>
-                        {formatNumber(hareket.kalan_borc)} TL
-                      </td>
+                      <td className="p-4 text-right font-semibold text-blue-700 dark:text-blue-200">{formatNumber(hareket.toplam_borc)} TL</td>
+                      <td className="p-4 text-right font-bold text-emerald-600 dark:text-emerald-200">{formatNumber(hareket.odenen)} TL</td>
+                      <td className={`p-4 text-right font-bold ${hareket.kalan_borc > 0 ? "text-orange-600 dark:text-orange-200" : "text-emerald-600 dark:text-emerald-200"}`}>{formatNumber(hareket.kalan_borc)} TL</td>
                       <td className="p-3">
                         <Input
                           type="text"
