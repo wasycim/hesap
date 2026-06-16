@@ -20,9 +20,11 @@ import {
   getLocalDateString,
   getMonthEndDate,
   getMonthStartDate,
+  getMonthYearFromDate,
   isDateInSelectedMonth,
   makeYearWindow,
 } from "@/lib/date-navigation"
+import { getEveningCutoffBusinessDate } from "@/lib/evening-cutoff-business-date"
 import { openPdfReport } from "@/lib/pdf-report"
 
 interface KargoRow {
@@ -78,11 +80,12 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savingNotes, setSavingNotes] = useState(false)
+  const [currentTime, setCurrentTime] = useState(() => new Date())
   const [month, setMonth] = useState(MONTHS[currentDate.getMonth()])
   const [year, setYear] = useState(currentDate.getFullYear())
   const years = makeYearWindow(year)
   const supabase = createClient()
-  const { currentSube, isAdmin } = useSube()
+  const { currentSube, isAdmin, userVardiya } = useSube()
   const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
 
   const ayYil = `${month}-${year}`
@@ -124,7 +127,12 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   useEffect(() => {
     registerSaveHandler(saveData)
     return () => registerSaveHandler(null)
-  }, [rows, firma?.id, currentSube?.id, month, year])
+  }, [rows, firma?.id, currentSube?.id, month, year, isAdmin, userVardiya])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(new Date()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   async function fetchFirma() {
     if (!currentSube) {
@@ -273,6 +281,28 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   }
 
   function addRow() {
+    if (!isAdmin) {
+      const editableDate = getEveningCutoffBusinessDate(userVardiya)
+      const editableMonthYear = getMonthYearFromDate(editableDate)
+
+      if (month !== editableMonthYear.month || year !== editableMonthYear.year) {
+        toast.error("Normal kullanıcılar sadece aktif kargo cari iş gününün olduğu ayda satır ekleyebilir.")
+        return
+      }
+
+      const newRow: KargoRow = {
+        tarih: editableDate,
+        fis_no: "",
+        gonderilen_yer: "",
+        alinan_tutar: 0,
+        satilan_tutar: 0,
+        kalan_kar: 0,
+      }
+      setRows([...rows, newRow].sort(compareDateDescending))
+      markDirty()
+      return
+    }
+
     const suggestedDate = getLastMissingDateWithinMonth(rows.map(row => row.tarih), month, year)
       || getLatestEditableDateWithinMonth(month, year)
       || selectedMonthEnd
@@ -289,6 +319,13 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   }
 
   function deleteRow(index: number) {
+    const row = rows[index]
+    const editableDate = getEveningCutoffBusinessDate(userVardiya)
+    if (!isAdmin && row?.tarih !== editableDate) {
+      toast.error("Bu satır aktif kargo cari iş gününe ait olmadığı için silinemez.")
+      return
+    }
+
     const newRows = [...rows]
     newRows.splice(index, 1)
     setRows(newRows)
@@ -395,6 +432,12 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   function updateCell(rowIndex: number, column: string, value: string | number) {
     const newRows = [...rows]
     const row = { ...newRows[rowIndex] }
+    const editableDate = getEveningCutoffBusinessDate(userVardiya)
+
+    if (!isAdmin && row.tarih !== editableDate) {
+      toast.error("Normal kullanıcılar sadece aktif kargo cari iş gününü düzenleyebilir.")
+      return
+    }
 
     if (column === "tarih") {
       row.tarih = String(value)
@@ -419,8 +462,16 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   async function saveData() {
     if (!firma) return
 
-    const rowsToSave = normalizeRowsBeforeSave()
-    if (!rowsToSave) return false
+    const normalizedRows = normalizeRowsBeforeSave()
+    if (!normalizedRows) return false
+
+    const editableDate = getEveningCutoffBusinessDate(userVardiya)
+    const rowsToSave = isAdmin ? normalizedRows : normalizedRows.filter(row => row.tarih === editableDate)
+
+    if (!isAdmin && !isDateInSelectedMonth(editableDate, month, year)) {
+      toast.error("Kaydetmek için aktif kargo cari iş gününün olduğu ayı seçmelisiniz.")
+      return false
+    }
 
     const invalidDateIndex = rowsToSave.findIndex(row => !isDateInSelectedMonth(row.tarih, month, year))
     if (invalidDateIndex !== -1) {
@@ -441,13 +492,19 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
       return false
     }
 
-    // Önce bu şube + firma + ay/yıl için tüm kayıtları sil
-    const { error: deleteError } = await supabase
+    // Admin tüm ayı, normal kullanıcı sadece aktif kargo cari iş gününü yeniler.
+    let deleteQuery = supabase
       .from("kargo_cari_kayitlar")
       .delete()
       .eq("sube_id", currentSube.id)
       .eq("firma_id", firma.id)
       .eq("ay_yil", ayYil)
+
+    if (!isAdmin) {
+      deleteQuery = deleteQuery.eq("tarih", editableDate)
+    }
+
+    const { error: deleteError } = await deleteQuery
 
     if (deleteError) {
       console.log("Kargo cari silme hatası:", deleteError)
@@ -483,8 +540,8 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
 
     setSaving(false)
     markClean()
-    setRows(rowsToSave)
-    loadData()
+    setRows(normalizedRows.sort(compareDateDescending))
+    await loadData()
     toast.success("Kargo cari kaydedildi.")
     return true
   }
@@ -572,6 +629,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     satilan_tutar: rows.reduce((sum, row) => sum + row.satilan_tutar, 0),
     kalan_kar: rows.reduce((sum, row) => sum + row.kalan_kar, 0),
   }
+  const activeKargoDate = getEveningCutoffBusinessDate(userVardiya, currentTime)
 
   if (loading && !firma) {
     return <div className="flex items-center justify-center h-64">Yükleniyor...</div>
@@ -715,8 +773,9 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
               rows.map((row, rowIndex) => {
                 // Kalan kar pozitifse (alinan > satilan) yeşil arka plan
                 const isProfit = row.kalan_kar > 0
+                const canEditRow = isAdmin || row.tarih === activeKargoDate
                 return (
-                <tr key={rowIndex} className={`${isProfit ? "bg-green-50 dark:bg-green-500/10" : "hover:bg-muted/50"}`}>
+                <tr key={rowIndex} className={`${!canEditRow ? "opacity-70" : ""} ${isProfit ? "bg-green-50 dark:bg-green-500/10" : "hover:bg-muted/50"}`}>
                   <td className="border p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
                   {COLUMNS.map(col => (
                     <td key={col} className="p-0 border">
@@ -748,6 +807,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                         value={row.fis_no || ""}
                         onChange={(e) => updateCell(rowIndex, col, e.target.value)}
                         onBlur={(e) => {
+                          if (!canEditRow) return
                           const val = e.target.value
                           if (!val) return
                           const padded = val.padStart(6, "0")
@@ -756,6 +816,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                         className={`w-full bg-transparent px-2 py-1 text-center font-mono text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20 ${
                           !row.fis_no?.trim() ? "bg-red-50 text-red-700 placeholder:text-red-300 dark:bg-red-500/10 dark:text-red-200" : ""
                         }`}
+                        disabled={!canEditRow}
                         placeholder="000000"
                         maxLength={6}
                         required
@@ -772,6 +833,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                               .toLocaleUpperCase("tr-TR")
                             updateCell(rowIndex, col, onlyLetters)
                           }}
+                          disabled={!canEditRow}
                           className="w-full bg-transparent px-2 py-1 text-left text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"
                           placeholder="Gönderilen yer"
                         />
@@ -780,6 +842,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                           type="number"
                           value={(row as any)[col] || ""}
                           onChange={(e) => updateCell(rowIndex, col, e.target.value)}
+                          disabled={!canEditRow}
                           className="w-full bg-transparent px-2 py-1 text-right text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"
                           placeholder="0,00"
                         />
@@ -789,7 +852,8 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                   <td className="p-1 border">
                     <button
                       onClick={() => deleteRow(rowIndex)}
-                      className="rounded p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/20"
+                      disabled={!canEditRow}
+                      className="rounded p-1 text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-red-500/20"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
