@@ -76,6 +76,19 @@ export function getMonthEndDate(month: string, year: number) {
   return `${year}-${String(safeMonthIndex + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`
 }
 
+export function getLatestEditableDateWithinMonth(month: string, year: number) {
+  const monthIndex = getMonthIndex(month)
+  if (monthIndex < 0) return null
+
+  const today = new Date()
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate()
+  const latestDay = today.getFullYear() === year && today.getMonth() === monthIndex
+    ? today.getDate()
+    : lastDay
+
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(latestDay).padStart(2, "0")}`
+}
+
 export function isDateInSelectedMonth(dateStr: string, month: string, year: number) {
   const parts = parseDateParts(dateStr)
   const monthIndex = getMonthIndex(month)
@@ -123,7 +136,9 @@ export function getLastMissingDateWithinMonth(existingDates: string[], month: st
   if (monthIndex < 0) return null
 
   const existing = new Set(existingDates.filter(date => isDateInSelectedMonth(date, month, year)))
-  const lastDay = new Date(year, monthIndex + 1, 0).getDate()
+  const latestDate = getLatestEditableDateWithinMonth(month, year)
+  const parts = latestDate ? parseDateParts(latestDate) : null
+  const lastDay = parts?.dateDay || new Date(year, monthIndex + 1, 0).getDate()
 
   for (let day = lastDay; day >= 1; day -= 1) {
     const date = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`

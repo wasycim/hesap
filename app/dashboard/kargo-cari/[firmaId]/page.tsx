@@ -16,6 +16,7 @@ import {
   START_YEAR,
   compareDateDescending,
   getLastMissingDateWithinMonth,
+  getLatestEditableDateWithinMonth,
   getLocalDateString,
   getMonthEndDate,
   getMonthStartDate,
@@ -272,7 +273,9 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   }
 
   function addRow() {
-    const suggestedDate = getLastMissingDateWithinMonth(rows.map(row => row.tarih), month, year) || selectedMonthEnd
+    const suggestedDate = getLastMissingDateWithinMonth(rows.map(row => row.tarih), month, year)
+      || getLatestEditableDateWithinMonth(month, year)
+      || selectedMonthEnd
     const newRow: KargoRow = {
       tarih: suggestedDate,
       fis_no: "",
