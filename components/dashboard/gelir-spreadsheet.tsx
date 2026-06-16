@@ -7,7 +7,7 @@ import { FileText, Plus, Save, Trash2 } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 import { FIRMALAR_GROUP_KEY, TableColumnSetting, getColumnTextColor, mergeColumnSettings } from "@/lib/table-column-settings"
-import { getFirstMissingDateWithinMonth, getMonthYearFromDate, isDateInSelectedMonth } from "@/lib/date-navigation"
+import { getLastMissingDateWithinMonth, getMonthYearFromDate, isDateInSelectedMonth } from "@/lib/date-navigation"
 import { logSecurityEvent } from "@/lib/audit-log"
 import { openPdfReport } from "@/lib/pdf-report"
 import { getShiftBusinessDate } from "@/lib/shift-business-date"
@@ -190,7 +190,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       .filter((date, index, dates) => dates.indexOf(date) === index)
       .filter(date => requiredVardiyalar.every(vardiya => rows.some(row => row.tarih === date && row.vardiya === vardiya)))
 
-    return getFirstMissingDateWithinMonth(completeDates, month, year) || ""
+    return getLastMissingDateWithinMonth(completeDates, month, year) || ""
   }
 
   function addRow() {

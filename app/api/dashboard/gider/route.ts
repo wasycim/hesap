@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
       .select("*")
       .eq("sube_id", sube.id)
       .eq("ay_yil", ayYil)
-      .order("tarih", { ascending: true })
+      .order("tarih", { ascending: false })
       .order("vardiya", { ascending: true }),
   ])
 

@@ -14,7 +14,7 @@ import {
   getColumnTextColor,
   mergeColumnSettings,
 } from "@/lib/table-column-settings"
-import { getFirstMissingDateWithinMonth, getMonthYearFromDate, isDateInSelectedMonth } from "@/lib/date-navigation"
+import { getLastMissingDateWithinMonth, getMonthYearFromDate, isDateInSelectedMonth } from "@/lib/date-navigation"
 import { logSecurityEvent } from "@/lib/audit-log"
 import { openPdfReport } from "@/lib/pdf-report"
 import { getShiftBusinessDate } from "@/lib/shift-business-date"
@@ -208,7 +208,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
       .filter((date, index, dates) => dates.indexOf(date) === index)
       .filter(date => requiredVardiyalar.every(vardiya => rows.some(row => row.tarih === date && row.vardiya === vardiya)))
 
-    return getFirstMissingDateWithinMonth(completeDates, month, year) || ""
+    return getLastMissingDateWithinMonth(completeDates, month, year) || ""
   }
 
   function calculateTotal(row: GiderRow): number {

@@ -12,9 +12,10 @@ import {
   MONTHS,
   START_MONTH_INDEX,
   START_YEAR,
-  getFirstMissingDateWithinMonth,
+  compareDateDescending,
   getInitialMonth,
   getInitialYear,
+  getLastMissingDateWithinMonth,
   isDateInSelectedMonth,
   makeYearWindow,
 } from "@/lib/date-navigation"
@@ -92,8 +93,6 @@ const GIDER_SOURCE_COLUMNS: Record<AutoExpenseKey, string> = {
 const TRANSFER_SOURCE_COLUMNS: Record<AutoTransferKey, string> = {
   on_dort_no_giden: "on_dort_noya_giden",
 }
-const VARDIYA_SIRASI: Record<string, number> = { S: 0, A: 1, "": 2 }
-
 function formatMoney(value: number) {
   return value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
@@ -288,7 +287,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
         .select("id, tarih, tutarlar")
         .eq("sube_id", currentSube.id)
         .eq("ay_yil", ayYil)
-        .order("tarih", { ascending: true }),
+        .order("tarih", { ascending: false }),
       supabase
         .from("gelir_kayitlari")
         .select("tarih, vardiya, durum, pamukkale_turizm, anadolu_ulasim, inegol_seyahat")
@@ -385,7 +384,8 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
     setColumnSettings(mergeColumnSettings("on_dort_no_hesap", settingsData as TableColumnSetting[] | null))
     setRows((recordData || [])
       .filter(row => isDateInSelectedMonth(row.tarih, month, year))
-      .map(row => ({ id: row.id, tarih: row.tarih, tutarlar: calculate(applyAutoValues(row.tarih, (row.tutarlar || {}) as Values, nextIncomeDetails, nextExpenseDetails, nextTransferDetails, nextDeliveryDetails)) })))
+      .map(row => ({ id: row.id, tarih: row.tarih, tutarlar: calculate(applyAutoValues(row.tarih, (row.tutarlar || {}) as Values, nextIncomeDetails, nextExpenseDetails, nextTransferDetails, nextDeliveryDetails)) }))
+      .sort(compareDateDescending))
     markClean()
     setLoading(false)
   }
@@ -665,18 +665,14 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
   }
 
   function addRow() {
-    const nextDate = getFirstMissingDateWithinMonth(rows.map(row => row.tarih), month, year)
+    const nextDate = getLastMissingDateWithinMonth(rows.map(row => row.tarih), month, year)
     if (!nextDate) {
       toast.error(`${month} ${year} ayı için eklenecek yeni gün kalmadı.`)
       return
     }
 
     setRows(prev => [...prev, { tarih: nextDate, tutarlar: applyAutoValues(nextDate, {}) }]
-      .sort((a, b) => {
-        const dateCompare = a.tarih.localeCompare(b.tarih)
-        if (dateCompare !== 0) return dateCompare
-        return (VARDIYA_SIRASI[""] ?? 99) - (VARDIYA_SIRASI[""] ?? 99)
-      }))
+      .sort(compareDateDescending))
     markDirty()
   }
 

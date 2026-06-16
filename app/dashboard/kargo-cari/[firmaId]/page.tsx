@@ -14,6 +14,8 @@ import {
   MONTHS,
   START_MONTH_INDEX,
   START_YEAR,
+  compareDateDescending,
+  getLastMissingDateWithinMonth,
   getLocalDateString,
   getMonthEndDate,
   getMonthStartDate,
@@ -165,7 +167,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         .eq("sube_id", currentSube.id)
         .eq("firma_id", firma.id)
         .eq("ay_yil", ayYil)
-        .order("tarih", { ascending: true }),
+        .order("tarih", { ascending: false }),
       supabase
         .from("kargo_cari_notlari")
         .select("id, tarih, not_metni, created_at")
@@ -186,7 +188,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         alinan_tutar: Number(row.alinan_tutar) || 0,
         satilan_tutar: Number(row.satilan_tutar) || 0,
         kalan_kar: Number(row.kalan_kar) || 0,
-      })))
+      })).sort(compareDateDescending))
     }
 
     if (!notlarResult.error) {
@@ -203,26 +205,6 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
       toast.error("Firma notları okunamadı: " + notlarResult.error.message)
     }
     setLoading(false)
-  }
-
-  function getKargoBusinessDate(): string {
-    const now = new Date()
-    const businessDate = new Date(now)
-    const isBeforeBusinessDayCutoff = now.getHours() < 3 || (now.getHours() === 3 && now.getMinutes() <= 30)
-
-    if (isBeforeBusinessDayCutoff) {
-      businessDate.setDate(businessDate.getDate() - 1)
-    }
-
-    const businessMonth = businessDate.getMonth()
-    const selectedMonth = MONTHS.indexOf(month)
-
-    if (businessDate.getFullYear() !== year || businessMonth !== selectedMonth) {
-      return `${year}-${String(selectedMonth + 1).padStart(2, "0")}-01`
-    }
-
-    const day = String(businessDate.getDate()).padStart(2, "0")
-    return `${year}-${String(selectedMonth + 1).padStart(2, "0")}-${day}`
   }
 
   function formatEditableDate(value: string): string {
@@ -290,15 +272,16 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   }
 
   function addRow() {
+    const suggestedDate = getLastMissingDateWithinMonth(rows.map(row => row.tarih), month, year) || selectedMonthEnd
     const newRow: KargoRow = {
-      tarih: getKargoBusinessDate(),
+      tarih: suggestedDate,
       fis_no: "",
       gonderilen_yer: "",
       alinan_tutar: 0,
       satilan_tutar: 0,
       kalan_kar: 0,
     }
-    setRows([...rows, newRow])
+    setRows([...rows, newRow].sort(compareDateDescending))
     markDirty()
   }
 

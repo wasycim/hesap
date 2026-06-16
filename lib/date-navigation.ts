@@ -118,6 +118,25 @@ export function getFirstMissingDateWithinMonth(existingDates: string[], month: s
   return null
 }
 
+export function getLastMissingDateWithinMonth(existingDates: string[], month: string, year: number) {
+  const monthIndex = getMonthIndex(month)
+  if (monthIndex < 0) return null
+
+  const existing = new Set(existingDates.filter(date => isDateInSelectedMonth(date, month, year)))
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate()
+
+  for (let day = lastDay; day >= 1; day -= 1) {
+    const date = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+    if (!existing.has(date)) return date
+  }
+
+  return null
+}
+
+export function compareDateDescending<T extends { tarih: string }>(a: T, b: T) {
+  return b.tarih.localeCompare(a.tarih)
+}
+
 export function getMonthYearFromDate(dateStr: string) {
   const [year, month] = dateStr.split("-").map(Number)
   return {

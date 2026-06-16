@@ -15,8 +15,9 @@ import {
   START_YEAR,
   getInitialMonth,
   getInitialYear,
+  getLastMissingDateWithinMonth,
   getMonthYearFromDate,
-  getNextDateWithinMonth,
+  compareDateDescending,
   isDateInSelectedMonth,
   makeYearWindow,
 } from "@/lib/date-navigation"
@@ -145,7 +146,7 @@ export default function CorbalarPage() {
       .select("*")
       .eq("sube_id", currentSube.id)
       .eq("ay_yil", ayYil)
-      .order("tarih", { ascending: true })
+      .order("tarih", { ascending: false })
 
     if (corbaData && personelData) {
       // Tarihe gore grupla
@@ -160,7 +161,7 @@ export default function CorbalarPage() {
         row.personel_values[corba.personel_id] = Number(corba.miktar) || 0
       })
 
-      setRows(Array.from(rowMap.values()).sort((a, b) => a.tarih.localeCompare(b.tarih)))
+      setRows(Array.from(rowMap.values()).sort(compareDateDescending))
     }
     setLoading(false)
   }
@@ -189,17 +190,7 @@ export default function CorbalarPage() {
   }
 
   function getNextDate(): string {
-    const existingDates = new Set(rows.map(row => row.tarih))
-    const monthIndex = MONTHS.indexOf(month)
-    if (monthIndex < 0) return ""
-
-    const lastDay = new Date(year, monthIndex + 1, 0).getDate()
-    for (let day = 1; day <= lastDay; day += 1) {
-      const date = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
-      if (!existingDates.has(date)) return date
-    }
-
-    return getNextDateWithinMonth(rows.map(row => row.tarih), month, year) || ""
+    return getLastMissingDateWithinMonth(rows.map(row => row.tarih), month, year) || ""
   }
 
   function addRow() {
@@ -217,7 +208,7 @@ export default function CorbalarPage() {
         return
       }
 
-      setRows([...rows, { tarih: editableDate, personel_values: {} }].sort((a, b) => a.tarih.localeCompare(b.tarih)))
+      setRows([...rows, { tarih: editableDate, personel_values: {} }].sort(compareDateDescending))
       setCreatedRowDates(current => new Set(current).add(editableDate))
       markDirty()
       return
@@ -233,7 +224,7 @@ export default function CorbalarPage() {
       tarih: nextDate,
       personel_values: {},
     }
-    setRows([...rows, newRow].sort((a, b) => a.tarih.localeCompare(b.tarih)))
+    setRows([...rows, newRow].sort(compareDateDescending))
     markDirty()
   }
 
