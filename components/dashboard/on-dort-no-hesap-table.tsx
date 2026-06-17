@@ -166,7 +166,7 @@ function createShiftBreakdown(): ShiftBreakdown {
   }
 }
 
-function calculate(values: Values): Values {
+function calculate(values: Values, previousKalan = 0): Values {
   const gelirToplam =
     (Number(values.pamukkale_turizm) || 0) +
     (Number(values.anadolu_turizm) || 0) +
@@ -185,7 +185,7 @@ function calculate(values: Values): Values {
     ...values,
     gelir_toplam: gelirToplam,
     gider_toplam: giderToplam,
-    kalan: gelirToplam - giderToplam - bankaToplam,
+    kalan: previousKalan + giderToplam - bankaToplam,
   }
 }
 
@@ -244,6 +244,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
       .sort((a, b) => a.sort_order - b.sort_order)
       .map(column => column.column_key)
   }, [columnSettings, columnMeta, meta.keys, section])
+  const calculatedValueMap = useMemo(() => buildCalculatedValueMap(rows), [rows, incomeDetails, expenseDetails, transferDetails, deliveryDetails])
 
   useEffect(() => {
     if (isAdmin && currentSube) loadData()
@@ -384,7 +385,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
     setColumnSettings(mergeColumnSettings("on_dort_no_hesap", settingsData as TableColumnSetting[] | null))
     setRows((recordData || [])
       .filter(row => isDateInSelectedMonth(row.tarih, month, year))
-      .map(row => ({ id: row.id, tarih: row.tarih, tutarlar: calculate(applyAutoValues(row.tarih, (row.tutarlar || {}) as Values, nextIncomeDetails, nextExpenseDetails, nextTransferDetails, nextDeliveryDetails)) }))
+      .map(row => ({ id: row.id, tarih: row.tarih, tutarlar: applyAutoValues(row.tarih, (row.tutarlar || {}) as Values, nextIncomeDetails, nextExpenseDetails, nextTransferDetails, nextDeliveryDetails) }))
       .sort(compareDateDescending))
     markClean()
     setLoading(false)
@@ -634,6 +635,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
     expenseSource = expenseDetails,
     transferSource = transferDetails,
     deliverySource = deliveryDetails,
+    previousKalan = 0,
   ) {
     const nextValues = {
       ...values,
@@ -661,7 +663,40 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
       nextValues.teslim = delivery.teslim.toplam
     }
 
-    return calculate(nextValues)
+    return calculate(nextValues, previousKalan)
+  }
+
+  function buildCalculatedValueMap(
+    sourceRows: Row[],
+    incomeSource = incomeDetails,
+    expenseSource = expenseDetails,
+    transferSource = transferDetails,
+    deliverySource = deliveryDetails,
+  ) {
+    const next = new Map<string, Values>()
+    let previousKalan = 0
+
+    ;[...sourceRows]
+      .sort((a, b) => a.tarih.localeCompare(b.tarih))
+      .forEach(row => {
+        const calculated = applyAutoValues(
+          row.tarih,
+          row.tutarlar,
+          incomeSource,
+          expenseSource,
+          transferSource,
+          deliverySource,
+          previousKalan,
+        )
+        next.set(row.tarih, calculated)
+        previousKalan = Number(calculated.kalan) || 0
+      })
+
+    return next
+  }
+
+  function getCalculatedValues(row: Row, valueMap = calculatedValueMap) {
+    return valueMap.get(row.tarih) || applyAutoValues(row.tarih, row.tutarlar)
   }
 
   function addRow() {
@@ -720,6 +755,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
     }
 
     if (rows.length > 0) {
+      const saveValueMap = buildCalculatedValueMap(rows)
       const { error: insertError } = await supabase
         .from("on_dort_no_hesap_kayitlari")
         .insert(rows.map(row => ({
@@ -727,7 +763,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
           sube_id: currentSube.id,
           ay_yil: ayYil,
           tarih: row.tarih,
-          tutarlar: applyAutoValues(row.tarih, row.tutarlar),
+          tutarlar: getCalculatedValues(row, saveValueMap),
           updated_at: new Date().toISOString(),
         })))
 
@@ -746,7 +782,13 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
   }
 
   const columnTotals = visibleKeys.reduce((acc, key) => {
-    acc[key] = rows.reduce((sum, row) => sum + (Number(applyAutoValues(row.tarih, row.tutarlar)[key]) || 0), 0)
+    if (key === "kalan") {
+      const latestRow = [...rows].sort((a, b) => b.tarih.localeCompare(a.tarih))[0]
+      acc[key] = latestRow ? Number(getCalculatedValues(latestRow).kalan) || 0 : 0
+      return acc
+    }
+
+    acc[key] = rows.reduce((sum, row) => sum + (Number(getCalculatedValues(row)[key]) || 0), 0)
     return acc
   }, {} as Record<string, number>)
 
@@ -756,9 +798,9 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
       subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
       orientation: "landscape",
       metrics: [
-        { label: "Gelir Toplamı", value: `${formatMoney(rows.reduce((sum, row) => sum + (applyAutoValues(row.tarih, row.tutarlar).gelir_toplam || 0), 0))} TL` },
-        { label: "14 No Toplamı", value: `${formatMoney(rows.reduce((sum, row) => sum + (applyAutoValues(row.tarih, row.tutarlar).gider_toplam || 0), 0))} TL` },
-        { label: "Kalan", value: `${formatMoney(rows.reduce((sum, row) => sum + (applyAutoValues(row.tarih, row.tutarlar).kalan || 0), 0))} TL` },
+        { label: "Gelir Toplamı", value: `${formatMoney(rows.reduce((sum, row) => sum + (getCalculatedValues(row).gelir_toplam || 0), 0))} TL` },
+        { label: "14 No Toplamı", value: `${formatMoney(rows.reduce((sum, row) => sum + (getCalculatedValues(row).gider_toplam || 0), 0))} TL` },
+        { label: "Kalan", value: `${formatMoney(columnTotals.kalan || 0)} TL` },
       ],
       tables: [{
         title: meta.title,
@@ -767,7 +809,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
         rows: [
           ...rows.map(row => [
             formatDate(row.tarih),
-            ...visibleKeys.map(key => `${formatMoney(applyAutoValues(row.tarih, row.tutarlar)[key] || 0)} TL`),
+            ...visibleKeys.map(key => `${formatMoney(getCalculatedValues(row)[key] || 0)} TL`),
           ]),
           ["TOPLAM", ...visibleKeys.map(key => `${formatMoney(columnTotals[key] || 0)} TL`)],
         ],
@@ -893,7 +935,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
                 <td className="border p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
                 <td className="border bg-muted/50 px-2 py-1 font-medium">{formatDate(row.tarih)}</td>
                 {visibleKeys.map(key => {
-                  const calculatedValues = applyAutoValues(row.tarih, row.tutarlar)
+                  const calculatedValues = getCalculatedValues(row)
                   const readonly = FORMULA_KEYS.has(key)
                   const autoIncome = AUTO_INCOME_KEYS.has(key as AutoIncomeKey)
                   const autoExpense = AUTO_EXPENSE_KEYS.has(key as AutoExpenseKey)
