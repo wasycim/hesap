@@ -123,6 +123,29 @@ export async function GET(request: NextRequest) {
     if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 })
   }
 
+  const { data: activeSubeler, error: onDortSubeError } = await admin
+    .from("subeler")
+    .select("id, ad, kod")
+    .eq("aktif", true)
+  if (onDortSubeError) return NextResponse.json({ error: onDortSubeError.message }, { status: 500 })
+  const onDortSube = (activeSubeler || []).find((item: any) => {
+    const ad = normalizeSubeName(item.ad || "").replace(/\s+/g, "")
+    const kod = normalizeSubeName(item.kod || "").replace(/\s+/g, "")
+    return kod === "14" || ad === "14" || ad.includes("14no") || ad.includes("14numara")
+  })
+
+  let onDortFirmaData: any[] = []
+  if (onDortSube?.id) {
+    const { data, error } = await admin
+      .from("gelir_firmalar")
+      .select("id, ad, color")
+      .eq("sube_id", onDortSube.id)
+      .eq("aktif", true)
+      .order("sira", { ascending: true })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    onDortFirmaData = data || []
+  }
+
   const giderTotals = new Map<string, number>()
   ;(giderRes.data || []).forEach((row: any) => {
     const key = getGiderTotalKey(row.tarih, row.vardiya || "S", isTekVardiya)
@@ -166,6 +189,7 @@ export async function GET(request: NextRequest) {
     isTekVardiya,
     columnSettings: settingsRes.data || [],
     firmalar: firmaRes.data || [],
+    onDortFirmalar: onDortFirmaData,
     rows,
   })
 }

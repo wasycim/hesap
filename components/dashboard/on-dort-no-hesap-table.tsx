@@ -56,6 +56,7 @@ interface Row {
 
 interface OnDortNoHesapTableProps {
   section: Section
+  embedded?: boolean
 }
 
 const SECTION_META: Record<Section, { title: string; description: string; keys: string[] }> = {
@@ -193,7 +194,7 @@ function calculate(values: Values, previousKalan = 0): Values {
   }
 }
 
-export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
+export function OnDortNoHesapTable({ section, embedded = false }: OnDortNoHesapTableProps) {
   const [month, setMonth] = useState(getInitialMonth())
   const [year, setYear] = useState(getInitialYear())
   const [rows, setRows] = useState<Row[]>([])
@@ -356,7 +357,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
     ])
 
     if (recordError) {
-      toast.error("14 No Hesap kayıtları okunamadı. 009 SQL dosyasını çalıştırın.")
+      toast.error("Alt Şube Hesapları kayıtları okunamadı. 009 SQL dosyasını çalıştırın.")
     }
 
     const nextIncomeDetails = buildIncomeDetails(incomeData || [])
@@ -754,7 +755,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
       .eq("ay_yil", ayYil)
 
     if (deleteError) {
-      toast.error(deleteError.message || "Eski 14 No Hesap kayıtları temizlenemedi.")
+      toast.error(deleteError.message || "Eski Alt Şube Hesapları kayıtları temizlenemedi.")
       setSaving(false)
       return false
     }
@@ -773,7 +774,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
         })))
 
       if (insertError) {
-        toast.error(insertError.message || "14 No Hesap kaydedilemedi.")
+        toast.error(insertError.message || "Alt Şube Hesapları kaydedilemedi.")
         setSaving(false)
         return false
       }
@@ -781,7 +782,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
 
     markClean()
     setSaving(false)
-    toast.success("14 No Hesap kaydedildi.")
+    toast.success("Alt Şube Hesapları kaydedildi.")
     loadData()
     return true
   }
@@ -799,7 +800,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
 
   function exportPdf() {
     openPdfReport({
-      title: `14 No Hesap - ${meta.title}`,
+      title: `Alt Şube Hesapları - ${meta.title}`,
       subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
       orientation: "landscape",
       metrics: [
@@ -860,7 +861,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
   }
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
+    <div className={embedded ? "space-y-4" : "space-y-6 p-4 sm:p-6 lg:p-8"}>
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-lime-100 text-lime-700 dark:bg-lime-500/15 dark:text-lime-300">

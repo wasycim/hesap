@@ -1,5 +1,5 @@
-import { OnDortNoHesapTable } from "@/components/dashboard/on-dort-no-hesap-table"
+import { redirect } from "next/navigation"
 
 export default function GelirKalemleriPage() {
-  return <OnDortNoHesapTable section="gelir" />
+  redirect("/dashboard/14-no-hesap")
 }

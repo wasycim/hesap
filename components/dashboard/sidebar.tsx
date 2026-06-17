@@ -117,12 +117,6 @@ const permissionKeyByHref: Record<string, string> = {
   "/dashboard/hesap": "hesap",
 }
 
-const onDortNoSubMenuItems = [
-  { title: "Gelir Kalemleri", href: "/dashboard/14-no-hesap/gelir-kalemleri" },
-  { title: "14 No Kalemleri", href: "/dashboard/14-no-hesap/14-no-kalemleri" },
-  { title: "Banka ve Kalan", href: "/dashboard/14-no-hesap/banka-ve-kalan" },
-]
-
 function getMenuIconMotion(href: string) {
   if (href === "/dashboard") return "menu-icon-dashboard"
   if (href === "/dashboard/gelir") return "menu-icon-income"
@@ -288,7 +282,6 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   const { subeler, currentSube, setCurrentSube, isAdmin: subeIsAdmin, userSube } = useSube()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [kargoOpen, setKargoOpen] = useState(false)
-  const [onDortNoOpen, setOnDortNoOpen] = useState(false)
   const [kargoFirmalar, setKargoFirmalar] = useState<KargoFirma[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [isDeveloper, setIsDeveloper] = useState(false)
@@ -333,9 +326,6 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   useEffect(() => {
     if (pathname.startsWith("/dashboard/kargo-cari")) {
       setKargoOpen(true)
-    }
-    if (pathname.startsWith("/dashboard/14-no-hesap")) {
-      setOnDortNoOpen(true)
     }
   }, [pathname])
 
@@ -541,48 +531,19 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
 
           {canSeeMenu("on_dort_no") && (
             <li>
-              <button
-                onClick={() => setOnDortNoOpen(prev => !prev)}
+              <Link
+                href="/dashboard/14-no-hesap"
+                onClick={() => setMobileOpen(false)}
                 className={cn(
-                  "sidebar-menu-item group flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                  "sidebar-menu-item group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                   pathname.startsWith("/dashboard/14-no-hesap")
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 )}
               >
-                <div className="flex items-center gap-3">
-                  <Landmark className="sidebar-menu-icon menu-icon-bank h-5 w-5 text-lime-500" />
-                  <span>14 No Hesap</span>
-                </div>
-                <ChevronDown className={cn("h-4 w-4 transition-transform duration-500", onDortNoOpen ? "rotate-0" : "-rotate-90")} />
-              </button>
-
-              {onDortNoOpen && (
-                <div className="mt-1 overflow-hidden">
-                  <ul className="ml-4 mt-1 overflow-hidden border-l border-sidebar-border pl-4">
-                  {onDortNoSubMenuItems.map((item, index) => {
-                    const isActive = pathname === item.href
-                    return (
-                      <li key={item.href} className="sidebar-submenu-row-in" style={{ animationDelay: `${80 + index * 70}ms` }}>
-                        <Link
-                          href={item.href}
-                          onClick={() => setMobileOpen(false)}
-                          className={cn(
-                            "sidebar-menu-item group flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all",
-                            isActive
-                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-                          )}
-                        >
-                          <div className="h-2 w-2 rounded-full bg-lime-500" />
-                          <span>{item.title}</span>
-                        </Link>
-                      </li>
-                    )
-                  })}
-                  </ul>
-                </div>
-              )}
+                <Landmark className="sidebar-menu-icon menu-icon-bank h-5 w-5 text-lime-500" />
+                <span>Alt Şube Hesapları</span>
+              </Link>
             </li>
           )}
 

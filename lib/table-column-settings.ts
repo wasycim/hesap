@@ -15,6 +15,8 @@ export interface TableColumnSetting {
 export const ORTAKLAR_GROUP_KEY = "ortaklar_group"
 export const PERSONELLER_GROUP_KEY = "personeller_group"
 export const FIRMALAR_GROUP_KEY = "firmalar_group"
+export const ON_DORT_FIRMALAR_KEY = "on_dort_firmalar"
+export const ON_DORT_FIRMA_DETAYLARI_KEY = "on_dort_firma_detaylari"
 
 export const COLOR_OPTIONS = [
   { label: "Yeşil", value: "bg-green-600", text: "text-white" },
@@ -46,12 +48,13 @@ export const GELIR_DEFAULT_COLUMNS: TableColumnSetting[] = [
   { table_type: "gelir", column_key: "unlu_1", label: "ÜNLÜ", color: "bg-yellow-500", sort_order: 7, aktif: true, builtin: true },
   { table_type: "gelir", column_key: "unlu_2", label: "ÜNLÜ", color: "bg-yellow-500", sort_order: 8, aktif: true, builtin: true },
   { table_type: "gelir", column_key: "pamukkale_kargo", label: "PAMUKKALE KARGO", color: "bg-yellow-500", sort_order: 9, aktif: true, builtin: true },
-  { table_type: "gelir", column_key: "diger_komisyon", label: "DİĞER KOMİSYON", color: "bg-gray-500", sort_order: 10, aktif: true, builtin: true },
-  { table_type: "gelir", column_key: "kasa_gelen", label: "KASA-GELEN", color: "bg-purple-600", sort_order: 11, aktif: true, builtin: true },
-  { table_type: "gelir", column_key: "toplam", label: "TOPLAM", color: "bg-green-600", sort_order: 12, aktif: true, builtin: true },
-  { table_type: "gelir", column_key: "giderler", label: "GİDERLER", color: "bg-red-600", sort_order: 13, aktif: true, builtin: true },
-  { table_type: "gelir", column_key: "kalan", label: "KALAN", color: "bg-gray-700", sort_order: 14, aktif: true, builtin: true },
-  { table_type: "gelir", column_key: "durum", label: "DURUM", color: "bg-orange-200", sort_order: 15, aktif: true, builtin: true },
+  { table_type: "gelir", column_key: ON_DORT_FIRMALAR_KEY, label: "14 NO FİRMALAR", color: "bg-lime-600", sort_order: 10, aktif: true, builtin: true },
+  { table_type: "gelir", column_key: "diger_komisyon", label: "DİĞER KOMİSYON", color: "bg-gray-500", sort_order: 11, aktif: true, builtin: true },
+  { table_type: "gelir", column_key: "kasa_gelen", label: "KASA-GELEN", color: "bg-purple-600", sort_order: 12, aktif: true, builtin: true },
+  { table_type: "gelir", column_key: "toplam", label: "TOPLAM", color: "bg-green-600", sort_order: 13, aktif: true, builtin: true },
+  { table_type: "gelir", column_key: "giderler", label: "GİDERLER", color: "bg-red-600", sort_order: 14, aktif: true, builtin: true },
+  { table_type: "gelir", column_key: "kalan", label: "KALAN", color: "bg-gray-700", sort_order: 15, aktif: true, builtin: true },
+  { table_type: "gelir", column_key: "durum", label: "DURUM", color: "bg-orange-200", sort_order: 16, aktif: true, builtin: true },
 ]
 
 export const GIDER_DEFAULT_COLUMNS: TableColumnSetting[] = [

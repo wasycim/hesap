@@ -3,10 +3,17 @@
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
-import { FileText, Plus, Save, Trash2 } from "lucide-react"
+import { FileText, Plus, Save, Trash2, X } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
-import { FIRMALAR_GROUP_KEY, TableColumnSetting, getColumnTextColor, mergeColumnSettings } from "@/lib/table-column-settings"
+import {
+  FIRMALAR_GROUP_KEY,
+  ON_DORT_FIRMALAR_KEY,
+  ON_DORT_FIRMA_DETAYLARI_KEY,
+  TableColumnSetting,
+  getColumnTextColor,
+  mergeColumnSettings,
+} from "@/lib/table-column-settings"
 import { getLastMissingDateWithinMonth, getMonthYearFromDate, isDateInSelectedMonth } from "@/lib/date-navigation"
 import { logSecurityEvent } from "@/lib/audit-log"
 import { openPdfReport } from "@/lib/pdf-report"
@@ -31,7 +38,7 @@ interface GelirRow {
   giderler: number
   kalan: number
   durum: string
-  custom_values: Record<string, number>
+  custom_values: Record<string, any>
 }
 
 interface GelirSpreadsheetProps {
@@ -40,6 +47,12 @@ interface GelirSpreadsheetProps {
 }
 
 interface GelirFirma {
+  id: string
+  ad: string
+  color?: string
+}
+
+interface OnDortFirma {
   id: string
   ad: string
   color?: string
@@ -55,6 +68,7 @@ const HEADER_COLORS: Record<string, string> = {
   unlu_1: "bg-yellow-500",
   unlu_2: "bg-yellow-500",
   pamukkale_kargo: "bg-yellow-500",
+  [ON_DORT_FIRMALAR_KEY]: "bg-lime-600",
   diger_komisyon: "bg-gray-500",
   kasa_gelen: "bg-purple-600",
   toplam: "bg-green-600",
@@ -73,6 +87,7 @@ const HEADER_LABELS: Record<string, string> = {
   unlu_1: "ÜNLÜ",
   unlu_2: "ÜNLÜ",
   pamukkale_kargo: "PAMUKKALE KARGO",
+  [ON_DORT_FIRMALAR_KEY]: "14 NO FİRMALAR",
   diger_komisyon: "DİĞER KOMİSYON",
   kasa_gelen: "KASA-GELEN",
   toplam: "TOPLAM",
@@ -84,7 +99,7 @@ const HEADER_LABELS: Record<string, string> = {
 const COLUMNS = [
   "tarih", "vardiya", "pamukkale_turizm", "anadolu_ulasim", "inegol_seyahat", 
   "alasehir_turizm", "unlu_1", "unlu_2", "pamukkale_kargo",
-  "diger_komisyon", "kasa_gelen", "toplam", "giderler", "kalan", "durum"
+  ON_DORT_FIRMALAR_KEY, "diger_komisyon", "kasa_gelen", "toplam", "giderler", "kalan", "durum"
 ]
 
 const VARDIYASIZ_SUBELER = ["carsi", "darica"]
@@ -100,10 +115,60 @@ function compareDateVardiya(a: Pick<GelirRow, "tarih" | "vardiya">, b: Pick<Geli
   return (VARDIYA_SIRASI[a.vardiya] ?? 99) - (VARDIYA_SIRASI[b.vardiya] ?? 99)
 }
 
+function getOnDortFirmaDetails(row: GelirRow): Record<string, number> {
+  const value = row.custom_values?.[ON_DORT_FIRMA_DETAYLARI_KEY]
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, amount]) => [key, Number(amount) || 0]),
+  )
+}
+
+function calculateOnDortFirmalarTotal(details: Record<string, number>) {
+  return Object.values(details).reduce((sum, amount) => sum + (Number(amount) || 0), 0)
+}
+
+function getCustomNumericTotal(customValues: Record<string, any> | null | undefined) {
+  return Object.entries(customValues || {}).reduce((sum, [key, value]) => {
+    if (key === ON_DORT_FIRMA_DETAYLARI_KEY) return sum
+    if (value && typeof value === "object") return sum
+    return sum + (Number(value) || 0)
+  }, 0)
+}
+
+function recalculateGelirRow(row: GelirRow): GelirRow {
+  const onDortDetails = getOnDortFirmaDetails(row)
+  const onDortTotal = calculateOnDortFirmalarTotal(onDortDetails)
+  const customValues = {
+    ...(row.custom_values || {}),
+    [ON_DORT_FIRMA_DETAYLARI_KEY]: onDortDetails,
+    [ON_DORT_FIRMALAR_KEY]: onDortTotal,
+  }
+  const toplam =
+    row.pamukkale_turizm +
+    row.anadolu_ulasim +
+    row.inegol_seyahat +
+    row.alasehir_turizm +
+    row.unlu_1 +
+    row.unlu_2 +
+    row.pamukkale_kargo +
+    row.diger_komisyon +
+    row.kasa_gelen +
+    getCustomNumericTotal(customValues)
+
+  return {
+    ...row,
+    custom_values: customValues,
+    toplam,
+    kalan: toplam - row.giderler,
+  }
+}
+
 export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   const [rows, setRows] = useState<GelirRow[]>([])
   const [columnSettings, setColumnSettings] = useState<TableColumnSetting[]>(mergeColumnSettings("gelir", []))
   const [firmalar, setFirmalar] = useState<GelirFirma[]>([])
+  const [onDortFirmalar, setOnDortFirmalar] = useState<OnDortFirma[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [offlineLoaded, setOfflineLoaded] = useState(false)
@@ -174,7 +239,11 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
 
       setColumnSettings(mergeColumnSettings("gelir", data.columnSettings as TableColumnSetting[] | null))
       setFirmalar(data.firmalar || [])
-      setRows(((data.rows || []) as GelirRow[]).filter(row => isDateInSelectedMonth(row.tarih, month, year)).sort(compareDateVardiya))
+      setOnDortFirmalar(data.onDortFirmalar || [])
+      setRows(((data.rows || []) as GelirRow[])
+        .filter(row => isDateInSelectedMonth(row.tarih, month, year))
+        .map(row => recalculateGelirRow({ ...row, custom_values: row.custom_values || {} }))
+        .sort(compareDateVardiya))
     } catch {
       toast.warning("Gelir tablosu offline cache bulunamadigi icin bos acildi.")
       setOfflineLoaded(true)
@@ -278,16 +347,29 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       (row as any)[column] = Number(value) || 0
     }
     
-    // Toplam hesapla (şirketlerden gelen + kasa gelen)
-    row.toplam = row.pamukkale_turizm + row.anadolu_ulasim + row.inegol_seyahat +
-      row.alasehir_turizm + row.unlu_1 + row.unlu_2 + row.pamukkale_kargo +
-      row.diger_komisyon + row.kasa_gelen +
-      Object.values(row.custom_values || {}).reduce((sum, val) => sum + (Number(val) || 0), 0)
-    
-    // Kalan = Toplam - Giderler
-    row.kalan = row.toplam - row.giderler
-    
-    newRows[rowIndex] = row
+    newRows[rowIndex] = recalculateGelirRow(row)
+    setRows(newRows)
+    markDirty()
+  }
+
+  function updateOnDortFirmaAmount(rowIndex: number, firmaId: string, value: string | number) {
+    const newRows = [...rows]
+    const row = { ...newRows[rowIndex], custom_values: { ...(newRows[rowIndex].custom_values || {}) } }
+    const details = getOnDortFirmaDetails(row)
+    details[firmaId] = Number(value) || 0
+    row.custom_values[ON_DORT_FIRMA_DETAYLARI_KEY] = details
+    newRows[rowIndex] = recalculateGelirRow(row)
+    setRows(newRows)
+    markDirty()
+  }
+
+  function removeOnDortFirma(rowIndex: number, firmaId: string) {
+    const newRows = [...rows]
+    const row = { ...newRows[rowIndex], custom_values: { ...(newRows[rowIndex].custom_values || {}) } }
+    const details = getOnDortFirmaDetails(row)
+    delete details[firmaId]
+    row.custom_values[ON_DORT_FIRMA_DETAYLARI_KEY] = details
+    newRows[rowIndex] = recalculateGelirRow(row)
     setRows(newRows)
     markDirty()
   }
@@ -356,6 +438,9 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   }
 
   function getCellValue(row: GelirRow, col: string) {
+    if (col === ON_DORT_FIRMALAR_KEY) {
+      return Number(row.custom_values?.[ON_DORT_FIRMALAR_KEY]) || calculateOnDortFirmalarTotal(getOnDortFirmaDetails(row))
+    }
     return col.startsWith("custom_") || col.startsWith("firma_") ? row.custom_values?.[col] : (row as any)[col]
   }
 
@@ -436,6 +521,78 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     })
   }
 
+  function renderOnDortFirmaCell(row: GelirRow, rowIndex: number, canEdit: boolean) {
+    const details = getOnDortFirmaDetails(row)
+    const selectedEntries = Object.entries(details)
+    const selectedIds = new Set(selectedEntries.map(([firmaId]) => firmaId))
+    const availableFirmalar = onDortFirmalar.filter(firma => !selectedIds.has(firma.id))
+    const total = calculateOnDortFirmalarTotal(details)
+
+    return (
+      <div className="min-w-[260px] space-y-2 p-2">
+        {canEdit ? (
+          <select
+            value=""
+            onChange={(event) => {
+              const firmaId = event.target.value
+              if (!firmaId) return
+              updateOnDortFirmaAmount(rowIndex, firmaId, details[firmaId] || 0)
+            }}
+            disabled={availableFirmalar.length === 0}
+            className="w-full rounded border bg-background px-2 py-1 text-xs text-foreground outline-none focus:border-lime-500"
+          >
+            <option value="">14 No firma seç</option>
+            {availableFirmalar.map(firma => (
+              <option key={firma.id} value={firma.id}>{firma.ad}</option>
+            ))}
+          </select>
+        ) : null}
+
+        {selectedEntries.length > 0 ? (
+          <div className="space-y-1">
+            {selectedEntries.map(([firmaId, amount]) => {
+              const firma = onDortFirmalar.find(item => item.id === firmaId)
+              return (
+                <div key={firmaId} className="flex items-center gap-2 rounded-md border bg-muted/40 px-2 py-1">
+                  <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
+                    {firma?.ad || firmaId}
+                  </span>
+                  {canEdit ? (
+                    <>
+                      <input
+                        type="number"
+                        value={amount || ""}
+                        onChange={(event) => updateOnDortFirmaAmount(rowIndex, firmaId, event.target.value)}
+                        className="w-24 rounded border bg-background px-2 py-1 text-right text-xs text-foreground outline-none focus:border-lime-500"
+                        placeholder="0,00"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeOnDortFirma(rowIndex, firmaId)}
+                        className="rounded p-1 text-red-500 hover:bg-red-500/10"
+                        aria-label="Firmayı kaldır"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-xs font-semibold text-foreground">{formatNumber(amount)} ₺</span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="text-center text-xs text-muted-foreground">Firma seçilmedi</div>
+        )}
+
+        <div className="border-t pt-1 text-right text-xs font-bold text-lime-700 dark:text-lime-300">
+          Toplam {formatNumber(total)} ₺
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center h-64">Yükleniyor...</div>
   }
@@ -496,6 +653,8 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                       }`}>
                         {row.vardiya}
                       </div>
+                    ) : col === ON_DORT_FIRMALAR_KEY ? (
+                      renderOnDortFirmaCell(row, rowIndex, canEdit)
                     ) : col === "toplam" || col === "kalan" ? (
                       <div className={`px-2 py-1 text-right font-semibold ${
                         col === "kalan" ? (row.kalan >= 0 ? "bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-200" : "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-200") : "bg-muted text-foreground"

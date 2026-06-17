@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { ModernDatePicker } from "@/components/ui/modern-date-picker"
@@ -81,6 +82,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   const [saving, setSaving] = useState(false)
   const [savingNotes, setSavingNotes] = useState(false)
   const [currentTime, setCurrentTime] = useState(() => new Date())
+  const [customerPdf, setCustomerPdf] = useState(false)
   const [month, setMonth] = useState(MONTHS[currentDate.getMonth()])
   const [year, setYear] = useState(currentDate.getFullYear())
   const years = makeYearWindow(year)
@@ -580,16 +582,47 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
 
   function exportPdf() {
     if (!firma) return
+    const detailHeaders = customerPdf
+      ? ["Tarih", "Fiş No", "Gönderilen Yer", "Alınan Tutar"]
+      : ["Tarih", "Fiş No", "Gönderilen Yer", "Alınan Tutar", "Satılan Tutar", "Kalan Kar"]
+    const detailRows = rows.map(row => {
+      const base = [
+        formatDate(row.tarih),
+        row.fis_no || "-",
+        row.gonderilen_yer || "-",
+        `${formatNumber(row.alinan_tutar)} TL`,
+      ]
+
+      if (customerPdf) return base
+
+      return [
+        ...base,
+        `${formatNumber(row.satilan_tutar)} TL`,
+        `${formatNumber(row.kalan_kar)} TL`,
+      ]
+    })
+    const totalRow = customerPdf
+      ? ["TOPLAM", "", "", `${formatNumber(columnTotals.alinan_tutar)} TL`]
+      : [
+          "TOPLAM",
+          "",
+          "",
+          `${formatNumber(columnTotals.alinan_tutar)} TL`,
+          `${formatNumber(columnTotals.satilan_tutar)} TL`,
+          `${formatNumber(columnTotals.kalan_kar)} TL`,
+        ]
 
     openPdfReport({
       title: `${firma.ad} Kargo Cari Raporu`,
       subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
       orientation: "landscape",
-      metrics: [
-        { label: "Toplam Alınan", value: `${formatNumber(columnTotals.alinan_tutar)} TL` },
-        { label: "Toplam Satılan", value: `${formatNumber(columnTotals.satilan_tutar)} TL` },
-        { label: "Kalan Kar", value: `${formatNumber(columnTotals.kalan_kar)} TL` },
-      ],
+      metrics: customerPdf
+        ? [{ label: "Toplam Alınan", value: `${formatNumber(columnTotals.alinan_tutar)} TL` }]
+        : [
+            { label: "Toplam Alınan", value: `${formatNumber(columnTotals.alinan_tutar)} TL` },
+            { label: "Toplam Satılan", value: `${formatNumber(columnTotals.satilan_tutar)} TL` },
+            { label: "Kalan Kar", value: `${formatNumber(columnTotals.kalan_kar)} TL` },
+          ],
       tables: [{
         title: "Firma Notları",
         headers: ["Tarih", "Not"],
@@ -599,26 +632,9 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
           : [["-", "Kayıtlı not yok"]],
       }, {
         title: "Aylık Firma Detayı",
-        headers: ["Tarih", "Fiş No", "Gönderilen Yer", "Alınan Tutar", "Satılan Tutar", "Kalan Kar"],
+        headers: detailHeaders,
         firstColumnWidth: "82px",
-        rows: [
-          ...rows.map(row => [
-            formatDate(row.tarih),
-            row.fis_no || "-",
-            row.gonderilen_yer || "-",
-            `${formatNumber(row.alinan_tutar)} TL`,
-            `${formatNumber(row.satilan_tutar)} TL`,
-            `${formatNumber(row.kalan_kar)} TL`,
-          ]),
-          [
-            "TOPLAM",
-            "",
-            "",
-            `${formatNumber(columnTotals.alinan_tutar)} TL`,
-            `${formatNumber(columnTotals.satilan_tutar)} TL`,
-            `${formatNumber(columnTotals.kalan_kar)} TL`,
-          ],
-        ],
+        rows: [...detailRows, totalRow],
       }],
     })
   }
@@ -690,6 +706,13 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         <Button onClick={exportPdf} size="sm" variant="outline" disabled={rows.length === 0}>
           <FileText className="w-4 h-4 mr-1" /> PDF
         </Button>
+        <label className="flex h-9 items-center gap-2 rounded-md border bg-background px-3 text-sm font-medium text-foreground">
+          <Checkbox
+            checked={customerPdf}
+            onCheckedChange={(checked) => setCustomerPdf(checked === true)}
+          />
+          <span>Müşteri İçin</span>
+        </label>
       </div>
 
       <div className="rounded-lg border bg-card">

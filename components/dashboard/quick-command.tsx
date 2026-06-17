@@ -47,6 +47,7 @@ const NAV_ITEMS = [
   { key: "mesai", title: "Mesai", href: "/dashboard/mesai", icon: Camera, color: "text-amber-500" },
   { key: "vardiya", title: "Vardiya", href: "/dashboard/vardiya", icon: CalendarDays, color: "text-violet-500" },
   { key: "mesai_takip", title: "Mesai Takip", href: "/dashboard/mesai-takip", icon: CalendarDays, color: "text-amber-500" },
+  { key: "on_dort_no", title: "Alt Şube Hesapları", href: "/dashboard/14-no-hesap", icon: Landmark, color: "text-lime-500" },
   { key: "sube_ciro_raporlari", title: "Şube Ciro Raporları", href: "/dashboard/sube-ciro-raporlari", icon: BarChart3, color: "text-emerald-500" },
   { key: "sutun_ayarlar", title: "Sütun Ayarları", href: "/dashboard/sutun-ayarlar", icon: Columns3, color: "text-sky-500" },
   { key: "gorunum_ayarlar", title: "Görünüm Ayarları", href: "/dashboard/gorunum-ayarlar", icon: Eye, color: "text-indigo-500" },
@@ -59,12 +60,6 @@ const NAV_ITEMS = [
   { key: "hesap", title: "Hesap Ayarları", href: "/dashboard/hesap", icon: UserCog, color: "text-purple-500" },
 ]
 
-const ON_DORT_NO_ITEMS = [
-  { title: "Gelir Kalemleri", href: "/dashboard/14-no-hesap/gelir-kalemleri" },
-  { title: "14 No Kalemleri", href: "/dashboard/14-no-hesap/14-no-kalemleri" },
-  { title: "Banka ve Kalan", href: "/dashboard/14-no-hesap/banka-ve-kalan" },
-]
-
 function normalize(value: string) {
   return value.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
 }
@@ -74,7 +69,6 @@ export function QuickCommand() {
   const supabase = createClient()
   const [open, setOpen] = useState(false)
   const [kargoOpen, setKargoOpen] = useState(false)
-  const [onDortNoOpen, setOnDortNoOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [kargoFirmalar, setKargoFirmalar] = useState<Array<{ id: string; ad: string }>>([])
   const [menuVisibility, setMenuVisibility] = useState<Record<string, boolean>>({})
@@ -189,15 +183,6 @@ export function QuickCommand() {
     normalize("Kargo Cari").includes(cleanQuery) ||
     normalize(firma.ad).includes(cleanQuery)
   ))
-  const visibleOnDortNoItems = ON_DORT_NO_ITEMS.filter(item => (
-    !cleanQuery ||
-    normalize("14 No Hesap").includes(cleanQuery) ||
-    normalize(item.title).includes(cleanQuery) ||
-    normalize(`14 No Hesap ${item.title}`).includes(cleanQuery)
-  ))
-  const showOnDortNoGroup = canSeeMenu("on_dort_no") && visibleOnDortNoItems.length > 0
-  const shouldOpenOnDortNo = onDortNoOpen || Boolean(cleanQuery)
-
   if (!open) return null
 
   return (
@@ -273,38 +258,7 @@ export function QuickCommand() {
             </div>
           )}
 
-          {showOnDortNoGroup && (
-            <div>
-              <button
-                type="button"
-                onClick={() => setOnDortNoOpen(prev => !prev)}
-                className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
-              >
-                <span className="flex items-center gap-2">
-                  <Landmark className="h-4 w-4 text-lime-500" />
-                  14 No Hesap
-                </span>
-                <ChevronDown className={`h-4 w-4 transition-transform ${shouldOpenOnDortNo ? "rotate-0" : "-rotate-90"}`} />
-              </button>
-              {shouldOpenOnDortNo && (
-                <div className="ml-6 mt-1 space-y-1 border-l pl-3">
-                  {visibleOnDortNoItems.map(item => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setOpen(false)}
-                      className="block rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    >
-                      <Landmark className="mr-2 inline h-4 w-4 text-lime-500" />
-                      {item.title}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {results.length === 0 && !showKargoGroup && !showOnDortNoGroup && (
+          {results.length === 0 && !showKargoGroup && (
             <div className="px-3 py-8 text-center text-sm text-muted-foreground">Sonuç bulunamadı.</div>
           )}
         </div>
