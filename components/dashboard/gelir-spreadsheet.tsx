@@ -529,7 +529,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     const total = calculateOnDortFirmalarTotal(details)
 
     return (
-      <div className="min-w-[260px] space-y-2 p-2">
+      <div className="flex min-w-[360px] items-center gap-2 p-1">
         {canEdit ? (
           <select
             value=""
@@ -539,7 +539,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
               updateOnDortFirmaAmount(rowIndex, firmaId, details[firmaId] || 0)
             }}
             disabled={availableFirmalar.length === 0}
-            className="w-full rounded border bg-background px-2 py-1 text-xs text-foreground outline-none focus:border-lime-500"
+            className="h-8 min-w-0 flex-1 rounded border bg-background px-2 text-xs text-foreground outline-none focus:border-lime-500"
           >
             <option value="">14 No firma seç</option>
             {availableFirmalar.map(firma => (
@@ -549,12 +549,12 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
         ) : null}
 
         {selectedEntries.length > 0 ? (
-          <div className="space-y-1">
+          <div className="flex max-w-[520px] flex-wrap gap-1">
             {selectedEntries.map(([firmaId, amount]) => {
               const firma = onDortFirmalar.find(item => item.id === firmaId)
               return (
-                <div key={firmaId} className="flex items-center gap-2 rounded-md border bg-muted/40 px-2 py-1">
-                  <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
+                <label key={firmaId} className="flex items-center gap-1 rounded border bg-muted/40 px-1 py-0.5 text-xs">
+                  <span className="max-w-20 truncate font-medium text-foreground">
                     {firma?.ad || firmaId}
                   </span>
                   {canEdit ? (
@@ -563,32 +563,34 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                         type="number"
                         value={amount || ""}
                         onChange={(event) => updateOnDortFirmaAmount(rowIndex, firmaId, event.target.value)}
-                        className="w-24 rounded border bg-background px-2 py-1 text-right text-xs text-foreground outline-none focus:border-lime-500"
-                        placeholder="0,00"
+                        className="h-7 w-20 bg-transparent text-right outline-none"
+                        placeholder="TL"
+                        title="14 No firma tutarı"
                       />
                       <button
                         type="button"
                         onClick={() => removeOnDortFirma(rowIndex, firmaId)}
-                        className="rounded p-1 text-red-500 hover:bg-red-500/10"
+                        className="rounded p-0.5 text-red-600 hover:bg-red-100 dark:hover:bg-red-500/20"
                         aria-label="Firmayı kaldır"
+                        title="Firmayı satırdan kaldır"
                       >
-                        <X className="h-3.5 w-3.5" />
+                        <X className="h-3 w-3" />
                       </button>
                     </>
                   ) : (
                     <span className="text-xs font-semibold text-foreground">{formatNumber(amount)} ₺</span>
                   )}
-                </div>
+                </label>
               )
             })}
           </div>
         ) : (
-          <div className="text-center text-xs text-muted-foreground">Firma seçilmedi</div>
+          <span className="text-xs text-muted-foreground">Firma yok</span>
         )}
 
-        <div className="border-t pt-1 text-right text-xs font-bold text-lime-700 dark:text-lime-300">
-          Toplam {formatNumber(total)} ₺
-        </div>
+        <span className="min-w-24 text-right text-xs font-bold text-lime-700 dark:text-lime-300">
+          {formatNumber(total)} TL
+        </span>
       </div>
     )
   }

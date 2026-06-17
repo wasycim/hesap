@@ -50,6 +50,17 @@ interface KargoFirmaNotu {
   created_at?: string | null
 }
 
+interface OdemeHareketi {
+  id: string
+  tarih: string
+  ay_yil: string | null
+  toplam_borc: number
+  odenen: number
+  kalan_borc: number
+  notlar: string
+  created_at: string | null
+}
+
 const currentDate = new Date()
 
 const HEADER_COLORS: Record<string, string> = {
@@ -93,6 +104,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   const ayYil = `${month}-${year}`
   const selectedMonthStart = getMonthStartDate(month, year)
   const selectedMonthEnd = getMonthEndDate(month, year)
+  const selectedMonthIndex = MONTHS.findIndex(item => item === month)
 
   useEffect(() => {
     if (currentSube) {
@@ -580,6 +592,124 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     return num.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
+  function sumField<T extends Record<string, any>>(items: T[] | null | undefined, key: keyof T) {
+    return (items || []).reduce((sum, item) => sum + (Number(item[key]) || 0), 0)
+  }
+
+  function parseAyYil(value: string | null | undefined) {
+    const text = String(value || "").trim()
+    const parts = text.split(/[-\s/]+/).filter(Boolean)
+    const monthPart = parts[0] || ""
+    const yearPart = parts.find(part => /^\d{4}$/.test(part)) || ""
+    const monthIndex = MONTHS.findIndex(item => item.toLocaleLowerCase("tr-TR") === monthPart.toLocaleLowerCase("tr-TR"))
+    const parsedYear = Number(yearPart)
+
+    if (monthIndex < 0 || !Number.isFinite(parsedYear)) return null
+    return { monthIndex, year: parsedYear }
+  }
+
+  function isAyYilBefore(value: string | null | undefined) {
+    const parsed = parseAyYil(value)
+    if (!parsed || selectedMonthIndex < 0) return false
+    return parsed.year < year || (parsed.year === year && parsed.monthIndex < selectedMonthIndex)
+  }
+
+  function isCurrentAyYil(value: string | null | undefined) {
+    const parsed = parseAyYil(value)
+    if (!parsed || selectedMonthIndex < 0) return false
+    return parsed.year === year && parsed.monthIndex === selectedMonthIndex
+  }
+
+  function buildPaymentTotals(
+    aggregateRows: Array<{ ay_yil: string | null; odenen: number | string | null }> | null,
+    movementRows: Array<{ ay_yil: string | null; odenen: number | string | null }> | null,
+  ) {
+    const movementTotals = new Map<string, number>()
+    for (const row of movementRows || []) {
+      const key = String(row.ay_yil || "").trim()
+      if (!key) continue
+      movementTotals.set(key, (movementTotals.get(key) || 0) + (Number(row.odenen) || 0))
+    }
+
+    const totals = new Map<string, number>()
+    for (const row of aggregateRows || []) {
+      const key = String(row.ay_yil || "").trim()
+      if (!key) continue
+      totals.set(key, Number(row.odenen) || 0)
+    }
+
+    for (const [key, value] of movementTotals) {
+      if (!totals.has(key)) totals.set(key, value)
+    }
+
+    return totals
+  }
+
+  async function getFirmDebtSnapshot() {
+    if (!firma || !currentSube) return null
+
+    const [
+      { data: kayitlar, error: kayitError },
+      { data: odemeler, error: odemeError },
+      { data: hareketler, error: hareketError },
+    ] = await Promise.all([
+      supabase
+        .from("kargo_cari_kayitlar")
+        .select("tarih, fis_no, gonderilen_yer, alinan_tutar, ay_yil")
+        .eq("sube_id", currentSube.id)
+        .eq("firma_id", firma.id),
+      supabase
+        .from("kargo_cari_odemeler")
+        .select("odenen, ay_yil")
+        .eq("sube_id", currentSube.id)
+        .eq("firma_id", firma.id),
+      supabase
+        .from("kargo_cari_odeme_hareketleri")
+        .select("id, tarih, ay_yil, toplam_borc, odenen, kalan_borc, notlar, created_at")
+        .eq("sube_id", currentSube.id)
+        .eq("firma_id", firma.id)
+        .order("tarih", { ascending: false })
+        .order("created_at", { ascending: false }),
+    ])
+
+    if (kayitError) throw kayitError
+    if (odemeError) throw odemeError
+    if (hareketError) throw hareketError
+
+    const currentKayitlar = (kayitlar || []).filter(item => isCurrentAyYil(item.ay_yil))
+    const priorKayitlar = (kayitlar || []).filter(item => isAyYilBefore(item.ay_yil))
+    const paymentTotals = buildPaymentTotals(odemeler, hareketler)
+    const ayBorcu = sumField(currentKayitlar, "alinan_tutar")
+    const priorDebt = sumField(priorKayitlar, "alinan_tutar")
+    const priorPaid = Array.from(paymentTotals.entries())
+      .filter(([period]) => isAyYilBefore(period))
+      .reduce((sum, [, paid]) => sum + paid, 0)
+    const odenen = Array.from(paymentTotals.entries())
+      .filter(([period]) => isCurrentAyYil(period))
+      .reduce((sum, [, paid]) => sum + paid, 0)
+    const oncekiBorc = Math.max(0, priorDebt - priorPaid)
+    const toplamBorc = oncekiBorc + ayBorcu
+
+    return {
+      oncekiBorc,
+      ayBorcu,
+      toplamBorc,
+      odenen,
+      kalanBorc: toplamBorc - odenen,
+      currentKayitlar,
+      hareketler: ((hareketler || []) as any[]).filter(item => isCurrentAyYil(item.ay_yil)).map(item => ({
+        id: item.id,
+        tarih: item.tarih,
+        ay_yil: item.ay_yil,
+        toplam_borc: Number(item.toplam_borc) || 0,
+        odenen: Number(item.odenen) || 0,
+        kalan_borc: Number(item.kalan_borc) || 0,
+        notlar: item.notlar || "",
+        created_at: item.created_at,
+      })) as OdemeHareketi[],
+    }
+  }
+
   function exportPdf() {
     if (!firma) return
     const detailHeaders = customerPdf
@@ -637,6 +767,68 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         rows: [...detailRows, totalRow],
       }],
     })
+  }
+
+  async function exportBorcPdf() {
+    if (!firma) return
+
+    try {
+      const snapshot = await getFirmDebtSnapshot()
+      if (!snapshot) return
+
+      const hareketRows = snapshot.hareketler.map(hareket => [
+        formatDate(hareket.tarih),
+        `${formatNumber(hareket.toplam_borc)} TL`,
+        `${formatNumber(hareket.odenen)} TL`,
+        `${formatNumber(hareket.kalan_borc)} TL`,
+        hareket.notlar || "-",
+      ])
+      const fisRows = snapshot.currentKayitlar.map((row: any) => [
+        formatDate(row.tarih),
+        row.fis_no || "-",
+        row.gonderilen_yer || "-",
+        `${formatNumber(Number(row.alinan_tutar) || 0)} TL`,
+      ])
+
+      openPdfReport({
+        title: `${firma.ad} Borç Hareketleri`,
+        subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
+        orientation: "landscape",
+        metrics: [
+          { label: "Önceki Borç", value: `${formatNumber(snapshot.oncekiBorc)} TL` },
+          { label: "Ay Borcu", value: `${formatNumber(snapshot.ayBorcu)} TL` },
+          { label: "Toplam Borç", value: `${formatNumber(snapshot.toplamBorc)} TL` },
+          { label: "Ödenen", value: `${formatNumber(snapshot.odenen)} TL` },
+          { label: "Kalan Borç", value: `${formatNumber(snapshot.kalanBorc)} TL` },
+        ],
+        tables: [{
+          title: "Borç Durumu",
+          headers: ["Önceki Borç", "Ay Borcu", "Toplam Borç", "Ödenen", "Kalan Borç"],
+          rows: [[
+            `${formatNumber(snapshot.oncekiBorc)} TL`,
+            `${formatNumber(snapshot.ayBorcu)} TL`,
+            `${formatNumber(snapshot.toplamBorc)} TL`,
+            `${formatNumber(snapshot.odenen)} TL`,
+            `${formatNumber(snapshot.kalanBorc)} TL`,
+          ]],
+        }, {
+          title: "Ödeme Hareketleri",
+          headers: ["Tarih", "Güncel Borç", "Ödenen", "Kalan Borç", "Not"],
+          firstColumnWidth: "82px",
+          rows: hareketRows.length ? hareketRows : [["-", "-", "-", "-", "Ödeme hareketi yok"]],
+        }, {
+          title: "Ay İçindeki Borç Oluşturan Fişler",
+          headers: ["Tarih", "Fiş No", "Gönderilen Yer", "Alınan Tutar"],
+          firstColumnWidth: "82px",
+          rows: [
+            ...(fisRows.length ? fisRows : [["-", "-", "-", "Kayıt yok"]]),
+            ["TOPLAM", "", "", `${formatNumber(snapshot.ayBorcu)} TL`],
+          ],
+        }],
+      })
+    } catch (error: any) {
+      toast.error(error?.message || "Borç PDF hazırlanamadı.")
+    }
   }
 
   // Sütun toplamları
@@ -705,6 +897,9 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         </Button>
         <Button onClick={exportPdf} size="sm" variant="outline" disabled={rows.length === 0}>
           <FileText className="w-4 h-4 mr-1" /> PDF
+        </Button>
+        <Button onClick={exportBorcPdf} size="sm" variant="outline">
+          <FileText className="w-4 h-4 mr-1" /> Borç PDF
         </Button>
         <label className="flex h-9 items-center gap-2 rounded-md border bg-background px-3 text-sm font-medium text-foreground">
           <Checkbox
