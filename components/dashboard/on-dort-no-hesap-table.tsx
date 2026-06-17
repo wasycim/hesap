@@ -249,6 +249,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
       .map(column => column.column_key)
   }, [columnSettings, columnMeta, meta.keys, section])
   const calculatedValueMap = useMemo(() => buildCalculatedValueMap(rows), [rows, incomeDetails, expenseDetails, transferDetails, deliveryDetails])
+  const orderedRows = useMemo(() => [...rows].sort(compareDateAscending), [rows])
 
   useEffect(() => {
     if (isAdmin && currentSube) loadData()
@@ -715,20 +716,20 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
     markDirty()
   }
 
-  function deleteRow(index: number) {
-    setRows(prev => prev.filter((_, rowIndex) => rowIndex !== index))
+  function deleteRow(tarih: string) {
+    setRows(prev => prev.filter(row => row.tarih !== tarih))
     markDirty()
   }
 
-  function updateValue(rowIndex: number, key: string, value: string) {
+  function updateValue(tarih: string, key: string, value: string) {
     if (
       AUTO_INCOME_KEYS.has(key as AutoIncomeKey) ||
       AUTO_EXPENSE_KEYS.has(key as AutoExpenseKey) ||
       AUTO_TRANSFER_KEYS.has(key as AutoTransferKey) ||
       AUTO_DELIVERY_KEYS.has(key as AutoDeliveryKey)
     ) return
-    setRows(prev => prev.map((row, index) => (
-      index === rowIndex
+    setRows(prev => prev.map(row => (
+      row.tarih === tarih
         ? { ...row, tutarlar: applyAutoValues(row.tarih, { ...row.tutarlar, [key]: Number(value) || 0 }) }
         : row
     )))
@@ -739,7 +740,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
     if (!currentSube || !currentUserId) return false
     setSaving(true)
 
-    const invalidDateIndex = rows.findIndex(row => !isDateInSelectedMonth(row.tarih, month, year))
+    const invalidDateIndex = orderedRows.findIndex(row => !isDateInSelectedMonth(row.tarih, month, year))
     if (invalidDateIndex !== -1) {
       toast.error(`${invalidDateIndex + 1}. satır ${month} ${year} dışında olduğu için kaydedilemez.`)
       setSaving(false)
@@ -758,11 +759,11 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
       return false
     }
 
-    if (rows.length > 0) {
+    if (orderedRows.length > 0) {
       const saveValueMap = buildCalculatedValueMap(rows)
       const { error: insertError } = await supabase
         .from("on_dort_no_hesap_kayitlari")
-        .insert(rows.map(row => ({
+        .insert(orderedRows.map(row => ({
           user_id: currentUserId,
           sube_id: currentSube.id,
           ay_yil: ayYil,
@@ -787,12 +788,12 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
 
   const columnTotals = visibleKeys.reduce((acc, key) => {
     if (key === "kalan") {
-      const latestRow = [...rows].sort((a, b) => b.tarih.localeCompare(a.tarih))[0]
+      const latestRow = [...orderedRows].sort((a, b) => b.tarih.localeCompare(a.tarih))[0]
       acc[key] = latestRow ? Number(getCalculatedValues(latestRow).kalan) || 0 : 0
       return acc
     }
 
-    acc[key] = rows.reduce((sum, row) => sum + (Number(getCalculatedValues(row)[key]) || 0), 0)
+    acc[key] = orderedRows.reduce((sum, row) => sum + (Number(getCalculatedValues(row)[key]) || 0), 0)
     return acc
   }, {} as Record<string, number>)
 
@@ -802,8 +803,8 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
       subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
       orientation: "landscape",
       metrics: [
-        { label: "Gelir Toplamı", value: `${formatMoney(rows.reduce((sum, row) => sum + (getCalculatedValues(row).gelir_toplam || 0), 0))} TL` },
-        { label: "14 No Toplamı", value: `${formatMoney(rows.reduce((sum, row) => sum + (getCalculatedValues(row).gider_toplam || 0), 0))} TL` },
+        { label: "Gelir Toplamı", value: `${formatMoney(orderedRows.reduce((sum, row) => sum + (getCalculatedValues(row).gelir_toplam || 0), 0))} TL` },
+        { label: "14 No Toplamı", value: `${formatMoney(orderedRows.reduce((sum, row) => sum + (getCalculatedValues(row).gider_toplam || 0), 0))} TL` },
         { label: "Kalan", value: `${formatMoney(columnTotals.kalan || 0)} TL` },
       ],
       tables: [{
@@ -811,7 +812,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
         headers: ["Tarih", ...visibleKeys.map(key => columnMeta.get(key)?.label || key)],
         firstColumnWidth: "88px",
         rows: [
-          ...rows.map(row => [
+          ...orderedRows.map(row => [
             formatDate(row.tarih),
             ...visibleKeys.map(key => `${formatMoney(getCalculatedValues(row)[key] || 0)} TL`),
           ]),
@@ -878,7 +879,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
             <Plus className="h-4 w-4" />
             Satır Ekle
           </Button>
-          <Button variant="outline" onClick={exportPdf} disabled={rows.length === 0} className="col-span-full gap-2 sm:col-span-1">
+          <Button variant="outline" onClick={exportPdf} disabled={orderedRows.length === 0} className="col-span-full gap-2 sm:col-span-1">
             <FileText className="h-4 w-4" />
             PDF
           </Button>
@@ -934,8 +935,8 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, rowIndex) => (
-              <tr key={`${row.tarih}-${rowIndex}`} className="hover:bg-muted/50">
+            {orderedRows.map((row, rowIndex) => (
+              <tr key={row.tarih} className="hover:bg-muted/50">
                 <td className="border p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
                 <td className="border bg-muted/50 px-2 py-1 font-medium">{formatDate(row.tarih)}</td>
                 {visibleKeys.map(key => {
@@ -1108,7 +1109,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
                         <input
                           type="number"
                           value={calculatedValues[key] || ""}
-                          onChange={(event) => updateValue(rowIndex, key, event.target.value)}
+                          onChange={(event) => updateValue(row.tarih, key, event.target.value)}
                           className="w-full bg-transparent px-3 py-2 text-right text-foreground outline-none focus:bg-blue-50 dark:focus:bg-blue-500/20"
                           placeholder="0,00"
                         />
@@ -1119,7 +1120,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
                 <td className="border p-1">
                   <button
                     type="button"
-                    onClick={() => deleteRow(rowIndex)}
+                    onClick={() => deleteRow(row.tarih)}
                     className="rounded p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/20"
                     title="Satırı sil"
                   >
@@ -1128,7 +1129,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && (
+            {orderedRows.length === 0 && (
               <tr>
                 <td colSpan={visibleKeys.length + 3} className="p-8 text-center text-muted-foreground">
                   Henüz kayıt yok. Satır Ekle ile bu ay için gün ekleyin.
@@ -1136,7 +1137,7 @@ export function OnDortNoHesapTable({ section }: OnDortNoHesapTableProps) {
               </tr>
             )}
           </tbody>
-          {rows.length > 0 && (
+          {orderedRows.length > 0 && (
             <tfoot>
               <tr className="bg-muted font-semibold text-foreground">
                 <td className="border p-2"></td>
