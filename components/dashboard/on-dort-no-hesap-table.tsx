@@ -185,7 +185,7 @@ function calculate(values: Values, previousKalan = 0): Values {
     ...values,
     gelir_toplam: gelirToplam,
     gider_toplam: giderToplam,
-    kalan: previousKalan + giderToplam - bankaToplam,
+    kalan: previousKalan + gelirToplam - giderToplam - bankaToplam,
   }
 }
 
