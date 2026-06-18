@@ -2,7 +2,6 @@
 
 import { Landmark } from "lucide-react"
 import { OnDortNoHesapTable } from "@/components/dashboard/on-dort-no-hesap-table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function AltSubeHesaplariPage() {
   return (
@@ -21,23 +20,7 @@ export default function AltSubeHesaplariPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="gelir" className="space-y-4">
-        <TabsList className="grid h-auto w-full grid-cols-1 gap-1 rounded-xl border bg-card p-1 sm:grid-cols-3">
-          <TabsTrigger value="gelir" className="h-10">Gelir Kalemleri</TabsTrigger>
-          <TabsTrigger value="on_dort" className="h-10">14 No Kalemleri</TabsTrigger>
-          <TabsTrigger value="banka" className="h-10">Banka ve Kalan</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="gelir" className="mt-0">
-          <OnDortNoHesapTable section="gelir" embedded />
-        </TabsContent>
-        <TabsContent value="on_dort" className="mt-0">
-          <OnDortNoHesapTable section="on_dort" embedded />
-        </TabsContent>
-        <TabsContent value="banka" className="mt-0">
-          <OnDortNoHesapTable section="banka" embedded />
-        </TabsContent>
-      </Tabs>
+      <OnDortNoHesapTable embedded />
     </div>
   )
 }

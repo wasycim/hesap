@@ -23,6 +23,7 @@ import { createClient } from "@/lib/supabase/client"
 import { TableColumnSetting, getColumnTextColor, mergeColumnSettings } from "@/lib/table-column-settings"
 
 type Section = "gelir" | "on_dort" | "banka"
+type TableView = Section | "all"
 type Values = Record<string, number>
 type AutoIncomeKey = "pamukkale_turizm" | "anadolu_turizm" | "inegol_seyahat"
 type AutoExpenseKey = "kredi_karti_14_no"
@@ -55,7 +56,7 @@ interface Row {
 }
 
 interface OnDortNoHesapTableProps {
-  section: Section
+  section?: TableView
   embedded?: boolean
 }
 
@@ -82,6 +83,9 @@ const AUTO_INCOME_KEYS = new Set<AutoIncomeKey>(["pamukkale_turizm", "anadolu_tu
 const AUTO_EXPENSE_KEYS = new Set<AutoExpenseKey>(["kredi_karti_14_no"])
 const AUTO_TRANSFER_KEYS = new Set<AutoTransferKey>(["on_dort_no_giden"])
 const AUTO_DELIVERY_KEYS = new Set<AutoDeliveryKey>(["teslim"])
+const AUTO_DATA_START_DATE = "2026-07-01"
+const HISTORICAL_OPENING_BALANCE_DATE = "2026-01-01"
+const HISTORICAL_OPENING_BALANCE = 9686
 const GELIR_SOURCE_COLUMNS: Record<AutoIncomeKey, string> = {
   pamukkale_turizm: "pamukkale_turizm",
   anadolu_turizm: "anadolu_ulasim",
@@ -92,6 +96,16 @@ const GIDER_SOURCE_COLUMNS: Record<AutoExpenseKey, string> = {
 }
 const TRANSFER_SOURCE_COLUMNS: Record<AutoTransferKey, string> = {
   on_dort_no_giden: "on_dort_noya_giden",
+}
+const ALL_SECTION_META = {
+  title: "Tüm Kalemler",
+  description: "Gelir kalemleri, 14 no kalemleri, banka ve kalan tek tabloda.",
+  keys: Object.values(SECTION_META).flatMap(item => item.keys),
+}
+const SECTION_HEADER_CLASS: Record<Section, string> = {
+  gelir: "bg-blue-700 text-white",
+  on_dort: "bg-indigo-700 text-white",
+  banka: "bg-emerald-700 text-white",
 }
 
 function compareDateAscending<T extends { tarih: string }>(a: T, b: T) {
@@ -158,6 +172,11 @@ function getNumericValue(row: any, columnKey: string | null) {
   return Number(row[columnKey]) || 0
 }
 
+function getSectionForColumnKey(key: string) {
+  return (Object.entries(SECTION_META) as [Section, typeof SECTION_META[Section]][])
+    .find(([, sectionMeta]) => sectionMeta.keys.includes(key))?.[0] || null
+}
+
 function createShiftBreakdown(): ShiftBreakdown {
   return {
     sabah: 0,
@@ -194,7 +213,7 @@ function calculate(values: Values, previousKalan = 0): Values {
   }
 }
 
-export function OnDortNoHesapTable({ section, embedded = false }: OnDortNoHesapTableProps) {
+export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDortNoHesapTableProps) {
   const [month, setMonth] = useState(getInitialMonth())
   const [year, setYear] = useState(getInitialYear())
   const [rows, setRows] = useState<Row[]>([])
@@ -203,6 +222,7 @@ export function OnDortNoHesapTable({ section, embedded = false }: OnDortNoHesapT
   const [transferDetails, setTransferDetails] = useState<Record<string, Record<AutoTransferKey, ShiftBreakdown>>>({})
   const [deliveryDetails, setDeliveryDetails] = useState<Record<string, Record<AutoDeliveryKey, ShiftBreakdown>>>({})
   const [columnSettings, setColumnSettings] = useState<TableColumnSetting[]>(mergeColumnSettings("on_dort_no_hesap", []))
+  const [openingBalance, setOpeningBalance] = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
@@ -210,7 +230,8 @@ export function OnDortNoHesapTable({ section, embedded = false }: OnDortNoHesapT
   const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
   const years = makeYearWindow(year)
   const ayYil = `${month}-${year}`
-  const meta = SECTION_META[section]
+  const selectedMonthStartDate = `${year}-${String(MONTHS.indexOf(month) + 1).padStart(2, "0")}-01`
+  const meta = section === "all" ? ALL_SECTION_META : SECTION_META[section]
   const sourceSube = useMemo(() => {
     return subeler.find(sube => {
       const ad = normalizeBranchText(sube.ad || "")
@@ -228,6 +249,13 @@ export function OnDortNoHesapTable({ section, embedded = false }: OnDortNoHesapT
 
   const columnMeta = useMemo(() => new Map(columnSettings.map(column => [column.column_key, column])), [columnSettings])
   const visibleKeys = useMemo(() => {
+    if (section === "all") {
+      return columnSettings
+        .filter(column => column.aktif)
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map(column => column.column_key)
+    }
+
     const sectionKeys = new Set(meta.keys)
     const allSectionKeys = new Set(Object.values(SECTION_META).flatMap(item => item.keys))
     const gelirEnd = columnMeta.get("gelir_toplam")?.sort_order ?? 5
@@ -249,7 +277,29 @@ export function OnDortNoHesapTable({ section, embedded = false }: OnDortNoHesapT
       .sort((a, b) => a.sort_order - b.sort_order)
       .map(column => column.column_key)
   }, [columnSettings, columnMeta, meta.keys, section])
-  const calculatedValueMap = useMemo(() => buildCalculatedValueMap(rows), [rows, incomeDetails, expenseDetails, transferDetails, deliveryDetails])
+  const visibleGroups = useMemo(() => {
+    if (section !== "all") return []
+
+    return visibleKeys.reduce((groups, key) => {
+      const sectionKey = getSectionForColumnKey(key)
+      const groupId = sectionKey || "extra"
+      const lastGroup = groups[groups.length - 1]
+
+      if (lastGroup?.id === groupId) {
+        lastGroup.keys.push(key)
+        return groups
+      }
+
+      groups.push({
+        id: groupId,
+        title: sectionKey ? SECTION_META[sectionKey].title : "Ek Kolonlar",
+        keys: [key],
+        headerClass: sectionKey ? SECTION_HEADER_CLASS[sectionKey] : "bg-slate-700 text-white",
+      })
+      return groups
+    }, [] as { id: string; title: string; keys: string[]; headerClass: string }[])
+  }, [visibleKeys, section])
+  const calculatedValueMap = useMemo(() => buildCalculatedValueMap(rows), [rows, incomeDetails, expenseDetails, transferDetails, deliveryDetails, openingBalance])
   const orderedRows = useMemo(() => [...rows].sort(compareDateAscending), [rows])
 
   useEffect(() => {
@@ -260,7 +310,7 @@ export function OnDortNoHesapTable({ section, embedded = false }: OnDortNoHesapT
   useEffect(() => {
     registerSaveHandler(saveData)
     return () => registerSaveHandler(null)
-  }, [rows, incomeDetails, expenseDetails, transferDetails, deliveryDetails, currentSube?.id, ayYil, registerSaveHandler])
+  }, [rows, incomeDetails, expenseDetails, transferDetails, deliveryDetails, openingBalance, currentSube?.id, ayYil, registerSaveHandler])
 
   async function loadData() {
     if (!currentSube) return
@@ -282,6 +332,7 @@ export function OnDortNoHesapTable({ section, embedded = false }: OnDortNoHesapT
       { data: transferGelirSettings },
       { data: deliverySourceData },
       { data: deliveryCounterData },
+      { data: previousRecordData },
     ] = await Promise.all([
       supabase
         .from("kolon_ayarlari")
@@ -354,6 +405,14 @@ export function OnDortNoHesapTable({ section, embedded = false }: OnDortNoHesapT
         .select("*")
         .eq("sube_id", transferSourceSubeId)
         .eq("ay_yil", ayYil),
+      supabase
+        .from("on_dort_no_hesap_kayitlari")
+        .select("tutarlar")
+        .eq("sube_id", currentSube.id)
+        .lt("tarih", selectedMonthStartDate)
+        .order("tarih", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ])
 
     if (recordError) {
@@ -388,6 +447,11 @@ export function OnDortNoHesapTable({ section, embedded = false }: OnDortNoHesapT
     setExpenseDetails(nextExpenseDetails)
     setTransferDetails(nextTransferDetails)
     setDeliveryDetails(nextDeliveryDetails)
+    setOpeningBalance(
+      selectedMonthStartDate === HISTORICAL_OPENING_BALANCE_DATE
+        ? HISTORICAL_OPENING_BALANCE
+        : Number(previousRecordData?.tutarlar?.kalan) || 0,
+    )
     setColumnSettings(mergeColumnSettings("on_dort_no_hesap", settingsData as TableColumnSetting[] | null))
     setRows((recordData || [])
       .filter(row => isDateInSelectedMonth(row.tarih, month, year))
@@ -647,6 +711,10 @@ export function OnDortNoHesapTable({ section, embedded = false }: OnDortNoHesapT
       ...values,
     }
 
+    if (tarih < AUTO_DATA_START_DATE) {
+      return calculate(nextValues, previousKalan)
+    }
+
     const income = incomeSource[tarih]
     if (income) {
       nextValues.pamukkale_turizm = income.pamukkale_turizm.toplam
@@ -678,9 +746,10 @@ export function OnDortNoHesapTable({ section, embedded = false }: OnDortNoHesapT
     expenseSource = expenseDetails,
     transferSource = transferDetails,
     deliverySource = deliveryDetails,
+    initialBalance = openingBalance,
   ) {
     const next = new Map<string, Values>()
-    let previousKalan = 0
+    let previousKalan = initialBalance
 
     ;[...sourceRows]
       .sort((a, b) => a.tarih.localeCompare(b.tarih))
@@ -723,12 +792,12 @@ export function OnDortNoHesapTable({ section, embedded = false }: OnDortNoHesapT
   }
 
   function updateValue(tarih: string, key: string, value: string) {
-    if (
+    if (tarih >= AUTO_DATA_START_DATE && (
       AUTO_INCOME_KEYS.has(key as AutoIncomeKey) ||
       AUTO_EXPENSE_KEYS.has(key as AutoExpenseKey) ||
       AUTO_TRANSFER_KEYS.has(key as AutoTransferKey) ||
       AUTO_DELIVERY_KEYS.has(key as AutoDeliveryKey)
-    ) return
+    )) return
     setRows(prev => prev.map(row => (
       row.tarih === tarih
         ? { ...row, tutarlar: applyAutoValues(row.tarih, { ...row.tutarlar, [key]: Number(value) || 0 }) }
@@ -870,7 +939,11 @@ export function OnDortNoHesapTable({ section, embedded = false }: OnDortNoHesapT
           <div>
             <h1 className="text-2xl font-bold">{meta.title}</h1>
             <p className="text-sm text-muted-foreground">
-              {currentSube?.ad ? `${currentSube.ad} şubesi için ${month} ${year}. Otomatik alanlar ${sourceSube?.ad || "14"} şubesinden çekilir.` : "Şube seçimi bekleniyor."}
+              {currentSube?.ad
+                ? selectedMonthStartDate < AUTO_DATA_START_DATE
+                  ? `${currentSube.ad} şubesi için ${month} ${year}. Bu dönem verileri manuel işlenir.`
+                  : `${currentSube.ad} şubesi için ${month} ${year}. Otomatik alanlar ${sourceSube?.ad || "14"} şubesinden çekilir.`
+                : "Şube seçimi bekleniyor."}
             </p>
           </div>
         </div>
@@ -920,19 +993,43 @@ export function OnDortNoHesapTable({ section, embedded = false }: OnDortNoHesapT
       <div className="sticky-table-scroll rounded-lg border bg-card">
         <table className="sticky-table min-w-max text-sm">
           <thead>
+            {section === "all" && (
+              <tr>
+                <th rowSpan={2} className="w-10 border bg-muted p-2 text-muted-foreground">#</th>
+                <th rowSpan={2} className="border bg-muted p-2 text-left text-muted-foreground">Tarih</th>
+                {visibleGroups.map(group => (
+                  <th
+                    key={`${group.id}-${group.keys[0]}`}
+                    colSpan={group.keys.length}
+                    className={`border p-2 text-center text-xs font-bold uppercase tracking-wide ${group.headerClass}`}
+                  >
+                    {group.title}
+                  </th>
+                ))}
+                <th rowSpan={2} className="w-10 border bg-muted p-2"></th>
+              </tr>
+            )}
             <tr>
-              <th className="w-10 border bg-muted p-2 text-muted-foreground">#</th>
-              <th className="border bg-muted p-2 text-left text-muted-foreground">Tarih</th>
+              {section !== "all" && (
+                <>
+                  <th className="w-10 border bg-muted p-2 text-muted-foreground">#</th>
+                  <th className="border bg-muted p-2 text-left text-muted-foreground">Tarih</th>
+                </>
+              )}
               {visibleKeys.map(key => {
                 const column = columnMeta.get(key)
                 const color = column?.color || "bg-gray-500"
                 return (
-                  <th key={key} className={`border p-2 text-center font-semibold ${color} ${getColumnTextColor(color)}`}>
+                  <th
+                    key={key}
+                    className={`border p-2 text-center font-semibold ${color} ${getColumnTextColor(color)}`}
+                    style={section === "all" ? { top: 36 } : undefined}
+                  >
                     {column?.label || key}
                   </th>
                 )
               })}
-              <th className="w-10 border bg-muted p-2"></th>
+              {section !== "all" && <th className="w-10 border bg-muted p-2"></th>}
             </tr>
           </thead>
           <tbody>
@@ -943,10 +1040,11 @@ export function OnDortNoHesapTable({ section, embedded = false }: OnDortNoHesapT
                 {visibleKeys.map(key => {
                   const calculatedValues = getCalculatedValues(row)
                   const readonly = FORMULA_KEYS.has(key)
-                  const autoIncome = AUTO_INCOME_KEYS.has(key as AutoIncomeKey)
-                  const autoExpense = AUTO_EXPENSE_KEYS.has(key as AutoExpenseKey)
-                  const autoTransfer = AUTO_TRANSFER_KEYS.has(key as AutoTransferKey)
-                  const autoDelivery = AUTO_DELIVERY_KEYS.has(key as AutoDeliveryKey)
+                  const automaticPeriod = row.tarih >= AUTO_DATA_START_DATE
+                  const autoIncome = automaticPeriod && AUTO_INCOME_KEYS.has(key as AutoIncomeKey)
+                  const autoExpense = automaticPeriod && AUTO_EXPENSE_KEYS.has(key as AutoExpenseKey)
+                  const autoTransfer = automaticPeriod && AUTO_TRANSFER_KEYS.has(key as AutoTransferKey)
+                  const autoDelivery = automaticPeriod && AUTO_DELIVERY_KEYS.has(key as AutoDeliveryKey)
                   const autoDetail = autoIncome
                     ? incomeDetails[row.tarih]?.[key as AutoIncomeKey]
                     : autoExpense
