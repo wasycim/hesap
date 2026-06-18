@@ -14,7 +14,7 @@ export default function AltSubeHesaplariPage() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">Alt Şube Hesapları</h1>
             <p className="text-sm text-muted-foreground">
-              Gelir kalemleri, 14 no kalemleri, banka ve kalan hesapları tek ekranda.
+              Gelir Kalemleri Gider Kalemleri Banka ve Kalan hesapları tek ekranda.
             </p>
           </div>
         </div>

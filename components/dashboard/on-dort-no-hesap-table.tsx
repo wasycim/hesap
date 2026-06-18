@@ -67,8 +67,8 @@ const SECTION_META: Record<Section, { title: string; description: string; keys: 
     keys: ["pamukkale_turizm", "anadolu_turizm", "inegol_seyahat", "on_dort_no_giden", "diger_kasa", "gelir_toplam"],
   },
   on_dort: {
-    title: "14 No Kalemleri",
-    description: "14 No kredi kartı, teslim ve diğer çıkışlar.",
+    title: "Gider Kalemleri",
+    description: "Kredi kartı, teslim ve diğer çıkışlar.",
     keys: ["kredi_karti_14_no", "teslim", "diger", "gider_toplam"],
   },
   banka: {
@@ -98,8 +98,8 @@ const TRANSFER_SOURCE_COLUMNS: Record<AutoTransferKey, string> = {
   on_dort_no_giden: "on_dort_noya_giden",
 }
 const ALL_SECTION_META = {
-  title: "Tüm Kalemler",
-  description: "Gelir kalemleri, 14 no kalemleri, banka ve kalan tek tabloda.",
+  title: "Alt Şube Hesapları",
+  description: "Gelir Kalemleri Gider Kalemleri Banka ve Kalan hesapları tek ekranda.",
   keys: Object.values(SECTION_META).flatMap(item => item.keys),
 }
 const SECTION_HEADER_CLASS: Record<Section, string> = {
@@ -301,6 +301,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
   }, [visibleKeys, section])
   const calculatedValueMap = useMemo(() => buildCalculatedValueMap(rows), [rows, incomeDetails, expenseDetails, transferDetails, deliveryDetails, openingBalance])
   const orderedRows = useMemo(() => [...rows].sort(compareDateAscending), [rows])
+  const hideEmbeddedHeader = embedded && section === "all"
 
   useEffect(() => {
     if (isAdmin && currentSube) loadData()
@@ -874,7 +875,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
       orientation: "landscape",
       metrics: [
         { label: "Gelir Toplamı", value: `${formatMoney(orderedRows.reduce((sum, row) => sum + (getCalculatedValues(row).gelir_toplam || 0), 0))} TL` },
-        { label: "14 No Toplamı", value: `${formatMoney(orderedRows.reduce((sum, row) => sum + (getCalculatedValues(row).gider_toplam || 0), 0))} TL` },
+        { label: "Gider Toplamı", value: `${formatMoney(orderedRows.reduce((sum, row) => sum + (getCalculatedValues(row).gider_toplam || 0), 0))} TL` },
         { label: "Kalan", value: `${formatMoney(columnTotals.kalan || 0)} TL` },
       ],
       tables: [{
@@ -931,22 +932,24 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
 
   return (
     <div className={embedded ? "space-y-4" : "space-y-6 p-4 sm:p-6 lg:p-8"}>
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-lime-100 text-lime-700 dark:bg-lime-500/15 dark:text-lime-300">
-            <Landmark className="h-6 w-6" />
+      <div className={hideEmbeddedHeader ? "flex justify-end" : "flex flex-col gap-3 md:flex-row md:items-center md:justify-between"}>
+        {!hideEmbeddedHeader && (
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-lime-100 text-lime-700 dark:bg-lime-500/15 dark:text-lime-300">
+              <Landmark className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">{meta.title}</h1>
+              <p className="text-sm text-muted-foreground">
+                {currentSube?.ad
+                  ? selectedMonthStartDate < AUTO_DATA_START_DATE
+                    ? `${currentSube.ad} şubesi için ${month} ${year}. Bu dönem verileri manuel işlenir.`
+                    : `${currentSube.ad} şubesi için ${month} ${year}. Otomatik alanlar ${sourceSube?.ad || "14"} şubesinden çekilir.`
+                  : "Şube seçimi bekleniyor."}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold">{meta.title}</h1>
-            <p className="text-sm text-muted-foreground">
-              {currentSube?.ad
-                ? selectedMonthStartDate < AUTO_DATA_START_DATE
-                  ? `${currentSube.ad} şubesi için ${month} ${year}. Bu dönem verileri manuel işlenir.`
-                  : `${currentSube.ad} şubesi için ${month} ${year}. Otomatik alanlar ${sourceSube?.ad || "14"} şubesinden çekilir.`
-                : "Şube seçimi bekleniyor."}
-            </p>
-          </div>
-        </div>
+        )}
 
         <div className="grid grid-cols-[auto_1fr_0.8fr_auto] items-center gap-2 sm:flex">
           <Button onClick={addRow} className="col-span-full gap-2 bg-green-600 hover:bg-green-700 sm:col-span-1">
