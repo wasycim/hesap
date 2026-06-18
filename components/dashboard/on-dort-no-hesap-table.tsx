@@ -857,8 +857,13 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
     return true
   }
 
+  const closingBalance = orderedRows.length > 0
+    ? Number(getCalculatedValues(orderedRows[orderedRows.length - 1]).kalan) || 0
+    : 0
   const columnTotals = visibleKeys.reduce((acc, key) => {
-    acc[key] = orderedRows.reduce((sum, row) => sum + (Number(getCalculatedValues(row)[key]) || 0), 0)
+    acc[key] = key === "kalan"
+      ? closingBalance
+      : orderedRows.reduce((sum, row) => sum + (Number(getCalculatedValues(row)[key]) || 0), 0)
     return acc
   }, {} as Record<string, number>)
 
@@ -870,7 +875,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
       metrics: [
         { label: "Gelir Toplamı", value: `${formatMoney(orderedRows.reduce((sum, row) => sum + (getCalculatedValues(row).gelir_toplam || 0), 0))} TL` },
         { label: "Gider Toplamı", value: `${formatMoney(orderedRows.reduce((sum, row) => sum + (getCalculatedValues(row).gider_toplam || 0), 0))} TL` },
-        { label: "Kalan", value: `${formatMoney(columnTotals.kalan || 0)} TL` },
+        { label: "Ay Sonu Kalan", value: `${formatMoney(closingBalance)} TL` },
       ],
       tables: [{
         title: meta.title,
@@ -881,7 +886,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
             formatDate(row.tarih),
             ...visibleKeys.map(key => `${formatMoney(getCalculatedValues(row)[key] || 0)} TL`),
           ]),
-          ["TOPLAM", ...visibleKeys.map(key => `${formatMoney(columnTotals[key] || 0)} TL`)],
+          ["TOPLAM / KAPANIŞ", ...visibleKeys.map(key => `${formatMoney(columnTotals[key] || 0)} TL`)],
         ],
       }],
     })
@@ -1237,7 +1242,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
             <tfoot>
               <tr className="bg-muted font-semibold text-foreground">
                 <td className="border p-2"></td>
-                <td className="border p-2">TOPLAM</td>
+                <td className="border p-2">TOPLAM / KAPANIŞ</td>
                 {visibleKeys.map(key => (
                   <td key={key} className="border p-2 text-right">
                     {formatMoney(columnTotals[key] || 0)} TL
