@@ -858,12 +858,6 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
   }
 
   const columnTotals = visibleKeys.reduce((acc, key) => {
-    if (key === "kalan") {
-      const latestRow = [...orderedRows].sort((a, b) => b.tarih.localeCompare(a.tarih))[0]
-      acc[key] = latestRow ? Number(getCalculatedValues(latestRow).kalan) || 0 : 0
-      return acc
-    }
-
     acc[key] = orderedRows.reduce((sum, row) => sum + (Number(getCalculatedValues(row)[key]) || 0), 0)
     return acc
   }, {} as Record<string, number>)
