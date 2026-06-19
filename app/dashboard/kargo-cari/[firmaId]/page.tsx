@@ -687,7 +687,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     const odenen = Array.from(paymentTotals.entries())
       .filter(([period]) => isCurrentAyYil(period))
       .reduce((sum, [, paid]) => sum + paid, 0)
-    const oncekiBorc = Math.max(0, priorDebt - priorPaid)
+    const oncekiBorc = priorDebt - priorPaid
     const toplamBorc = oncekiBorc + ayBorcu
 
     return {

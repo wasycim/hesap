@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { toast } from "sonner"
 import { CreditCard, FileText, History, Loader2, Package, Save, Trash2, TrendingDown, TrendingUp, Wallet } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
@@ -217,7 +218,7 @@ export default function KargoCariOzetPage() {
       const odenen = Array.from(paymentTotals.entries())
         .filter(([period]) => isCurrentAyYil(period))
         .reduce((sum, [, paid]) => sum + paid, 0)
-      const oncekiBorc = Math.max(0, priorDebt - priorPaid)
+      const oncekiBorc = priorDebt - priorPaid
       const toplamBorc = oncekiBorc + ayBorcu
 
       return {
@@ -454,13 +455,6 @@ export default function KargoCariOzetPage() {
     try {
       const freshDebt = await getFreshDebtForFirm(odemeFormu.firmaId)
       if (!freshDebt) throw new Error("Firma borcu hesaplanamadı.")
-      if (freshDebt.kalanBorc <= 0) {
-        throw new Error("Bu firmanın ödenecek borcu kalmamış.")
-      }
-      if (amount > freshDebt.kalanBorc) {
-        throw new Error(`Ödeme kalan borçtan büyük olamaz. Güncel kalan borç: ${formatNumber(freshDebt.kalanBorc)} TL`)
-      }
-
       const yeniToplamOdeme = freshDebt.odenen + amount
       const yeniKalanBorc = freshDebt.toplamBorc - yeniToplamOdeme
 
@@ -503,7 +497,9 @@ export default function KargoCariOzetPage() {
         markClean()
       }
       await loadBorcOzetleri(firmalar)
-      toast.success("Ödeme kaydedildi ve borçtan düşüldü.")
+      toast.success(yeniKalanBorc < 0
+        ? "Ödeme kaydedildi. Fazla tutar sonraki borca devredilecek."
+        : "Ödeme kaydedildi ve borçtan düşüldü.")
       setSaving(false)
       return true
     } catch (error: any) {
@@ -849,7 +845,12 @@ export default function KargoCariOzetPage() {
                   <div key={ozet.firma_id} className="rounded-lg border bg-background p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate text-base font-bold text-foreground">{ozet.firma_ad}</p>
+                        <Link
+                          href={`/dashboard/kargo-cari/${ozet.firma_id}`}
+                          className="block truncate text-base font-bold text-foreground hover:text-primary hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          {ozet.firma_ad}
+                        </Link>
                         <p className="mt-1 text-xs text-muted-foreground">Ödeme oranı %{percent.toFixed(0)}</p>
                       </div>
                       <div className={`rounded-full px-2.5 py-1 text-xs font-bold ${ozet.kalan_borc > 0 ? "bg-orange-500/10 text-orange-700 dark:text-orange-200" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-200"}`}>
