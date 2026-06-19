@@ -23,7 +23,7 @@ export default async function DashboardLayout({
 
   const { data: profile } = await supabase
     .from("user_profiles")
-    .select("dashboard_access")
+    .select("dashboard_access, display_name")
     .eq("user_id", user.id)
     .maybeSingle()
 
@@ -35,7 +35,10 @@ export default async function DashboardLayout({
     <SubeProvider>
   <UnsavedChangesProvider>
     <div className="dashboard-shell flex h-dvh bg-background lg:flex-row">
-      <DashboardSidebar userEmail={user.email ?? ""} displayName={String(user.user_metadata?.display_name || "")} />
+      <DashboardSidebar
+        userEmail={user.email ?? ""}
+        displayName={String(profile?.display_name || user.user_metadata?.display_name || "")}
+      />
       <QuickCommand />
       <NotificationCenter />
       <AnnouncementBanner />
