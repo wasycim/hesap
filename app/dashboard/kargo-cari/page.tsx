@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ModernDatePicker } from "@/components/ui/modern-date-picker"
 import { MONTHS, getInitialMonth, getInitialYear, getLocalDateString, makeYearWindow } from "@/lib/date-navigation"
 import { openPdfReport } from "@/lib/pdf-report"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface KargoFirma {
   id: string
@@ -75,6 +76,7 @@ export default function KargoCariOzetPage() {
   const [odemeFormuKirli, setOdemeFormuKirli] = useState(false)
   const [duzeltmeFormuKirli, setDuzeltmeFormuKirli] = useState(false)
   const [scope, setScope] = useState<"monthly" | "all">("monthly")
+  const [withKdv, setWithKdv] = useState(false)
   const [month, setMonth] = useState(getInitialMonth())
   const [year, setYear] = useState(getInitialYear())
   const [loading, setLoading] = useState(true)
@@ -624,58 +626,102 @@ export default function KargoCariOzetPage() {
 
     const borcHeaders = hasMovements
       ? (scope === "monthly"
-          ? ["Firma", "Önceki Borç", "Ay Borcu", "Toplam Borç", "Ödenen", "Kalan Borç"]
-          : ["Firma", "Toplam Borç", "Ödenen", "Kalan Borç"])
-      : ["Firma", "Güncel Borç"]
+          ? [
+              "Firma",
+              "Önceki Borç",
+              "Ay Borcu",
+              "Toplam Borç" + (withKdv ? " (KDV Dahil)" : ""),
+              "Ödenen",
+              "Kalan Borç" + (withKdv ? " (KDV Dahil)" : "")
+            ]
+          : [
+              "Firma",
+              "Toplam Borç" + (withKdv ? " (KDV Dahil)" : ""),
+              "Ödenen",
+              "Kalan Borç" + (withKdv ? " (KDV Dahil)" : "")
+            ])
+      : (withKdv
+          ? ["Firma", "Matrah (KDV Hariç)", "KDV (%20)", "Güncel Borç (KDV Dahil)"]
+          : ["Firma", "Güncel Borç"])
 
     const borcRows = hasMovements
       ? (scope === "monthly"
           ? [
-              ...borcOzetleri.map(ozet => [
-                ozet.firma_ad,
-                `${formatNumber(ozet.onceki_borc)} TL`,
-                `${formatNumber(ozet.ay_borcu)} TL`,
-                `${formatNumber(ozet.toplam_borc)} TL`,
-                `${formatNumber(ozet.odenen)} TL`,
-                `${formatNumber(ozet.kalan_borc)} TL`,
-              ]),
+              ...borcOzetleri.map(ozet => {
+                const toplamBorcVal = withKdv ? ozet.toplam_borc * 1.20 : ozet.toplam_borc
+                const kalanBorcVal = withKdv ? toplamBorcVal - ozet.odenen : ozet.kalan_borc
+                return [
+                  ozet.firma_ad,
+                  `${formatNumber(ozet.onceki_borc)} TL`,
+                  `${formatNumber(ozet.ay_borcu)} TL`,
+                  `${formatNumber(toplamBorcVal)} TL`,
+                  `${formatNumber(ozet.odenen)} TL`,
+                  `${formatNumber(kalanBorcVal)} TL`,
+                ]
+              }),
               [
                 "GENEL TOPLAM",
                 `${formatNumber(genelToplam.onceki_borc)} TL`,
                 `${formatNumber(genelToplam.ay_borcu)} TL`,
-                `${formatNumber(genelToplam.toplam_borc)} TL`,
+                `${formatNumber(withKdv ? genelToplam.toplam_borc * 1.20 : genelToplam.toplam_borc)} TL`,
                 `${formatNumber(genelToplam.odenen)} TL`,
+                `${formatNumber(withKdv ? (genelToplam.toplam_borc * 1.20) - genelToplam.odenen : genelToplam.kalan_borc)} TL`,
+              ],
+            ]
+          : [
+              ...borcOzetleri.map(ozet => {
+                const toplamBorcVal = withKdv ? ozet.toplam_borc * 1.20 : ozet.toplam_borc
+                const kalanBorcVal = withKdv ? toplamBorcVal - ozet.odenen : ozet.kalan_borc
+                return [
+                  ozet.firma_ad,
+                  `${formatNumber(toplamBorcVal)} TL`,
+                  `${formatNumber(ozet.odenen)} TL`,
+                  `${formatNumber(kalanBorcVal)} TL`,
+                ]
+              }),
+              [
+                "GENEL TOPLAM",
+                `${formatNumber(withKdv ? genelToplam.toplam_borc * 1.20 : genelToplam.toplam_borc)} TL`,
+                `${formatNumber(genelToplam.odenen)} TL`,
+                `${formatNumber(withKdv ? (genelToplam.toplam_borc * 1.20) - genelToplam.odenen : genelToplam.kalan_borc)} TL`,
+              ],
+            ])
+      : (withKdv
+          ? [
+              ...borcOzetleri.map(ozet => {
+                const kdvTutar = ozet.kalan_borc * 0.20
+                const kdvDahilKalan = ozet.kalan_borc * 1.20
+                return [
+                  ozet.firma_ad,
+                  `${formatNumber(ozet.kalan_borc)} TL`,
+                  `${formatNumber(kdvTutar)} TL`,
+                  `${formatNumber(kdvDahilKalan)} TL`,
+                ]
+              }),
+              [
+                "GENEL TOPLAM",
                 `${formatNumber(genelToplam.kalan_borc)} TL`,
+                `${formatNumber(genelToplam.kalan_borc * 0.20)} TL`,
+                `${formatNumber(genelToplam.kalan_borc * 1.20)} TL`,
               ],
             ]
           : [
               ...borcOzetleri.map(ozet => [
                 ozet.firma_ad,
-                `${formatNumber(ozet.toplam_borc)} TL`,
-                `${formatNumber(ozet.odenen)} TL`,
                 `${formatNumber(ozet.kalan_borc)} TL`,
               ]),
               [
                 "GENEL TOPLAM",
-                `${formatNumber(genelToplam.toplam_borc)} TL`,
-                `${formatNumber(genelToplam.odenen)} TL`,
                 `${formatNumber(genelToplam.kalan_borc)} TL`,
               ],
             ])
-      : [
-          ...borcOzetleri.map(ozet => [
-            ozet.firma_ad,
-            `${formatNumber(ozet.kalan_borc)} TL`,
-          ]),
-          [
-            "GENEL TOPLAM",
-            `${formatNumber(genelToplam.kalan_borc)} TL`,
-          ],
-        ]
+
+    const kdvTotalDahilToplam = genelToplam.toplam_borc * 1.20
+    const kdvTotalDahilKalan = kdvTotalDahilToplam - genelToplam.odenen
 
     openPdfReport({
       title: "Kargo Cari Borç Özeti",
-      subtitle: `${currentSube?.ad || ""} - ${scope === "monthly" ? `${month} ${year}` : "Tüm zamanlar"}`,
+      subtitle: `${currentSube?.ad || ""} - ${scope === "monthly" ? `${month} ${year}` : "Tüm zamanlar"}${withKdv ? " (%20 KDV Dahil)" : ""}`,
       orientation: "landscape",
       metrics: hasMovements
         ? [
@@ -683,12 +729,12 @@ export default function KargoCariOzetPage() {
               { label: "Önceki Borç", value: `${formatNumber(genelToplam.onceki_borc)} TL` },
               { label: "Ay Borcu", value: `${formatNumber(genelToplam.ay_borcu)} TL` },
             ] : []),
-            { label: "Toplam Borç", value: `${formatNumber(genelToplam.toplam_borc)} TL` },
+            { label: "Toplam Borç" + (withKdv ? " (KDV Dahil)" : ""), value: `${formatNumber(withKdv ? kdvTotalDahilToplam : genelToplam.toplam_borc)} TL` },
             { label: "Toplam Ödenen", value: `${formatNumber(genelToplam.odenen)} TL` },
-            { label: "Kalan Borç", value: `${formatNumber(genelToplam.kalan_borc)} TL` },
+            { label: "Kalan Borç" + (withKdv ? " (KDV Dahil)" : ""), value: `${formatNumber(withKdv ? kdvTotalDahilKalan : genelToplam.kalan_borc)} TL` },
           ]
         : [
-            { label: "Güncel Borç", value: `${formatNumber(genelToplam.kalan_borc)} TL` },
+            { label: "Güncel Borç" + (withKdv ? " (KDV Dahil)" : ""), value: `${formatNumber(withKdv ? genelToplam.kalan_borc * 1.20 : genelToplam.kalan_borc)} TL` },
           ],
       tables: hasMovements
         ? [
@@ -782,6 +828,13 @@ export default function KargoCariOzetPage() {
             <FileText className="h-4 w-4" />
             PDF
           </Button>
+          <label className="flex h-9 items-center gap-2 rounded-md border bg-background px-3 text-sm font-medium text-foreground cursor-pointer select-none">
+            <Checkbox
+              checked={withKdv}
+              onCheckedChange={(checked) => setWithKdv(checked === true)}
+            />
+            <span>%20 KDV Ekle</span>
+          </label>
         </div>
       </div>
 

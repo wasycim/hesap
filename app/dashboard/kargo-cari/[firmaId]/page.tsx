@@ -94,6 +94,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   const [savingNotes, setSavingNotes] = useState(false)
   const [currentTime, setCurrentTime] = useState(() => new Date())
   const [customerPdf, setCustomerPdf] = useState(false)
+  const [withKdv, setWithKdv] = useState(false)
   const [month, setMonth] = useState(MONTHS[currentDate.getMonth()])
   const [year, setYear] = useState(currentDate.getFullYear())
   const years = makeYearWindow(year)
@@ -776,6 +777,10 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
       const snapshot = await getFirmDebtSnapshot()
       if (!snapshot) return
 
+      const kdvTutar = snapshot.toplamBorc * 0.20
+      const kdvDahilToplam = snapshot.toplamBorc * 1.20
+      const kdvDahilKalan = kdvDahilToplam - snapshot.odenen
+
       const hareketRows = snapshot.hareketler.map(hareket => [
         formatDate(hareket.tarih),
         `${formatNumber(hareket.toplam_borc)} TL`,
@@ -794,31 +799,42 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
 
       openPdfReport({
         title: `${firma.ad} Borç Hareketleri`,
-        subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
+        subtitle: `${currentSube?.ad || ""} - ${month} ${year}${withKdv ? " (%20 KDV Dahil)" : ""}`,
         orientation: "landscape",
         metrics: hasMovements
           ? [
               { label: "Önceki Borç", value: `${formatNumber(snapshot.oncekiBorc)} TL` },
               { label: "Ay Borcu", value: `${formatNumber(snapshot.ayBorcu)} TL` },
-              { label: "Toplam Borç", value: `${formatNumber(snapshot.toplamBorc)} TL` },
+              { label: "Toplam Borç" + (withKdv ? " (KDV Dahil)" : ""), value: `${formatNumber(withKdv ? kdvDahilToplam : snapshot.toplamBorc)} TL` },
               { label: "Ödenen", value: `${formatNumber(snapshot.odenen)} TL` },
-              { label: "Kalan Borç", value: `${formatNumber(snapshot.kalanBorc)} TL` },
+              { label: "Kalan Borç" + (withKdv ? " (KDV Dahil)" : ""), value: `${formatNumber(withKdv ? kdvDahilKalan : snapshot.kalanBorc)} TL` },
             ]
           : [
-              { label: "Güncel Borç", value: `${formatNumber(snapshot.kalanBorc)} TL` },
+              { label: "Güncel Borç" + (withKdv ? " (KDV Dahil)" : ""), value: `${formatNumber(withKdv ? kdvDahilKalan : snapshot.kalanBorc)} TL` },
             ],
         tables: hasMovements
           ? [
               {
                 title: "Borç Durumu",
-                headers: ["Önceki Borç", "Ay Borcu", "Toplam Borç", "Ödenen", "Kalan Borç"],
-                rows: [[
-                  `${formatNumber(snapshot.oncekiBorc)} TL`,
-                  `${formatNumber(snapshot.ayBorcu)} TL`,
-                  `${formatNumber(snapshot.toplamBorc)} TL`,
-                  `${formatNumber(snapshot.odenen)} TL`,
-                  `${formatNumber(snapshot.kalanBorc)} TL`,
-                ]],
+                headers: withKdv
+                  ? ["Önceki Borç", "Ay Borcu", "KDV (%20)", "Toplam Borç (KDV Dahil)", "Ödenen", "Kalan Borç (KDV Dahil)"]
+                  : ["Önceki Borç", "Ay Borcu", "Toplam Borç", "Ödenen", "Kalan Borç"],
+                rows: withKdv
+                  ? [[
+                      `${formatNumber(snapshot.oncekiBorc)} TL`,
+                      `${formatNumber(snapshot.ayBorcu)} TL`,
+                      `${formatNumber(kdvTutar)} TL`,
+                      `${formatNumber(kdvDahilToplam)} TL`,
+                      `${formatNumber(snapshot.odenen)} TL`,
+                      `${formatNumber(kdvDahilKalan)} TL`,
+                    ]]
+                  : [[
+                      `${formatNumber(snapshot.oncekiBorc)} TL`,
+                      `${formatNumber(snapshot.ayBorcu)} TL`,
+                      `${formatNumber(snapshot.toplamBorc)} TL`,
+                      `${formatNumber(snapshot.odenen)} TL`,
+                      `${formatNumber(snapshot.kalanBorc)} TL`,
+                    ]],
               },
               {
                 title: "Ödeme Hareketleri",
@@ -839,8 +855,18 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
           : [
               {
                 title: "Borç Durumu",
-                headers: ["Güncel Borç"],
-                rows: [[`${formatNumber(snapshot.kalanBorc)} TL`]],
+                headers: withKdv
+                  ? ["Matrah (KDV Hariç)", "KDV (%20)", "Güncel Borç (KDV Dahil)"]
+                  : ["Güncel Borç"],
+                rows: withKdv
+                  ? [[
+                      `${formatNumber(snapshot.kalanBorc)} TL`,
+                      `${formatNumber(kdvTutar)} TL`,
+                      `${formatNumber(kdvDahilKalan)} TL`,
+                    ]]
+                  : [[
+                      `${formatNumber(snapshot.kalanBorc)} TL`,
+                    ]],
               },
               {
                 title: "Ay İçindeki Borç Oluşturan Fişler",
@@ -934,6 +960,13 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
             onCheckedChange={(checked) => setCustomerPdf(checked === true)}
           />
           <span>Müşteri İçin</span>
+        </label>
+        <label className="flex h-9 items-center gap-2 rounded-md border bg-background px-3 text-sm font-medium text-foreground cursor-pointer">
+          <Checkbox
+            checked={withKdv}
+            onCheckedChange={(checked) => setWithKdv(checked === true)}
+          />
+          <span>%20 KDV Ekle</span>
         </label>
       </div>
 
