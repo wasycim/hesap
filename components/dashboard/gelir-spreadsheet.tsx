@@ -237,6 +237,28 @@ function recalculateGelirRow(row: GelirRow): GelirRow {
   }
 }
 
+function recalculateAllGelirRows(inputRows: GelirRow[]): GelirRow[] {
+  // Sort chronologically (oldest first)
+  const sorted = [...inputRows].sort((a, b) => {
+    const dateCompare = a.tarih.localeCompare(b.tarih)
+    if (dateCompare !== 0) return dateCompare
+    return (VARDIYA_SIRASI[a.vardiya] ?? 99) - (VARDIYA_SIRASI[b.vardiya] ?? 99)
+  })
+
+  const result: GelirRow[] = []
+  for (let i = 0; i < sorted.length; i++) {
+    let row = { ...sorted[i] }
+    if (i > 0) {
+      row.kasa_gelen = result[i - 1].kalan
+    }
+    row = recalculateGelirRow(row)
+    result.push(row)
+  }
+
+  // Sort back to display order (newest first)
+  return result.sort(compareDateVardiya)
+}
+
 export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   const [rows, setRows] = useState<GelirRow[]>([])
   const [columnSettings, setColumnSettings] = useState<TableColumnSetting[]>(mergeColumnSettings("gelir", []))
@@ -313,10 +335,10 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       setColumnSettings(mergeColumnSettings("gelir", data.columnSettings as TableColumnSetting[] | null))
       setFirmalar(data.firmalar || [])
       setOnDortFirmalar(data.onDortFirmalar || [])
-      setRows(((data.rows || []) as GelirRow[])
+      const initialRows = ((data.rows || []) as GelirRow[])
         .filter(row => isDateInSelectedMonth(row.tarih, month, year))
-        .map(row => recalculateGelirRow({ ...row, custom_values: row.custom_values || {} }))
-        .sort(compareDateVardiya))
+        .map(row => ({ ...row, custom_values: row.custom_values || {} }))
+      setRows(recalculateAllGelirRows(initialRows))
     } catch {
       toast.warning("Gelir tablosu offline cache bulunamadigi icin bos acildi.")
       setOfflineLoaded(true)
@@ -385,10 +407,9 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       custom_values: {},
     }))
     
-    // Yeni satırı ekle ve tarihe + vardiyaya göre sırala (S önce, A sonra)
-    const newRows = [...rows, ...newRowsToAdd].sort(compareDateVardiya)
+    const newRows = [...rows, ...newRowsToAdd]
     
-    setRows(newRows)
+    setRows(recalculateAllGelirRows(newRows))
     markDirty()
   }
 
@@ -396,7 +417,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     const newRows = [...rows]
     const deletedRow = newRows[index]
     newRows.splice(index, 1)
-    setRows(newRows)
+    setRows(recalculateAllGelirRows(newRows))
     markDirty()
     logSecurityEvent("row_delete", {
       table: "gelir_kayitlari",
@@ -420,8 +441,8 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       (row as any)[column] = Number(value) || 0
     }
     
-    newRows[rowIndex] = recalculateGelirRow(row)
-    setRows(newRows)
+    newRows[rowIndex] = row
+    setRows(recalculateAllGelirRows(newRows))
     markDirty()
   }
 
@@ -431,8 +452,8 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     const details = getOnDortFirmaDetails(row)
     details[firmaId] = Number(value) || 0
     row.custom_values[ON_DORT_FIRMA_DETAYLARI_KEY] = details
-    newRows[rowIndex] = recalculateGelirRow(row)
-    setRows(newRows)
+    newRows[rowIndex] = row
+    setRows(recalculateAllGelirRows(newRows))
     markDirty()
   }
 
@@ -442,8 +463,8 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     const details = getOnDortFirmaDetails(row)
     delete details[firmaId]
     row.custom_values[ON_DORT_FIRMA_DETAYLARI_KEY] = details
-    newRows[rowIndex] = recalculateGelirRow(row)
-    setRows(newRows)
+    newRows[rowIndex] = row
+    setRows(recalculateAllGelirRows(newRows))
     markDirty()
   }
 
@@ -762,6 +783,10 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                     ) : col === "giderler" ? (
                       <div className="bg-red-50 px-2 py-1 text-right font-medium text-red-700 dark:bg-red-500/15 dark:text-red-200">
                         {formatNumber(row.giderler)} ₺
+                      </div>
+                    ) : (col === "kasa_gelen" && rowIndex < rows.length - 1) ? (
+                      <div className="bg-muted px-2 py-1 text-right font-medium text-foreground">
+                        {formatNumber(row.kasa_gelen || 0)} ₺
                       </div>
                     ) : canEdit ? (
                       <input
