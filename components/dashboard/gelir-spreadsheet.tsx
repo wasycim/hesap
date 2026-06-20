@@ -237,7 +237,7 @@ function recalculateGelirRow(row: GelirRow): GelirRow {
   }
 }
 
-function recalculateAllGelirRows(inputRows: GelirRow[]): GelirRow[] {
+function recalculateAllGelirRows(inputRows: GelirRow[], isCarsiOrDarica: boolean): GelirRow[] {
   // Sort chronologically (oldest first)
   const sorted = [...inputRows].sort((a, b) => {
     const dateCompare = a.tarih.localeCompare(b.tarih)
@@ -248,7 +248,7 @@ function recalculateAllGelirRows(inputRows: GelirRow[]): GelirRow[] {
   const result: GelirRow[] = []
   for (let i = 0; i < sorted.length; i++) {
     let row = { ...sorted[i] }
-    if (i > 0) {
+    if (isCarsiOrDarica && i > 0) {
       row.kasa_gelen = result[i - 1].kalan
     }
     row = recalculateGelirRow(row)
@@ -338,7 +338,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       const initialRows = ((data.rows || []) as GelirRow[])
         .filter(row => isDateInSelectedMonth(row.tarih, month, year))
         .map(row => ({ ...row, custom_values: row.custom_values || {} }))
-      setRows(recalculateAllGelirRows(initialRows))
+      setRows(recalculateAllGelirRows(initialRows, isVardiyasizSube))
     } catch {
       toast.warning("Gelir tablosu offline cache bulunamadigi icin bos acildi.")
       setOfflineLoaded(true)
@@ -409,7 +409,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     
     const newRows = [...rows, ...newRowsToAdd]
     
-    setRows(recalculateAllGelirRows(newRows))
+    setRows(recalculateAllGelirRows(newRows, isVardiyasizSube))
     markDirty()
   }
 
@@ -417,7 +417,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     const newRows = [...rows]
     const deletedRow = newRows[index]
     newRows.splice(index, 1)
-    setRows(recalculateAllGelirRows(newRows))
+    setRows(recalculateAllGelirRows(newRows, isVardiyasizSube))
     markDirty()
     logSecurityEvent("row_delete", {
       table: "gelir_kayitlari",
@@ -442,7 +442,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     }
     
     newRows[rowIndex] = row
-    setRows(recalculateAllGelirRows(newRows))
+    setRows(recalculateAllGelirRows(newRows, isVardiyasizSube))
     markDirty()
   }
 
@@ -453,7 +453,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     details[firmaId] = Number(value) || 0
     row.custom_values[ON_DORT_FIRMA_DETAYLARI_KEY] = details
     newRows[rowIndex] = row
-    setRows(recalculateAllGelirRows(newRows))
+    setRows(recalculateAllGelirRows(newRows, isVardiyasizSube))
     markDirty()
   }
 
@@ -464,7 +464,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     delete details[firmaId]
     row.custom_values[ON_DORT_FIRMA_DETAYLARI_KEY] = details
     newRows[rowIndex] = row
-    setRows(recalculateAllGelirRows(newRows))
+    setRows(recalculateAllGelirRows(newRows, isVardiyasizSube))
     markDirty()
   }
 
@@ -784,7 +784,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                       <div className="bg-red-50 px-2 py-1 text-right font-medium text-red-700 dark:bg-red-500/15 dark:text-red-200">
                         {formatNumber(row.giderler)} ₺
                       </div>
-                    ) : (col === "kasa_gelen" && rowIndex < rows.length - 1) ? (
+                    ) : (isVardiyasizSube && col === "kasa_gelen" && rowIndex < rows.length - 1) ? (
                       <div className="bg-muted px-2 py-1 text-right font-medium text-foreground">
                         {formatNumber(row.kasa_gelen || 0)} ₺
                       </div>
