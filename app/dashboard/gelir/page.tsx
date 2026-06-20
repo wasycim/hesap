@@ -1,8 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { useSube } from "@/contexts/sube-context"
+import { useState } from "react"
 import { GelirSpreadsheet } from "@/components/dashboard/gelir-spreadsheet"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,31 +21,8 @@ import {
 } from "@/lib/date-navigation"
 
 export default function GelirPage() {
-  const router = useRouter()
-  const { currentSube } = useSube()
   const [month, setMonth] = useState(getInitialMonth())
   const [year, setYear] = useState(getInitialYear())
-
-  const isCarsiOrDarica = currentSube && (
-    currentSube.id === "9a650980-23f4-4fe8-8b35-092bea7ab7fd" ||
-    currentSube.id === "dda1d0e9-3a5e-487a-a2ae-ccb1adf85734" ||
-    currentSube.kod === "CARSI" ||
-    currentSube.kod === "DARICA"
-  )
-
-  useEffect(() => {
-    if (currentSube) {
-      if (currentSube.id === "9a650980-23f4-4fe8-8b35-092bea7ab7fd" || currentSube.kod === "CARSI") {
-        router.replace("/dashboard/carsi-hesap")
-      } else if (currentSube.id === "dda1d0e9-3a5e-487a-a2ae-ccb1adf85734" || currentSube.kod === "DARICA") {
-        router.replace("/dashboard/darica-hesap")
-      }
-    }
-  }, [currentSube, router])
-
-  if (isCarsiOrDarica) {
-    return null
-  }
   const years = makeYearWindow(year)
 
   const prevMonth = () => {

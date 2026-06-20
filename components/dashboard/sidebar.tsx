@@ -63,8 +63,6 @@ const menuItems = [
   { key: "dashboard", title: "Genel Bakış", href: "/dashboard", icon: LayoutDashboard },
   { key: "gelir", title: "Gelir Tablosu", href: "/dashboard/gelir", icon: TrendingUp, color: "text-emerald-500" },
   { key: "gider", title: "Gider Tablosu", href: "/dashboard/gider", icon: TrendingDown, color: "text-red-500" },
-  { key: "carsi_hesap", title: "Çarşı Hesap", href: "/dashboard/carsi-hesap", icon: Landmark, color: "text-indigo-500" },
-  { key: "darica_hesap", title: "Darıca Hesap", href: "/dashboard/darica-hesap", icon: Landmark, color: "text-indigo-500" },
   { key: "vardiya", title: "Vardiya", href: "/dashboard/vardiya", icon: CalendarDays, color: "text-violet-500" },
   { key: "mesai", title: "Mesai", href: "/dashboard/mesai", icon: Camera, color: "text-amber-500" },
   { key: "mesai_takip", title: "Mesai Takip", href: "/dashboard/mesai-takip", icon: CalendarDays, color: "text-amber-500" },
@@ -282,14 +280,6 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   const router = useRouter()
   const supabase = createClient()
   const { subeler, currentSube, setCurrentSube, isAdmin: subeIsAdmin, userSube } = useSube()
-  const isCarsi = currentSube && (
-    currentSube.id === "9a650980-23f4-4fe8-8b35-092bea7ab7fd" ||
-    currentSube.kod === "CARSI"
-  )
-  const isDarica = currentSube && (
-    currentSube.id === "dda1d0e9-3a5e-487a-a2ae-ccb1adf85734" ||
-    currentSube.kod === "DARICA"
-  )
   const [mobileOpen, setMobileOpen] = useState(false)
   const [kargoOpen, setKargoOpen] = useState(false)
   const [kargoFirmalar, setKargoFirmalar] = useState<KargoFirma[]>([])
@@ -410,16 +400,6 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   }
 
   function canSeeMenu(key: string) {
-    if ((isCarsi || isDarica) && (key === "gelir" || key === "gider")) {
-      return false
-    }
-    if (key === "carsi_hesap") {
-      return Boolean(isCarsi)
-    }
-    if (key === "darica_hesap") {
-      return Boolean(isDarica)
-    }
-
     if (userPermissions === null) return key === "dashboard"
     if (userPermissions[key] === false) return false
     if (userPermissions[key] === true) return menuVisibility[key] !== false
