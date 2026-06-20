@@ -289,6 +289,13 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   const [menuVisibility, setMenuVisibility] = useState<Record<string, boolean>>({})
   const [userPermissions, setUserPermissions] = useState<Record<string, boolean> | null>(null)
 
+  const isCarsiOrDarica = currentSube && (
+    currentSube.id === "9a650980-23f4-4fe8-8b35-092bea7ab7fd" ||
+    currentSube.id === "dda1d0e9-3a5e-487a-a2ae-ccb1adf85734" ||
+    currentSube.kod === "CARSI" ||
+    currentSube.kod === "DARICA"
+  )
+
   useEffect(() => {
     checkAdminStatus()
     const cached = readCachedDashboardPermissions()
@@ -400,6 +407,9 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   }
 
   function canSeeMenu(key: string) {
+    if (isCarsiOrDarica && (key === "gelir" || key === "gider" || key === "on_dort_no")) {
+      return false
+    }
     if (userPermissions === null) return key === "dashboard"
     if (userPermissions[key] === false) return false
     if (userPermissions[key] === true) return menuVisibility[key] !== false
@@ -453,7 +463,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                   ) : (
                     <item.icon className={cn("sidebar-menu-icon h-5 w-5", getMenuIconMotion(item.href), item.color)} />
                   )}
-                  <span>{item.title}</span>
+                  <span>{(item.key === "dashboard" && isCarsiOrDarica) ? "Hesap" : item.title}</span>
                 </Link>
               </li>
             )
