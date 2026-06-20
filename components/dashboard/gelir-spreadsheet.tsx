@@ -124,6 +124,79 @@ function getOnDortFirmaDetails(row: GelirRow): Record<string, number> {
   )
 }
 
+function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  const input = e.currentTarget
+  const cell = input.parentElement // <td>
+  if (!cell) return
+  const row = cell.parentElement // <tr>
+  if (!row) return
+  const tableBody = row.parentElement // <tbody>
+  if (!tableBody) return
+
+  const colIndex = Array.from(row.children).indexOf(cell)
+  const rowIndex = Array.from(tableBody.children).indexOf(row)
+
+  let targetInput: HTMLInputElement | null = null
+
+  if (e.key === "ArrowUp") {
+    let currRowIndex = rowIndex - 1
+    while (currRowIndex >= 0) {
+      const prevRow = tableBody.children[currRowIndex]
+      const targetCell = prevRow?.children[colIndex]
+      const foundInput = targetCell?.querySelector("input")
+      if (foundInput && !foundInput.disabled && foundInput.type !== "hidden") {
+        targetInput = foundInput as HTMLInputElement
+        break
+      }
+      currRowIndex--
+    }
+  } else if (e.key === "ArrowDown") {
+    let currRowIndex = rowIndex + 1
+    while (currRowIndex < tableBody.children.length) {
+      const nextRow = tableBody.children[currRowIndex]
+      const targetCell = nextRow?.children[colIndex]
+      const foundInput = targetCell?.querySelector("input")
+      if (foundInput && !foundInput.disabled && foundInput.type !== "hidden") {
+        targetInput = foundInput as HTMLInputElement
+        break
+      }
+      currRowIndex++
+    }
+  } else if (e.key === "ArrowLeft") {
+    if (input.selectionStart === 0 || input.selectionStart === null) {
+      let currColIndex = colIndex - 1
+      while (currColIndex >= 0) {
+        const targetCell = row.children[currColIndex]
+        const foundInput = targetCell?.querySelector("input")
+        if (foundInput && !foundInput.disabled && foundInput.type !== "hidden") {
+          targetInput = foundInput as HTMLInputElement
+          break
+        }
+        currColIndex--
+      }
+    }
+  } else if (e.key === "ArrowRight") {
+    if (input.selectionEnd === (input.value || "").length || input.selectionEnd === null) {
+      let currColIndex = colIndex + 1
+      while (currColIndex < row.children.length) {
+        const targetCell = row.children[currColIndex]
+        const foundInput = targetCell?.querySelector("input")
+        if (foundInput && !foundInput.disabled && foundInput.type !== "hidden") {
+          targetInput = foundInput as HTMLInputElement
+          break
+        }
+        currColIndex++
+      }
+    }
+  }
+
+  if (targetInput) {
+    e.preventDefault()
+    targetInput.focus()
+    targetInput.select()
+  }
+}
+
 function calculateOnDortFirmalarTotal(details: Record<string, number>) {
   return Object.values(details).reduce((sum, amount) => sum + (Number(amount) || 0), 0)
 }
@@ -695,6 +768,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                         type="number"
                         value={getCellValue(row, col) || ""}
                         onChange={(e) => updateCell(rowIndex, col, e.target.value)}
+                        onKeyDown={handleSpreadsheetKeyDown}
                         className="w-full bg-transparent px-2 py-1 text-right text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"
                         placeholder="0,00"
                       />

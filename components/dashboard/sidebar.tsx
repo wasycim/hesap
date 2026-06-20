@@ -418,6 +418,10 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   }
 
   const handleLogout = async () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("current_sube_id")
+      window.localStorage.removeItem("hesap_sube_context_cache")
+    }
     await supabase.auth.signOut()
     router.push("/auth/giris")
     router.refresh()

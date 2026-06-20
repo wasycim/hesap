@@ -129,7 +129,13 @@ export function SubeProvider({ children }: { children: ReactNode }) {
         const userSubeData = nextSubeler.find(s => s.id === profile.sube_id)
         if (userSubeData) {
           nextUserSube = userSubeData
-          nextCurrentSube = userSubeData
+          
+          // Son secilen subeyi localStoragedan oku, eger varsa onu koru, yoksa kullanici subesini sec
+          const savedSubeId = typeof window !== "undefined"
+            ? window.localStorage.getItem("current_sube_id")
+            : null
+          const savedSube = savedSubeId ? nextSubeler.find(s => s.id === savedSubeId) : null
+          nextCurrentSube = savedSube || userSubeData
         }
       } else if ((profile.is_admin || profile.is_developer) && nextSubeler && nextSubeler.length > 0) {
         // Admin ise son secilen subeyi koru, yoksa ilk subeyi sec.

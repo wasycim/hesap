@@ -130,6 +130,10 @@ export default function GirisPage() {
       tc_kimlik: loginMode === "tc" ? cleanTc : undefined,
     })
     clearSavedLogin()
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("current_sube_id")
+      window.localStorage.removeItem("hesap_sube_context_cache")
+    }
     router.push(getSafeNextPath() || "/dashboard")
     router.refresh()
   }
