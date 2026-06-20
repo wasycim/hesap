@@ -58,6 +58,7 @@ interface Row {
 interface OnDortNoHesapTableProps {
   section?: TableView
   embedded?: boolean
+  forcedSubeId?: string
 }
 
 const SECTION_META: Record<Section, { title: string; description: string; keys: string[] }> = {
@@ -286,7 +287,7 @@ function calculate(values: Values, previousKalan = 0): Values {
   }
 }
 
-export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDortNoHesapTableProps) {
+export function OnDortNoHesapTable({ section = "all", embedded = false, forcedSubeId }: OnDortNoHesapTableProps) {
   const [month, setMonth] = useState(getInitialMonth())
   const [year, setYear] = useState(getInitialYear())
   const [rows, setRows] = useState<Row[]>([])
@@ -301,6 +302,23 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
   const supabase = createClient()
   const { subeler, currentSube, currentUserId, isAdmin, loading: subeLoading } = useSube()
   const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
+
+  const activeSube = useMemo(() => {
+    if (forcedSubeId) {
+      return subeler.find(s => s.id === forcedSubeId) || null
+    }
+    return currentSube
+  }, [forcedSubeId, subeler, currentSube])
+
+  const isCarsiOrDarica = useMemo(() => {
+    if (!activeSube) return false
+    return (
+      activeSube.id === "9a650980-23f4-4fe8-8b35-092bea7ab7fd" ||
+      activeSube.id === "dda1d0e9-3a5e-487a-a2ae-ccb1adf85734" ||
+      activeSube.kod === "CARSI" ||
+      activeSube.kod === "DARICA"
+    )
+  }, [activeSube])
   const years = makeYearWindow(year)
   const ayYil = `${month}-${year}`
   const selectedMonthStartDate = `${year}-${String(MONTHS.indexOf(month) + 1).padStart(2, "0")}-01`
@@ -322,8 +340,13 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
 
   const columnMeta = useMemo(() => new Map(columnSettings.map(column => [column.column_key, column])), [columnSettings])
   const visibleKeys = useMemo(() => {
+    let filteredSettings = columnSettings
+    if (!isCarsiOrDarica) {
+      filteredSettings = columnSettings.filter(c => c.column_key !== "kasadan")
+    }
+
     if (section === "all") {
-      return columnSettings
+      return filteredSettings
         .filter(column => column.aktif)
         .sort((a, b) => a.sort_order - b.sort_order)
         .map(column => column.column_key)
@@ -340,7 +363,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
       return order > giderEnd
     }
 
-    return columnSettings
+    return filteredSettings
       .filter(column => column.aktif)
       .filter(column => {
         if (sectionKeys.has(column.column_key)) return true
@@ -349,7 +372,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
       })
       .sort((a, b) => a.sort_order - b.sort_order)
       .map(column => column.column_key)
-  }, [columnSettings, columnMeta, meta.keys, section])
+  }, [columnSettings, columnMeta, meta.keys, section, isCarsiOrDarica])
   const visibleGroups = useMemo(() => {
     if (section !== "all") return []
 
@@ -377,20 +400,20 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
   const hideEmbeddedHeader = embedded && section === "all"
 
   useEffect(() => {
-    if (isAdmin && currentSube) loadData()
-    if (!subeLoading && !currentSube) setLoading(false)
-  }, [isAdmin, currentSube?.id, sourceSube?.id, transferSourceSube?.id, ayYil])
+    if (isAdmin && activeSube) loadData()
+    if (!subeLoading && !activeSube) setLoading(false)
+  }, [isAdmin, activeSube?.id, sourceSube?.id, transferSourceSube?.id, ayYil])
 
   useEffect(() => {
     registerSaveHandler(saveData)
     return () => registerSaveHandler(null)
-  }, [rows, incomeDetails, expenseDetails, transferDetails, deliveryDetails, openingBalance, currentSube?.id, ayYil, registerSaveHandler])
+  }, [rows, incomeDetails, expenseDetails, transferDetails, deliveryDetails, openingBalance, activeSube?.id, ayYil, registerSaveHandler])
 
   async function loadData() {
-    if (!currentSube) return
+    if (!activeSube) return
     setLoading(true)
-    const incomeSourceSubeId = sourceSube?.id || currentSube.id
-    const transferSourceSubeId = transferSourceSube?.id || currentSube.id
+    const incomeSourceSubeId = sourceSube?.id || activeSube.id
+    const transferSourceSubeId = transferSourceSube?.id || activeSube.id
 
     const [
       { data: settingsData },
@@ -411,13 +434,13 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
       supabase
         .from("kolon_ayarlari")
         .select("*")
-        .eq("sube_id", currentSube.id)
+        .eq("sube_id", activeSube.id)
         .eq("table_type", "on_dort_no_hesap")
         .order("sort_order", { ascending: true }),
       supabase
         .from("on_dort_no_hesap_kayitlari")
         .select("id, tarih, tutarlar")
-        .eq("sube_id", currentSube.id)
+        .eq("sube_id", activeSube.id)
         .eq("ay_yil", ayYil)
         .order("tarih", { ascending: true }),
       supabase
@@ -482,7 +505,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
       supabase
         .from("on_dort_no_hesap_kayitlari")
         .select("tutarlar")
-        .eq("sube_id", currentSube.id)
+        .eq("sube_id", activeSube.id)
         .lt("tarih", selectedMonthStartDate)
         .order("tarih", { ascending: false })
         .limit(1)
@@ -785,6 +808,11 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
       ...values,
     }
 
+    if (isCarsiOrDarica) {
+      nextValues.kasadan = previousKalan
+      return calculate(nextValues, previousKalan)
+    }
+
     if (tarih < AUTO_DATA_START_DATE) {
       return calculate(nextValues, previousKalan)
     }
@@ -881,7 +909,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
   }
 
   async function saveData() {
-    if (!currentSube || !currentUserId) return false
+    if (!activeSube || !currentUserId) return false
     setSaving(true)
 
     const invalidDateIndex = orderedRows.findIndex(row => !isDateInSelectedMonth(row.tarih, month, year))
@@ -894,7 +922,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
     const { error: deleteError } = await supabase
       .from("on_dort_no_hesap_kayitlari")
       .delete()
-      .eq("sube_id", currentSube.id)
+      .eq("sube_id", activeSube.id)
       .eq("ay_yil", ayYil)
 
     if (deleteError) {
@@ -909,7 +937,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
         .from("on_dort_no_hesap_kayitlari")
         .insert(orderedRows.map(row => ({
           user_id: currentUserId,
-          sube_id: currentSube.id,
+          sube_id: activeSube.id,
           ay_yil: ayYil,
           tarih: row.tarih,
           tutarlar: getCalculatedValues(row, saveValueMap),
@@ -943,7 +971,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
   function exportPdf() {
     openPdfReport({
       title: `Alt Şube Hesapları - ${meta.title}`,
-      subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
+      subtitle: `${activeSube?.ad || ""} - ${month} ${year}`,
       orientation: "landscape",
       metrics: [
         { label: "Gelir Toplamı", value: `${formatMoney(orderedRows.reduce((sum, row) => sum + (getCalculatedValues(row).gelir_toplam || 0), 0))} TL` },
@@ -1013,10 +1041,12 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
             <div>
               <h1 className="text-2xl font-bold">{meta.title}</h1>
               <p className="text-sm text-muted-foreground">
-                {currentSube?.ad
-                  ? selectedMonthStartDate < AUTO_DATA_START_DATE
-                    ? `${currentSube.ad} şubesi için ${month} ${year}. Bu dönem verileri manuel işlenir.`
-                    : `${currentSube.ad} şubesi için ${month} ${year}. Otomatik alanlar ${sourceSube?.ad || "14"} şubesinden çekilir.`
+                {activeSube?.ad
+                  ? isCarsiOrDarica
+                    ? `${activeSube.ad} şubesi için ${month} ${year}. Hesap tablosu verileri manuel işlenir.`
+                    : selectedMonthStartDate < AUTO_DATA_START_DATE
+                      ? `${activeSube.ad} şubesi için ${month} ${year}. Bu dönem verileri manuel işlenir.`
+                      : `${activeSube.ad} şubesi için ${month} ${year}. Otomatik alanlar ${sourceSube?.ad || "14"} şubesinden çekilir.`
                   : "Şube seçimi bekleniyor."}
               </p>
             </div>
@@ -1114,7 +1144,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                 <td className="border bg-muted/50 px-2 py-1 font-medium">{formatDate(row.tarih)}</td>
                 {visibleKeys.map(key => {
                   const calculatedValues = getCalculatedValues(row)
-                  const readonly = FORMULA_KEYS.has(key)
+                  const readonly = FORMULA_KEYS.has(key) || (isCarsiOrDarica && key === "kasadan" && rowIndex > 0)
                   const automaticPeriod = row.tarih >= AUTO_DATA_START_DATE
                   const autoIncome = automaticPeriod && AUTO_INCOME_KEYS.has(key as AutoIncomeKey)
                   const autoExpense = automaticPeriod && AUTO_EXPENSE_KEYS.has(key as AutoExpenseKey)
