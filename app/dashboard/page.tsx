@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertTriangle, TrendingUp, TrendingDown, Wallet, Soup } from "lucide-react"
 import Link from "next/link"
 import { useSube } from "@/contexts/sube-context"
-import { OnDortNoHesapTable } from "@/components/dashboard/on-dort-no-hesap-table"
 import {
   MONTHS,
   START_MONTH_INDEX,
@@ -189,17 +188,6 @@ export default function DashboardPage() {
     canSeeMenu("gider"),
     canSeeMenu("corbalar"),
   ].filter(Boolean).length
-
-  const isCarsiOrDarica = currentSube && (
-    currentSube.id === "9a650980-23f4-4fe8-8b35-092bea7ab7fd" ||
-    currentSube.id === "dda1d0e9-3a5e-487a-a2ae-ccb1adf85734" ||
-    currentSube.kod === "CARSI" ||
-    currentSube.kod === "DARICA"
-  )
-
-  if (isCarsiOrDarica) {
-    return <OnDortNoHesapTable embedded />
-  }
 
   return (
     <div className="space-y-6 p-4 sm:p-6 lg:p-8">

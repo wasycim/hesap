@@ -64,7 +64,7 @@ const SECTION_META: Record<Section, { title: string; description: string; keys: 
   gelir: {
     title: "Gelir Kalemleri",
     description: "Pamukkale, Anadolu, İnegöl ve diğer kasa girişleri.",
-    keys: ["kasadan", "pamukkale_turizm", "anadolu_turizm", "inegol_seyahat", "on_dort_no_giden", "diger_kasa", "gelir_toplam"],
+    keys: ["pamukkale_turizm", "anadolu_turizm", "inegol_seyahat", "on_dort_no_giden", "diger_kasa", "gelir_toplam"],
   },
   on_dort: {
     title: "Gider Kalemleri",
@@ -78,7 +78,7 @@ const SECTION_META: Record<Section, { title: string; description: string; keys: 
   },
 }
 
-const FORMULA_KEYS = new Set(["gelir_toplam", "gider_toplam", "kalan", "kasadan"])
+const FORMULA_KEYS = new Set(["gelir_toplam", "gider_toplam", "kalan"])
 const AUTO_INCOME_KEYS = new Set<AutoIncomeKey>(["pamukkale_turizm", "anadolu_turizm", "inegol_seyahat"])
 const AUTO_EXPENSE_KEYS = new Set<AutoExpenseKey>(["kredi_karti_14_no"])
 const AUTO_TRANSFER_KEYS = new Set<AutoTransferKey>(["on_dort_no_giden"])
@@ -321,23 +321,10 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
   }, [subeler])
 
   const columnMeta = useMemo(() => new Map(columnSettings.map(column => [column.column_key, column])), [columnSettings])
-  const isCarsiOrDarica = useMemo(() => {
-    return currentSube && (
-      currentSube.id === "9a650980-23f4-4fe8-8b35-092bea7ab7fd" ||
-      currentSube.id === "dda1d0e9-3a5e-487a-a2ae-ccb1adf85734" ||
-      currentSube.kod === "CARSI" ||
-      currentSube.kod === "DARICA"
-    )
-  }, [currentSube])
-
   const visibleKeys = useMemo(() => {
-    let filteredSettings = columnSettings.filter(column => column.aktif)
-    if (!isCarsiOrDarica) {
-      filteredSettings = filteredSettings.filter(column => column.column_key !== "kasadan")
-    }
-
     if (section === "all") {
-      return filteredSettings
+      return columnSettings
+        .filter(column => column.aktif)
         .sort((a, b) => a.sort_order - b.sort_order)
         .map(column => column.column_key)
     }
@@ -353,7 +340,8 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
       return order > giderEnd
     }
 
-    return filteredSettings
+    return columnSettings
+      .filter(column => column.aktif)
       .filter(column => {
         if (sectionKeys.has(column.column_key)) return true
         if (allSectionKeys.has(column.column_key)) return false
@@ -361,7 +349,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
       })
       .sort((a, b) => a.sort_order - b.sort_order)
       .map(column => column.column_key)
-  }, [columnSettings, columnMeta, meta.keys, section, isCarsiOrDarica])
+  }, [columnSettings, columnMeta, meta.keys, section])
   const visibleGroups = useMemo(() => {
     if (section !== "all") return []
 
@@ -795,20 +783,6 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
   ) {
     const nextValues = {
       ...values,
-    }
-
-    const isCarsiOrDarica = currentSube && (
-      currentSube.id === "9a650980-23f4-4fe8-8b35-092bea7ab7fd" ||
-      currentSube.id === "dda1d0e9-3a5e-487a-a2ae-ccb1adf85734" ||
-      currentSube.kod === "CARSI" ||
-      currentSube.kod === "DARICA"
-    )
-
-    if (isCarsiOrDarica) {
-      if (tarih >= "2026-06-01") {
-        nextValues.kasadan = previousKalan
-      }
-      return calculate(nextValues, previousKalan)
     }
 
     if (tarih < AUTO_DATA_START_DATE) {
