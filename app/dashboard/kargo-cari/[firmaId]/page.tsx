@@ -790,41 +790,68 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         `${formatNumber(Number(row.alinan_tutar) || 0)} TL`,
       ])
 
+      const hasMovements = snapshot.hareketler.length > 0
+
       openPdfReport({
         title: `${firma.ad} Borç Hareketleri`,
         subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
         orientation: "landscape",
-        metrics: [
-          { label: "Önceki Borç", value: `${formatNumber(snapshot.oncekiBorc)} TL` },
-          { label: "Ay Borcu", value: `${formatNumber(snapshot.ayBorcu)} TL` },
-          { label: "Toplam Borç", value: `${formatNumber(snapshot.toplamBorc)} TL` },
-          { label: "Ödenen", value: `${formatNumber(snapshot.odenen)} TL` },
-          { label: "Kalan Borç", value: `${formatNumber(snapshot.kalanBorc)} TL` },
-        ],
-        tables: [{
-          title: "Borç Durumu",
-          headers: ["Önceki Borç", "Ay Borcu", "Toplam Borç", "Ödenen", "Kalan Borç"],
-          rows: [[
-            `${formatNumber(snapshot.oncekiBorc)} TL`,
-            `${formatNumber(snapshot.ayBorcu)} TL`,
-            `${formatNumber(snapshot.toplamBorc)} TL`,
-            `${formatNumber(snapshot.odenen)} TL`,
-            `${formatNumber(snapshot.kalanBorc)} TL`,
-          ]],
-        }, {
-          title: "Ödeme Hareketleri",
-          headers: ["Tarih", "Güncel Borç", "Ödenen", "Kalan Borç", "Not"],
-          firstColumnWidth: "82px",
-          rows: hareketRows.length ? hareketRows : [["-", "-", "-", "-", "Ödeme hareketi yok"]],
-        }, {
-          title: "Ay İçindeki Borç Oluşturan Fişler",
-          headers: ["Tarih", "Fiş No", "Gönderilen Yer", "Alınan Tutar"],
-          firstColumnWidth: "82px",
-          rows: [
-            ...(fisRows.length ? fisRows : [["-", "-", "-", "Kayıt yok"]]),
-            ["TOPLAM", "", "", `${formatNumber(snapshot.ayBorcu)} TL`],
-          ],
-        }],
+        metrics: hasMovements
+          ? [
+              { label: "Önceki Borç", value: `${formatNumber(snapshot.oncekiBorc)} TL` },
+              { label: "Ay Borcu", value: `${formatNumber(snapshot.ayBorcu)} TL` },
+              { label: "Toplam Borç", value: `${formatNumber(snapshot.toplamBorc)} TL` },
+              { label: "Ödenen", value: `${formatNumber(snapshot.odenen)} TL` },
+              { label: "Kalan Borç", value: `${formatNumber(snapshot.kalanBorc)} TL` },
+            ]
+          : [
+              { label: "Güncel Borç", value: `${formatNumber(snapshot.kalanBorc)} TL` },
+            ],
+        tables: hasMovements
+          ? [
+              {
+                title: "Borç Durumu",
+                headers: ["Önceki Borç", "Ay Borcu", "Toplam Borç", "Ödenen", "Kalan Borç"],
+                rows: [[
+                  `${formatNumber(snapshot.oncekiBorc)} TL`,
+                  `${formatNumber(snapshot.ayBorcu)} TL`,
+                  `${formatNumber(snapshot.toplamBorc)} TL`,
+                  `${formatNumber(snapshot.odenen)} TL`,
+                  `${formatNumber(snapshot.kalanBorc)} TL`,
+                ]],
+              },
+              {
+                title: "Ödeme Hareketleri",
+                headers: ["Tarih", "Güncel Borç", "Ödenen", "Kalan Borç", "Not"],
+                firstColumnWidth: "82px",
+                rows: hareketRows.length ? hareketRows : [["-", "-", "-", "-", "Ödeme hareketi yok"]],
+              },
+              {
+                title: "Ay İçindeki Borç Oluşturan Fişler",
+                headers: ["Tarih", "Fiş No", "Gönderilen Yer", "Alınan Tutar"],
+                firstColumnWidth: "82px",
+                rows: [
+                  ...(fisRows.length ? fisRows : [["-", "-", "-", "Kayıt yok"]]),
+                  ["TOPLAM", "", "", `${formatNumber(snapshot.ayBorcu)} TL`],
+                ],
+              },
+            ]
+          : [
+              {
+                title: "Borç Durumu",
+                headers: ["Güncel Borç"],
+                rows: [[`${formatNumber(snapshot.kalanBorc)} TL`]],
+              },
+              {
+                title: "Ay İçindeki Borç Oluşturan Fişler",
+                headers: ["Tarih", "Fiş No", "Gönderilen Yer", "Alınan Tutar"],
+                firstColumnWidth: "82px",
+                rows: [
+                  ...(fisRows.length ? fisRows : [["-", "-", "-", "Kayıt yok"]]),
+                  ["TOPLAM", "", "", `${formatNumber(snapshot.ayBorcu)} TL`],
+                ],
+              },
+            ],
       })
     } catch (error: any) {
       toast.error(error?.message || "Borç PDF hazırlanamadı.")

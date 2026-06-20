@@ -620,39 +620,55 @@ export default function KargoCariOzetPage() {
   }
 
   function exportBorcPdf() {
-    const borcHeaders = scope === "monthly"
-      ? ["Firma", "Önceki Borç", "Ay Borcu", "Toplam Borç", "Ödenen", "Kalan Borç"]
-      : ["Firma", "Toplam Borç", "Ödenen", "Kalan Borç"]
-    const borcRows = scope === "monthly"
-      ? [
-          ...borcOzetleri.map(ozet => [
-            ozet.firma_ad,
-            `${formatNumber(ozet.onceki_borc)} TL`,
-            `${formatNumber(ozet.ay_borcu)} TL`,
-            `${formatNumber(ozet.toplam_borc)} TL`,
-            `${formatNumber(ozet.odenen)} TL`,
-            `${formatNumber(ozet.kalan_borc)} TL`,
-          ]),
-          [
-            "GENEL TOPLAM",
-            `${formatNumber(genelToplam.onceki_borc)} TL`,
-            `${formatNumber(genelToplam.ay_borcu)} TL`,
-            `${formatNumber(genelToplam.toplam_borc)} TL`,
-            `${formatNumber(genelToplam.odenen)} TL`,
-            `${formatNumber(genelToplam.kalan_borc)} TL`,
-          ],
-        ]
+    const hasMovements = odemeHareketleri.length > 0
+
+    const borcHeaders = hasMovements
+      ? (scope === "monthly"
+          ? ["Firma", "Önceki Borç", "Ay Borcu", "Toplam Borç", "Ödenen", "Kalan Borç"]
+          : ["Firma", "Toplam Borç", "Ödenen", "Kalan Borç"])
+      : ["Firma", "Güncel Borç"]
+
+    const borcRows = hasMovements
+      ? (scope === "monthly"
+          ? [
+              ...borcOzetleri.map(ozet => [
+                ozet.firma_ad,
+                `${formatNumber(ozet.onceki_borc)} TL`,
+                `${formatNumber(ozet.ay_borcu)} TL`,
+                `${formatNumber(ozet.toplam_borc)} TL`,
+                `${formatNumber(ozet.odenen)} TL`,
+                `${formatNumber(ozet.kalan_borc)} TL`,
+              ]),
+              [
+                "GENEL TOPLAM",
+                `${formatNumber(genelToplam.onceki_borc)} TL`,
+                `${formatNumber(genelToplam.ay_borcu)} TL`,
+                `${formatNumber(genelToplam.toplam_borc)} TL`,
+                `${formatNumber(genelToplam.odenen)} TL`,
+                `${formatNumber(genelToplam.kalan_borc)} TL`,
+              ],
+            ]
+          : [
+              ...borcOzetleri.map(ozet => [
+                ozet.firma_ad,
+                `${formatNumber(ozet.toplam_borc)} TL`,
+                `${formatNumber(ozet.odenen)} TL`,
+                `${formatNumber(ozet.kalan_borc)} TL`,
+              ]),
+              [
+                "GENEL TOPLAM",
+                `${formatNumber(genelToplam.toplam_borc)} TL`,
+                `${formatNumber(genelToplam.odenen)} TL`,
+                `${formatNumber(genelToplam.kalan_borc)} TL`,
+              ],
+            ])
       : [
           ...borcOzetleri.map(ozet => [
             ozet.firma_ad,
-            `${formatNumber(ozet.toplam_borc)} TL`,
-            `${formatNumber(ozet.odenen)} TL`,
             `${formatNumber(ozet.kalan_borc)} TL`,
           ]),
           [
             "GENEL TOPLAM",
-            `${formatNumber(genelToplam.toplam_borc)} TL`,
-            `${formatNumber(genelToplam.odenen)} TL`,
             `${formatNumber(genelToplam.kalan_borc)} TL`,
           ],
         ]
@@ -661,33 +677,49 @@ export default function KargoCariOzetPage() {
       title: "Kargo Cari Borç Özeti",
       subtitle: `${currentSube?.ad || ""} - ${scope === "monthly" ? `${month} ${year}` : "Tüm zamanlar"}`,
       orientation: "landscape",
-      metrics: [
-        ...(scope === "monthly" ? [
-          { label: "Önceki Borç", value: `${formatNumber(genelToplam.onceki_borc)} TL` },
-          { label: "Ay Borcu", value: `${formatNumber(genelToplam.ay_borcu)} TL` },
-        ] : []),
-        { label: "Toplam Borç", value: `${formatNumber(genelToplam.toplam_borc)} TL` },
-        { label: "Toplam Ödenen", value: `${formatNumber(genelToplam.odenen)} TL` },
-        { label: "Kalan Borç", value: `${formatNumber(genelToplam.kalan_borc)} TL` },
-      ],
-      tables: [{
-        title: "Firma Bazlı Borç Durumu",
-        headers: borcHeaders,
-        firstColumnWidth: "38%",
-        rows: borcRows,
-      }, {
-        title: "Ödeme Hareketleri",
-        headers: ["Tarih", "Firma", "Güncel Borç", "Ödenen", "Kalan Borç", "Not"],
-        firstColumnWidth: "18%",
-        rows: odemeHareketleri.map(hareket => [
-          formatDate(hareket.tarih),
-          hareket.firma_ad,
-          `${formatNumber(hareket.toplam_borc)} TL`,
-          `${formatNumber(hareket.odenen)} TL`,
-          `${formatNumber(hareket.kalan_borc)} TL`,
-          hareket.notlar || "-",
-        ]),
-      }],
+      metrics: hasMovements
+        ? [
+            ...(scope === "monthly" ? [
+              { label: "Önceki Borç", value: `${formatNumber(genelToplam.onceki_borc)} TL` },
+              { label: "Ay Borcu", value: `${formatNumber(genelToplam.ay_borcu)} TL` },
+            ] : []),
+            { label: "Toplam Borç", value: `${formatNumber(genelToplam.toplam_borc)} TL` },
+            { label: "Toplam Ödenen", value: `${formatNumber(genelToplam.odenen)} TL` },
+            { label: "Kalan Borç", value: `${formatNumber(genelToplam.kalan_borc)} TL` },
+          ]
+        : [
+            { label: "Güncel Borç", value: `${formatNumber(genelToplam.kalan_borc)} TL` },
+          ],
+      tables: hasMovements
+        ? [
+            {
+              title: "Firma Bazlı Borç Durumu",
+              headers: borcHeaders,
+              firstColumnWidth: "38%",
+              rows: borcRows,
+            },
+            {
+              title: "Ödeme Hareketleri",
+              headers: ["Tarih", "Firma", "Güncel Borç", "Ödenen", "Kalan Borç", "Not"],
+              firstColumnWidth: "18%",
+              rows: odemeHareketleri.map(hareket => [
+                formatDate(hareket.tarih),
+                hareket.firma_ad,
+                `${formatNumber(hareket.toplam_borc)} TL`,
+                `${formatNumber(hareket.odenen)} TL`,
+                `${formatNumber(hareket.kalan_borc)} TL`,
+                hareket.notlar || "-",
+              ]),
+            },
+          ]
+        : [
+            {
+              title: "Firma Bazlı Borç Durumu",
+              headers: borcHeaders,
+              firstColumnWidth: "38%",
+              rows: borcRows,
+            },
+          ],
     })
   }
 
