@@ -139,30 +139,30 @@ export default function GirisPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 lg:px-8">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-5xl items-center justify-center">
-        <Card className="relative grid w-full overflow-hidden rounded-[2rem] border bg-card shadow-2xl md:grid-cols-[0.98fr_1.02fr]">
+    <main className="grid h-dvh grid-rows-[minmax(0,1fr)_auto] overflow-hidden bg-background px-4 py-4 text-foreground sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-0 w-full max-w-5xl items-center justify-center">
+        <Card className="relative grid max-h-full min-w-0 w-full overflow-hidden rounded-xl border bg-card shadow-2xl sm:rounded-2xl md:grid-cols-[0.98fr_1.02fr] md:rounded-[2rem]">
           <div className="absolute right-5 top-5 z-10">
             <ThemeToggle />
           </div>
-          <CardHeader className="relative flex min-h-[390px] flex-col justify-between overflow-hidden border-b p-8 md:border-b-0 md:p-10">
+          <CardHeader className="relative flex min-h-[180px] min-w-0 flex-col justify-between overflow-hidden border-b p-6 sm:min-h-[220px] sm:p-8 md:min-h-[390px] md:border-b-0 md:p-10">
             <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-28 bg-gradient-to-r from-transparent via-card/60 to-card md:block" />
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_32%_22%,hsl(var(--primary)/0.18),transparent_34%),linear-gradient(135deg,hsl(var(--muted)/0.75),transparent_65%)]" />
             <div className="relative flex items-start">
               <img
                 src="/iconw.png"
                 alt="W logo"
-                className="h-36 w-56 object-contain object-left drop-shadow-2xl transition-all duration-700 sm:h-44 sm:w-72"
+                className="h-20 w-36 object-contain object-left drop-shadow-2xl transition-all duration-700 sm:h-28 sm:w-48 md:h-44 md:w-72"
               />
             </div>
             <div className="relative space-y-3">
-              <CardTitle className="text-3xl font-bold">Hesap Rapor Sistemi</CardTitle>
+              <CardTitle className="text-2xl font-bold md:text-3xl">Hesap Rapor Sistemi</CardTitle>
               <CardDescription className="text-base">Hesabınıza giriş yapın.</CardDescription>
             </div>
           </CardHeader>
 
-          <form onSubmit={handleLogin}>
-            <CardContent className="space-y-6 p-8 pt-20 md:p-10 md:pt-20">
+          <form onSubmit={handleLogin} className="min-w-0">
+            <CardContent className="min-w-0 space-y-4 p-6 pt-16 sm:p-8 sm:pt-16 md:space-y-6 md:p-10 md:pt-20">
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>
@@ -170,10 +170,10 @@ export default function GirisPage() {
               )}
 
               <div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/30 p-1">
-                <Button type="button" variant={loginMode === "tc" ? "default" : "ghost"} onClick={() => setLoginMode("tc")}>
+                <Button type="button" variant={loginMode === "tc" ? "default" : "ghost"} onClick={() => setLoginMode("tc")} className="min-w-0 px-2 text-xs sm:text-sm">
                   TC ile giriş
                 </Button>
-                <Button type="button" variant={loginMode === "email" ? "default" : "ghost"} onClick={() => setLoginMode("email")}>
+                <Button type="button" variant={loginMode === "email" ? "default" : "ghost"} onClick={() => setLoginMode("email")} className="min-w-0 px-2 text-xs sm:text-sm">
                   E-posta ile giriş
                 </Button>
               </div>
@@ -240,7 +240,7 @@ export default function GirisPage() {
               </div>
 
             </CardContent>
-            <CardFooter className="px-8 pb-8 md:px-10 md:pb-10">
+            <CardFooter className="px-6 pb-6 sm:px-8 sm:pb-8 md:px-10 md:pb-10">
               <Button type="submit" className="h-11 w-full" disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Giriş Yap
@@ -249,7 +249,7 @@ export default function GirisPage() {
           </form>
         </Card>
       </div>
-      <PublicAuthFooter className="mx-auto -mt-2 max-w-5xl pb-1" />
+      <PublicAuthFooter className="mx-auto w-full max-w-5xl pt-3" />
     </main>
   )
 }
