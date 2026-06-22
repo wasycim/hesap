@@ -1,21 +1,34 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { getLocalDateString } from "@/lib/date-navigation"
+import { getLocalDateString, getMonthEndDate, getMonthStartDate } from "@/lib/date-navigation"
+import { getFreshAuthUser } from "@/lib/qr-attendance/auth"
 
 async function getAccess() {
+  const admin = createAdminClient()
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { user: null, profile: null }
 
-  const admin = createAdminClient()
+  if (user) {
+    const { data: profile } = await admin
+      .from("user_profiles")
+      .select("user_id, sube_id, is_admin, is_developer, dashboard_access")
+      .eq("user_id", user.id)
+      .maybeSingle()
+
+    return { user, profile }
+  }
+
+  const mesaiUser = await getFreshAuthUser()
+  if (!mesaiUser) return { user: null, profile: null }
+
   const { data: profile } = await admin
     .from("user_profiles")
     .select("user_id, sube_id, is_admin, is_developer, dashboard_access")
-    .eq("user_id", user.id)
+    .eq("tc_kimlik", mesaiUser.tcKimlik)
     .maybeSingle()
 
-  return { user, profile }
+  return { user: { id: profile?.user_id || String(mesaiUser.id) }, profile }
 }
 
 async function resolveSubeId(requestedSubeId: string | null, profile: any) {
@@ -37,6 +50,8 @@ export async function GET(request: NextRequest) {
   const requestedSubeId = searchParams.get("subeId")
   const scope = searchParams.get("scope") === "daily" ? "daily" : "monthly"
   const today = searchParams.get("today") || getLocalDateString()
+  const monthStart = getMonthStartDate(month, year)
+  const monthEnd = getMonthEndDate(month, year)
 
   const { subeId, isAdmin } = await resolveSubeId(requestedSubeId, profile)
   if (!subeId) return NextResponse.json({ error: "Sube bulunamadi." }, { status: 404 })
@@ -46,13 +61,15 @@ export async function GET(request: NextRequest) {
     .from("gelir_kayitlari")
     .select("toplam")
     .eq("sube_id", subeId)
-    .eq("ay_yil", ayYil)
+    .gte("tarih", monthStart)
+    .lte("tarih", monthEnd)
 
   let giderQuery = admin
     .from("gider_kayitlari")
     .select("genel_toplam")
     .eq("sube_id", subeId)
-    .eq("ay_yil", ayYil)
+    .gte("tarih", monthStart)
+    .lte("tarih", monthEnd)
 
   if (!isAdmin || scope === "daily") {
     gelirQuery = gelirQuery.eq("tarih", today)
