@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { isDateInSelectedMonth } from "@/lib/date-navigation"
+import { getMonthEndDate, getMonthStartDate } from "@/lib/date-navigation"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getShiftBusinessDate } from "@/lib/shift-business-date"
@@ -22,6 +22,10 @@ function dedupeRowsByKey<T extends { tarih: string; vardiya?: string | null }>(r
   const uniqueRows = new Map<string, T>()
   for (const row of rows) uniqueRows.set(rowKey(row), row)
   return Array.from(uniqueRows.values())
+}
+
+function dateInRange(value: string, start: string, end: string) {
+  return value >= start && value <= end
 }
 
 async function getAccess() {
@@ -70,6 +74,8 @@ export async function GET(request: NextRequest) {
   const year = Number(searchParams.get("year")) || new Date().getFullYear()
   const ayYil = searchParams.get("ayYil") || `${month}-${year}`
   const requestedSubeId = searchParams.get("subeId")
+  const monthStart = getMonthStartDate(month, year)
+  const monthEnd = getMonthEndDate(month, year)
   const admin = createAdminClient()
 
   const { sube, isAdmin } = await resolveSube(admin, requestedSubeId, profile)
@@ -100,7 +106,8 @@ export async function GET(request: NextRequest) {
       .from("gider_kayitlari")
       .select("*")
       .eq("sube_id", sube.id)
-      .eq("ay_yil", ayYil)
+      .gte("tarih", monthStart)
+      .lte("tarih", monthEnd)
       .order("tarih", { ascending: false })
       .order("vardiya", { ascending: true }),
   ])
@@ -110,7 +117,7 @@ export async function GET(request: NextRequest) {
   }
 
   const rows = (giderRes.data || [])
-    .filter((row: any) => isDateInSelectedMonth(row.tarih, month, year))
+    .filter((row: any) => dateInRange(row.tarih, monthStart, monthEnd))
     .map((row: any) => {
       const mesaiDetails = (row.personel_mesai_detaylari || {}) as Record<string, unknown>
       const mesaiTotal = Object.values(mesaiDetails).reduce<number>((sum, amount) => sum + (Number(amount) || 0), 0)
@@ -171,6 +178,8 @@ export async function POST(request: NextRequest) {
   const month = String(body.month || "")
   const year = Number(body.year) || new Date().getFullYear()
   const ayYil = String(body.ayYil || `${month}-${year}`)
+  const monthStart = getMonthStartDate(month, year)
+  const monthEnd = getMonthEndDate(month, year)
   const rows = Array.isArray(body.rows) ? body.rows : []
   const admin = createAdminClient()
   const { sube, isAdmin } = await resolveSube(admin, String(body.subeId || ""), profile)
@@ -180,7 +189,7 @@ export async function POST(request: NextRequest) {
   const isTekVardiya = isSingleShiftBranch(sube.ad, isAdmin, profile?.vardiya)
   const today = getShiftBusinessDate(profile?.vardiya)
   const editableRows = dedupeRowsByKey(rows.filter((row: any) => {
-    if (!isDateInSelectedMonth(String(row.tarih || ""), month, year)) return false
+    if (!dateInRange(String(row.tarih || ""), monthStart, monthEnd)) return false
     if (!isAdmin && row.tarih !== today) return false
     if (isTekVardiya || isAdmin) return true
     return row.vardiya === profile?.vardiya
@@ -229,7 +238,8 @@ export async function POST(request: NextRequest) {
     .from("gider_kayitlari")
     .select("id, tarih, vardiya")
     .eq("sube_id", sube.id)
-    .eq("ay_yil", ayYil)
+    .gte("tarih", monthStart)
+    .lte("tarih", monthEnd)
 
   if (!isAdmin) existingQuery = existingQuery.eq("tarih", today)
   if (!isTekVardiya && profile?.vardiya && !isAdmin) existingQuery = existingQuery.eq("vardiya", profile.vardiya)
@@ -247,17 +257,25 @@ export async function POST(request: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  await syncGelirGiderTotals(admin, sube.id, ayYil, isTekVardiya)
+  await syncGelirGiderTotals(admin, sube.id, ayYil, isTekVardiya, monthStart, monthEnd)
 
   return NextResponse.json({ ok: true, saved: editableRows.length })
 }
 
-async function syncGelirGiderTotals(admin: ReturnType<typeof createAdminClient>, subeId: string, ayYil: string, isTekVardiya: boolean) {
+async function syncGelirGiderTotals(
+  admin: ReturnType<typeof createAdminClient>,
+  subeId: string,
+  ayYil: string,
+  isTekVardiya: boolean,
+  monthStart: string,
+  monthEnd: string,
+) {
   const { data: giderRows, error: giderError } = await admin
     .from("gider_kayitlari")
     .select("tarih, vardiya, genel_toplam")
     .eq("sube_id", subeId)
-    .eq("ay_yil", ayYil)
+    .gte("tarih", monthStart)
+    .lte("tarih", monthEnd)
 
   if (giderError) throw new Error(giderError.message)
 
@@ -271,7 +289,8 @@ async function syncGelirGiderTotals(admin: ReturnType<typeof createAdminClient>,
     .from("gelir_kayitlari")
     .select("id, tarih, vardiya, toplam")
     .eq("sube_id", subeId)
-    .eq("ay_yil", ayYil)
+    .gte("tarih", monthStart)
+    .lte("tarih", monthEnd)
 
   if (gelirError) throw new Error(gelirError.message)
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { getMonthEndDate, getMonthStartDate } from "@/lib/date-navigation"
 import { getShiftBusinessDate } from "@/lib/shift-business-date"
 
 const VARDIYASIZ_SUBELER = ["carsi", "darica"]
@@ -21,6 +22,10 @@ function dedupeRowsByKey<T extends { tarih: string; vardiya?: string | null }>(r
   const uniqueRows = new Map<string, T>()
   for (const row of rows) uniqueRows.set(rowKey(row), row)
   return Array.from(uniqueRows.values())
+}
+
+function dateInRange(value: string, start: string, end: string) {
+  return value >= start && value <= end
 }
 
 function dateInMonth(value: string, month: string, year: number) {
@@ -85,6 +90,8 @@ export async function GET(request: NextRequest) {
   const year = Number(searchParams.get("year")) || new Date().getFullYear()
   const ayYil = searchParams.get("ayYil") || `${month}-${year}`
   const requestedSubeId = searchParams.get("subeId")
+  const monthStart = getMonthStartDate(month, year)
+  const monthEnd = getMonthEndDate(month, year)
   const admin = createAdminClient()
 
   const { sube, isAdmin } = await resolveSube(admin, requestedSubeId, profile)
@@ -109,14 +116,16 @@ export async function GET(request: NextRequest) {
       .from("gelir_kayitlari")
       .select("*")
       .eq("sube_id", sube.id)
-      .eq("ay_yil", ayYil)
+      .gte("tarih", monthStart)
+      .lte("tarih", monthEnd)
       .order("tarih", { ascending: false })
       .order("vardiya", { ascending: true }),
     admin
       .from("gider_kayitlari")
       .select("tarih, vardiya, genel_toplam")
       .eq("sube_id", sube.id)
-      .eq("ay_yil", ayYil),
+      .gte("tarih", monthStart)
+      .lte("tarih", monthEnd),
   ])
 
   for (const result of [settingsRes, firmaRes, gelirRes, giderRes]) {
@@ -153,7 +162,7 @@ export async function GET(request: NextRequest) {
   })
 
   const rows = (gelirRes.data || [])
-    .filter((row: any) => dateInMonth(row.tarih, month, year))
+    .filter((row: any) => dateInRange(row.tarih, monthStart, monthEnd))
     .map((row: any) => {
       const vardiya = isTekVardiya ? "" : (row.vardiya || "S")
       const giderler = giderTotals.get(getGiderTotalKey(row.tarih, row.vardiya || "S", isTekVardiya)) ?? (Number(row.giderler) || 0)
@@ -204,6 +213,8 @@ export async function POST(request: NextRequest) {
   const month = String(body.month || "")
   const year = Number(body.year) || new Date().getFullYear()
   const ayYil = String(body.ayYil || `${month}-${year}`)
+  const monthStart = getMonthStartDate(month, year)
+  const monthEnd = getMonthEndDate(month, year)
   const rows = Array.isArray(body.rows) ? body.rows : []
   const admin = createAdminClient()
   const { sube, isAdmin } = await resolveSube(admin, String(body.subeId || ""), profile)
@@ -213,7 +224,7 @@ export async function POST(request: NextRequest) {
   const isTekVardiya = VARDIYASIZ_SUBELER.includes(normalizeSubeName(sube.ad)) || (!isAdmin && (!profile?.vardiya || profile.vardiya === "T"))
   const today = getShiftBusinessDate(profile?.vardiya)
   const editableRows = dedupeRowsByKey(rows.filter((row: any) => {
-    if (!dateInMonth(String(row.tarih || ""), month, year)) return false
+    if (!dateInRange(String(row.tarih || ""), monthStart, monthEnd)) return false
     if (!isAdmin && row.tarih !== today) return false
     if (isTekVardiya || isAdmin) return true
     return row.vardiya === profile?.vardiya
@@ -223,7 +234,8 @@ export async function POST(request: NextRequest) {
     .from("gider_kayitlari")
     .select("tarih, vardiya, genel_toplam")
     .eq("sube_id", sube.id)
-    .eq("ay_yil", ayYil)
+    .gte("tarih", monthStart)
+    .lte("tarih", monthEnd)
   if (giderError) return NextResponse.json({ error: giderError.message }, { status: 500 })
 
   const giderTotals = new Map<string, number>()
@@ -269,7 +281,8 @@ export async function POST(request: NextRequest) {
     .from("gelir_kayitlari")
     .select("id, tarih, vardiya")
     .eq("sube_id", sube.id)
-    .eq("ay_yil", ayYil)
+    .gte("tarih", monthStart)
+    .lte("tarih", monthEnd)
 
   if (!isAdmin) existingQuery = existingQuery.eq("tarih", today)
   if (!isTekVardiya && profile?.vardiya && !isAdmin) existingQuery = existingQuery.eq("vardiya", profile.vardiya)
