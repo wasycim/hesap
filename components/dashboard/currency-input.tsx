@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react"
+import { useRef, type ComponentProps } from "react"
 import { cn } from "@/lib/utils"
 
 type CurrencyInputProps = Omit<ComponentProps<"input">, "className"> & {
@@ -14,12 +14,22 @@ export function CurrencyInput({
   placeholder = "0",
   ...props
 }: CurrencyInputProps) {
+  const inputRef = useRef<HTMLInputElement>(null)
   const characterCount = Math.min(Math.max(String(value ?? "").length, 1), 18)
 
   return (
-    <span className={cn("flex min-w-24 items-center justify-center", containerClassName)}>
+    <span
+      className={cn("flex min-h-8 w-full min-w-24 cursor-text items-center justify-center", containerClassName)}
+      onMouseDown={(event) => {
+        if (event.target === inputRef.current) return
+        event.preventDefault()
+        inputRef.current?.focus()
+        inputRef.current?.select()
+      }}
+    >
       <input
         {...props}
+        ref={inputRef}
         value={value}
         placeholder={placeholder}
         style={{ ...style, width: `${characterCount}ch` }}
