@@ -18,6 +18,7 @@ import { getLastMissingDateWithinMonth, getMonthYearFromDate, isDateInSelectedMo
 import { logSecurityEvent } from "@/lib/audit-log"
 import { openPdfReport } from "@/lib/pdf-report"
 import { getShiftBusinessDate } from "@/lib/shift-business-date"
+import { CurrencyInput } from "@/components/dashboard/currency-input"
 
 interface GelirRow {
   id?: string
@@ -126,7 +127,7 @@ function getOnDortFirmaDetails(row: GelirRow): Record<string, number> {
 
 function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
   const input = e.currentTarget
-  const cell = input.parentElement // <td>
+  const cell = input.closest("td")
   if (!cell) return
   const row = cell.parentElement // <tr>
   if (!row) return
@@ -653,12 +654,11 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                   </span>
                   {canEdit ? (
                     <>
-                      <input
+                      <CurrencyInput
                         type="number"
                         value={amount || ""}
                         onChange={(event) => updateOnDortFirmaAmount(rowIndex, firmaId, event.target.value)}
-                        className="h-7 w-20 bg-transparent text-right outline-none"
-                        placeholder="TL"
+                        containerClassName="h-7"
                         title="14 No firma tutarı"
                       />
                       <button
@@ -672,7 +672,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                       </button>
                     </>
                   ) : (
-                    <span className="text-xs font-semibold text-foreground">{formatNumber(amount)} ₺</span>
+                    <span className="text-xs font-semibold text-foreground">{formatNumber(amount)}₺</span>
                   )}
                 </label>
               )
@@ -682,8 +682,8 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
           <span className="text-xs text-muted-foreground">Firma yok</span>
         )}
 
-        <span className="min-w-24 text-right text-xs font-bold text-lime-700 dark:text-lime-300">
-          {formatNumber(total)} TL
+        <span className="min-w-24 text-center text-xs font-bold text-lime-700 dark:text-lime-300">
+          {formatNumber(total)}₺
         </span>
       </div>
     )
@@ -716,11 +716,11 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
         <table className="sticky-table min-w-max text-sm">
           <thead>
             <tr>
-              <th className="w-10 border bg-muted p-2 text-muted-foreground">#</th>
+              <th className="sticky-index-column border bg-muted p-2 text-muted-foreground">#</th>
               {visibleColumns.map(col => (
                 <th 
                   key={col} 
-                  className={`p-2 border font-semibold whitespace-nowrap ${columnColorMap[col] || HEADER_COLORS[col]} ${getColumnTextColor(columnColorMap[col] || HEADER_COLORS[col])}`}
+                  className={`border p-2 font-semibold whitespace-nowrap ${col === "tarih" ? "sticky-date-column" : col === "vardiya" ? "sticky-shift-column" : ""} ${columnColorMap[col] || HEADER_COLORS[col]} ${getColumnTextColor(columnColorMap[col] || HEADER_COLORS[col])}`}
                 >
                   {columnLabelMap[col] || HEADER_LABELS[col] || col}
                 </th>
@@ -736,9 +736,9 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
               
               return (
               <tr key={rowIndex} className={`hover:bg-muted/50 ${!canEditVardiya ? "bg-muted/50 opacity-70" : ""}`}>
-                <td className="border p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
+                <td className="sticky-index-column border bg-card p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
                 {visibleColumns.map(col => (
-                  <td key={col} className="p-0 border">
+                  <td key={col} className={`border p-0 ${col === "tarih" ? "sticky-date-column bg-card" : col === "vardiya" ? "sticky-shift-column bg-card" : ""}`}>
                     {col === "tarih" ? (
                       <div className="bg-muted px-2 py-1 text-center font-medium text-foreground">
                         {formatDate(row.tarih)}
@@ -752,10 +752,10 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                     ) : col === ON_DORT_FIRMALAR_KEY ? (
                       renderOnDortFirmaCell(row, rowIndex, canEdit)
                     ) : col === "toplam" || col === "kalan" ? (
-                      <div className={`px-2 py-1 text-right font-semibold ${
+                      <div className={`px-2 py-1 text-center font-semibold ${
                         col === "kalan" ? (row.kalan >= 0 ? "bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-200" : "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-200") : "bg-muted text-foreground"
                       }`}>
-                        {formatNumber(getCellValue(row, col))} ₺
+                        {formatNumber(getCellValue(row, col))}₺
                       </div>
                     ) : col === "durum" ? (
                       isAdmin ? (
@@ -781,25 +781,24 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                         </div>
                       )
                     ) : col === "giderler" ? (
-                      <div className="bg-red-50 px-2 py-1 text-right font-medium text-red-700 dark:bg-red-500/15 dark:text-red-200">
-                        {formatNumber(row.giderler)} ₺
+                      <div className="bg-red-50 px-2 py-1 text-center font-medium text-red-700 dark:bg-red-500/15 dark:text-red-200">
+                        {formatNumber(row.giderler)}₺
                       </div>
                     ) : (isVardiyasizSube && col === "kasa_gelen" && rowIndex < rows.length - 1) ? (
-                      <div className="bg-muted px-2 py-1 text-right font-medium text-foreground">
-                        {formatNumber(row.kasa_gelen || 0)} ₺
+                      <div className="bg-muted px-2 py-1 text-center font-medium text-foreground">
+                        {formatNumber(row.kasa_gelen || 0)}₺
                       </div>
                     ) : canEdit ? (
-                      <input
+                      <CurrencyInput
                         type="number"
                         value={getCellValue(row, col) || ""}
                         onChange={(e) => updateCell(rowIndex, col, e.target.value)}
                         onKeyDown={handleSpreadsheetKeyDown}
-                        className="w-full bg-transparent px-2 py-1 text-right text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"
-                        placeholder="0,00"
+                        containerClassName="py-1 focus-within:bg-blue-50 dark:focus-within:bg-blue-500/20"
                       />
                     ) : (
-                      <div className="px-2 py-1 text-right text-muted-foreground">
-                        {formatNumber(getCellValue(row, col) || 0)} ₺
+                      <div className="px-2 py-1 text-center text-muted-foreground">
+                        {formatNumber(getCellValue(row, col) || 0)}₺
                       </div>
                     )}
                   </td>
@@ -828,12 +827,12 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
           {rows.length > 0 && (
             <tfoot>
               <tr className="bg-muted font-semibold text-foreground">
-                <td className="p-2 border"></td>
-                <td className="p-2 border text-center">TOPLAM</td>
+                <td className="sticky-index-column border bg-muted p-2"></td>
+                <td className="sticky-date-column border bg-muted p-2 text-center">TOPLAM</td>
                 {visibleColumns.slice(1).map(col => (
-                  <td key={col} className="p-2 border text-right">
+                  <td key={col} className={`border bg-muted p-2 text-center ${col === "vardiya" ? "sticky-shift-column" : ""}`}>
                     {col !== "durum" && col !== "vardiya" && columnTotals[col] !== undefined 
-                      ? `${formatNumber(columnTotals[col])} ₺` 
+                      ? `${formatNumber(columnTotals[col])}₺`
                       : ""}
                   </td>
                 ))}

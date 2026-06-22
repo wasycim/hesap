@@ -18,6 +18,7 @@ import { getLastMissingDateWithinMonth, getMonthYearFromDate, isDateInSelectedMo
 import { logSecurityEvent } from "@/lib/audit-log"
 import { openPdfReport } from "@/lib/pdf-report"
 import { getShiftBusinessDate } from "@/lib/shift-business-date"
+import { CurrencyInput } from "@/components/dashboard/currency-input"
 
 interface Ortak {
   id: string
@@ -213,7 +214,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
 
 function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
   const input = e.currentTarget
-  const cell = input.parentElement // <td>
+  const cell = input.closest("td")
   if (!cell) return
   const row = cell.parentElement // <tr>
   if (!row) return
@@ -633,11 +634,11 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
         <table className="sticky-table min-w-max text-sm">
           <thead>
             <tr>
-              <th className="sticky left-0 w-10 border bg-muted p-2 text-muted-foreground">#</th>
+              <th className="sticky-index-column border bg-muted p-2 text-muted-foreground">#</th>
               {allColumns.map(col => (
                 <th 
                   key={col.key} 
-                  className={`p-2 border font-semibold whitespace-nowrap ${col.color} ${getColumnTextColor(col.color)}`}
+                  className={`border p-2 font-semibold whitespace-nowrap ${col.key === "tarih" ? "sticky-date-column" : col.key === "vardiya" ? "sticky-shift-column" : ""} ${col.color} ${getColumnTextColor(col.color)}`}
                 >
                   {col.label}
                 </th>
@@ -652,7 +653,7 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
               
               return (
               <tr key={rowIndex} className={`hover:bg-muted/50 ${!canEditVardiya ? "bg-muted/50 opacity-70" : ""}`}>
-                <td className="sticky left-0 border bg-card p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
+                <td className="sticky-index-column border bg-card p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
                 {allColumns.map(col => {
                   const isOrtak = col.key.startsWith("ortak_")
                   const isPersonel = col.key.startsWith("personel_") && col.key !== "personel_mesai"
@@ -670,7 +671,7 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
                   }
 
                   return (
-                    <td key={col.key} className="p-0 border">
+                    <td key={col.key} className={`border p-0 ${col.key === "tarih" ? "sticky-date-column bg-card" : col.key === "vardiya" ? "sticky-shift-column bg-card" : ""}`}>
                       {col.key === "tarih" ? (
                         <div className="bg-muted px-2 py-1 text-center font-medium text-foreground">
                           {formatDate(row.tarih)}
@@ -682,8 +683,8 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
                           {row.vardiya}
                         </div>
                       ) : col.key === "genel_toplam" ? (
-                        <div className="bg-red-100 px-2 py-1 text-right font-bold text-red-800 dark:bg-red-500/20 dark:text-red-200">
-                          {formatNumber(row.genel_toplam)} ₺
+                        <div className="bg-red-100 px-2 py-1 text-center font-bold text-red-800 dark:bg-red-500/20 dark:text-red-200">
+                          {formatNumber(row.genel_toplam)}₺
                         </div>
                       ) : col.key === "personel_mesai" ? (
                         canEditVardiya ? (
@@ -712,14 +713,13 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
                                 return (
                                   <label key={personelId} className="flex items-center gap-1 rounded border bg-muted/40 px-1 py-0.5 text-xs">
                                     <span className="max-w-16 truncate">{personel.ad}</span>
-                                    <input
+                                    <CurrencyInput
                                       type="number"
                                       min="0"
                                       step="0.01"
                                       value={amount || ""}
                                       onChange={(event) => updateCell(rowIndex, personelId, Number(event.target.value) || 0, "mesai")}
-                                      className="h-7 w-20 bg-transparent text-right outline-none"
-                                      placeholder="TL"
+                                      containerClassName="h-7"
                                       title="Mesai tutarı"
                                     />
                                     <button
@@ -734,15 +734,15 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
                                 )
                               })}
                             </div>
-                            <span className="min-w-20 text-right font-semibold">{formatNumber(row.personel_mesai)} TL</span>
+                            <span className="min-w-20 text-center font-semibold">{formatNumber(row.personel_mesai)}₺</span>
                           </div>
                         ) : (
-                          <div className="px-2 py-1 text-right text-muted-foreground">
-                            {formatNumber(row.personel_mesai)} TL
+                          <div className="px-2 py-1 text-center text-muted-foreground">
+                            {formatNumber(row.personel_mesai)}₺
                           </div>
                         )
                       ) : canEditVardiya ? (
-                        <input
+                        <CurrencyInput
                           type="number"
                           value={value || ""}
                           onChange={(e) => {
@@ -756,12 +756,11 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
                             }
                           }}
                           onKeyDown={handleSpreadsheetKeyDown}
-                          className="w-full bg-transparent px-2 py-1 text-right text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"
-                          placeholder="0,00"
+                          containerClassName="py-1 focus-within:bg-blue-50 dark:focus-within:bg-blue-500/20"
                         />
                       ) : (
-                        <div className="px-2 py-1 text-right text-muted-foreground">
-                          {formatNumber(value)} ₺
+                        <div className="px-2 py-1 text-center text-muted-foreground">
+                          {formatNumber(value)}₺
                         </div>
                       )}
                     </td>
@@ -790,13 +789,13 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
           {rows.length > 0 && (
             <tfoot>
               <tr className="bg-muted font-semibold text-foreground">
-                <td className="p-2 border"></td>
+                <td className="sticky-index-column border bg-muted p-2"></td>
                 {allColumns.map(col => (
-                  <td key={col.key} className="p-2 border text-right">
+                  <td key={col.key} className={`border bg-muted p-2 text-center ${col.key === "tarih" ? "sticky-date-column" : col.key === "vardiya" ? "sticky-shift-column" : ""}`}>
                     {col.key === "tarih"
                       ? "TOPLAM"
                       : col.key !== "vardiya" && columnTotals[col.key] !== undefined
-                      ? `${formatNumber(columnTotals[col.key])} ₺`
+                      ? `${formatNumber(columnTotals[col.key])}₺`
                       : ""}
                   </td>
                 ))}
