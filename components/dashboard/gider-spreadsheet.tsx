@@ -18,7 +18,7 @@ import { getLastMissingDateWithinMonth, getMonthYearFromDate, isDateInSelectedMo
 import { logSecurityEvent } from "@/lib/audit-log"
 import { openPdfReport } from "@/lib/pdf-report"
 import { getShiftBusinessDate } from "@/lib/shift-business-date"
-import { CurrencyInput } from "@/components/dashboard/currency-input"
+import { CurrencyInput, parseCurrencyInputValue } from "@/components/dashboard/currency-input"
 
 interface Ortak {
   id: string
@@ -474,6 +474,7 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
       toast.success("Gider kaydi offline kuyruga alindi. Internet gelince senkronize edilecek.")
     } else {
       toast.success("Degisiklikler kaydedildi.")
+      window.dispatchEvent(new Event("hesap-dashboard-data-changed"))
       loadData()
     }
     return true
@@ -718,7 +719,7 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
                                       min="0"
                                       step="0.01"
                                       value={amount || ""}
-                                      onChange={(event) => updateCell(rowIndex, personelId, Number(event.target.value) || 0, "mesai")}
+                                      onChange={(event) => updateCell(rowIndex, personelId, parseCurrencyInputValue(event.target.value), "mesai")}
                                       containerClassName="h-7"
                                       title="Mesai tutarı"
                                     />
@@ -746,7 +747,7 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
                           type="number"
                           value={value || ""}
                           onChange={(e) => {
-                            const newVal = Number(e.target.value) || 0
+                            const newVal = parseCurrencyInputValue(e.target.value)
                             if (isOrtak && id) {
                               updateCell(rowIndex, id, newVal, "ortak")
                             } else if (isPersonel && id) {

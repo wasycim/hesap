@@ -12,7 +12,6 @@ import {
   START_MONTH_INDEX,
   getInitialMonth,
   getInitialYear,
-  getLocalDateString,
   makeYearWindow,
 } from "@/lib/date-navigation"
 import { getSubeHesapInfo } from "@/lib/sube-utils"
@@ -33,7 +32,6 @@ export default function DashboardPage() {
   const { currentSube, refreshKey, isAdmin } = useSube()
 
   const ayYil = `${month}-${year}`
-  const today = getLocalDateString()
   const summaryScope = isAdmin ? "monthly" : "daily"
 
   useEffect(() => {
@@ -77,6 +75,27 @@ export default function DashboardPage() {
     }
   }, [month, year, currentSube?.id, refreshKey, isAdmin])
 
+  useEffect(() => {
+    if (!currentSube) return
+
+    const refreshStats = () => fetchStats()
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") fetchStats()
+    }
+
+    window.addEventListener("focus", refreshStats)
+    window.addEventListener("pageshow", refreshStats)
+    window.addEventListener("hesap-dashboard-data-changed", refreshStats)
+    document.addEventListener("visibilitychange", refreshWhenVisible)
+
+    return () => {
+      window.removeEventListener("focus", refreshStats)
+      window.removeEventListener("pageshow", refreshStats)
+      window.removeEventListener("hesap-dashboard-data-changed", refreshStats)
+      document.removeEventListener("visibilitychange", refreshWhenVisible)
+    }
+  }, [month, year, currentSube?.id, isAdmin])
+
   async function fetchMenuVisibility() {
     if (!currentSube) return
 
@@ -100,70 +119,34 @@ export default function DashboardPage() {
 
   const fetchStats = async () => {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !currentSube) {
+    if (!currentSube) {
       setLoading(false)
       return
     }
 
-    if (isAdmin) {
-      const { data: summaryData, error: summaryError } = await supabase
-        .from("v_dashboard_monthly_totals")
-        .select("toplam_gelir, toplam_gider, kalan")
-        .eq("sube_id", currentSube.id)
-        .eq("ay_yil", ayYil)
-        .maybeSingle()
+    try {
+      const params = new URLSearchParams({
+        subeId: currentSube.id,
+        month,
+        year: String(year),
+        ayYil,
+        scope: summaryScope,
+      })
+      const response = await fetch(`/api/dashboard/summary?${params.toString()}`, { cache: "no-store" })
+      const data = await response.json().catch(() => ({}))
 
-      if (!summaryError && summaryData) {
+      if (response.ok) {
         setStats({
-          toplamGelir: Number(summaryData.toplam_gelir) || 0,
-          toplamGider: Number(summaryData.toplam_gider) || 0,
-          kalan: Number(summaryData.kalan) || 0,
+          toplamGelir: Number(data.toplamGelir) || 0,
+          toplamGider: Number(data.toplamGider) || 0,
+          kalan: Number(data.kalan) || 0,
         })
-        setLoading(false)
-        return
+      } else {
+        setStats({ toplamGelir: 0, toplamGider: 0, kalan: 0 })
       }
+    } finally {
+      setLoading(false)
     }
-
-    let gelirQuery = supabase
-      .from("gelir_kayitlari")
-      .select("toplam")
-      .eq("sube_id", currentSube.id)
-      .eq("ay_yil", ayYil)
-
-    let giderQuery = supabase
-      .from("gider_kayitlari")
-      .select("genel_toplam")
-      .eq("sube_id", currentSube.id)
-      .eq("ay_yil", ayYil)
-
-    if (!isAdmin) {
-      gelirQuery = gelirQuery.eq("tarih", today)
-      giderQuery = giderQuery.eq("tarih", today)
-    }
-
-    const [{ data: gelirData }, { data: giderData }] = await Promise.all([gelirQuery, giderQuery])
-
-    let toplamGelir = 0
-    let toplamKalan = 0
-
-    if (gelirData) {
-      toplamGelir = gelirData.reduce((sum, row) => sum + (Number(row.toplam) || 0), 0)
-    }
-
-    let toplamGider = 0
-    if (giderData) {
-      toplamGider = giderData.reduce((sum, row) => sum + (Number(row.genel_toplam) || 0), 0)
-    }
-
-    toplamKalan = toplamGelir - toplamGider
-
-    setStats({
-      toplamGelir,
-      toplamGider,
-      kalan: toplamKalan,
-    })
-    setLoading(false)
   }
 
   const formatCurrency = (amount: number) => {

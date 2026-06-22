@@ -15,7 +15,8 @@ export function CurrencyInput({
   ...props
 }: CurrencyInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const characterCount = Math.min(Math.max(String(value ?? "").length, 1), 18)
+  const displayValue = formatCurrencyInputValue(value)
+  const characterCount = Math.min(Math.max(displayValue.length, 1), 18)
 
   return (
     <span
@@ -30,7 +31,9 @@ export function CurrencyInput({
       <input
         {...props}
         ref={inputRef}
-        value={value}
+        type="text"
+        inputMode="decimal"
+        value={displayValue}
         placeholder={placeholder}
         style={{ ...style, width: `${characterCount}ch` }}
         className={cn(
@@ -41,4 +44,34 @@ export function CurrencyInput({
       <span className="pointer-events-none shrink-0 text-muted-foreground">₺</span>
     </span>
   )
+}
+
+export function parseCurrencyInputValue(value: unknown): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0
+
+  const raw = String(value ?? "").trim()
+  if (!raw) return 0
+
+  const sign = raw.startsWith("-") ? -1 : 1
+  const cleaned = raw
+    .replace(/[^\d,.-]/g, "")
+    .replace(/-/g, "")
+    .replace(/\./g, "")
+    .replace(",", ".")
+
+  const parsed = Number(cleaned)
+  return Number.isFinite(parsed) ? parsed * sign : 0
+}
+
+function formatCurrencyInputValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return ""
+
+  const parsed = parseCurrencyInputValue(value)
+  if (!Number.isFinite(parsed)) return ""
+
+  const hasFraction = Math.abs(parsed % 1) > 0
+  return new Intl.NumberFormat("tr-TR", {
+    minimumFractionDigits: hasFraction ? 2 : 0,
+    maximumFractionDigits: 2,
+  }).format(parsed)
 }

@@ -18,7 +18,7 @@ import { getLastMissingDateWithinMonth, getMonthYearFromDate, isDateInSelectedMo
 import { logSecurityEvent } from "@/lib/audit-log"
 import { openPdfReport } from "@/lib/pdf-report"
 import { getShiftBusinessDate } from "@/lib/shift-business-date"
-import { CurrencyInput } from "@/components/dashboard/currency-input"
+import { CurrencyInput, parseCurrencyInputValue } from "@/components/dashboard/currency-input"
 
 interface GelirRow {
   id?: string
@@ -431,15 +431,16 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   function updateCell(rowIndex: number, column: string, value: string | number) {
     const newRows = [...rows]
     const row = { ...newRows[rowIndex] }
+    const numericValue = parseCurrencyInputValue(value)
     
     const isCustomColumn = column.startsWith("custom_") || column.startsWith("firma_")
 
     if (isCustomColumn) {
-      row.custom_values = { ...row.custom_values, [column]: Number(value) || 0 }
+      row.custom_values = { ...row.custom_values, [column]: numericValue }
     } else if (column === "durum") {
       row.durum = value as string
     } else if (column !== "tarih" && column !== "toplam" && column !== "giderler" && column !== "kalan") {
-      (row as any)[column] = Number(value) || 0
+      (row as any)[column] = numericValue
     }
     
     newRows[rowIndex] = row
@@ -451,7 +452,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     const newRows = [...rows]
     const row = { ...newRows[rowIndex], custom_values: { ...(newRows[rowIndex].custom_values || {}) } }
     const details = getOnDortFirmaDetails(row)
-    details[firmaId] = Number(value) || 0
+    details[firmaId] = parseCurrencyInputValue(value)
     row.custom_values[ON_DORT_FIRMA_DETAYLARI_KEY] = details
     newRows[rowIndex] = row
     setRows(recalculateAllGelirRows(newRows, isVardiyasizSube))
@@ -518,6 +519,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       toast.success("Gelir kaydi offline kuyruğa alindi. Internet gelince senkronize edilecek.")
     } else {
       toast.success("Değişiklikler kaydedildi ✅")
+      window.dispatchEvent(new Event("hesap-dashboard-data-changed"))
       loadData()
     }
     return true
