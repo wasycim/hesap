@@ -15,7 +15,7 @@ import {
   getLocalDateString,
   makeYearWindow,
 } from "@/lib/date-navigation"
-import { isCarsiSube, isDaricaSube } from "@/lib/sube-utils"
+import { getSubeHesapInfo } from "@/lib/sube-utils"
 
 export default function DashboardPage() {
   const [month, setMonth] = useState(getInitialMonth())
@@ -183,12 +183,18 @@ export default function DashboardPage() {
     return "grid grid-cols-1 gap-4 md:grid-cols-3"
   }
 
-  const isCarsi = isCarsiSube(currentSube)
-  const isDarica = isDaricaSube(currentSube)
-  const isCombinedBranch = isCarsi || isDarica
+  const combinedHesapInfo = getSubeHesapInfo(currentSube)
+  const isCombinedBranch = Boolean(combinedHesapInfo)
   const combinedHesapVisible = isCombinedBranch && canSeeMenu("gelir") && canSeeMenu("gider")
-  const combinedHesapHref = isCarsi ? "/dashboard/carsi-hesap" : "/dashboard/darica-hesap"
-  const combinedHesapTitle = isCarsi ? "Çarşı Hesap" : "Darıca Hesap"
+  const combinedHesapHref = combinedHesapInfo?.href || "/dashboard/gelir"
+  const combinedHesapTitle = combinedHesapInfo?.title || "Şube Hesap"
+  const combinedHesapGradient = combinedHesapInfo?.key === "carsi"
+    ? "from-cyan-600 to-emerald-600"
+    : combinedHesapInfo?.key === "darica"
+      ? "from-indigo-600 to-sky-600"
+      : combinedHesapInfo?.key === "onDort"
+        ? "from-lime-600 to-emerald-700"
+        : "from-emerald-600 to-teal-700"
   const gelirHref = isCombinedBranch ? combinedHesapHref : "/dashboard/gelir"
   const giderHref = isCombinedBranch ? combinedHesapHref : "/dashboard/gider"
   const statsGridItemCount = 1 + (canSeeMenu("gelir") ? 1 : 0) + (canSeeMenu("gider") ? 1 : 0)
@@ -335,7 +341,7 @@ export default function DashboardPage() {
             {isCombinedBranch ? (
               combinedHesapVisible && (
                 <Link href={combinedHesapHref}>
-                  <Card className={`dashboard-stat-card h-full cursor-pointer border-none bg-gradient-to-br text-white transition-all hover:scale-[1.02] hover:shadow-lg ${isCarsi ? "from-cyan-600 to-emerald-600" : "from-indigo-600 to-sky-600"}`}>
+                  <Card className={`dashboard-stat-card h-full cursor-pointer border-none bg-gradient-to-br text-white transition-all hover:scale-[1.02] hover:shadow-lg ${combinedHesapGradient}`}>
                     <CardContent className="p-6">
                       <Wallet className="dashboard-stat-inline-icon h-8 w-8 mb-3 opacity-80" />
                       <h3 className="text-lg font-bold mb-1">{combinedHesapTitle}</h3>

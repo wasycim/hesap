@@ -39,6 +39,8 @@ function permissionKeysForPath(pathname: string) {
   if (pathname === "/dashboard") return ["dashboard"]
   if (pathname.startsWith("/dashboard/carsi-hesap")) return ["gelir", "gider"]
   if (pathname.startsWith("/dashboard/darica-hesap")) return ["gelir", "gider"]
+  if (pathname.startsWith("/dashboard/14-hesap")) return ["gelir", "gider"]
+  if (pathname.startsWith("/dashboard/5a-hesap")) return ["gelir", "gider"]
   return [routePermissions.find((item) => pathname.startsWith(item.prefix))?.key || "dashboard"]
 }
 
