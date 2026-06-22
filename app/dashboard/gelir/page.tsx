@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { GelirSpreadsheet } from "@/components/dashboard/gelir-spreadsheet"
 import { Button } from "@/components/ui/button"
 import {
@@ -19,11 +20,22 @@ import {
   getInitialYear,
   makeYearWindow,
 } from "@/lib/date-navigation"
+import { useSube } from "@/contexts/sube-context"
+import { isCarsiSube, isDaricaSube } from "@/lib/sube-utils"
 
 export default function GelirPage() {
   const [month, setMonth] = useState(getInitialMonth())
   const [year, setYear] = useState(getInitialYear())
   const years = makeYearWindow(year)
+  const { currentSube } = useSube()
+  const router = useRouter()
+  const isCarsi = isCarsiSube(currentSube)
+  const isDarica = isDaricaSube(currentSube)
+
+  useEffect(() => {
+    if (isCarsi) router.replace("/dashboard/carsi-hesap")
+    else if (isDarica) router.replace("/dashboard/darica-hesap")
+  }, [isCarsi, isDarica, router])
 
   const prevMonth = () => {
     const currentIndex = MONTHS.indexOf(month)
@@ -46,6 +58,14 @@ export default function GelirPage() {
     } else {
       setMonth(MONTHS[currentIndex + 1])
     }
+  }
+
+  if (isCarsi || isDarica) {
+    return (
+      <div className="flex h-64 items-center justify-center text-muted-foreground">
+        {isCarsi ? "Çarşı" : "Darıca"} Hesap açılıyor...
+      </div>
+    )
   }
 
   return (

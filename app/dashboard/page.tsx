@@ -15,6 +15,7 @@ import {
   getLocalDateString,
   makeYearWindow,
 } from "@/lib/date-navigation"
+import { isCarsiSube, isDaricaSube } from "@/lib/sube-utils"
 
 export default function DashboardPage() {
   const [month, setMonth] = useState(getInitialMonth())
@@ -182,12 +183,18 @@ export default function DashboardPage() {
     return "grid grid-cols-1 gap-4 md:grid-cols-3"
   }
 
+  const isCarsi = isCarsiSube(currentSube)
+  const isDarica = isDaricaSube(currentSube)
+  const isCombinedBranch = isCarsi || isDarica
+  const combinedHesapVisible = isCombinedBranch && canSeeMenu("gelir") && canSeeMenu("gider")
+  const combinedHesapHref = isCarsi ? "/dashboard/carsi-hesap" : "/dashboard/darica-hesap"
+  const combinedHesapTitle = isCarsi ? "Çarşı Hesap" : "Darıca Hesap"
+  const gelirHref = isCombinedBranch ? combinedHesapHref : "/dashboard/gelir"
+  const giderHref = isCombinedBranch ? combinedHesapHref : "/dashboard/gider"
   const statsGridItemCount = 1 + (canSeeMenu("gelir") ? 1 : 0) + (canSeeMenu("gider") ? 1 : 0)
-  const quickActionCount = [
-    canSeeMenu("gelir"),
-    canSeeMenu("gider"),
-    canSeeMenu("corbalar"),
-  ].filter(Boolean).length
+  const quickActionCount = isCombinedBranch
+    ? [combinedHesapVisible, canSeeMenu("corbalar")].filter(Boolean).length
+    : [canSeeMenu("gelir"), canSeeMenu("gider"), canSeeMenu("corbalar")].filter(Boolean).length
 
   return (
     <div className="space-y-6 p-4 sm:p-6 lg:p-8">
@@ -248,7 +255,7 @@ export default function DashboardPage() {
           {/* Stats Grid */}
           <div className={`${getDashboardGridClass(statsGridItemCount)} dashboard-stats-grid`}>
             {canSeeMenu("gelir") && (
-            <Link href="/dashboard/gelir">
+            <Link href={gelirHref}>
               <Card className="dashboard-stat-card dashboard-stat-income h-full bg-emerald-50 border-emerald-200 hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between gap-4">
@@ -268,7 +275,7 @@ export default function DashboardPage() {
             )}
 
             {canSeeMenu("gider") && (
-            <Link href="/dashboard/gider">
+            <Link href={giderHref}>
               <Card className="dashboard-stat-card dashboard-stat-expense h-full bg-red-50 border-red-200 hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between gap-4">
@@ -325,6 +332,20 @@ export default function DashboardPage() {
 
           {/* Quick Actions */}
           <div className={`${getDashboardGridClass(quickActionCount)} dashboard-stats-grid`}>
+            {isCombinedBranch ? (
+              combinedHesapVisible && (
+                <Link href={combinedHesapHref}>
+                  <Card className={`dashboard-stat-card h-full cursor-pointer border-none bg-gradient-to-br text-white transition-all hover:scale-[1.02] hover:shadow-lg ${isCarsi ? "from-cyan-600 to-emerald-600" : "from-indigo-600 to-sky-600"}`}>
+                    <CardContent className="p-6">
+                      <Wallet className="dashboard-stat-inline-icon h-8 w-8 mb-3 opacity-80" />
+                      <h3 className="text-lg font-bold mb-1">{combinedHesapTitle}</h3>
+                      <p className="text-white/85 text-sm">Gelir ve gider kayıtları tek sayfada</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              )
+            ) : (
+            <>
             {canSeeMenu("gelir") && (
             <Link href="/dashboard/gelir">
               <Card className="dashboard-stat-card dashboard-stat-income hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-none h-full">
@@ -346,6 +367,8 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </Link>
+            )}
+            </>
             )}
             {canSeeMenu("corbalar") && (
             <Link href="/dashboard/corbalar">

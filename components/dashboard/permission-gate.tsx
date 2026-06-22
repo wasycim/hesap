@@ -35,15 +35,17 @@ const routePermissions: Array<{ prefix: string; key: string }> = [
   { prefix: "/dashboard/hesap", key: "hesap" },
 ]
 
-function permissionKeyForPath(pathname: string) {
-  if (pathname === "/dashboard") return "dashboard"
-  return routePermissions.find((item) => pathname.startsWith(item.prefix))?.key || "dashboard"
+function permissionKeysForPath(pathname: string) {
+  if (pathname === "/dashboard") return ["dashboard"]
+  if (pathname.startsWith("/dashboard/carsi-hesap")) return ["gelir", "gider"]
+  if (pathname.startsWith("/dashboard/darica-hesap")) return ["gelir", "gider"]
+  return [routePermissions.find((item) => pathname.startsWith(item.prefix))?.key || "dashboard"]
 }
 
 export function DashboardPermissionGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const permissionKey = useMemo(() => permissionKeyForPath(pathname), [pathname])
+  const permissionKeys = useMemo(() => permissionKeysForPath(pathname), [pathname])
   const [allowed, setAllowed] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -64,7 +66,7 @@ export function DashboardPermissionGate({ children }: { children: React.ReactNod
         })
       }
 
-      const nextAllowed = permissions[permissionKey] !== false && permissions[permissionKey] === true
+      const nextAllowed = permissionKeys.every(key => permissions[key] === true)
 
       if (cancelled) return
       if (!nextAllowed && pathname !== "/dashboard") {
@@ -78,7 +80,7 @@ export function DashboardPermissionGate({ children }: { children: React.ReactNod
     return () => {
       cancelled = true
     }
-  }, [pathname, permissionKey, router])
+  }, [pathname, permissionKeys, router])
 
   if (allowed === null) {
     return (

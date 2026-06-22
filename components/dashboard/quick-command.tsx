@@ -37,6 +37,7 @@ import {
   writeCachedDashboardPermissions,
   writeCachedMenuVisibility,
 } from "@/lib/dashboard-permissions-cache"
+import { isCarsiSube, isDaricaSube } from "@/lib/sube-utils"
 
 const NAV_ITEMS = [
   { key: "dashboard", title: "Genel Bakış", href: "/dashboard", icon: LayoutDashboard, color: "text-slate-500" },
@@ -59,6 +60,22 @@ const NAV_ITEMS = [
   { key: "admin_ayarlar", title: "Admin Ayarları", href: "/dashboard/admin-ayarlar", icon: ShieldCheck, color: "text-amber-500" },
   { key: "hesap", title: "Hesap Ayarları", href: "/dashboard/hesap", icon: UserCog, color: "text-purple-500" },
 ]
+
+const CARSI_HESAP_ITEM = {
+  key: "carsi_hesap",
+  title: "Çarşı Hesap",
+  href: "/dashboard/carsi-hesap",
+  icon: Wallet,
+  color: "text-cyan-500",
+}
+
+const DARICA_HESAP_ITEM = {
+  key: "darica_hesap",
+  title: "Darıca Hesap",
+  href: "/dashboard/darica-hesap",
+  icon: Wallet,
+  color: "text-indigo-500",
+}
 
 function normalize(value: string) {
   return value.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -163,13 +180,23 @@ export function QuickCommand() {
     return false
   }
 
+  const navigationItems = isCarsiSube(currentSube)
+    ? [NAV_ITEMS[0], CARSI_HESAP_ITEM, ...NAV_ITEMS.slice(3)]
+    : isDaricaSube(currentSube)
+      ? [NAV_ITEMS[0], DARICA_HESAP_ITEM, ...NAV_ITEMS.slice(3)]
+      : NAV_ITEMS
+
   const results = useMemo(() => {
     const cleanQuery = normalize(query.trim())
-    return NAV_ITEMS
-      .filter(item => canSeeMenu(item.key))
+    return navigationItems
+      .filter(item => (
+        item.key === "carsi_hesap" || item.key === "darica_hesap"
+          ? canSeeMenu("gelir") && canSeeMenu("gider")
+          : canSeeMenu(item.key)
+      ))
       .filter(item => !cleanQuery || normalize(item.title).includes(cleanQuery))
       .slice(0, 10)
-  }, [isAdmin, query, menuVisibility, userPermissions])
+  }, [currentSube?.id, isAdmin, query, menuVisibility, userPermissions])
 
   const cleanQuery = normalize(query.trim())
   const showKargoGroup = canSeeMenu("kargo_cari") && (

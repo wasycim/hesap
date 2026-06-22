@@ -42,6 +42,7 @@ import { useSube } from "@/contexts/sube-context"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { isCarsiSube, isDaricaSube } from "@/lib/sube-utils"
 import {
   readCachedDashboardPermissions,
   readCachedMenuVisibility,
@@ -68,6 +69,22 @@ const menuItems = [
   { key: "mesai_takip", title: "Mesai Takip", href: "/dashboard/mesai-takip", icon: CalendarDays, color: "text-amber-500" },
   { key: "corbalar", title: "Çorbalar", href: "/dashboard/corbalar", icon: Soup, color: "text-orange-500" },
 ]
+
+const carsiHesapMenuItem = {
+  key: "carsi_hesap",
+  title: "Çarşı Hesap",
+  href: "/dashboard/carsi-hesap",
+  icon: Wallet,
+  color: "text-cyan-500",
+}
+
+const daricaHesapMenuItem = {
+  key: "darica_hesap",
+  title: "Darıca Hesap",
+  href: "/dashboard/darica-hesap",
+  icon: Wallet,
+  color: "text-indigo-500",
+}
 
 const maasMenuItem = { key: "maaslar", title: "Maaşlar", href: "/dashboard/maaslar", icon: WalletCards, color: "text-emerald-500" }
 
@@ -121,6 +138,8 @@ function getMenuIconMotion(href: string) {
   if (href === "/dashboard") return "menu-icon-dashboard"
   if (href === "/dashboard/gelir") return "menu-icon-income"
   if (href === "/dashboard/gider") return "menu-icon-expense"
+  if (href === "/dashboard/carsi-hesap") return "menu-icon-bank"
+  if (href === "/dashboard/darica-hesap") return "menu-icon-bank"
   if (href === "/dashboard/mesai-takip") return "menu-icon-pop"
   if (href === "/dashboard/corbalar") return "menu-icon-soup"
   if (href === "/dashboard/sube-ciro-raporlari") return "menu-icon-report"
@@ -417,6 +436,12 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
     router.refresh()
   }
 
+  const primaryMenuItems = isCarsiSube(currentSube)
+    ? [menuItems[0], carsiHesapMenuItem, ...menuItems.slice(3)]
+    : isDaricaSube(currentSube)
+      ? [menuItems[0], daricaHesapMenuItem, ...menuItems.slice(3)]
+      : menuItems
+
   const SidebarContent = () => (
     <>
       <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-5">
@@ -434,7 +459,11 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
           Menü
         </div>
         <ul className="space-y-1">
-          {menuItems.filter(item => canSeeMenu(item.key)).map((item) => {
+          {primaryMenuItems.filter(item => (
+            item.key === "carsi_hesap" || item.key === "darica_hesap"
+              ? canSeeMenu("gelir") && canSeeMenu("gider")
+              : canSeeMenu(item.key)
+          )).map((item) => {
             const isActive = pathname === item.href
             return (
               <li key={item.href}>
