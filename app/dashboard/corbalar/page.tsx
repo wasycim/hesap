@@ -591,7 +591,7 @@ export default function CorbalarPage() {
                             value={row.personel_values[personel.id] || ""}
                             onChange={(e) => updateCell(rowIndex, personel.id, Number(e.target.value) || 0)}
                             disabled={!canEditRow}
-                            className="w-full bg-transparent px-2 py-1 text-right text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"
+                            className="spreadsheet-active-input w-full bg-transparent px-2 py-1 text-right text-foreground focus:outline-none"
                             placeholder="0,00"
                           />
                         </td>

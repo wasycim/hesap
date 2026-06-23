@@ -1064,7 +1064,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                             value={formatEditableDate(row.tarih)}
                             onChange={(e) => updateCell(rowIndex, col, e.target.value)}
                             onBlur={(e) => commitDateCell(rowIndex, e.target.value)}
-                            className="w-full bg-muted px-2 py-1 text-center font-medium text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"
+                            className="spreadsheet-active-input w-full bg-muted px-2 py-1 text-center font-medium text-foreground focus:outline-none"
                             placeholder="12.06"
                             aria-label="Tarih"
                           />
@@ -1091,7 +1091,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                           const padded = val.padStart(6, "0")
                           updateCell(rowIndex, col, padded)
                         }}
-                        className={`w-full bg-transparent px-2 py-1 text-center font-mono text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20 ${
+                        className={`spreadsheet-active-input w-full bg-transparent px-2 py-1 text-center font-mono text-foreground focus:outline-none ${
                           !row.fis_no?.trim() ? "bg-red-50 text-red-700 placeholder:text-red-300 dark:bg-red-500/10 dark:text-red-200" : ""
                         }`}
                         disabled={!canEditRow}
@@ -1112,7 +1112,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                             updateCell(rowIndex, col, onlyLetters)
                           }}
                           disabled={!canEditRow}
-                          className="w-full bg-transparent px-2 py-1 text-left text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"
+                          className="spreadsheet-active-input w-full bg-transparent px-2 py-1 text-left text-foreground focus:outline-none"
                           placeholder="Gönderilen yer"
                         />
                       ) : (
@@ -1121,7 +1121,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                           value={(row as any)[col] || ""}
                           onChange={(e) => updateCell(rowIndex, col, e.target.value)}
                           disabled={!canEditRow}
-                          className="w-full bg-transparent px-2 py-1 text-right text-foreground focus:bg-blue-50 focus:outline-none dark:focus:bg-blue-500/20"
+                          className="spreadsheet-active-input w-full bg-transparent px-2 py-1 text-right text-foreground focus:outline-none"
                           placeholder="0,00"
                         />
                       )}

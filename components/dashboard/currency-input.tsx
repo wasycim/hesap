@@ -28,20 +28,22 @@ export function CurrencyInput({
         inputRef.current?.select()
       }}
     >
-      <input
-        {...props}
-        ref={inputRef}
-        type="text"
-        inputMode="decimal"
-        value={displayValue}
-        placeholder={placeholder}
-        style={{ ...style, width: `${characterCount}ch` }}
-        className={cn(
-          "min-w-[1ch] bg-transparent p-0 text-right tabular-nums text-foreground outline-none",
-          inputClassName,
-        )}
-      />
-      <span className="pointer-events-none shrink-0 text-muted-foreground">₺</span>
+      <span className="spreadsheet-active-cell">
+        <input
+          {...props}
+          ref={inputRef}
+          type="text"
+          inputMode="decimal"
+          value={displayValue}
+          placeholder={placeholder}
+          style={{ ...style, width: `${characterCount}ch` }}
+          className={cn(
+            "min-w-[1ch] bg-transparent p-0 text-right tabular-nums text-foreground outline-none",
+            inputClassName,
+          )}
+        />
+        <span className="pointer-events-none shrink-0 text-muted-foreground">{"\u20ba"}</span>
+      </span>
     </span>
   )
 }

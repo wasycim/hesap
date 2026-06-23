@@ -757,7 +757,7 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
                             }
                           }}
                           onKeyDown={handleSpreadsheetKeyDown}
-                          containerClassName="py-1 focus-within:bg-blue-50 dark:focus-within:bg-blue-500/20"
+                          containerClassName="py-1"
                         />
                       ) : (
                         <div className="px-2 py-1 text-center text-muted-foreground">

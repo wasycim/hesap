@@ -1285,7 +1285,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                           value={calculatedValues[key] || ""}
                           onChange={(event) => updateValue(row.tarih, key, event.target.value)}
                           onKeyDown={handleSpreadsheetKeyDown}
-                          className="w-full bg-transparent px-3 py-2 text-right text-foreground outline-none focus:bg-blue-50 dark:focus:bg-blue-500/20"
+                          className="spreadsheet-active-input w-full bg-transparent px-3 py-2 text-right text-foreground outline-none"
                           placeholder="0,00"
                         />
                       )}
