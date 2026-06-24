@@ -246,6 +246,25 @@ function isApnsProduction() {
   return String(process.env.APNS_ENV || "production").toLowerCase() !== "sandbox"
 }
 
+type ApnsEnvironment = "production" | "sandbox"
+
+function getApnsOrigin(environment: ApnsEnvironment) {
+  return environment === "production" ? "https://api.push.apple.com" : "https://api.sandbox.push.apple.com"
+}
+
+function getApnsEnvironmentFromConfig(): ApnsEnvironment {
+  return isApnsProduction() ? "production" : "sandbox"
+}
+
+function getAlternateApnsEnvironment(environment: ApnsEnvironment): ApnsEnvironment {
+  return environment === "production" ? "sandbox" : "production"
+}
+
+function isApnsEnvironmentMismatch(result: PushDeliveryResult) {
+  const payload = result.response as any
+  return payload?.reason === "BadEnvironmentKeyInToken" || payload?.primary_response?.reason === "BadEnvironmentKeyInToken"
+}
+
 export async function sendApnsNotificationToToken(input: PushInput): Promise<PushDeliveryResult> {
   const provider = getApnsProviderStatus()
   if (!provider.configured) {
@@ -261,7 +280,38 @@ export async function sendApnsNotificationToToken(input: PushInput): Promise<Pus
     return { ok: false, status: "skipped", error: "APNs token boş." }
   }
 
-  const origin = isApnsProduction() ? "https://api.push.apple.com" : "https://api.sandbox.push.apple.com"
+  const primaryEnvironment = getApnsEnvironmentFromConfig()
+  const primaryResult = await sendApnsRequest(input, deviceToken, primaryEnvironment)
+  if (!isApnsEnvironmentMismatch(primaryResult)) return primaryResult
+
+  const fallbackEnvironment = getAlternateApnsEnvironment(primaryEnvironment)
+  const fallbackResult = await sendApnsRequest(input, deviceToken, fallbackEnvironment)
+  if (fallbackResult.ok) {
+    return {
+      ...fallbackResult,
+      response: {
+        delivered_via: fallbackEnvironment,
+        retried_after: primaryEnvironment,
+        primary_response: primaryResult.response || null,
+        fallback_response: fallbackResult.response || null,
+      },
+    }
+  }
+
+  return {
+    ...fallbackResult,
+    error: fallbackResult.error || primaryResult.error,
+    response: {
+      primary_environment: primaryEnvironment,
+      fallback_environment: fallbackEnvironment,
+      primary_response: primaryResult.response || null,
+      fallback_response: fallbackResult.response || null,
+    },
+  }
+}
+
+function sendApnsRequest(input: PushInput, deviceToken: string, environment: ApnsEnvironment): Promise<PushDeliveryResult> {
+  const origin = getApnsOrigin(environment)
   const topic = process.env.APNS_BUNDLE_ID || process.env.NEXT_PUBLIC_APP_BUNDLE_ID || "wasy.system.hesap"
   const payload = JSON.stringify({
     aps: {
@@ -326,7 +376,7 @@ export async function sendApnsNotificationToToken(input: PushInput): Promise<Pus
     request.on("end", () => {
       const response = responseBody ? safeJsonParse(responseBody) : null
       if (statusCode >= 200 && statusCode < 300) {
-        finish({ ok: true, status: "sent", statusCode, response })
+        finish({ ok: true, status: "sent", statusCode, response: { environment, response } })
         return
       }
 
@@ -334,7 +384,7 @@ export async function sendApnsNotificationToToken(input: PushInput): Promise<Pus
         ok: false,
         status: "failed",
         statusCode,
-        response,
+        response: { environment, ...(response || {}) },
         error: response?.reason || `APNs push gönderimi başarısız (${statusCode}).`,
       })
     })
