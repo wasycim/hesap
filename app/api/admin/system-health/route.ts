@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { requireDashboardDeveloper } from "@/lib/admin/require-admin"
 import { canSendAdminDigestEmail } from "@/lib/email/admin-digest"
-import { getPushProviderStatus } from "@/lib/notifications/push"
+import { getApnsProviderStatus, getPushProviderStatus } from "@/lib/notifications/push"
 import { prisma } from "@/lib/prisma"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { PrismaClient } from "@prisma/client"
@@ -79,10 +79,16 @@ export async function GET() {
   }))
 
   const pushProvider = getPushProviderStatus()
+  const apnsProvider = getApnsProviderStatus()
   components.push({
     name: "FCM push sağlayıcısı",
     status: pushProvider.configured ? "operational" : "degraded",
     message: pushProvider.configured ? "Gerçek push gönderimi hazır" : `Eksik ortam değişkenleri: ${pushProvider.missing.join(", ")}`,
+  })
+  components.push({
+    name: "iOS APNs push sağlayıcısı",
+    status: apnsProvider.configured ? "operational" : "degraded",
+    message: apnsProvider.configured ? "iOS sistem bildirimi hazır" : `Eksik ortam değişkenleri: ${apnsProvider.missing.join(", ")}`,
   })
   components.push({
     name: "Otomatik rapor e-postası",
@@ -166,9 +172,9 @@ export async function GET() {
     resetEvents: resetEvents || [],
     pendingDevices: pendingDevices || [],
     pushSummary: {
-      provider: pushProvider.provider,
-      configured: pushProvider.configured,
-      missing: pushProvider.missing,
+      provider: `${pushProvider.provider}+${apnsProvider.provider}`,
+      configured: pushProvider.configured || apnsProvider.configured,
+      missing: [...pushProvider.missing, ...apnsProvider.missing],
       registeredDevices: pushDeviceCount.count || 0,
       latestDeliveries: latestPushLogs.data || [],
       latestDevices: (latestUserDevices.data || []).map((device: any) => ({

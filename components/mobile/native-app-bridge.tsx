@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react"
 import { App as CapacitorApp } from "@capacitor/app"
 import { Capacitor } from "@capacitor/core"
 import { Haptics, ImpactStyle } from "@capacitor/haptics"
-import { LocalNotifications } from "@capacitor/local-notifications"
 import { Network } from "@capacitor/network"
 import { Preferences } from "@capacitor/preferences"
 import { PushNotifications } from "@capacitor/push-notifications"
@@ -22,6 +21,9 @@ const nativeNavItems = [
 ]
 
 type PushState = "idle" | "granted" | "denied" | "unavailable"
+let pushListenersReady = false
+let pushRegistrationPromise: Promise<void> | null = null
+
 const visibleNativeNavItems = [
   ...nativeNavItems.filter((item) => item.href !== "/dashboard/maaslar"),
   { label: "Cikis", href: "/auth/giris", icon: LogOut, action: "logout" as const },
@@ -44,6 +46,9 @@ export function NativeAppBridge() {
     let active = true
     setNative(true)
     setCurrentPath(window.location.pathname)
+    const platform = Capacitor.getPlatform()
+    document.documentElement.classList.add("native-app", `native-${platform}`)
+    document.body.classList.add("native-app-body")
 
     async function bootNativeShell() {
       const status = await Network.getStatus()
@@ -51,14 +56,13 @@ export function NativeAppBridge() {
       setOnline(status.connected)
 
       await SplashScreen.hide().catch(() => undefined)
-      await StatusBar.setStyle({ style: Style.Dark }).catch(() => undefined)
+      await StatusBar.setStyle({ style: Style.Light }).catch(() => undefined)
       await StatusBar.setBackgroundColor({ color: "#0f172a" }).catch(() => undefined)
 
       await Preferences.set({ key: "hesap:last-opened-at", value: new Date().toISOString() }).catch(() => undefined)
       await unlockWithPlatformBiometric().catch(() => undefined)
       await registerPushNotifications(setPushState)
       await retryRegistration()
-      await scheduleNativeReminder()
     }
 
     async function retryRegistration() {
@@ -97,13 +101,15 @@ export function NativeAppBridge() {
     window.addEventListener("hesap:sync-native-push", pushSyncListener)
     const retryTimer = window.setInterval(() => {
       retryRegistration().catch(() => undefined)
-    }, 30_000)
+    }, 300_000)
 
     bootNativeShell()
 
     return () => {
       active = false
       window.clearInterval(retryTimer)
+      document.documentElement.classList.remove("native-app", `native-${platform}`)
+      document.body.classList.remove("native-app-body")
       document.removeEventListener("visibilitychange", visibilityListener)
       window.removeEventListener("hesap:sync-native-push", pushSyncListener)
       networkListener.then((listener) => listener.remove()).catch(() => undefined)
@@ -168,28 +174,51 @@ export function NativeAppBridge() {
 }
 
 async function registerPushNotifications(setPushState: (state: PushState) => void) {
+  if (pushRegistrationPromise) return pushRegistrationPromise
+  pushRegistrationPromise = registerPushNotificationsInternal(setPushState).finally(() => {
+    pushRegistrationPromise = null
+  })
+  return pushRegistrationPromise
+}
+
+async function registerPushNotificationsInternal(setPushState: (state: PushState) => void) {
   if (!Capacitor.isPluginAvailable("PushNotifications")) {
     setPushState("unavailable")
     return
   }
 
-  const permission = await PushNotifications.requestPermissions().catch(() => ({ receive: "denied" as const }))
+  let permission = await PushNotifications.checkPermissions().catch(() => ({ receive: "denied" as const }))
+  if (permission.receive === "prompt" || permission.receive === "prompt-with-rationale") {
+    permission = await PushNotifications.requestPermissions().catch(() => ({ receive: "denied" as const }))
+  }
   if (permission.receive !== "granted") {
     setPushState("denied")
     return
   }
 
   setPushState("granted")
-  await PushNotifications.addListener("registration", async (token) => {
-    await Preferences.set({ key: "hesap:push-token", value: token.value }).catch(() => undefined)
-    await Preferences.remove({ key: "hesap:push-registration-error" }).catch(() => undefined)
-    await registerNativeDevice(token.value)
-  })
+  if (!pushListenersReady) {
+    pushListenersReady = true
+    await PushNotifications.addListener("registration", async (token) => {
+      await Preferences.set({ key: "hesap:push-token", value: token.value }).catch(() => undefined)
+      await Preferences.remove({ key: "hesap:push-registration-error" }).catch(() => undefined)
+      await registerNativeDevice(token.value)
+    })
 
-  await PushNotifications.addListener("registrationError", async (error) => {
-    await Preferences.set({ key: "hesap:push-registration-error", value: JSON.stringify(error) }).catch(() => undefined)
-    await registerNativeDevice(undefined, error)
-  })
+    await PushNotifications.addListener("registrationError", async (error) => {
+      await Preferences.set({ key: "hesap:push-registration-error", value: JSON.stringify(error) }).catch(() => undefined)
+      await registerNativeDevice(undefined, error)
+    })
+
+    await PushNotifications.addListener("pushNotificationReceived", (notification) => {
+      window.dispatchEvent(new CustomEvent("hesap:native-push-received", { detail: notification }))
+    })
+
+    await PushNotifications.addListener("pushNotificationActionPerformed", (event) => {
+      const target = String(event.notification.data?.href || "/dashboard/bildirimler")
+      if (target.startsWith("/")) window.location.href = target
+    })
+  }
 
   if (Capacitor.getPlatform() === "android") {
     await PushNotifications.createChannel({
@@ -202,11 +231,6 @@ async function registerPushNotifications(setPushState: (state: PushState) => voi
     }).catch(() => undefined)
   }
   await PushNotifications.register().catch(() => undefined)
-
-  await PushNotifications.addListener("pushNotificationActionPerformed", (event) => {
-    const target = String(event.notification.data?.href || "/dashboard/mesai-takip")
-    if (target.startsWith("/")) window.location.href = target
-  })
 }
 
 async function registerNativeDevice(pushToken?: string, pushRegistrationError?: unknown) {
@@ -311,21 +335,3 @@ async function unlockWithPlatformBiometric() {
   }
 }
 
-async function scheduleNativeReminder() {
-  if (!Capacitor.isPluginAvailable("LocalNotifications")) return
-
-  const permission = await LocalNotifications.requestPermissions().catch(() => ({ display: "denied" as const }))
-  if (permission.display !== "granted") return
-
-  await LocalNotifications.schedule({
-    notifications: [
-      {
-        id: 20260529,
-        title: "Hesap hazır",
-        body: "Mesai takip ve raporlarınızı uygulamadan kontrol edebilirsiniz.",
-        schedule: { at: new Date(Date.now() + 5000) },
-        smallIcon: "ic_stat_hesap",
-      },
-    ],
-  }).catch(() => undefined)
-}

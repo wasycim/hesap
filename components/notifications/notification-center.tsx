@@ -137,6 +137,7 @@ export function NotificationCenter() {
 }
 
 function requestDesktopNotificationPermission() {
+  if (isNativeRuntime()) return
   if (typeof window === "undefined" || !("Notification" in window)) return
   if (Notification.permission === "default") {
     Notification.requestPermission().catch(() => undefined)
@@ -144,6 +145,7 @@ function requestDesktopNotificationPermission() {
 }
 
 function showDesktopNotifications(items: NotificationItem[]) {
+  if (isNativeRuntime()) return
   if (typeof window === "undefined" || !("Notification" in window)) return
   if (Notification.permission !== "granted") return
 
@@ -174,6 +176,11 @@ function showDesktopNotifications(items: NotificationItem[]) {
   if (changed) {
     window.localStorage.setItem(notifiedKey, JSON.stringify([...notified].slice(-200)))
   }
+}
+
+function isNativeRuntime() {
+  const capacitor = typeof window !== "undefined" ? (window as any).Capacitor : null
+  return Boolean(capacitor?.isNativePlatform?.())
 }
 
 function safeParseStringArray(value: string | null) {

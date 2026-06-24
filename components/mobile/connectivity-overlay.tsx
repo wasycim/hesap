@@ -98,6 +98,9 @@ function notifySyncComplete(synced: number, remaining: number) {
   const body = "Cevrimdisi veriler kaydedildi ve sisteme islendi."
   toast.success(body)
 
+  const capacitor = typeof window !== "undefined" ? (window as any).Capacitor : null
+  if (capacitor?.isNativePlatform?.()) return
+
   if (typeof window === "undefined" || !("Notification" in window)) return
   if (Notification.permission === "granted") {
     new Notification(title, {

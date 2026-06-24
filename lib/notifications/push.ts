@@ -1,4 +1,5 @@
 import crypto from "crypto"
+import http2 from "http2"
 import jwt from "jsonwebtoken"
 
 const FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
@@ -63,8 +64,32 @@ export function getPushProviderStatus() {
   }
 }
 
+export function getApnsProviderStatus(): ProviderStatus {
+  const required = {
+    APNS_KEY_ID: process.env.APNS_KEY_ID,
+    APNS_TEAM_ID: process.env.APNS_TEAM_ID,
+    APNS_PRIVATE_KEY: normalizePrivateKey(process.env.APNS_PRIVATE_KEY),
+    APNS_BUNDLE_ID: process.env.APNS_BUNDLE_ID || process.env.NEXT_PUBLIC_APP_BUNDLE_ID || "wasy.system.hesap",
+  }
+  const missing = Object.entries(required)
+    .filter(([, value]) => !value)
+    .map(([key]) => key)
+
+  return {
+    provider: "apns",
+    configured: missing.length === 0,
+    missing,
+  }
+}
+
 export function hashPushToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex")
+}
+
+type ProviderStatus = {
+  provider: string
+  configured: boolean
+  missing: string[]
 }
 
 function isUnregisteredFcmResult(result: PushDeliveryResult) {
@@ -75,6 +100,15 @@ function isUnregisteredFcmResult(result: PushDeliveryResult) {
     payload?.error?.status === "NOT_FOUND" ||
     details.some((detail: any) => detail?.errorCode === "UNREGISTERED")
   )
+}
+
+function isUnregisteredApnsResult(result: PushDeliveryResult) {
+  const payload = result.response as any
+  return result.statusCode === 410 || payload?.reason === "Unregistered" || payload?.reason === "BadDeviceToken"
+}
+
+function isIosDevice(platform: string | null) {
+  return String(platform || "").toLowerCase() === "ios"
 }
 
 async function getFcmAccessToken() {
@@ -190,6 +224,136 @@ export async function sendPushNotificationToToken(input: PushInput): Promise<Pus
   }
 }
 
+function getApnsJwt() {
+  return jwt.sign(
+    {
+      iss: process.env.APNS_TEAM_ID,
+      iat: Math.floor(Date.now() / 1000),
+    },
+    normalizePrivateKey(process.env.APNS_PRIVATE_KEY),
+    {
+      algorithm: "ES256",
+      header: {
+        alg: "ES256",
+        kid: process.env.APNS_KEY_ID,
+      },
+      expiresIn: "50m",
+    },
+  )
+}
+
+function isApnsProduction() {
+  return String(process.env.APNS_ENV || "production").toLowerCase() !== "sandbox"
+}
+
+export async function sendApnsNotificationToToken(input: PushInput): Promise<PushDeliveryResult> {
+  const provider = getApnsProviderStatus()
+  if (!provider.configured) {
+    return {
+      ok: false,
+      status: "skipped",
+      error: `APNs ayarları eksik: ${provider.missing.join(", ")}`,
+    }
+  }
+
+  const deviceToken = input.token.replace(/\s/g, "")
+  if (!deviceToken) {
+    return { ok: false, status: "skipped", error: "APNs token boş." }
+  }
+
+  const origin = isApnsProduction() ? "https://api.push.apple.com" : "https://api.sandbox.push.apple.com"
+  const topic = process.env.APNS_BUNDLE_ID || process.env.NEXT_PUBLIC_APP_BUNDLE_ID || "wasy.system.hesap"
+  const payload = JSON.stringify({
+    aps: {
+      alert: {
+        title: input.title,
+        body: input.body,
+      },
+      sound: "default",
+      badge: 1,
+      "thread-id": "hesap",
+    },
+    href: input.href || "/dashboard",
+    notificationId: input.notificationId || "",
+    level: input.level || "info",
+  })
+
+  return new Promise((resolve) => {
+    const client = http2.connect(origin)
+    let settled = false
+    let statusCode = 0
+    let responseBody = ""
+
+    const finish = (result: PushDeliveryResult) => {
+      if (settled) return
+      settled = true
+      client.close()
+      resolve(result)
+    }
+
+    client.on("error", (error) => {
+      finish({
+        ok: false,
+        status: "failed",
+        error: error instanceof Error ? error.message : "APNs bağlantısı başarısız.",
+      })
+    })
+
+    const request = client.request({
+      ":method": "POST",
+      ":path": `/3/device/${deviceToken}`,
+      authorization: `bearer ${getApnsJwt()}`,
+      "apns-topic": topic,
+      "apns-push-type": "alert",
+      "apns-priority": "10",
+      "content-type": "application/json",
+    })
+
+    request.setEncoding("utf8")
+    request.on("response", (headers) => {
+      statusCode = Number(headers[":status"] || 0)
+    })
+    request.on("data", (chunk) => {
+      responseBody += chunk
+    })
+    request.on("error", (error) => {
+      finish({
+        ok: false,
+        status: "failed",
+        error: error instanceof Error ? error.message : "APNs bildirimi gönderilemedi.",
+      })
+    })
+    request.on("end", () => {
+      const response = responseBody ? safeJsonParse(responseBody) : null
+      if (statusCode >= 200 && statusCode < 300) {
+        finish({ ok: true, status: "sent", statusCode, response })
+        return
+      }
+
+      finish({
+        ok: false,
+        status: "failed",
+        statusCode,
+        response,
+        error: response?.reason || `APNs push gönderimi başarısız (${statusCode}).`,
+      })
+    })
+    request.end(payload)
+  })
+}
+
+function safeJsonParse(value: string) {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return { raw: value }
+  }
+}
+
+async function sendNativePushNotification(provider: "apns" | "fcm", input: PushInput) {
+  return provider === "apns" ? sendApnsNotificationToToken(input) : sendPushNotificationToToken(input)
+}
+
 export async function deliverPushToUserDevices(admin: any, input: DeliverToUserInput) {
   const { data: devices, error: deviceError } = await admin
     .from("user_devices")
@@ -201,21 +365,31 @@ export async function deliverPushToUserDevices(admin: any, input: DeliverToUserI
   if (deviceError) throw new Error(deviceError.message)
 
   const targetDevices = ((devices || []) as UserDeviceRow[]).filter((device) => String(device.push_token || "").trim())
+  const fcmProviderStatus = getPushProviderStatus()
+  const apnsProviderStatus = getApnsProviderStatus()
   if (!targetDevices.length) {
     await admin
       .from("app_notifications")
       .update({ push_status: "skipped", push_error: "Kayıtlı push token bulunamadı." })
       .eq("id", input.notificationId)
-    return { sent: 0, failed: 0, skipped: 0, deviceCount: 0, configured: getPushProviderStatus().configured, missing: getPushProviderStatus().missing }
+    return {
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      deviceCount: 0,
+      configured: fcmProviderStatus.configured || apnsProviderStatus.configured,
+      missing: [...fcmProviderStatus.missing, ...apnsProviderStatus.missing],
+    }
   }
 
-  const providerStatus = getPushProviderStatus()
   const deliveryRows = []
   const results: PushDeliveryResult[] = []
 
   for (const device of targetDevices) {
-    const result = providerStatus.configured
-      ? await sendPushNotificationToToken({
+    const provider = isIosDevice(device.platform) ? "apns" : "fcm"
+    const activeProviderStatus = provider === "apns" ? apnsProviderStatus : fcmProviderStatus
+    const result = activeProviderStatus.configured
+      ? await sendNativePushNotification(provider, {
           token: String(device.push_token),
           title: input.title,
           body: input.body,
@@ -226,11 +400,11 @@ export async function deliverPushToUserDevices(admin: any, input: DeliverToUserI
       : {
           ok: false,
           status: "skipped" as const,
-          error: `FCM ayarları eksik: ${providerStatus.missing.join(", ")}`,
+          error: `${provider.toUpperCase()} ayarları eksik: ${activeProviderStatus.missing.join(", ")}`,
         }
 
     results.push(result)
-    if (isUnregisteredFcmResult(result)) {
+    if ((provider === "apns" && isUnregisteredApnsResult(result)) || (provider === "fcm" && isUnregisteredFcmResult(result))) {
       await admin
         .from("user_devices")
         .update({
@@ -244,7 +418,7 @@ export async function deliverPushToUserDevices(admin: any, input: DeliverToUserI
       notification_id: input.notificationId,
       user_id: input.userId,
       device_id: device.id,
-      provider: "fcm",
+      provider,
       status: result.status,
       title: input.title,
       href: input.href || "/dashboard",
@@ -277,7 +451,7 @@ export async function deliverPushToUserDevices(admin: any, input: DeliverToUserI
     failed,
     skipped,
     deviceCount: targetDevices.length,
-    configured: providerStatus.configured,
-    missing: providerStatus.missing,
+    configured: fcmProviderStatus.configured || apnsProviderStatus.configured,
+    missing: [...fcmProviderStatus.missing, ...apnsProviderStatus.missing],
   }
 }

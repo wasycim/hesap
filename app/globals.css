@@ -130,6 +130,32 @@
   padding-right: env(safe-area-inset-right);
 }
 
+.native-app,
+.native-app body {
+  min-height: 100dvh;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  -webkit-touch-callout: none;
+}
+
+.native-app-body {
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  background: var(--background);
+}
+
+.native-ios body {
+  -webkit-overflow-scrolling: touch;
+}
+
+.native-app input,
+.native-app textarea,
+.native-app select,
+.native-app button {
+  font-size: max(16px, 1rem);
+}
+
 .spreadsheet-active-cell,
 .spreadsheet-active-input {
   border-radius: 0.375rem;

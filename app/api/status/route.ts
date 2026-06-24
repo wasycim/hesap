@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client"
 import { NextResponse } from "next/server"
 import { canSendAdminDigestEmail } from "@/lib/email/admin-digest"
-import { getPushProviderStatus } from "@/lib/notifications/push"
+import { getApnsProviderStatus, getPushProviderStatus } from "@/lib/notifications/push"
 import { prisma } from "@/lib/prisma"
 import { createAdminClient } from "@/lib/supabase/admin"
 
@@ -168,6 +168,7 @@ async function checkBackupStatus() {
 
 export async function GET() {
   const push = getPushProviderStatus()
+  const apns = getApnsProviderStatus()
   const components = await Promise.all([
     Promise.resolve({ name: "Web uygulaması", status: "operational" as ComponentState, latencyMs: 0 }),
     checkDatabase(),
@@ -179,6 +180,12 @@ export async function GET() {
       status: push.configured ? ("operational" as ComponentState) : ("degraded" as ComponentState),
       latencyMs: 0,
       message: push.configured ? "Push anahtarları hazır" : `Eksik: ${push.missing.join(", ")}`,
+    }),
+    Promise.resolve({
+      name: "iOS APNs push bildirim",
+      status: apns.configured ? ("operational" as ComponentState) : ("degraded" as ComponentState),
+      latencyMs: 0,
+      message: apns.configured ? "iOS bildirim anahtarları hazır" : `Eksik: ${apns.missing.join(", ")}`,
     }),
     Promise.resolve({
       name: "SMTP e-posta",
