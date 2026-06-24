@@ -13,12 +13,13 @@ async function writePng(target, size, options = {}) {
   await ensureDir(path.dirname(target))
   let image = sharp(source).resize(size, size, { fit: "cover" })
   if (options.background) image = image.flatten({ background: options.background })
+  if (options.opaque) image = image.flatten({ background: options.opaqueBackground || "#0b0f16" }).removeAlpha()
   await image.png().toFile(target)
 }
 
 async function main() {
-  await writePng(path.join(root, "mobile-shell", "icon.png"), 1024)
-  await writePng(path.join(root, "ios", "App", "App", "Assets.xcassets", "AppIcon.appiconset", "AppIcon-512@2x.png"), 1024)
+  await writePng(path.join(root, "mobile-shell", "icon.png"), 1024, { opaque: true })
+  await writePng(path.join(root, "ios", "App", "App", "Assets.xcassets", "AppIcon.appiconset", "AppIcon-512@2x.png"), 1024, { opaque: true })
 
   const androidIcons = [
     ["mipmap-mdpi", 48],
