@@ -11,15 +11,19 @@ workflows:
         BUNDLE_ID: "wasy.system.hesap"
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: wasy.system.hesap
 
     cache:
       cache_paths:
         - $HOME/.npm
 
     scripts:
+      - name: Check App Store signing variables
+        script: |
+          : "${APP_STORE_CONNECT_KEY_IDENTIFIER:?APP_STORE_CONNECT_KEY_IDENTIFIER eksik}"
+          : "${APP_STORE_CONNECT_ISSUER_ID:?APP_STORE_CONNECT_ISSUER_ID eksik}"
+          : "${APP_STORE_CONNECT_PRIVATE_KEY:?APP_STORE_CONNECT_PRIVATE_KEY eksik}"
+          : "${CERTIFICATE_PRIVATE_KEY:?CERTIFICATE_PRIVATE_KEY eksik}"
+
       - name: Install npm dependencies
         script: |
           npm ci
@@ -32,6 +36,12 @@ workflows:
       - name: Initialize keychain
         script: |
           keychain initialize
+
+      - name: Fetch App Store signing files
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
 
       - name: Add certificates to keychain
         script: |
