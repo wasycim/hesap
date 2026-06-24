@@ -333,10 +333,12 @@ function sendApnsRequest(input: PushInput, deviceToken: string, environment: Apn
     let settled = false
     let statusCode = 0
     let responseBody = ""
+    let timeout: NodeJS.Timeout | null = null
 
     const finish = (result: PushDeliveryResult) => {
       if (settled) return
       settled = true
+      if (timeout) clearTimeout(timeout)
       client.close()
       resolve(result)
     }
@@ -358,6 +360,16 @@ function sendApnsRequest(input: PushInput, deviceToken: string, environment: Apn
       "apns-priority": "10",
       "content-type": "application/json",
     })
+
+    timeout = setTimeout(() => {
+      request.close()
+      finish({
+        ok: false,
+        status: "failed",
+        response: { environment },
+        error: "APNs istegi zaman asimina ugradi.",
+      })
+    }, 10_000)
 
     request.setEncoding("utf8")
     request.on("response", (headers) => {
@@ -438,20 +450,29 @@ export async function deliverPushToUserDevices(admin: any, input: DeliverToUserI
   for (const device of targetDevices) {
     const provider = isIosDevice(device.platform) ? "apns" : "fcm"
     const activeProviderStatus = provider === "apns" ? apnsProviderStatus : fcmProviderStatus
-    const result = activeProviderStatus.configured
-      ? await sendNativePushNotification(provider, {
-          token: String(device.push_token),
-          title: input.title,
-          body: input.body,
-          href: input.href,
-          notificationId: input.notificationId,
-          level: input.level,
-        })
-      : {
-          ok: false,
-          status: "skipped" as const,
-          error: `${provider.toUpperCase()} ayarları eksik: ${activeProviderStatus.missing.join(", ")}`,
-        }
+    let result: PushDeliveryResult
+    try {
+      result = activeProviderStatus.configured
+        ? await sendNativePushNotification(provider, {
+            token: String(device.push_token),
+            title: input.title,
+            body: input.body,
+            href: input.href,
+            notificationId: input.notificationId,
+            level: input.level,
+          })
+        : {
+            ok: false,
+            status: "skipped" as const,
+            error: `${provider.toUpperCase()} ayarları eksik: ${activeProviderStatus.missing.join(", ")}`,
+          }
+    } catch (error) {
+      result = {
+        ok: false,
+        status: "failed",
+        error: error instanceof Error ? error.message : `${provider.toUpperCase()} push gonderimi tamamlanamadi.`,
+      }
+    }
 
     results.push(result)
     if ((provider === "apns" && isUnregisteredApnsResult(result)) || (provider === "fcm" && isUnregisteredFcmResult(result))) {
