@@ -483,7 +483,9 @@
 
 .sticky-index-column,
 .sticky-date-column,
-.sticky-shift-column {
+.sticky-shift-column,
+.sticky-date-first-column,
+.sticky-shift-after-date-column {
   position: sticky;
 }
 
@@ -506,18 +508,38 @@
   box-shadow: 2px 0 0 var(--border), 8px 0 12px rgba(15, 23, 42, 0.06);
 }
 
+.sticky-date-first-column {
+  left: 0;
+  width: 7rem;
+  min-width: 7rem;
+  box-shadow: 2px 0 0 var(--border), 8px 0 12px rgba(15, 23, 42, 0.06);
+}
+
+.sticky-shift-after-date-column {
+  left: 7rem;
+  width: 7rem;
+  min-width: 7rem;
+  box-shadow: 2px 0 0 var(--border), 8px 0 12px rgba(15, 23, 42, 0.06);
+}
+
 .sticky-table tbody .sticky-index-column,
 .sticky-table tbody .sticky-date-column,
 .sticky-table tbody .sticky-shift-column,
+.sticky-table tbody .sticky-date-first-column,
+.sticky-table tbody .sticky-shift-after-date-column,
 .sticky-table tfoot .sticky-index-column,
 .sticky-table tfoot .sticky-date-column,
-.sticky-table tfoot .sticky-shift-column {
+.sticky-table tfoot .sticky-shift-column,
+.sticky-table tfoot .sticky-date-first-column,
+.sticky-table tfoot .sticky-shift-after-date-column {
   z-index: 20;
 }
 
 .sticky-table thead .sticky-index-column,
 .sticky-table thead .sticky-date-column,
-.sticky-table thead .sticky-shift-column {
+.sticky-table thead .sticky-shift-column,
+.sticky-table thead .sticky-date-first-column,
+.sticky-table thead .sticky-shift-after-date-column {
   z-index: 60;
 }
 

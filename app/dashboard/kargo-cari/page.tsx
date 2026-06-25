@@ -1170,7 +1170,7 @@ export default function KargoCariOzetPage() {
               <table className="sticky-table w-full min-w-[980px] text-sm">
                 <thead>
                   <tr className="border-b bg-muted/60">
-                    <th className="p-3 text-left font-semibold text-foreground">TARİH</th>
+                    <th className="sticky-date-first-column bg-muted/60 p-3 text-left font-semibold text-foreground">TARİH</th>
                     <th className="p-3 text-left font-semibold text-foreground">FİRMA</th>
                     <th className="p-3 text-right font-semibold text-blue-700 dark:text-blue-200">GÜNCEL BORÇ</th>
                     <th className="p-3 text-right font-semibold text-emerald-700 dark:text-emerald-200">ÖDENEN</th>
@@ -1183,7 +1183,7 @@ export default function KargoCariOzetPage() {
                     const isCorrection = hareket.odenen < 0
                     return (
                       <tr key={hareket.id} className="border-b transition-colors hover:bg-slate-50/70 dark:hover:bg-slate-500/10">
-                        <td className="p-4 font-medium text-muted-foreground">{formatDate(hareket.tarih)}</td>
+                        <td className="sticky-date-first-column bg-card p-4 font-medium text-muted-foreground">{formatDate(hareket.tarih)}</td>
                         <td className="p-4 font-semibold text-foreground">{hareket.firma_ad}</td>
                         <td className="p-4 text-right font-semibold text-blue-700 dark:text-blue-200">{formatNumber(hareket.toplam_borc)} TL</td>
                         <td className={`p-4 text-right font-bold ${isCorrection ? "text-red-600 dark:text-red-200" : "text-emerald-600 dark:text-emerald-200"}`}>

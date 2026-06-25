@@ -564,9 +564,9 @@ export default function SubeCiroRaporlariPage() {
             <table className="sticky-table min-w-[860px] w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="p-3 text-left">Tarih</th>
+                  <th className="sticky-date-first-column bg-muted/50 p-3 text-left">Tarih</th>
                   <th className="p-3 text-left">Şube</th>
-                  <th className="p-3 text-left">Vardiya</th>
+                  <th className="sticky-shift-after-date-column bg-muted/50 p-3 text-left">Vardiya</th>
                   <th className="p-3 text-left">Firma</th>
                   <th className="p-3 text-right">Satış</th>
                   <th className="p-3 text-right">Oran</th>
@@ -578,9 +578,9 @@ export default function SubeCiroRaporlariPage() {
                   <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">Detay bulunamadı.</td></tr>
                 ) : detailRows.map((row, index) => (
                   <tr key={`${row.firma_id}-${row.tarih}-${row.vardiya}-${index}`} className="border-t">
-                    <td className="p-3">{formatDate(row.tarih)}</td>
+                    <td className="sticky-date-first-column bg-card p-3">{formatDate(row.tarih)}</td>
                     <td className="p-3">{row.subeAd}</td>
-                    <td className="p-3">{getShiftLabel(row.vardiya)}</td>
+                    <td className="sticky-shift-after-date-column bg-card p-3">{getShiftLabel(row.vardiya)}</td>
                     <td className="p-3">
                       <span className="inline-flex items-center gap-2 font-medium">
                         <span className={`h-2.5 w-2.5 rounded-full ${row.firma?.color || "bg-gray-500"}`} />

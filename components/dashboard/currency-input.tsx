@@ -1,9 +1,10 @@
-import { useRef, type ComponentProps } from "react"
+import { useEffect, useRef, useState, type ComponentProps } from "react"
 import { cn } from "@/lib/utils"
 
 type CurrencyInputProps = Omit<ComponentProps<"input">, "className"> & {
   containerClassName?: string
   inputClassName?: string
+  showCurrencySymbol?: boolean
 }
 
 export function CurrencyInput({
@@ -12,11 +13,22 @@ export function CurrencyInput({
   style,
   value,
   placeholder = "0",
+  showCurrencySymbol = true,
+  onBlur,
+  onChange,
+  onFocus,
   ...props
 }: CurrencyInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const displayValue = formatCurrencyInputValue(value)
+  const [editingValue, setEditingValue] = useState<string | null>(null)
+  const displayValue = editingValue ?? formatCurrencyInputValue(value)
   const characterCount = Math.min(Math.max(displayValue.length, 1), 18)
+
+  useEffect(() => {
+    if (document.activeElement !== inputRef.current) {
+      setEditingValue(null)
+    }
+  }, [value])
 
   return (
     <span
@@ -37,12 +49,26 @@ export function CurrencyInput({
           value={displayValue}
           placeholder={placeholder}
           style={{ ...style, width: `${characterCount}ch` }}
+          onChange={(event) => {
+            setEditingValue(event.target.value)
+            onChange?.(event)
+          }}
+          onFocus={(event) => {
+            setEditingValue(formatCurrencyInputValue(value))
+            onFocus?.(event)
+          }}
+          onBlur={(event) => {
+            setEditingValue(null)
+            onBlur?.(event)
+          }}
           className={cn(
             "min-w-[1ch] bg-transparent p-0 text-right tabular-nums text-foreground outline-none",
             inputClassName,
           )}
         />
-        <span className="pointer-events-none shrink-0 text-muted-foreground">{"\u20ba"}</span>
+        {showCurrencySymbol ? (
+          <span className="pointer-events-none shrink-0 text-muted-foreground">{"\u20ba"}</span>
+        ) : null}
       </span>
     </span>
   )

@@ -1022,11 +1022,11 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         <table className="sticky-table w-full min-w-[760px] text-sm">
           <thead>
             <tr>
-              <th className="w-10 border bg-muted p-2 text-muted-foreground">#</th>
+              <th className="sticky-index-column border bg-muted p-2 text-muted-foreground">#</th>
               {COLUMNS.map(col => (
                 <th 
                   key={col} 
-                  className={`p-2 border font-semibold whitespace-nowrap ${HEADER_COLORS[col]}`}
+                  className={`border p-2 font-semibold whitespace-nowrap ${col === "tarih" ? "sticky-date-column" : ""} ${HEADER_COLORS[col]}`}
                 >
                   {HEADER_LABELS[col]}
                 </th>
@@ -1054,9 +1054,9 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                 const canEditRow = isAdmin || row.tarih === activeKargoDate
                 return (
                 <tr key={rowIndex} className={`${!canEditRow ? "opacity-70" : ""} ${isProfit ? "bg-green-50 dark:bg-green-500/10" : "hover:bg-muted/50"}`}>
-                  <td className="border p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
+                  <td className="sticky-index-column border bg-card p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
                   {COLUMNS.map(col => (
-                    <td key={col} className="p-0 border">
+                    <td key={col} className={`border p-0 ${col === "tarih" ? "sticky-date-column bg-card" : ""}`}>
                       {col === "tarih" ? (
                         isAdmin ? (
                           <input
@@ -1144,8 +1144,8 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
           {rows.length > 0 && (
             <tfoot>
               <tr className="bg-muted font-semibold text-foreground">
-                <td className="p-2 border"></td>
-                <td className="p-2 border text-center">TOPLAM</td>
+                <td className="sticky-index-column border bg-muted p-2"></td>
+                <td className="sticky-date-column border bg-muted p-2 text-center">TOPLAM</td>
                 <td className="p-2 border"></td>
                 <td className="p-2 border"></td>
                 <td className="p-2 border text-right">{formatNumber(columnTotals.alinan_tutar)} ₺</td>

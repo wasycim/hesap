@@ -271,11 +271,11 @@ export default function GelismisLogPage() {
           <CardTitle>Denetim Kayıtları</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto rounded-xl border">
-            <table className="w-full min-w-[1060px] text-sm">
+          <div className="sticky-table-scroll rounded-xl border">
+            <table className="sticky-table w-full min-w-[1060px] text-sm">
               <thead className="bg-muted/70 text-left">
                 <tr>
-                  <th className="p-3">Tarih</th>
+                  <th className="sticky-date-first-column bg-muted/70 p-3">Tarih</th>
                   <th className="p-3">Olay</th>
                   <th className="p-3">Kullanıcı</th>
                   <th className="p-3">Şube</th>
@@ -287,7 +287,7 @@ export default function GelismisLogPage() {
               <tbody>
                 {events.map((event) => (
                   <tr key={event.id} className="border-t align-top">
-                    <td className="whitespace-nowrap p-3">{formatDate(event.created_at)}</td>
+                    <td className="sticky-date-first-column whitespace-nowrap bg-card p-3">{formatDate(event.created_at)}</td>
                     <td className="p-3">
                       <Badge variant="outline">{eventLabel(event.event_type)}</Badge>
                     </td>

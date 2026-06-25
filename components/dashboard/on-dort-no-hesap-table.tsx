@@ -1070,8 +1070,8 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
           <thead>
             {section === "all" && (
               <tr>
-                <th rowSpan={2} className="w-10 border bg-muted p-2 text-muted-foreground">#</th>
-                <th rowSpan={2} className="border bg-muted p-2 text-left text-muted-foreground">Tarih</th>
+                <th rowSpan={2} className="sticky-index-column border bg-muted p-2 text-muted-foreground">#</th>
+                <th rowSpan={2} className="sticky-date-column border bg-muted p-2 text-left text-muted-foreground">Tarih</th>
                 {visibleGroups.map(group => (
                   <th
                     key={`${group.id}-${group.keys[0]}`}
@@ -1087,8 +1087,8 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
             <tr>
               {section !== "all" && (
                 <>
-                  <th className="w-10 border bg-muted p-2 text-muted-foreground">#</th>
-                  <th className="border bg-muted p-2 text-left text-muted-foreground">Tarih</th>
+                  <th className="sticky-index-column border bg-muted p-2 text-muted-foreground">#</th>
+                  <th className="sticky-date-column border bg-muted p-2 text-left text-muted-foreground">Tarih</th>
                 </>
               )}
               {visibleKeys.map(key => {
@@ -1110,8 +1110,8 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
           <tbody>
             {orderedRows.map((row, rowIndex) => (
               <tr key={row.tarih} className="hover:bg-muted/50">
-                <td className="border p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
-                <td className="border bg-muted/50 px-2 py-1 font-medium">{formatDate(row.tarih)}</td>
+                <td className="sticky-index-column border bg-card p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
+                <td className="sticky-date-column border bg-card px-2 py-1 font-medium">{formatDate(row.tarih)}</td>
                 {visibleKeys.map(key => {
                   const calculatedValues = getCalculatedValues(row)
                   const readonly = FORMULA_KEYS.has(key)
@@ -1315,8 +1315,8 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
           {orderedRows.length > 0 && (
             <tfoot>
               <tr className="bg-muted font-semibold text-foreground">
-                <td className="border p-2"></td>
-                <td className="border p-2">TOPLAM / KAPANIŞ</td>
+                <td className="sticky-index-column border bg-muted p-2"></td>
+                <td className="sticky-date-column border bg-muted p-2">TOPLAM / KAPANIŞ</td>
                 {visibleKeys.map(key => (
                   <td key={key} className="border p-2 text-right">
                     {formatMoney(columnTotals[key] || 0)} TL

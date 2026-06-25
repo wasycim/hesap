@@ -563,8 +563,8 @@ export default function CorbalarPage() {
               <table className="sticky-table w-full min-w-[760px] text-sm">
                 <thead>
                   <tr>
-                    <th className="w-10 border bg-muted p-2 text-muted-foreground">#</th>
-                    <th className="p-2 border bg-green-600 text-white font-semibold">TARİH</th>
+                    <th className="sticky-index-column border bg-muted p-2 text-muted-foreground">#</th>
+                    <th className="sticky-date-column border bg-green-600 p-2 font-semibold text-white">TARİH</th>
                     {personeller.map(personel => (
                       <th key={personel.id} className="p-2 border bg-blue-600 text-white font-semibold whitespace-nowrap">
                         {personel.ad}
@@ -578,8 +578,8 @@ export default function CorbalarPage() {
                     const canEditRow = isAdmin || row.tarih === editableDate
                     return (
                     <tr key={rowIndex} className="hover:bg-muted/50">
-                      <td className="border p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
-                      <td className="p-0 border">
+                      <td className="sticky-index-column border bg-card p-1 text-center text-muted-foreground">{rowIndex + 1}</td>
+                      <td className="sticky-date-column border bg-card p-0">
                         <div className="bg-muted px-2 py-1 text-center font-medium text-foreground">
                           {formatDate(row.tarih)}
                         </div>
@@ -619,8 +619,8 @@ export default function CorbalarPage() {
                 {rows.length > 0 && (
                   <tfoot>
                     <tr className="bg-muted font-semibold text-foreground">
-                      <td className="p-2 border"></td>
-                      <td className="p-2 border text-center">TOPLAM</td>
+                      <td className="sticky-index-column border bg-muted p-2"></td>
+                      <td className="sticky-date-column border bg-muted p-2 text-center">TOPLAM</td>
                       {personeller.map(personel => (
                         <td key={personel.id} className="p-2 border text-right">
                           {formatNumber(personelTotals[personel.id] || 0)} TL

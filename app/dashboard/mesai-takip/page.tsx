@@ -890,13 +890,13 @@ export default function MesaiTakipPage() {
           </p>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="w-full min-w-[1120px] text-sm">
+          <div className="sticky-table-scroll rounded-lg border">
+            <table className="sticky-table w-full min-w-[1120px] text-sm">
               <thead className="bg-muted/70 text-left">
                 <tr>
-                  <th className="p-3">Tarih</th>
+                  <th className="sticky-date-first-column bg-muted/70 p-3">Tarih</th>
                   <th className="p-3">Personel</th>
-                  <th className="p-3">Planlanan Vardiya</th>
+                  <th className="sticky-shift-after-date-column bg-muted/70 p-3">Planlanan Vardiya</th>
                   <th className="p-3">Giriş</th>
                   <th className="p-3">Çıkış</th>
                   <th className="p-3">Çalışma</th>
@@ -912,12 +912,12 @@ export default function MesaiTakipPage() {
                   <tr><td colSpan={9} className="p-6 text-center text-muted-foreground">Seçili aralıkta giriş çıkış bulunamadı</td></tr>
                 ) : payload?.details.map((item) => (
                   <tr key={item.id} className={`border-t ${item.status === "OPEN" ? "bg-amber-500/5" : ""}`}>
-                    <td className="whitespace-nowrap p-3 text-muted-foreground">{formatDate(item.workDate)}</td>
+                    <td className="sticky-date-first-column whitespace-nowrap bg-card p-3 text-muted-foreground">{formatDate(item.workDate)}</td>
                     <td className="p-3">
                       <div className="font-medium">{item.personel}</div>
                       <div className="text-xs text-muted-foreground">{item.branch?.ad || "Şube yok"}</div>
                     </td>
-                    <td className="p-3">
+                    <td className="sticky-shift-after-date-column bg-card p-3">
                       <span className="whitespace-nowrap rounded-md bg-muted px-2 py-1 text-xs font-medium">
                         {item.shift?.label || "Vardiya yok"}
                       </span>

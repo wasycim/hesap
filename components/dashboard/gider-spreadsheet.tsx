@@ -105,6 +105,23 @@ function normalizeSubeName(name: string): string {
   return name.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\u0131/g, "i")
 }
 
+function isSpreadsheetControl(element: Element | null): element is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
+  if (
+    !(element instanceof HTMLInputElement) &&
+    !(element instanceof HTMLSelectElement) &&
+    !(element instanceof HTMLTextAreaElement)
+  ) {
+    return false
+  }
+
+  return !element.disabled && !(element instanceof HTMLInputElement && element.type === "hidden")
+}
+
+function findSpreadsheetControl(cell: Element | undefined) {
+  const controls = Array.from(cell?.querySelectorAll("input, select, textarea") || [])
+  return controls.find(isSpreadsheetControl) || null
+}
+
 function compareDateVardiya(a: Pick<GiderRow, "tarih" | "vardiya">, b: Pick<GiderRow, "tarih" | "vardiya">) {
   const dateCompare = b.tarih.localeCompare(a.tarih)
   if (dateCompare !== 0) return dateCompare
@@ -212,9 +229,9 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
     return getLastMissingDateWithinMonth(completeDates, month, year) || ""
   }
 
-function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-  const input = e.currentTarget
-  const cell = input.closest("td")
+function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLElement>) {
+  const control = e.currentTarget
+  const cell = control.closest("td")
   if (!cell) return
   const row = cell.parentElement // <tr>
   if (!row) return
@@ -224,16 +241,19 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
   const colIndex = Array.from(row.children).indexOf(cell)
   const rowIndex = Array.from(tableBody.children).indexOf(row)
 
-  let targetInput: HTMLInputElement | null = null
+  const isTextControl = control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement
+  const atStart = !isTextControl || control.selectionStart === 0 || control.selectionStart === null
+  const atEnd = !isTextControl || control.selectionEnd === (control.value || "").length || control.selectionEnd === null
+  let targetControl: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null = null
 
   if (e.key === "ArrowUp") {
     let currRowIndex = rowIndex - 1
     while (currRowIndex >= 0) {
       const prevRow = tableBody.children[currRowIndex]
       const targetCell = prevRow?.children[colIndex]
-      const foundInput = targetCell?.querySelector("input")
-      if (foundInput && !foundInput.disabled && foundInput.type !== "hidden") {
-        targetInput = foundInput as HTMLInputElement
+      const foundControl = findSpreadsheetControl(targetCell)
+      if (foundControl) {
+        targetControl = foundControl
         break
       }
       currRowIndex--
@@ -243,34 +263,34 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     while (currRowIndex < tableBody.children.length) {
       const nextRow = tableBody.children[currRowIndex]
       const targetCell = nextRow?.children[colIndex]
-      const foundInput = targetCell?.querySelector("input")
-      if (foundInput && !foundInput.disabled && foundInput.type !== "hidden") {
-        targetInput = foundInput as HTMLInputElement
+      const foundControl = findSpreadsheetControl(targetCell)
+      if (foundControl) {
+        targetControl = foundControl
         break
       }
       currRowIndex++
     }
   } else if (e.key === "ArrowLeft") {
-    if (input.selectionStart === 0 || input.selectionStart === null) {
+    if (atStart) {
       let currColIndex = colIndex - 1
       while (currColIndex >= 0) {
         const targetCell = row.children[currColIndex]
-        const foundInput = targetCell?.querySelector("input")
-        if (foundInput && !foundInput.disabled && foundInput.type !== "hidden") {
-          targetInput = foundInput as HTMLInputElement
+        const foundControl = findSpreadsheetControl(targetCell)
+        if (foundControl) {
+          targetControl = foundControl
           break
         }
         currColIndex--
       }
     }
   } else if (e.key === "ArrowRight") {
-    if (input.selectionEnd === (input.value || "").length || input.selectionEnd === null) {
+    if (atEnd) {
       let currColIndex = colIndex + 1
       while (currColIndex < row.children.length) {
         const targetCell = row.children[currColIndex]
-        const foundInput = targetCell?.querySelector("input")
-        if (foundInput && !foundInput.disabled && foundInput.type !== "hidden") {
-          targetInput = foundInput as HTMLInputElement
+        const foundControl = findSpreadsheetControl(targetCell)
+        if (foundControl) {
+          targetControl = foundControl
           break
         }
         currColIndex++
@@ -278,10 +298,12 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     }
   }
 
-  if (targetInput) {
+  if (targetControl) {
     e.preventDefault()
-    targetInput.focus()
-    targetInput.select()
+    targetControl.focus()
+    if (targetControl instanceof HTMLInputElement || targetControl instanceof HTMLTextAreaElement) {
+      targetControl.select()
+    }
   }
 }
 
@@ -689,10 +711,11 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
                         </div>
                       ) : col.key === "personel_mesai" ? (
                         canEditVardiya ? (
-                          <div className="flex min-w-[260px] items-center gap-2 p-1">
+                          <div className="flex min-w-[220px] max-w-[420px] items-center gap-1.5 p-1">
                             <select
-                              className="h-8 min-w-0 flex-1 rounded border bg-background px-2 text-foreground"
+                              className="h-8 w-28 flex-none rounded border bg-background px-2 text-xs text-foreground"
                               defaultValue=""
+                              onKeyDown={handleSpreadsheetKeyDown}
                               onChange={(event) => {
                                 const personelId = event.target.value
                                 if (!personelId) return
@@ -707,7 +730,7 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
                                 <option key={personel.id} value={personel.id}>{personel.ad}</option>
                               ))}
                             </select>
-                            <div className="flex flex-wrap gap-1">
+                            <div className="flex max-w-[220px] flex-wrap gap-1">
                               {Object.entries(row.personel_mesai_detaylari || {}).map(([personelId, amount]) => {
                                 const personel = personeller.find(item => item.id === personelId)
                                 if (!personel) return null
@@ -720,6 +743,7 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
                                       step="0.01"
                                       value={amount || ""}
                                       onChange={(event) => updateCell(rowIndex, personelId, parseCurrencyInputValue(event.target.value), "mesai")}
+                                      onKeyDown={handleSpreadsheetKeyDown}
                                       containerClassName="h-7"
                                       title="Mesai tutarı"
                                     />
@@ -735,7 +759,7 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
                                 )
                               })}
                             </div>
-                            <span className="min-w-20 text-center font-semibold">{formatNumber(row.personel_mesai)}₺</span>
+                            <span className="min-w-16 text-center text-xs font-semibold">{formatNumber(row.personel_mesai)}₺</span>
                           </div>
                         ) : (
                           <div className="px-2 py-1 text-center text-muted-foreground">

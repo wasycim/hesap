@@ -341,8 +341,8 @@ export function AdminAttendanceDashboard({ adminName }: DashboardProps) {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Personel</TableHead>
-                      <TableHead>Vardiya</TableHead>
-                      <TableHead>Tarih</TableHead>
+                      <TableHead className="sticky left-0 z-30 min-w-28 bg-background">Vardiya</TableHead>
+                      <TableHead className="sticky left-28 z-30 min-w-28 bg-background">Tarih</TableHead>
                       <TableHead>Giriş</TableHead>
                       <TableHead>Çıkış</TableHead>
                       <TableHead>Geç</TableHead>
@@ -365,8 +365,8 @@ export function AdminAttendanceDashboard({ adminName }: DashboardProps) {
                           <div className="font-medium">{log.user.name}</div>
                           <div className="text-xs text-muted-foreground">{log.user.tcKimlik}</div>
                         </TableCell>
-                        <TableCell>{log.shift?.label ?? "-"}</TableCell>
-                        <TableCell>{formatDate(log.workDate)}</TableCell>
+                        <TableCell className="sticky left-0 z-20 min-w-28 bg-background">{log.shift?.label ?? "-"}</TableCell>
+                        <TableCell className="sticky left-28 z-20 min-w-28 bg-background">{formatDate(log.workDate)}</TableCell>
                         <TableCell>{formatDateTime(log.checkInAt)}</TableCell>
                         <TableCell>{formatDateTime(log.checkOutAt)}</TableCell>
                         <TableCell>{minutes(log.lateMinutes)}</TableCell>

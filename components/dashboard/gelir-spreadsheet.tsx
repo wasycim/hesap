@@ -105,9 +105,35 @@ const COLUMNS = [
 
 const VARDIYASIZ_SUBELER = ["carsi", "darica"]
 const VARDIYA_SIRASI: Record<string, number> = { S: 0, A: 1, "": 2 }
+const TRACKING_ONLY_COLUMNS = new Set(["unlu_1"])
 
 function normalizeSubeName(name: string): string {
   return name.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\u0131/g, "i")
+}
+
+function isTrackingOnlyColumn(column: string) {
+  return TRACKING_ONLY_COLUMNS.has(column)
+}
+
+function isSummableColumn(column: string) {
+  return !["tarih", "durum", "vardiya"].includes(column) && !isTrackingOnlyColumn(column)
+}
+
+function isSpreadsheetControl(element: Element | null): element is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
+  if (
+    !(element instanceof HTMLInputElement) &&
+    !(element instanceof HTMLSelectElement) &&
+    !(element instanceof HTMLTextAreaElement)
+  ) {
+    return false
+  }
+
+  return !element.disabled && !(element instanceof HTMLInputElement && element.type === "hidden")
+}
+
+function findSpreadsheetControl(cell: Element | undefined) {
+  const controls = Array.from(cell?.querySelectorAll("input, select, textarea") || [])
+  return controls.find(isSpreadsheetControl) || null
 }
 
 function compareDateVardiya(a: Pick<GelirRow, "tarih" | "vardiya">, b: Pick<GelirRow, "tarih" | "vardiya">) {
@@ -125,9 +151,9 @@ function getOnDortFirmaDetails(row: GelirRow): Record<string, number> {
   )
 }
 
-function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-  const input = e.currentTarget
-  const cell = input.closest("td")
+function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLElement>) {
+  const control = e.currentTarget
+  const cell = control.closest("td")
   if (!cell) return
   const row = cell.parentElement // <tr>
   if (!row) return
@@ -137,16 +163,19 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
   const colIndex = Array.from(row.children).indexOf(cell)
   const rowIndex = Array.from(tableBody.children).indexOf(row)
 
-  let targetInput: HTMLInputElement | null = null
+  const isTextControl = control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement
+  const atStart = !isTextControl || control.selectionStart === 0 || control.selectionStart === null
+  const atEnd = !isTextControl || control.selectionEnd === (control.value || "").length || control.selectionEnd === null
+  let targetControl: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null = null
 
   if (e.key === "ArrowUp") {
     let currRowIndex = rowIndex - 1
     while (currRowIndex >= 0) {
       const prevRow = tableBody.children[currRowIndex]
       const targetCell = prevRow?.children[colIndex]
-      const foundInput = targetCell?.querySelector("input")
-      if (foundInput && !foundInput.disabled && foundInput.type !== "hidden") {
-        targetInput = foundInput as HTMLInputElement
+      const foundControl = findSpreadsheetControl(targetCell)
+      if (foundControl) {
+        targetControl = foundControl
         break
       }
       currRowIndex--
@@ -156,34 +185,34 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     while (currRowIndex < tableBody.children.length) {
       const nextRow = tableBody.children[currRowIndex]
       const targetCell = nextRow?.children[colIndex]
-      const foundInput = targetCell?.querySelector("input")
-      if (foundInput && !foundInput.disabled && foundInput.type !== "hidden") {
-        targetInput = foundInput as HTMLInputElement
+      const foundControl = findSpreadsheetControl(targetCell)
+      if (foundControl) {
+        targetControl = foundControl
         break
       }
       currRowIndex++
     }
   } else if (e.key === "ArrowLeft") {
-    if (input.selectionStart === 0 || input.selectionStart === null) {
+    if (atStart) {
       let currColIndex = colIndex - 1
       while (currColIndex >= 0) {
         const targetCell = row.children[currColIndex]
-        const foundInput = targetCell?.querySelector("input")
-        if (foundInput && !foundInput.disabled && foundInput.type !== "hidden") {
-          targetInput = foundInput as HTMLInputElement
+        const foundControl = findSpreadsheetControl(targetCell)
+        if (foundControl) {
+          targetControl = foundControl
           break
         }
         currColIndex--
       }
     }
   } else if (e.key === "ArrowRight") {
-    if (input.selectionEnd === (input.value || "").length || input.selectionEnd === null) {
+    if (atEnd) {
       let currColIndex = colIndex + 1
       while (currColIndex < row.children.length) {
         const targetCell = row.children[currColIndex]
-        const foundInput = targetCell?.querySelector("input")
-        if (foundInput && !foundInput.disabled && foundInput.type !== "hidden") {
-          targetInput = foundInput as HTMLInputElement
+        const foundControl = findSpreadsheetControl(targetCell)
+        if (foundControl) {
+          targetControl = foundControl
           break
         }
         currColIndex++
@@ -191,10 +220,12 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     }
   }
 
-  if (targetInput) {
+  if (targetControl) {
     e.preventDefault()
-    targetInput.focus()
-    targetInput.select()
+    targetControl.focus()
+    if (targetControl instanceof HTMLInputElement || targetControl instanceof HTMLTextAreaElement) {
+      targetControl.select()
+    }
   }
 }
 
@@ -223,7 +254,6 @@ function recalculateGelirRow(row: GelirRow): GelirRow {
     row.anadolu_ulasim +
     row.inegol_seyahat +
     row.alasehir_turizm +
-    row.unlu_1 +
     row.unlu_2 +
     row.pamukkale_kargo +
     row.diger_komisyon +
@@ -543,7 +573,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
 
   // Sütun toplamları
   const columnTotals = visibleColumns.reduce((acc, col) => {
-    if (col !== "tarih" && col !== "durum" && col !== "vardiya") {
+    if (isSummableColumn(col)) {
       acc[col] = rows.reduce((sum, row) => sum + (getCellValue(row, col) || 0), 0)
     }
     return acc
@@ -568,11 +598,12 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
             if (col === "tarih") return formatDate(row.tarih)
             if (col === "vardiya") return row.vardiya || "Tek"
             if (col === "durum") return row.durum
+            if (isTrackingOnlyColumn(col)) return String(getCellValue(row, col) || "")
             return `${formatNumber(Number(getCellValue(row, col)) || 0)} TL`
           })),
           visibleColumns.map(col => {
             if (col === "tarih") return "TOPLAM"
-            if (col === "vardiya" || col === "durum") return ""
+            if (!isSummableColumn(col)) return ""
             return `${formatNumber(columnTotals[col] || 0)} TL`
           }),
         ],
@@ -594,11 +625,12 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
             if (col === "tarih") return formatDate(row.tarih)
             if (col === "vardiya") return row.vardiya || "Tek"
             if (col === "durum") return row.durum
+            if (isTrackingOnlyColumn(col)) return String(getCellValue(row, col) || "")
             return `${formatNumber(Number(getCellValue(row, col)) || 0)} TL`
           })),
           groupColumns.map(col => {
             if (col === "tarih") return "TOPLAM"
-            if (col === "vardiya" || col === "durum") return ""
+            if (!isSummableColumn(col)) return ""
             return `${formatNumber(columnTotals[col] || 0)} TL`
           }),
         ],
@@ -635,6 +667,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
               if (!firmaId) return
               updateOnDortFirmaAmount(rowIndex, firmaId, details[firmaId] || 0)
             }}
+            onKeyDown={handleSpreadsheetKeyDown}
             disabled={availableFirmalar.length === 0}
             className="h-8 min-w-0 flex-1 rounded border bg-background px-2 text-xs text-foreground outline-none focus:border-lime-500"
           >
@@ -660,6 +693,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                         type="number"
                         value={amount || ""}
                         onChange={(event) => updateOnDortFirmaAmount(rowIndex, firmaId, event.target.value)}
+                        onKeyDown={handleSpreadsheetKeyDown}
                         containerClassName="h-7"
                         title="14 No firma tutarı"
                       />
@@ -790,6 +824,21 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                       <div className="bg-muted px-2 py-1 text-center font-medium text-foreground">
                         {formatNumber(row.kasa_gelen || 0)}₺
                       </div>
+                    ) : isTrackingOnlyColumn(col) && canEdit ? (
+                      <CurrencyInput
+                        type="text"
+                        value={getCellValue(row, col) || ""}
+                        onChange={(e) => updateCell(rowIndex, col, e.target.value)}
+                        onKeyDown={handleSpreadsheetKeyDown}
+                        showCurrencySymbol={false}
+                        containerClassName="py-1"
+                        inputClassName="!text-center"
+                        placeholder="0"
+                      />
+                    ) : isTrackingOnlyColumn(col) ? (
+                      <div className="px-2 py-1 text-center text-muted-foreground">
+                        {getCellValue(row, col) || ""}
+                      </div>
                     ) : canEdit ? (
                       <CurrencyInput
                         type="number"
@@ -833,7 +882,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                 <td className="sticky-date-column border bg-muted p-2 text-center">TOPLAM</td>
                 {visibleColumns.slice(1).map(col => (
                   <td key={col} className={`border bg-muted p-2 text-center ${col === "vardiya" ? "sticky-shift-column" : ""}`}>
-                    {col !== "durum" && col !== "vardiya" && columnTotals[col] !== undefined 
+                    {isSummableColumn(col) && columnTotals[col] !== undefined
                       ? `${formatNumber(columnTotals[col])}₺`
                       : ""}
                   </td>
