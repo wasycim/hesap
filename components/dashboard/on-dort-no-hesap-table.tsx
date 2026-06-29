@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { CurrencyInput, parseCurrencyInputValue } from "@/components/dashboard/currency-input"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 import {
@@ -192,7 +193,7 @@ function createShiftBreakdown(): ShiftBreakdown {
 
 function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
   const input = e.currentTarget
-  const cell = input.parentElement // <td>
+  const cell = input.closest("td")
   if (!cell) return
   const row = cell.parentElement // <tr>
   if (!row) return
@@ -874,7 +875,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
     )) return
     setRows(prev => prev.map(row => (
       row.tarih === tarih
-        ? { ...row, tutarlar: applyAutoValues(row.tarih, { ...row.tutarlar, [key]: Number(value) || 0 }) }
+        ? { ...row, tutarlar: applyAutoValues(row.tarih, { ...row.tutarlar, [key]: parseCurrencyInputValue(value) }) }
         : row
     )))
     markDirty()
@@ -1139,7 +1140,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                   return (
                     <td key={key} className="border p-0">
                       {autoIncome || autoExpense || autoTransfer || autoDelivery ? (
-                        <div className={`relative flex min-w-36 items-center justify-end gap-1 px-2 py-1.5 text-right font-semibold ${
+                        <div className={`relative flex min-w-36 items-center justify-center gap-1 px-2 py-1.5 text-center font-semibold ${
                           autoControlled
                             ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200"
                             : "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-200"
@@ -1150,14 +1151,14 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                               title={controlWarningItems.join(", ") || "Kontrol edilmedi"}
                             />
                           )}
-                          <span>{formatMoney(calculatedValues[key] || 0)} TL</span>
+                          <span>{formatMoney(calculatedValues[key] || 0)}₺</span>
                           <Dialog>
                             <DialogTrigger asChild>
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="icon-sm"
-                                className={`h-7 w-7 ${
+                                className={`absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 ${
                                   autoControlled
                                     ? "text-emerald-700 hover:bg-emerald-100 dark:text-emerald-200 dark:hover:bg-emerald-500/20"
                                     : "text-red-700 hover:bg-red-100 dark:text-red-200 dark:hover:bg-red-500/20"
@@ -1190,7 +1191,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                               <div className="rounded-lg border">
                                 <div className="grid grid-cols-2 border-b px-3 py-2 text-sm">
                                   <span>Sabah vardiyası</span>
-                                  <span className="text-right font-semibold">{formatMoney(autoDetail?.sabah || 0)} TL</span>
+                                  <span className="text-right font-semibold">{formatMoney(autoDetail?.sabah || 0)}₺</span>
                                 </div>
                                 <div className={`grid grid-cols-2 border-b px-3 py-2 text-xs ${
                                   autoDetail?.sabahKayitVar && autoDetail?.sabahKontrolEdildi
@@ -1204,7 +1205,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                                 </div>
                                 <div className="grid grid-cols-2 border-b px-3 py-2 text-sm">
                                   <span>Akşam vardiyası</span>
-                                  <span className="text-right font-semibold">{formatMoney(autoDetail?.aksam || 0)} TL</span>
+                                  <span className="text-right font-semibold">{formatMoney(autoDetail?.aksam || 0)}₺</span>
                                 </div>
                                 <div className={`grid grid-cols-2 border-b px-3 py-2 text-xs ${
                                   autoDetail?.aksamKayitVar && autoDetail?.aksamKontrolEdildi
@@ -1225,7 +1226,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                                     }`}>
                                       <span>{autoTransfer ? "14 sabah 5/A GELEN" : "14 sabah 5/A GİDEN"}</span>
                                       <span className="text-right font-semibold">
-                                        {formatMoney(autoDetail?.sabah || 0)} TL
+                                        {formatMoney(autoDetail?.sabah || 0)}₺
                                       </span>
                                     </div>
                                     <div className={`grid grid-cols-2 border-b px-3 py-2 text-xs ${
@@ -1235,7 +1236,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                                     }`}>
                                       <span>{autoTransfer ? "5A sabah 14 NO GİDEN" : "5A sabah 14 NO GELEN"}</span>
                                       <span className="text-right font-semibold">
-                                        {formatMoney(autoDetail?.karsiSabah || 0)} TL
+                                        {formatMoney(autoDetail?.karsiSabah || 0)}₺
                                       </span>
                                     </div>
                                     <div className={`grid grid-cols-2 border-b px-3 py-2 text-xs ${
@@ -1245,7 +1246,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                                     }`}>
                                       <span>{autoTransfer ? "14 akşam 5/A GELEN" : "14 akşam 5/A GİDEN"}</span>
                                       <span className="text-right font-semibold">
-                                        {formatMoney(autoDetail?.aksam || 0)} TL
+                                        {formatMoney(autoDetail?.aksam || 0)}₺
                                       </span>
                                     </div>
                                     <div className={`grid grid-cols-2 border-b px-3 py-2 text-xs ${
@@ -1255,7 +1256,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                                     }`}>
                                       <span>{autoTransfer ? "5A akşam 14 NO GİDEN" : "5A akşam 14 NO GELEN"}</span>
                                       <span className="text-right font-semibold">
-                                        {formatMoney(autoDetail?.karsiAksam || 0)} TL
+                                        {formatMoney(autoDetail?.karsiAksam || 0)}₺
                                       </span>
                                     </div>
                                     {(!autoDetail?.sabahEslesti || !autoDetail?.aksamEslesti) && (
@@ -1269,24 +1270,23 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                                 )}
                                 <div className="grid grid-cols-2 bg-muted px-3 py-2 text-sm font-bold">
                                   <span>Toplam</span>
-                                  <span className="text-right">{formatMoney(autoDetail?.toplam || 0)} TL</span>
+                                  <span className="text-right">{formatMoney(autoDetail?.toplam || 0)}₺</span>
                                 </div>
                               </div>
                             </DialogContent>
                           </Dialog>
                         </div>
                       ) : readonly ? (
-                        <div className={`px-3 py-2 text-right font-bold ${key === "kalan" ? (calculatedValues.kalan >= 0 ? "bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-200" : "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-200") : "bg-muted text-foreground"}`}>
-                          {formatMoney(calculatedValues[key] || 0)} TL
+                        <div className={`px-3 py-2 text-center font-bold ${key === "kalan" ? (calculatedValues.kalan >= 0 ? "bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-200" : "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-200") : "bg-muted text-foreground"}`}>
+                          {formatMoney(calculatedValues[key] || 0)}₺
                         </div>
                       ) : (
-                        <input
+                        <CurrencyInput
                           type="number"
                           value={calculatedValues[key] || ""}
                           onChange={(event) => updateValue(row.tarih, key, event.target.value)}
                           onKeyDown={handleSpreadsheetKeyDown}
-                          className="spreadsheet-active-input w-full bg-transparent px-3 py-2 text-right text-foreground outline-none"
-                          placeholder="0,00"
+                          containerClassName="min-h-0 px-3 py-1"
                         />
                       )}
                     </td>
@@ -1318,8 +1318,8 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                 <td className="sticky-index-column border bg-muted p-2"></td>
                 <td className="sticky-date-column border bg-muted p-2">TOPLAM / KAPANIŞ</td>
                 {visibleKeys.map(key => (
-                  <td key={key} className="border p-2 text-right">
-                    {formatMoney(columnTotals[key] || 0)} TL
+                  <td key={key} className="border p-2 text-center">
+                    {formatMoney(columnTotals[key] || 0)}₺
                   </td>
                 ))}
                 <td className="border p-2"></td>

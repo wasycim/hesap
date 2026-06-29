@@ -19,6 +19,7 @@ import { logSecurityEvent } from "@/lib/audit-log"
 import { openPdfReport } from "@/lib/pdf-report"
 import { getShiftBusinessDate } from "@/lib/shift-business-date"
 import { CurrencyInput, parseCurrencyInputValue } from "@/components/dashboard/currency-input"
+import { isBesASube } from "@/lib/sube-utils"
 
 interface GelirRow {
   id?: string
@@ -111,12 +112,12 @@ function normalizeSubeName(name: string): string {
   return name.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\u0131/g, "i")
 }
 
-function isTrackingOnlyColumn(column: string) {
-  return TRACKING_ONLY_COLUMNS.has(column)
+function isTrackingOnlyColumn(column: string, isCurrentBesASube: boolean) {
+  return isCurrentBesASube && TRACKING_ONLY_COLUMNS.has(column)
 }
 
-function isSummableColumn(column: string) {
-  return !["tarih", "durum", "vardiya"].includes(column) && !isTrackingOnlyColumn(column)
+function isSummableColumn(column: string, isCurrentBesASube: boolean) {
+  return !["tarih", "durum", "vardiya"].includes(column) && !isTrackingOnlyColumn(column, isCurrentBesASube)
 }
 
 function isSpreadsheetControl(element: Element | null): element is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
@@ -241,7 +242,7 @@ function getCustomNumericTotal(customValues: Record<string, any> | null | undefi
   }, 0)
 }
 
-function recalculateGelirRow(row: GelirRow): GelirRow {
+function recalculateGelirRow(row: GelirRow, isCurrentBesASube: boolean): GelirRow {
   const onDortDetails = getOnDortFirmaDetails(row)
   const onDortTotal = calculateOnDortFirmalarTotal(onDortDetails)
   const customValues = {
@@ -254,6 +255,7 @@ function recalculateGelirRow(row: GelirRow): GelirRow {
     row.anadolu_ulasim +
     row.inegol_seyahat +
     row.alasehir_turizm +
+    (isCurrentBesASube ? 0 : row.unlu_1) +
     row.unlu_2 +
     row.pamukkale_kargo +
     row.diger_komisyon +
@@ -268,7 +270,7 @@ function recalculateGelirRow(row: GelirRow): GelirRow {
   }
 }
 
-function recalculateAllGelirRows(inputRows: GelirRow[], isCarsiOrDarica: boolean): GelirRow[] {
+function recalculateAllGelirRows(inputRows: GelirRow[], isCarsiOrDarica: boolean, isCurrentBesASube: boolean): GelirRow[] {
   // Sort chronologically (oldest first)
   const sorted = [...inputRows].sort((a, b) => {
     const dateCompare = a.tarih.localeCompare(b.tarih)
@@ -282,7 +284,7 @@ function recalculateAllGelirRows(inputRows: GelirRow[], isCarsiOrDarica: boolean
     if (isCarsiOrDarica && i > 0) {
       row.kasa_gelen = result[i - 1].kalan
     }
-    row = recalculateGelirRow(row)
+    row = recalculateGelirRow(row, isCurrentBesASube)
     result.push(row)
   }
 
@@ -305,6 +307,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   const isVardiyasizSube = currentSube
     ? VARDIYASIZ_SUBELER.includes(normalizeSubeName(currentSube.ad))
     : false
+  const isCurrentBesASube = isBesASube(currentSube)
   const isTekVardiya = isVardiyasizSube || (!isAdmin && (!userVardiya || userVardiya === "T"))
   const activeColumnSettings = columnSettings.filter(col => col.aktif && (!isTekVardiya || col.column_key !== "vardiya"))
   const visibleColumnItems = activeColumnSettings.flatMap(col => {
@@ -369,7 +372,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
       const initialRows = ((data.rows || []) as GelirRow[])
         .filter(row => isDateInSelectedMonth(row.tarih, month, year))
         .map(row => ({ ...row, custom_values: row.custom_values || {} }))
-      setRows(recalculateAllGelirRows(initialRows, isVardiyasizSube))
+      setRows(recalculateAllGelirRows(initialRows, isVardiyasizSube, isCurrentBesASube))
     } catch {
       toast.warning("Gelir tablosu offline cache bulunamadigi icin bos acildi.")
       setOfflineLoaded(true)
@@ -440,7 +443,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     
     const newRows = [...rows, ...newRowsToAdd]
     
-    setRows(recalculateAllGelirRows(newRows, isVardiyasizSube))
+    setRows(recalculateAllGelirRows(newRows, isVardiyasizSube, isCurrentBesASube))
     markDirty()
   }
 
@@ -448,7 +451,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     const newRows = [...rows]
     const deletedRow = newRows[index]
     newRows.splice(index, 1)
-    setRows(recalculateAllGelirRows(newRows, isVardiyasizSube))
+    setRows(recalculateAllGelirRows(newRows, isVardiyasizSube, isCurrentBesASube))
     markDirty()
     logSecurityEvent("row_delete", {
       table: "gelir_kayitlari",
@@ -474,7 +477,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     }
     
     newRows[rowIndex] = row
-    setRows(recalculateAllGelirRows(newRows, isVardiyasizSube))
+    setRows(recalculateAllGelirRows(newRows, isVardiyasizSube, isCurrentBesASube))
     markDirty()
   }
 
@@ -485,7 +488,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     details[firmaId] = parseCurrencyInputValue(value)
     row.custom_values[ON_DORT_FIRMA_DETAYLARI_KEY] = details
     newRows[rowIndex] = row
-    setRows(recalculateAllGelirRows(newRows, isVardiyasizSube))
+    setRows(recalculateAllGelirRows(newRows, isVardiyasizSube, isCurrentBesASube))
     markDirty()
   }
 
@@ -496,7 +499,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
     delete details[firmaId]
     row.custom_values[ON_DORT_FIRMA_DETAYLARI_KEY] = details
     newRows[rowIndex] = row
-    setRows(recalculateAllGelirRows(newRows, isVardiyasizSube))
+    setRows(recalculateAllGelirRows(newRows, isVardiyasizSube, isCurrentBesASube))
     markDirty()
   }
 
@@ -573,7 +576,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
 
   // Sütun toplamları
   const columnTotals = visibleColumns.reduce((acc, col) => {
-    if (isSummableColumn(col)) {
+    if (isSummableColumn(col, isCurrentBesASube)) {
       acc[col] = rows.reduce((sum, row) => sum + (getCellValue(row, col) || 0), 0)
     }
     return acc
@@ -598,12 +601,12 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
             if (col === "tarih") return formatDate(row.tarih)
             if (col === "vardiya") return row.vardiya || "Tek"
             if (col === "durum") return row.durum
-            if (isTrackingOnlyColumn(col)) return String(getCellValue(row, col) || "")
+            if (isTrackingOnlyColumn(col, isCurrentBesASube)) return String(getCellValue(row, col) || "")
             return `${formatNumber(Number(getCellValue(row, col)) || 0)} TL`
           })),
           visibleColumns.map(col => {
             if (col === "tarih") return "TOPLAM"
-            if (!isSummableColumn(col)) return ""
+            if (!isSummableColumn(col, isCurrentBesASube)) return ""
             return `${formatNumber(columnTotals[col] || 0)} TL`
           }),
         ],
@@ -625,12 +628,12 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
             if (col === "tarih") return formatDate(row.tarih)
             if (col === "vardiya") return row.vardiya || "Tek"
             if (col === "durum") return row.durum
-            if (isTrackingOnlyColumn(col)) return String(getCellValue(row, col) || "")
+            if (isTrackingOnlyColumn(col, isCurrentBesASube)) return String(getCellValue(row, col) || "")
             return `${formatNumber(Number(getCellValue(row, col)) || 0)} TL`
           })),
           groupColumns.map(col => {
             if (col === "tarih") return "TOPLAM"
-            if (!isSummableColumn(col)) return ""
+            if (!isSummableColumn(col, isCurrentBesASube)) return ""
             return `${formatNumber(columnTotals[col] || 0)} TL`
           }),
         ],
@@ -824,7 +827,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                       <div className="bg-muted px-2 py-1 text-center font-medium text-foreground">
                         {formatNumber(row.kasa_gelen || 0)}₺
                       </div>
-                    ) : isTrackingOnlyColumn(col) && canEdit ? (
+                    ) : isTrackingOnlyColumn(col, isCurrentBesASube) && canEdit ? (
                       <CurrencyInput
                         type="text"
                         value={getCellValue(row, col) || ""}
@@ -835,7 +838,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                         inputClassName="!text-center"
                         placeholder="0"
                       />
-                    ) : isTrackingOnlyColumn(col) ? (
+                    ) : isTrackingOnlyColumn(col, isCurrentBesASube) ? (
                       <div className="px-2 py-1 text-center text-muted-foreground">
                         {getCellValue(row, col) || ""}
                       </div>
@@ -882,7 +885,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                 <td className="sticky-date-column border bg-muted p-2 text-center">TOPLAM</td>
                 {visibleColumns.slice(1).map(col => (
                   <td key={col} className={`border bg-muted p-2 text-center ${col === "vardiya" ? "sticky-shift-column" : ""}`}>
-                    {isSummableColumn(col) && columnTotals[col] !== undefined
+                    {isSummableColumn(col, isCurrentBesASube) && columnTotals[col] !== undefined
                       ? `${formatNumber(columnTotals[col])}₺`
                       : ""}
                   </td>
