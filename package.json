@@ -24,6 +24,7 @@
     "mobile:sync": "npm run mobile:assets && cap sync",
     "mobile:open:android": "npm run mobile:sync && cap open android",
     "mobile:open:ios": "npm run mobile:sync && cap open ios",
+    "expo:go": "npm --prefix expo-go run start",
     "supabase:auth-config": "node scripts/update-supabase-auth-config.mjs",
     "supabase:system-schema": "node scripts/apply-system-operations-schema.js",
     "supabase:push-audit-schema": "node scripts/apply-push-and-advanced-log-schema.js",

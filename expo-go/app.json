@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Hesap Go",
+    "slug": "hesap-go",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "hesapgo",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#0f172a",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "wasy.system.hesap.expo"
+    },
+    "android": {
+      "package": "wasy.system.hesap.expo",
+      "adaptiveIcon": {
+        "backgroundColor": "#0f172a"
+      }
+    },
+    "extra": {
+      "baseUrl": "https://pamukkaleturizm.info"
+    }
+  }
+}
+

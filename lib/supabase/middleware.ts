@@ -16,7 +16,21 @@ function hasSupabaseAuthCookie(request: NextRequest) {
 
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
-  const nativePlatform = request.cookies.get("hesap-native-platform")?.value
+  const expoNativePlatform = request.nextUrl.searchParams.get("native") === "expo-ios" ? "ios" : ""
+  const nativePlatform = expoNativePlatform || request.cookies.get("hesap-native-platform")?.value
+
+  if (expoNativePlatform) {
+    const url = request.nextUrl.clone()
+    url.searchParams.delete("native")
+    const response = NextResponse.redirect(url)
+    response.cookies.set("hesap-native-platform", expoNativePlatform, {
+      path: "/",
+      maxAge: 31_536_000,
+      sameSite: "lax",
+      secure: request.nextUrl.protocol === "https:",
+    })
+    return response
+  }
 
   if (
     nativePlatform === "ios" &&
