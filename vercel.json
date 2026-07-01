@@ -15,8 +15,16 @@
       "schedule": "0 4 * * *"
     },
     {
-      "path": "/api/cron/daily-backup",
+      "path": "/api/cron/backup?interval=daily",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/backup?interval=weekly",
+      "schedule": "15 0 * * 0"
+    },
+    {
+      "path": "/api/cron/backup?interval=monthly",
+      "schedule": "30 0 1 * *"
     }
   ]
 }

@@ -35,6 +35,8 @@ export const backupTables = [
   "security_events",
   "app_settings",
   "device_licenses",
+  "trusted_devices",
+  "device_verification_challenges",
   "notification_rule_definitions",
   "dashboard_permission_overrides",
   "overtime_approvals",

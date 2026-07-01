@@ -39,6 +39,7 @@ export function NativeAppBridge() {
   const [, setOnline] = useState(true)
   const [pushState, setPushState] = useState<PushState>("idle")
   const [currentPath, setCurrentPath] = useState("/")
+  const [nativePlatform, setNativePlatform] = useState("")
 
   useEffect(() => {
     if (!isNativeApp()) return
@@ -47,6 +48,8 @@ export function NativeAppBridge() {
     setNative(true)
     setCurrentPath(window.location.pathname)
     const platform = Capacitor.getPlatform()
+    setNativePlatform(platform)
+    document.cookie = `hesap-native-platform=${platform}; Path=/; Max-Age=31536000; SameSite=Lax${window.location.protocol === "https:" ? "; Secure" : ""}`
     document.documentElement.classList.add("native-app", `native-${platform}`)
     document.body.classList.add("native-app-body")
 
@@ -63,6 +66,11 @@ export function NativeAppBridge() {
       await unlockWithPlatformBiometric().catch(() => undefined)
       await registerPushNotifications(setPushState)
       await retryRegistration()
+
+      const path = window.location.pathname
+      if (platform === "ios" && !path.startsWith("/mobile") && !path.startsWith("/auth/") && path !== "/maintenance") {
+        window.location.replace("/mobile")
+      }
     }
 
     async function retryRegistration() {
@@ -119,7 +127,7 @@ export function NativeAppBridge() {
 
   const activePath = useMemo(() => currentPath.split("?")[0], [currentPath])
 
-  if (!native) return null
+  if (!native || nativePlatform === "ios") return null
 
   async function goTo(item: (typeof visibleNativeNavItems)[number]) {
     Haptics.impact({ style: ImpactStyle.Light }).catch(() => undefined)

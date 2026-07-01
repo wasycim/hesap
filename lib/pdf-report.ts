@@ -21,6 +21,7 @@ interface PdfReportOptions {
   action?: PdfAction
   metrics?: PdfMetric[]
   tables: PdfTable[]
+  archive?: boolean
 }
 
 type DesktopBridge = {
@@ -371,7 +372,19 @@ export function openPdfReport({
   action = "print",
   metrics = [],
   tables,
+  archive = true,
 }: PdfReportOptions) {
+  if (typeof window !== "undefined" && document.documentElement.classList.contains("native-app")) {
+    if (archive) {
+      const html = buildPdfHtml({ title, subtitle, orientation, metrics, tables, autoPrint: false })
+      archivePdfReport(title, subtitle, html)
+    }
+    void shareNativePdf({ title, subtitle, orientation, metrics, tables }).catch((error) => {
+      window.alert(error instanceof Error ? `PDF paylaşılamadı: ${error.message}` : "PDF paylaşılamadı.")
+    })
+    return
+  }
+
   if (!skipOrientationPicker) {
     choosePdfOrientation(orientation, (selectedOrientation, selectedAction) => {
       openPdfReport({
@@ -382,6 +395,7 @@ export function openPdfReport({
         skipOrientationPicker: true,
         metrics,
         tables,
+        archive,
       })
     })
     return
@@ -396,7 +410,7 @@ export function openPdfReport({
     autoPrint: action === "print",
   })
 
-  archivePdfReport(title, subtitle, html)
+  if (archive) archivePdfReport(title, subtitle, html)
 
   if (action === "download") {
     void downloadPdfReport(title, orientation, html)
@@ -404,4 +418,73 @@ export function openPdfReport({
   }
 
   openPrintWindow(html)
+}
+
+async function shareNativePdf({ title, subtitle, orientation, metrics, tables }: PdfReportOptions) {
+  const [{ Filesystem, Directory }, { Share }, pdfMakeModule, fontModule] = await Promise.all([
+    import("@capacitor/filesystem"),
+    import("@capacitor/share"),
+    import("pdfmake/build/pdfmake"),
+    import("pdfmake/build/vfs_fonts"),
+  ])
+  const pdfMake = (pdfMakeModule.default || pdfMakeModule) as any
+  const fontBundle = fontModule as unknown as { default?: Record<string, string>; vfs?: Record<string, string>; pdfMake?: { vfs?: Record<string, string> } }
+  const virtualFonts = fontBundle.default || fontBundle.vfs || fontBundle.pdfMake?.vfs || {}
+  if (typeof pdfMake.addVirtualFileSystem === "function") pdfMake.addVirtualFileSystem(virtualFonts)
+  else pdfMake.vfs = virtualFonts
+
+  const definition = {
+    pageSize: "A4",
+    pageOrientation: orientation,
+    pageMargins: [28, 32, 28, 32],
+    defaultStyle: { font: "Roboto", fontSize: 9, color: "#172033" },
+    content: [
+      { text: title, fontSize: 20, bold: true, color: "#0f172a", margin: [0, 0, 0, 4] },
+      ...(subtitle ? [{ text: subtitle, color: "#64748b", margin: [0, 0, 0, 14] }] : []),
+      ...(metrics?.length ? [{
+        table: {
+          widths: metrics.map(() => "*"),
+          body: [metrics.map((metric) => ({ text: metric.label, alignment: "center", bold: true, color: "#64748b", fillColor: "#f1f5f9", margin: [4, 5] })), metrics.map((metric) => ({ text: metric.value, alignment: "center", bold: true, fontSize: 13, color: "#0f766e", fillColor: "#f8fafc", margin: [4, 7] }))],
+        },
+        layout: "lightHorizontalLines",
+        margin: [0, 0, 0, 14],
+      }] : []),
+      ...tables.flatMap((table) => [
+        { text: table.title, fontSize: 12, bold: true, color: "#0f172a", margin: [0, 7, 0, 6] },
+        {
+          table: {
+            headerRows: 1,
+            widths: table.headers.map((_, index) => index === 0 && table.firstColumnWidth ? table.firstColumnWidth : "*"),
+            body: [
+              table.headers.map((header) => ({ text: header, bold: true, color: "#ffffff", fillColor: "#0f766e", alignment: "center", margin: [3, 4] })),
+              ...(table.rows.length
+                ? table.rows.map((row) => row.map((cell) => ({ text: String(cell), alignment: "center", margin: [3, 4] })))
+                : [[
+                    { text: "Kayıt bulunamadı.", colSpan: table.headers.length, alignment: "center", color: "#64748b", margin: [3, 7] },
+                    ...table.headers.slice(1).map(() => ({})),
+                  ]]),
+            ],
+          },
+          layout: "lightHorizontalLines",
+          margin: [0, 0, 0, 8],
+        },
+      ]),
+    ],
+    footer: (currentPage: number, pageCount: number) => ({ text: `${currentPage} / ${pageCount}`, alignment: "center", color: "#94a3b8", fontSize: 8 }),
+  }
+
+  const base64 = await new Promise<string>((resolve, reject) => {
+    try { pdfMake.createPdf(definition).getBase64(resolve) } catch (error) { reject(error) }
+  })
+  const fileName = `${safePdfFileName(title)}-${new Date().toISOString().slice(0, 10)}.pdf`
+  const written = await Filesystem.writeFile({ path: fileName, data: base64, directory: Directory.Cache, recursive: true })
+  try {
+    await Share.share({ title, text: subtitle || title, files: [written.uri] })
+  } finally {
+    await Filesystem.deleteFile({ path: fileName, directory: Directory.Cache }).catch(() => undefined)
+  }
+}
+
+function safePdfFileName(value: string) {
+  return value.toLocaleLowerCase("tr-TR").replace(/[^a-z0-9çğıöşü_-]+/gi, "-").replace(/^-|-$/g, "").slice(0, 70) || "hesap-raporu"
 }

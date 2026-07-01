@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { logSecurityEvent } from "@/lib/audit-log"
 import { PublicAuthFooter } from "@/components/auth/public-auth-footer"
+import { getOrCreateDeviceIdentity } from "@/lib/device-identity"
 
 const savedAuthLoginKey = "hesap.auth.savedLogin"
 
@@ -124,6 +125,27 @@ export default function GirisPage() {
       return
     }
 
+    const nextPath = getSafeNextPath() || "/dashboard"
+    const identity = await getOrCreateDeviceIdentity()
+    const deviceResponse = await fetch("/api/auth/device-verification/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(identity),
+    })
+    const deviceResult = await deviceResponse.json().catch(() => ({}))
+    if (!deviceResponse.ok) {
+      setError(deviceResult.error || "Cihaz güvenliği doğrulanamadı.")
+      setLoading(false)
+      return
+    }
+
+    if (deviceResult.challengeRequired) {
+      clearSavedLogin()
+      router.push(`/auth/cihaz-dogrulama?next=${encodeURIComponent(nextPath)}`)
+      router.refresh()
+      return
+    }
+
     await logSecurityEvent("login", {
       email: loginEmail,
       login_method: loginMode,
@@ -134,7 +156,7 @@ export default function GirisPage() {
       window.localStorage.removeItem("current_sube_id")
       window.localStorage.removeItem("hesap_sube_context_cache")
     }
-    router.push(getSafeNextPath() || "/dashboard")
+    router.push(nextPath)
     router.refresh()
   }
 

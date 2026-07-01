@@ -156,6 +156,58 @@
   font-size: max(16px, 1rem);
 }
 
+/* iOS uygulaması: web panelinden bağımsız, salt-okunur mobil kabuk */
+.ios-app-shell {
+  min-height: 100dvh;
+  background: #f2f2f7;
+  color: #111827;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif;
+}
+
+.ios-content { min-height: 100dvh; padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+.ios-page { margin: 0 auto; max-width: 760px; padding: calc(18px + env(safe-area-inset-top)) 18px 32px; }
+.ios-large-header { margin: 8px 2px 22px; }
+.ios-large-header h1 { margin: 4px 0 3px; font-size: clamp(32px, 9vw, 42px); font-weight: 800; letter-spacing: -.045em; line-height: 1.02; }
+.ios-large-header p { margin: 0; color: #6b7280; font-size: 14px; }
+.ios-eyebrow { color: #047857; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.ios-header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.ios-share-button { display: grid; min-width: 58px; min-height: 58px; place-items: center; border: 0; border-radius: 18px; background: #fff; color: #047857; box-shadow: 0 4px 18px rgba(15,23,42,.08); font-size: 11px; font-weight: 750; }
+.ios-share-button:disabled { opacity: .45; }
+.ios-branch-pill { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 12px; border-radius: 999px; background: #e5e7eb; padding: 7px 11px; color: #4b5563; font-size: 12px; font-weight: 700; }
+.ios-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ios-stat-card { position: relative; min-height: 154px; overflow: hidden; border-radius: 24px; background: #fff; padding: 17px; box-shadow: 0 5px 22px rgba(15,23,42,.07); }
+.ios-stat-card::after { position: absolute; right: -25px; bottom: -34px; width: 100px; height: 100px; border-radius: 999px; background: currentColor; content: ""; opacity: .07; }
+.ios-stat-card > span { display: block; margin-top: 22px; color: #6b7280; font-size: 13px; font-weight: 700; }
+.ios-stat-card > strong { display: block; margin-top: 5px; font-size: clamp(20px, 5.6vw, 28px); font-weight: 850; letter-spacing: -.035em; line-height: 1.05; }
+.ios-stat-icon { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 13px; background: currentColor; color: inherit; }
+.ios-stat-icon svg { color: #fff; }
+.ios-stat-wide { grid-column: 1 / -1; min-height: 136px; }
+.ios-tone-green { color: #047857; }.ios-tone-red { color: #dc2626; }.ios-tone-blue { color: #2563eb; }
+.ios-readonly-note { display: flex; align-items: flex-start; gap: 9px; margin: 17px 3px; color: #6b7280; font-size: 12px; line-height: 1.5; }
+.ios-readonly-note svg { flex: 0 0 auto; margin-top: 1px; }
+.ios-error { margin: 14px 0; border: 1px solid #fecaca; border-radius: 17px; background: #fef2f2; padding: 14px; color: #b91c1c; font-size: 13px; font-weight: 650; line-height: 1.5; }
+.ios-period-picker { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; margin-bottom: 15px; border-radius: 18px; background: #fff; padding: 4px; box-shadow: 0 3px 15px rgba(15,23,42,.06); }
+.ios-period-picker button { display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 14px; background: transparent; color: #047857; }
+.ios-period-picker strong { text-align: center; text-transform: capitalize; }
+.ios-salary-hero { overflow: hidden; border-radius: 27px; background: linear-gradient(145deg,#064e3b,#047857 65%,#10b981); padding: 24px; color: #fff; box-shadow: 0 12px 35px rgba(4,120,87,.25); }
+.ios-salary-hero span,.ios-salary-hero small { display: block; color: #d1fae5; }.ios-salary-hero strong { display: block; margin: 8px 0 13px; font-size: clamp(34px,9vw,48px); letter-spacing: -.05em; line-height: 1; }.ios-salary-hero small { font-size: 12px; }
+.ios-salary-metrics { display: grid; gap: 10px; margin: 14px 0 24px; }
+.ios-salary-metric { display: grid; grid-template-columns: 38px 1fr auto; align-items: center; gap: 10px; border-radius: 18px; background: #fff; padding: 13px 15px; box-shadow: 0 3px 15px rgba(15,23,42,.05); }
+.ios-salary-metric svg { color: #64748b; }.ios-salary-metric span { color: #6b7280; font-size: 13px; font-weight: 650; }.ios-salary-metric strong { font-size: 15px; }
+.ios-detail-section { margin-top: 24px; }.ios-detail-section h2 { margin: 0 4px 9px; font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
+.ios-list { overflow: hidden; border-radius: 20px; background: #fff; box-shadow: 0 3px 15px rgba(15,23,42,.05); }.ios-list-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 15px; }.ios-list-row + .ios-list-row { border-top: 1px solid #e5e7eb; }.ios-list-row div { min-width: 0; }.ios-list-row div strong,.ios-list-row div span { display: block; }.ios-list-row div strong { font-size: 14px; }.ios-list-row div span { overflow: hidden; margin-top: 3px; color: #6b7280; font-size: 11px; line-height: 1.35; text-overflow: ellipsis; }.ios-list-row > b { flex: 0 0 auto; font-size: 14px; }.ios-empty { margin: 0; padding: 22px; color: #9ca3af; text-align: center; font-size: 13px; }
+.ios-tabbar { position: fixed; z-index: 100; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(3,1fr); border-top: .5px solid rgba(60,60,67,.25); background: rgba(249,249,249,.9); padding: 7px 8px calc(7px + env(safe-area-inset-bottom)); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%); }
+.ios-nav-item { display: flex; min-height: 48px; align-items: center; justify-content: center; gap: 4px; border: 0; border-radius: 13px; background: transparent; color: #8e8e93; text-decoration: none; font-size: 10px; font-weight: 650; flex-direction: column; }.ios-nav-item-active { color: #047857; }.ios-logout { color: #b91c1c; }
+.ios-sidebar { display: none; }
+
+@media (min-width: 768px) {
+  .ios-app-shell { display: grid; grid-template-columns: 244px 1fr; }
+  .ios-sidebar { position: sticky; top: 0; display: flex; height: 100dvh; flex-direction: column; border-right: .5px solid rgba(60,60,67,.2); background: rgba(249,249,249,.92); padding: calc(24px + env(safe-area-inset-top)) 14px 18px; backdrop-filter: blur(24px); }
+  .ios-sidebar-brand { display: flex; align-items: center; gap: 10px; margin: 0 7px 26px; }.ios-sidebar-brand div strong,.ios-sidebar-brand div span { display: block; }.ios-sidebar-brand div span { max-width: 125px; overflow: hidden; color: #6b7280; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+  .ios-sidebar nav { display: grid; gap: 5px; }.ios-sidebar .ios-nav-item { min-height: 48px; justify-content: flex-start; padding: 0 13px; font-size: 14px; flex-direction: row; }.ios-sidebar .ios-nav-item-active { background: #d1fae5; color: #065f46; }.ios-sidebar > .ios-logout { margin-top: auto; justify-content: flex-start; padding: 0 13px; font-size: 14px; flex-direction: row; }
+  .ios-content { padding-bottom: 0; }.ios-page { padding-top: calc(30px + env(safe-area-inset-top)); }.ios-tabbar { display: none; }
+}
+
 .spreadsheet-active-cell,
 .spreadsheet-active-input {
   border-radius: 0.375rem;
