@@ -6,14 +6,9 @@
     "orientation": "portrait",
     "scheme": "hesapgo",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "backgroundColor": "#0f172a",
-      "resizeMode": "contain"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "wasy.system.hesap",
-      "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -25,7 +20,11 @@
       }
     },
     "extra": {
-      "baseUrl": "https://pamukkaleturizm.info"
-    }
+      "baseUrl": "https://pamukkaleturizm.info",
+      "eas": {
+        "projectId": "efc72129-3fef-468b-a646-c0b8ce98bb36"
+      }
+    },
+    "owner": "wasycimm"
   }
 }

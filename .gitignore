@@ -23,6 +23,8 @@ desktop/release/
 build/ios/
 expo-go/.expo/
 expo-go/dist/
+expo-go/ios/
+expo-go/android/
 ios/App/vendor/bundle/
 ios/App/fastlane/report.xml
 ios/App/fastlane/screenshots/
