@@ -20,6 +20,11 @@ node_modules
 .codex-tmp/
 apk/
 desktop/release/
+build/ios/
+ios/App/vendor/bundle/
+ios/App/fastlane/report.xml
+ios/App/fastlane/screenshots/
+ios/App/fastlane/test_output/
 desktop/build/icon.ico
 desktop/build/icon.png
 android/app/google-services.json
