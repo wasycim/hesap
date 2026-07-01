@@ -41,3 +41,22 @@ export async function getOrCreateDeviceIdentity() {
   }
 }
 
+export function isPhoneMobileDeviceContext() {
+  if (typeof window === "undefined") return false
+  if (Capacitor.isNativePlatform()) {
+    const platform = Capacitor.getPlatform()
+    return platform === "ios" || platform === "android"
+  }
+
+  const nativeParam = new URLSearchParams(window.location.search).get("native") || ""
+  if (nativeParam === "expo-ios" || nativeParam === "expo-android") return true
+
+  const nativeCookie = document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith("hesap-native-platform="))
+    ?.split("=")[1]
+  if (nativeCookie === "ios" || nativeCookie === "android") return true
+
+  return window.localStorage.getItem("hesap.expoGo") === "true"
+}

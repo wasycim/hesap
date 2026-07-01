@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { logSecurityEvent } from "@/lib/audit-log"
 import { PublicAuthFooter } from "@/components/auth/public-auth-footer"
-import { getOrCreateDeviceIdentity } from "@/lib/device-identity"
+import { getOrCreateDeviceIdentity, isPhoneMobileDeviceContext } from "@/lib/device-identity"
 
 const savedAuthLoginKey = "hesap.auth.savedLogin"
 
@@ -125,7 +125,9 @@ export default function GirisPage() {
       return
     }
 
-    const nextPath = getSafeNextPath() || "/dashboard"
+    const phoneMobileLogin = isPhoneMobileDeviceContext()
+    const nextPath = getSafeNextPath() || (phoneMobileLogin ? "/mobile" : "/dashboard")
+    if (phoneMobileLogin || nextPath.startsWith("/mobile")) {
     const identity = await getOrCreateDeviceIdentity()
     const deviceResponse = await fetch("/api/auth/device-verification/start", {
       method: "POST",
@@ -144,6 +146,7 @@ export default function GirisPage() {
       router.push(`/auth/cihaz-dogrulama?next=${encodeURIComponent(nextPath)}`)
       router.refresh()
       return
+    }
     }
 
     await logSecurityEvent("login", {

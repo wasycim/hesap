@@ -33,6 +33,9 @@ export async function POST(request: NextRequest) {
   if (!challenge || challenge.device_id !== deviceId || challenge.consumed_at) {
     return NextResponse.json({ error: "Doğrulama isteği geçersiz veya kullanılmış." }, { status: 400 })
   }
+  if (!isPhoneMobileVerificationRequest(request, String(challenge.platform || ""))) {
+    return NextResponse.json({ error: "Cihaz doğrulaması sadece telefon mobil uygulaması için kullanılır." }, { status: 403 })
+  }
   if (new Date(challenge.expires_at).getTime() <= Date.now()) {
     return NextResponse.json({ error: "Kodun süresi doldu. Yeni kod isteyin." }, { status: 410 })
   }
@@ -78,3 +81,7 @@ function hashCode(userId: string, deviceId: string, code: string) {
   return createHmac("sha256", secret).update(`${userId}:${deviceId}:${code}`).digest("hex")
 }
 
+function isPhoneMobileVerificationRequest(request: NextRequest, platform: string) {
+  const nativePlatform = request.cookies.get("hesap-native-platform")?.value
+  return ["ios", "android", "ios-web", "android-web"].includes(platform) || nativePlatform === "ios" || nativePlatform === "android"
+}

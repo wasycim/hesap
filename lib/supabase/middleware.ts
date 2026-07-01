@@ -14,10 +14,15 @@ function hasSupabaseAuthCookie(request: NextRequest) {
   ))
 }
 
+function isPhoneMobilePlatform(platform?: string) {
+  return platform === "ios" || platform === "android"
+}
+
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const expoNativePlatform = request.nextUrl.searchParams.get("native") === "expo-ios" ? "ios" : ""
   const nativePlatform = expoNativePlatform || request.cookies.get("hesap-native-platform")?.value
+  const requiresDeviceTrust = isPhoneMobilePlatform(nativePlatform) && (pathname.startsWith("/dashboard") || pathname.startsWith("/mobile"))
 
   if (expoNativePlatform) {
     const url = request.nextUrl.clone()
@@ -76,11 +81,11 @@ export async function updateSession(request: NextRequest) {
 
   // Supabase oturum yenilemesi ile yönlendirme arasına başka işlem eklenmemelidir.
   const { data: { user } } = await supabase.auth.getUser()
-  const trust = user
+  const trust = user && isPhoneMobilePlatform(nativePlatform)
     ? await verifyDeviceTrustToken(request.cookies.get(deviceTrustCookieName)?.value, user.id)
     : null
 
-  if (user && (pathname.startsWith("/dashboard") || pathname.startsWith("/mobile")) && !trust) {
+  if (user && requiresDeviceTrust && !trust) {
     const url = request.nextUrl.clone()
     url.pathname = "/auth/cihaz-dogrulama"
     url.search = ""
@@ -96,9 +101,11 @@ export async function updateSession(request: NextRequest) {
 
   if (user && pathname.startsWith("/auth/giris")) {
     const url = request.nextUrl.clone()
-    url.pathname = trust ? (nativePlatform === "ios" ? "/mobile" : "/dashboard") : "/auth/cihaz-dogrulama"
+    url.pathname = isPhoneMobilePlatform(nativePlatform)
+      ? (trust ? (nativePlatform === "ios" ? "/mobile" : "/dashboard") : "/auth/cihaz-dogrulama")
+      : "/dashboard"
     url.search = ""
-    if (!trust) url.searchParams.set("next", nativePlatform === "ios" ? "/mobile" : "/dashboard")
+    if (isPhoneMobilePlatform(nativePlatform) && !trust) url.searchParams.set("next", nativePlatform === "ios" ? "/mobile" : "/dashboard")
     return redirectWithSession(url, supabaseResponse)
   }
 

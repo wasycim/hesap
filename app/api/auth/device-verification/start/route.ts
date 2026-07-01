@@ -21,6 +21,9 @@ export async function POST(request: NextRequest) {
   const platform = String(body.platform || "web").trim().slice(0, 30)
   const label = String(body.label || platform || "Bilinmeyen cihaz").trim().slice(0, 140)
   const resend = body.resend === true
+  if (!isPhoneMobileVerificationRequest(request, platform)) {
+    return NextResponse.json({ error: "Cihaz doğrulaması sadece telefon mobil uygulaması için kullanılır." }, { status: 403 })
+  }
   if (!/^[a-zA-Z0-9._:-]{8,200}$/.test(deviceId)) {
     return NextResponse.json({ error: "Cihaz kimliği geçersiz." }, { status: 400 })
   }
@@ -143,6 +146,11 @@ async function trustedResponse(userId: string, deviceId: string, body: Record<st
   const response = NextResponse.json(body)
   response.cookies.set(deviceTrustCookieName, await issueDeviceTrustToken(userId, deviceId), deviceTrustCookieOptions())
   return response
+}
+
+function isPhoneMobileVerificationRequest(request: NextRequest, platform: string) {
+  const nativePlatform = request.cookies.get("hesap-native-platform")?.value
+  return ["ios", "android", "ios-web", "android-web"].includes(platform) || nativePlatform === "ios" || nativePlatform === "android"
 }
 
 function maskEmail(email: string) {
