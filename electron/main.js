@@ -25,9 +25,12 @@ function normalizeAppUrl(value) {
 const appUrl = normalizeAppUrl(process.env.HESAP_DESKTOP_URL)
 const appOrigin = new URL(appUrl).origin
 const appShellUrl = `${appOrigin}/dashboard?desktopApp=1`
+const desktopLoginUrl = `${appOrigin}/auth/giris?desktopApp=1`
 const appOfflineShellUrl = `${appOrigin}/dashboard?desktopApp=1&desktopOffline=1`
 const allowedOrigins = new Set([new URL(defaultAppUrl).origin, appOrigin])
 let isShowingOfflinePage = false
+let desktopSessionResetPromise = null
+let desktopLoginPreparationPromise = null
 
 function sanitizeFileName(value) {
   return String(value || "Hesap-Rapor")
@@ -192,7 +195,7 @@ function getOfflinePageUrl() {
     <h1>&#304;nternet ba&#287;lant&#305;s&#305; yok</h1>
     <p>L&#252;tfen internet ba&#287;lant&#305;n&#305;z&#305; kontrol edin. Ba&#287;lant&#305; geri geldi&#287;inde uygulamay&#305; tekrar y&#252;klemek i&#231;in a&#351;a&#287;&#305;daki butona t&#305;klay&#305;n.</p>
     <button type="button" id="reload">Yeniden y&#252;kle</button>
-    <small>Hesap uygulamas&#305; ba&#287;lant&#305; geri geldi&#287;inde kald&#305;&#287;&#305; yerden devam eder.</small>
+    <small>Ba&#287;lant&#305; geri geldi&#287;inde giri&#351; ekran&#305;ndan devam edebilirsiniz.</small>
   </main>
   <script>
     document.getElementById("reload").addEventListener("click", function () {
@@ -244,6 +247,52 @@ function configurePermissions() {
   })
 }
 
+function clearDesktopAuthSession() {
+  if (desktopSessionResetPromise) return desktopSessionResetPromise
+
+  desktopSessionResetPromise = (async () => {
+    try {
+      await session.defaultSession.clearStorageData({
+        origin: appOrigin,
+        storages: ["cookies"],
+      })
+    } catch {
+      const cookies = await session.defaultSession.cookies.get({ url: appOrigin })
+      await Promise.all(cookies.map(cookie => session.defaultSession.cookies.remove(appOrigin, cookie.name)))
+    }
+  })().finally(() => {
+    desktopSessionResetPromise = null
+  })
+
+  return desktopSessionResetPromise
+}
+
+function prepareLoginForNextOpen() {
+  if (desktopLoginPreparationPromise) return desktopLoginPreparationPromise
+
+  desktopLoginPreparationPromise = (async () => {
+    await clearDesktopAuthSession()
+    if (!mainWindow || mainWindow.isDestroyed()) return
+
+    isShowingOfflinePage = false
+    await mainWindow.loadURL(desktopLoginUrl).catch(() => {
+      showOfflinePage()
+    })
+  })().finally(() => {
+    desktopLoginPreparationPromise = null
+  })
+
+  return desktopLoginPreparationPromise
+}
+
+async function showMainWindow() {
+  if (desktopLoginPreparationPromise) await desktopLoginPreparationPromise
+  if (!mainWindow || mainWindow.isDestroyed()) createWindow()
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -281,12 +330,13 @@ function createWindow() {
     if (isQuitting || updateInstallInProgress || process.platform === "darwin") return
     event.preventDefault()
     mainWindow.hide()
+    prepareLoginForNextOpen().catch(() => undefined)
 
     if (!hasShownTrayHint && Notification.isSupported()) {
       hasShownTrayHint = true
       new Notification({
-        title: "Hesap arka planda calisiyor",
-        body: "Bildirimleri alabilmek icin uygulama sistem tepsisinde acik kalacak.",
+        title: "Hesap oturumu kapatildi",
+        body: "Uygulama tepside acik kalacak; yeniden actiginizda giris yapmaniz gerekir.",
         icon: getIconPath(),
       }).show()
     }
@@ -332,11 +382,7 @@ function createTray() {
   tray.setContextMenu(Menu.buildFromTemplate([
     {
       label: "Hesap'i ac",
-      click: () => {
-        if (!mainWindow || mainWindow.isDestroyed()) createWindow()
-        mainWindow.show()
-        mainWindow.focus()
-      },
+      click: () => showMainWindow().catch(() => undefined),
     },
     {
       label: "Guncellemeyi kontrol et",
@@ -350,11 +396,7 @@ function createTray() {
       },
     },
   ]))
-  tray.on("double-click", () => {
-    if (!mainWindow || mainWindow.isDestroyed()) createWindow()
-    mainWindow.show()
-    mainWindow.focus()
-  })
+  tray.on("double-click", () => showMainWindow().catch(() => undefined))
 }
 
 function setAppBadge(count) {
@@ -547,24 +589,18 @@ if (!gotSingleInstanceLock) {
   app.quit()
 } else {
   app.on("second-instance", () => {
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      createWindow()
-      return
-    }
-
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.show()
-    mainWindow.focus()
+    showMainWindow().catch(() => undefined)
   })
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   if (!gotSingleInstanceLock) return
 
   Menu.setApplicationMenu(null)
   configureStartup()
   configurePermissions()
   configureAutoUpdater()
+  await clearDesktopAuthSession()
   createTray()
   createWindow()
   setTimeout(() => {

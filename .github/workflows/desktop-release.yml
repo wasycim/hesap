@@ -52,7 +52,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             gh release create $tag `
               --title "Hesap $tag" `
-              --notes "Hesap $tag masaustu guncellemesi. Offline senkronizasyon, PDF indirme/yazdirma ayrimi ve 45 dakika fazla mesai kurali."
+              --notes "Hesap $tag masaustu guncellemesi. EXE her kapatildiginda oturum kapatilir ve sonraki acilista yeniden giris istenir."
           }
 
           gh release upload $tag `

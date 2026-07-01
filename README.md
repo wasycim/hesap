@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/wasycim/hesap"><img alt="GitHub repo" src="https://img.shields.io/badge/repo-wasycim%2Fhesap-111827?style=for-the-badge&logo=github" /></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-2.0.1-10B981?style=for-the-badge" />
+  <img alt="Version" src="https://img.shields.io/badge/version-2.0.2-10B981?style=for-the-badge" />
   <img alt="Next.js" src="https://img.shields.io/badge/Next.js-15-000000?style=for-the-badge&logo=nextdotjs" />
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
   <img alt="Supabase" src="https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white" />
