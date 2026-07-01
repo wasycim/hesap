@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { Wrench } from "lucide-react"
+import Link from "next/link"
 
 async function getMaintenanceMessage() {
   const supabase = await createClient()
@@ -25,6 +26,12 @@ export default async function MaintenancePage() {
         <p className="mt-6 text-sm font-black uppercase tracking-[0.18em] text-amber-200">Bakim modu</p>
         <h1 className="mt-3 text-3xl font-black tracking-normal">Hesap gecici olarak kapali</h1>
         <p className="mt-4 text-base leading-7 text-slate-300">{message}</p>
+        <Link
+          href="/auth/giris?next=/dashboard/operasyon"
+          className="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl border border-amber-300/40 bg-amber-300/10 px-5 text-sm font-bold text-amber-100 transition hover:bg-amber-300/20"
+        >
+          Developer girisi
+        </Link>
       </section>
     </main>
   )

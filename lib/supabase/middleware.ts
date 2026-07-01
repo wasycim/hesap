@@ -7,7 +7,26 @@ type CookieToSet = {
   options: CookieOptions
 }
 
+function hasSupabaseAuthCookie(request: NextRequest) {
+  return request.cookies.getAll().some(cookie => (
+    cookie.name.startsWith('sb-') && cookie.name.includes('-auth-token')
+  ))
+}
+
 export async function updateSession(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+  if (!hasSupabaseAuthCookie(request)) {
+    if (pathname.startsWith('/dashboard')) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/auth/giris'
+      return NextResponse.redirect(url)
+    }
+
+    if (pathname.startsWith('/auth/giris') || pathname === '/maintenance') {
+      return NextResponse.next({ request })
+    }
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -70,6 +89,7 @@ export async function updateSession(request: NextRequest) {
 
   if (
     !request.nextUrl.pathname.startsWith('/api') &&
+    !request.nextUrl.pathname.startsWith('/auth/giris') &&
     request.nextUrl.pathname !== '/maintenance' &&
     request.nextUrl.pathname !== '/status'
   ) {
@@ -82,7 +102,7 @@ export async function updateSession(request: NextRequest) {
     const maintenanceValue = maintenance?.value as { enabled?: boolean; allowDeveloper?: boolean } | null
     if (maintenanceValue?.enabled) {
       let isDeveloper = false
-      if (user && maintenanceValue.allowDeveloper !== false) {
+      if (user) {
         const { data: profile } = await supabase
           .from('user_profiles')
           .select('is_developer, dashboard_access')

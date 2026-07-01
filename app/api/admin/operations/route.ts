@@ -266,7 +266,12 @@ export async function PATCH(request: NextRequest) {
   const admin = createAdminClient()
   let payload: any
   if (table === "app_settings") {
-    payload = { value: body.value && typeof body.value === "object" ? body.value : {}, updated_by: guard.user.id, updated_at: new Date().toISOString() }
+    const value = body.value && typeof body.value === "object" ? body.value : {}
+    payload = {
+      value: id === "maintenance_mode" ? { ...value, allowDeveloper: true } : value,
+      updated_by: guard.user.id,
+      updated_at: new Date().toISOString(),
+    }
   } else if (table === "overtime_approvals") {
     const status = ["pending", "approved", "rejected"].includes(body.status) ? body.status : "pending"
     const { data: currentApproval, error: currentApprovalError } = await admin
