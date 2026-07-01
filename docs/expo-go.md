@@ -27,3 +27,21 @@ npm run expo:go
 
 Expo Go yayın sistemi değildir. App Store/TestFlight için Apple Developer imzası yine gerekir. Bu kurulum sadece hızlı test ve demo içindir.
 
+## EAS ile TestFlight
+
+Expo hesabına giriş ve Apple eşleştirmesi yapılınca TestFlight'a göndermek için:
+
+```bash
+npm run eas:login
+npm run eas:init
+npm run eas:testflight
+```
+
+Eğer build alındı ama submit ayrıca yapılacaksa:
+
+```bash
+npm run eas:build:ios
+npm run eas:submit:ios
+```
+
+İlk çalıştırmada EAS Apple Developer hesabını, takımını, bundle id'yi ve imzalama bilgilerini sorar. Bundle ID `wasy.system.hesap` olarak ayarlandı.

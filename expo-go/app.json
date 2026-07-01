@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Hesap Go",
-    "slug": "hesap-go",
+    "name": "Hesap",
+    "slug": "hesap",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "hesapgo",
@@ -12,7 +12,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "wasy.system.hesap.expo"
+      "bundleIdentifier": "wasy.system.hesap",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "wasy.system.hesap.expo",
@@ -25,4 +29,3 @@
     }
   }
 }
-
