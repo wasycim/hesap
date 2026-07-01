@@ -1,6 +1,6 @@
 {
-  "name": "hesap-expo-go",
-  "version": "1.0.0",
+  "name": "hesap-mobile-ios",
+  "version": "2.0.0",
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {

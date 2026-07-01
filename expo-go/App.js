@@ -30,8 +30,8 @@ const ALLOWED_PREFIXES = [
 const injectedJavaScript = `
   (function () {
     try {
-      document.documentElement.classList.add("expo-go-preview");
-      window.localStorage.setItem("hesap.expoGo", "true");
+      document.documentElement.classList.add("hesap-mobile-app");
+      window.localStorage.setItem("hesap.mobileApp", "true");
     } catch (error) {}
     true;
   })();
@@ -88,8 +88,8 @@ export default function App() {
       <StatusBar style="light" backgroundColor="#0f172a" />
       <View style={styles.header}>
         <View>
-          <Text style={styles.eyebrow}>EXPO GO ÖNİZLEME</Text>
-          <Text style={styles.title}>Hesap iOS</Text>
+          <Text style={styles.eyebrow}>MOBİL UYGULAMA</Text>
+          <Text style={styles.title}>Hesap</Text>
         </View>
         <View style={styles.actions}>
           <TouchableOpacity style={styles.actionButton} onPress={goHome}>
@@ -258,4 +258,3 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
 })
-

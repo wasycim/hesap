@@ -1,32 +1,24 @@
-# Hesap Expo Go Önizleme
+# Hesap iOS TestFlight
 
-Bu klasör iPhone'da hızlı test için Expo Go istemcisidir. App Store/TestFlight yayını değildir; canlı `pamukkaleturizm.info/mobile` ekranını güvenli mobil kabuk içinde açar.
+Bu klasör Hesap mobil uygulamasının iOS TestFlight paketini üretmek için kullanılır. Uygulama adı ekranda yalnızca `Hesap` olarak görünür.
 
-## Çalıştırma
+## TestFlight'a gönderme
 
 Ana repo kökünden:
 
 ```bash
-npm run expo:go
+npm run eas:testflight
 ```
 
-veya bu klasörde:
+Bu komut iOS production build alır ve bittiğinde App Store Connect / TestFlight tarafına otomatik gönderir.
+
+## Ayrı build ve submit
 
 ```bash
-npm install
-npm run start
+npm run eas:build:ios
+npm run eas:submit:ios
 ```
 
-Terminalde çıkan QR kodu iPhone'daki Expo Go uygulamasıyla okut.
+## Sürüm
 
-## Davranış
-
-- Başlangıç adresi: `https://pamukkaleturizm.info/mobile?native=expo-ios`
-- Sunucu `hesap-native-platform=ios` cookie'sini set eder.
-- `/dashboard` yönlendirmeleri engellenir, kullanıcı mobil genel bakış ve maaş ekranında tutulur.
-- Dış linkler telefon tarayıcısına açılır.
-
-## Not
-
-Expo Go, Expo'nun kendi uygulaması içinde çalışan önizlemedir. Kalıcı iOS dağıtımı için TestFlight/EAS build gerekir.
-
+Mobil iOS sürümü `2.0.0` olarak ayarlandı. EAS build numarası production profilinde otomatik artar.

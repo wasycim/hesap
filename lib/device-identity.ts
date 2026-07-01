@@ -58,5 +58,5 @@ export function isPhoneMobileDeviceContext() {
     ?.split("=")[1]
   if (nativeCookie === "ios" || nativeCookie === "android") return true
 
-  return window.localStorage.getItem("hesap.expoGo") === "true"
+  return window.localStorage.getItem("hesap.mobileApp") === "true"
 }
