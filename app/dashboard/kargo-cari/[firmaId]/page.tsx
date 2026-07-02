@@ -41,6 +41,7 @@ interface KargoRow {
 interface KargoFirma {
   id: string
   ad: string
+  kdv_dahil?: boolean | null
 }
 
 interface KargoFirmaNotu {
@@ -82,6 +83,8 @@ const HEADER_LABELS: Record<string, string> = {
 }
 
 const COLUMNS = ["tarih", "fis_no", "gonderilen_yer", "alinan_tutar", "satilan_tutar", "kalan_kar"]
+const KDV_RATE = 0.20
+const PREVIOUS_MONTH_DEBT_PDF_KEY = "kargo-cari-previous-month-debt-pdf"
 
 export default function KargoCariPage({ params }: { params: Promise<{ firmaId: string }> }) {
   const resolvedParams = use(params)
@@ -95,6 +98,10 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
   const [currentTime, setCurrentTime] = useState(() => new Date())
   const [customerPdf, setCustomerPdf] = useState(false)
   const [withKdv, setWithKdv] = useState(false)
+  const [includePreviousMonthDebtDetails, setIncludePreviousMonthDebtDetails] = useState(() => {
+    if (typeof window === "undefined") return false
+    return window.localStorage.getItem(PREVIOUS_MONTH_DEBT_PDF_KEY) === "true"
+  })
   const [month, setMonth] = useState(MONTHS[currentDate.getMonth()])
   const [year, setYear] = useState(currentDate.getFullYear())
   const years = makeYearWindow(year)
@@ -149,6 +156,10 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     return () => window.clearInterval(timer)
   }, [])
 
+  useEffect(() => {
+    window.localStorage.setItem(PREVIOUS_MONTH_DEBT_PDF_KEY, includePreviousMonthDebtDetails ? "true" : "false")
+  }, [includePreviousMonthDebtDetails])
+
   async function fetchFirma() {
     if (!currentSube) {
       setLoading(false)
@@ -159,7 +170,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
 
     const { data, error } = await supabase
       .from("kargo_cari_firmalar")
-      .select("id, ad")
+      .select("id, ad, kdv_dahil")
       .eq("id", resolvedParams.firmaId)
       .eq("sube_id", currentSube.id)
       .single()
@@ -172,6 +183,18 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     }
 
     setLoading(false)
+  }
+
+  function mapKargoRow(row: any): KargoRow {
+    return {
+      id: row.id,
+      tarih: row.tarih,
+      fis_no: row.fis_no || "",
+      gonderilen_yer: row.gonderilen_yer || "",
+      alinan_tutar: Number(row.alinan_tutar) || 0,
+      satilan_tutar: Number(row.satilan_tutar) || 0,
+      kalan_kar: Number(row.kalan_kar) || 0,
+    }
   }
 
   async function loadData() {
@@ -204,15 +227,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     ])
 
     if (!error && data) {
-      setRows(data.filter(row => isDateInSelectedMonth(row.tarih, month, year)).map(row => ({
-        id: row.id,
-        tarih: row.tarih,
-        fis_no: row.fis_no || "",
-        gonderilen_yer: row.gonderilen_yer || "",
-        alinan_tutar: Number(row.alinan_tutar) || 0,
-        satilan_tutar: Number(row.satilan_tutar) || 0,
-        kalan_kar: Number(row.kalan_kar) || 0,
-      })).sort(compareDateDescending))
+      setRows(data.filter(row => isDateInSelectedMonth(row.tarih, month, year)).map(mapKargoRow).sort(compareDateDescending))
     }
 
     if (!notlarResult.error) {
@@ -584,6 +599,32 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     }
   }
 
+  function getPreviousMonthSelection() {
+    const currentIndex = MONTHS.indexOf(month)
+    if (currentIndex <= 0) return { month: MONTHS[11], year: year - 1 }
+    return { month: MONTHS[currentIndex - 1], year }
+  }
+
+  async function loadRowsForPeriod(targetMonth: string, targetYear: number) {
+    if (!firma || !currentSube) return []
+
+    const targetAyYil = `${targetMonth}-${targetYear}`
+    const { data, error } = await supabase
+      .from("kargo_cari_kayitlar")
+      .select("*")
+      .eq("sube_id", currentSube.id)
+      .eq("firma_id", firma.id)
+      .eq("ay_yil", targetAyYil)
+      .order("tarih", { ascending: false })
+
+    if (error) throw error
+
+    return (data || [])
+      .filter(row => isDateInSelectedMonth(row.tarih, targetMonth, targetYear))
+      .map(mapKargoRow)
+      .sort(compareDateDescending)
+  }
+
   function formatDate(dateStr: string): string {
     const date = new Date(dateStr)
     return date.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" })
@@ -777,8 +818,13 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
       const snapshot = await getFirmDebtSnapshot()
       if (!snapshot) return
 
-      const kdvTutar = snapshot.toplamBorc * 0.20
-      const kdvDahilToplam = snapshot.toplamBorc * 1.20
+      const effectiveWithKdv = withKdv || Boolean(firma.kdv_dahil)
+      const previousPeriod = getPreviousMonthSelection()
+      const previousRows = includePreviousMonthDebtDetails
+        ? await loadRowsForPeriod(previousPeriod.month, previousPeriod.year)
+        : []
+      const kdvTutar = effectiveWithKdv ? Math.max(0, snapshot.toplamBorc) * KDV_RATE : 0
+      const kdvDahilToplam = snapshot.toplamBorc + kdvTutar
       const kdvDahilKalan = kdvDahilToplam - snapshot.odenen
 
       const hareketRows = snapshot.hareketler.map(hareket => [
@@ -794,90 +840,77 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         row.gonderilen_yer || "-",
         `${formatNumber(Number(row.alinan_tutar) || 0)} TL`,
       ])
-
-      const hasMovements = snapshot.hareketler.length > 0
+      const previousFisRows = previousRows.map(row => [
+        formatDate(row.tarih),
+        row.fis_no || "-",
+        row.gonderilen_yer || "-",
+        `${formatNumber(row.alinan_tutar)} TL`,
+      ])
+      const previousAyBorcu = sumField(previousRows, "alinan_tutar")
+      const detailTables = [
+        {
+          title: `${month} ${year} Borç Oluşturan Fişler`,
+          headers: ["Tarih", "Fiş No", "Gönderilen Yer", "Alınan Tutar"],
+          firstColumnWidth: "82px",
+          rows: [
+            ...(fisRows.length ? fisRows : [["-", "-", "-", "Kayıt yok"]]),
+            ["TOPLAM", "", "", `${formatNumber(snapshot.ayBorcu)} TL`],
+          ],
+        },
+        ...(includePreviousMonthDebtDetails ? [{
+          title: `${previousPeriod.month} ${previousPeriod.year} Borç Oluşturan Fişler`,
+          headers: ["Tarih", "Fiş No", "Gönderilen Yer", "Alınan Tutar"],
+          firstColumnWidth: "82px",
+          rows: [
+            ...(previousFisRows.length ? previousFisRows : [["-", "-", "-", "Kayıt yok"]]),
+            ["TOPLAM", "", "", `${formatNumber(previousAyBorcu)} TL`],
+          ],
+        }] : []),
+      ]
 
       openPdfReport({
         title: `${firma.ad} Borç Hareketleri`,
-        subtitle: `${currentSube?.ad || ""} - ${month} ${year}${withKdv ? " (%20 KDV Dahil)" : ""}`,
+        subtitle: `${currentSube?.ad || ""} - ${month} ${year}${effectiveWithKdv ? " (%20 KDV Dahil)" : ""}${includePreviousMonthDebtDetails ? ` - ${previousPeriod.month} ${previousPeriod.year} detayı dahil` : ""}`,
         orientation: "landscape",
-        metrics: hasMovements
-          ? [
-              { label: "Önceki Borç", value: `${formatNumber(snapshot.oncekiBorc)} TL` },
-              { label: "Ay Borcu", value: `${formatNumber(snapshot.ayBorcu)} TL` },
-              { label: "Toplam Borç" + (withKdv ? " (KDV Dahil)" : ""), value: `${formatNumber(withKdv ? kdvDahilToplam : snapshot.toplamBorc)} TL` },
-              { label: "Ödenen", value: `${formatNumber(snapshot.odenen)} TL` },
-              { label: "Kalan Borç" + (withKdv ? " (KDV Dahil)" : ""), value: `${formatNumber(withKdv ? kdvDahilKalan : snapshot.kalanBorc)} TL` },
-            ]
-          : [
-              { label: "Güncel Borç" + (withKdv ? " (KDV Dahil)" : ""), value: `${formatNumber(withKdv ? kdvDahilKalan : snapshot.kalanBorc)} TL` },
-            ],
-        tables: hasMovements
-          ? [
-              {
-                title: "Borç Durumu",
-                headers: withKdv
-                  ? ["Önceki Borç", "Ay Borcu", "KDV (%20)", "Toplam Borç (KDV Dahil)", "Ödenen", "Kalan Borç (KDV Dahil)"]
-                  : ["Önceki Borç", "Ay Borcu", "Toplam Borç", "Ödenen", "Kalan Borç"],
-                rows: withKdv
-                  ? [[
-                      `${formatNumber(snapshot.oncekiBorc)} TL`,
-                      `${formatNumber(snapshot.ayBorcu)} TL`,
-                      `${formatNumber(kdvTutar)} TL`,
-                      `${formatNumber(kdvDahilToplam)} TL`,
-                      `${formatNumber(snapshot.odenen)} TL`,
-                      `${formatNumber(kdvDahilKalan)} TL`,
-                    ]]
-                  : [[
-                      `${formatNumber(snapshot.oncekiBorc)} TL`,
-                      `${formatNumber(snapshot.ayBorcu)} TL`,
-                      `${formatNumber(snapshot.toplamBorc)} TL`,
-                      `${formatNumber(snapshot.odenen)} TL`,
-                      `${formatNumber(snapshot.kalanBorc)} TL`,
-                    ]],
-              },
-              {
-                title: "Ödeme Hareketleri",
-                headers: ["Tarih", "Güncel Borç", "Ödenen", "Kalan Borç", "Not"],
-                firstColumnWidth: "82px",
-                rows: hareketRows.length ? hareketRows : [["-", "-", "-", "-", "Ödeme hareketi yok"]],
-              },
-              {
-                title: "Ay İçindeki Borç Oluşturan Fişler",
-                headers: ["Tarih", "Fiş No", "Gönderilen Yer", "Alınan Tutar"],
-                firstColumnWidth: "82px",
-                rows: [
-                  ...(fisRows.length ? fisRows : [["-", "-", "-", "Kayıt yok"]]),
-                  ["TOPLAM", "", "", `${formatNumber(snapshot.ayBorcu)} TL`],
-                ],
-              },
-            ]
-          : [
-              {
-                title: "Borç Durumu",
-                headers: withKdv
-                  ? ["Matrah (KDV Hariç)", "KDV (%20)", "Güncel Borç (KDV Dahil)"]
-                  : ["Güncel Borç"],
-                rows: withKdv
-                  ? [[
-                      `${formatNumber(snapshot.kalanBorc)} TL`,
-                      `${formatNumber(kdvTutar)} TL`,
-                      `${formatNumber(kdvDahilKalan)} TL`,
-                    ]]
-                  : [[
-                      `${formatNumber(snapshot.kalanBorc)} TL`,
-                    ]],
-              },
-              {
-                title: "Ay İçindeki Borç Oluşturan Fişler",
-                headers: ["Tarih", "Fiş No", "Gönderilen Yer", "Alınan Tutar"],
-                firstColumnWidth: "82px",
-                rows: [
-                  ...(fisRows.length ? fisRows : [["-", "-", "-", "Kayıt yok"]]),
-                  ["TOPLAM", "", "", `${formatNumber(snapshot.ayBorcu)} TL`],
-                ],
-              },
-            ],
+        metrics: [
+          { label: "Önceki Borç", value: `${formatNumber(snapshot.oncekiBorc)} TL` },
+          { label: "Ay Borcu", value: `${formatNumber(snapshot.ayBorcu)} TL` },
+          ...(effectiveWithKdv ? [{ label: "KDV", value: `${formatNumber(kdvTutar)} TL` }] : []),
+          { label: "Toplam Borç" + (effectiveWithKdv ? " (KDV Dahil)" : ""), value: `${formatNumber(effectiveWithKdv ? kdvDahilToplam : snapshot.toplamBorc)} TL` },
+          { label: "Ödenen", value: `${formatNumber(snapshot.odenen)} TL` },
+          { label: "Kalan Borç" + (effectiveWithKdv ? " (KDV Dahil)" : ""), value: `${formatNumber(effectiveWithKdv ? kdvDahilKalan : snapshot.kalanBorc)} TL` },
+        ],
+        tables: [
+          {
+            title: "Borç Durumu",
+            headers: effectiveWithKdv
+              ? ["Önceki Borç", "Ay Borcu", "KDV (%20)", "Toplam Borç (KDV Dahil)", "Ödenen", "Kalan Borç (KDV Dahil)"]
+              : ["Önceki Borç", "Ay Borcu", "Toplam Borç", "Ödenen", "Kalan Borç"],
+            rows: effectiveWithKdv
+              ? [[
+                  `${formatNumber(snapshot.oncekiBorc)} TL`,
+                  `${formatNumber(snapshot.ayBorcu)} TL`,
+                  `${formatNumber(kdvTutar)} TL`,
+                  `${formatNumber(kdvDahilToplam)} TL`,
+                  `${formatNumber(snapshot.odenen)} TL`,
+                  `${formatNumber(kdvDahilKalan)} TL`,
+                ]]
+              : [[
+                  `${formatNumber(snapshot.oncekiBorc)} TL`,
+                  `${formatNumber(snapshot.ayBorcu)} TL`,
+                  `${formatNumber(snapshot.toplamBorc)} TL`,
+                  `${formatNumber(snapshot.odenen)} TL`,
+                  `${formatNumber(snapshot.kalanBorc)} TL`,
+                ]],
+          },
+          {
+            title: "Ödeme Hareketleri",
+            headers: ["Tarih", "Güncel Borç", "Ödenen", "Kalan Borç", "Not"],
+            firstColumnWidth: "82px",
+            rows: hareketRows.length ? hareketRows : [["-", "-", "-", "-", "Ödeme hareketi yok"]],
+          },
+          ...detailTables,
+        ],
       })
     } catch (error: any) {
       toast.error(error?.message || "Borç PDF hazırlanamadı.")
@@ -963,10 +996,18 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         </label>
         <label className="flex h-9 items-center gap-2 rounded-md border bg-background px-3 text-sm font-medium text-foreground cursor-pointer">
           <Checkbox
-            checked={withKdv}
+            checked={withKdv || Boolean(firma.kdv_dahil)}
             onCheckedChange={(checked) => setWithKdv(checked === true)}
+            disabled={Boolean(firma.kdv_dahil)}
           />
-          <span>%20 KDV Ekle</span>
+          <span>{firma.kdv_dahil ? "%20 KDV Otomatik Aktif" : "%20 KDV Ekle"}</span>
+        </label>
+        <label className="flex h-9 items-center gap-2 rounded-md border bg-background px-3 text-sm font-medium text-foreground cursor-pointer">
+          <Checkbox
+            checked={includePreviousMonthDebtDetails}
+            onCheckedChange={(checked) => setIncludePreviousMonthDebtDetails(checked === true)}
+          />
+          <span>Borç PDF: Önceki Ay Detayı</span>
         </label>
       </div>
 

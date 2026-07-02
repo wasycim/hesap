@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { CreditCard, FileText, History, Loader2, Package, Save, Trash2, TrendingDown, TrendingUp, Wallet } from "lucide-react"
+import { CreditCard, FileText, History, Loader2, Package, Percent, Save, Trash2, TrendingDown, TrendingUp, Wallet } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { useUnsavedChanges } from "@/contexts/unsaved-changes-context"
 import { createClient } from "@/lib/supabase/client"
@@ -19,11 +19,14 @@ import { Checkbox } from "@/components/ui/checkbox"
 interface KargoFirma {
   id: string
   ad: string
+  kdv_dahil?: boolean | null
 }
 
 interface FirmaBorcOzet {
   firma_id: string
   firma_ad: string
+  kdv_dahil: boolean
+  kdv_tutari: number
   onceki_borc: number
   ay_borcu: number
   toplam_borc: number
@@ -57,6 +60,8 @@ interface OdemeDuzeltmeFormu {
   notlar: string
 }
 
+const KDV_RATE = 0.20
+
 export default function KargoCariOzetPage() {
   const [firmalar, setFirmalar] = useState<KargoFirma[]>([])
   const [borcOzetleri, setBorcOzetleri] = useState<FirmaBorcOzet[]>([])
@@ -82,6 +87,7 @@ export default function KargoCariOzetPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [correcting, setCorrecting] = useState(false)
+  const [updatingKdvFirmaId, setUpdatingKdvFirmaId] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const supabase = createClient()
   const { currentSube } = useSube()
@@ -104,12 +110,13 @@ export default function KargoCariOzetPage() {
   const duzeltmeSonrasiOdenen = selectedDuzeltmeOzet ? selectedDuzeltmeOzet.odenen - duzeltmeTutari : 0
   const duzeltmeSonrasiKalan = selectedDuzeltmeOzet ? selectedDuzeltmeOzet.kalan_borc + duzeltmeTutari : 0
   const genelToplam = useMemo(() => borcOzetleri.reduce((acc, ozet) => ({
+    kdv_tutari: acc.kdv_tutari + ozet.kdv_tutari,
     onceki_borc: acc.onceki_borc + ozet.onceki_borc,
     ay_borcu: acc.ay_borcu + ozet.ay_borcu,
     toplam_borc: acc.toplam_borc + ozet.toplam_borc,
     odenen: acc.odenen + ozet.odenen,
     kalan_borc: acc.kalan_borc + ozet.kalan_borc,
-  }), { onceki_borc: 0, ay_borcu: 0, toplam_borc: 0, odenen: 0, kalan_borc: 0 }), [borcOzetleri])
+  }), { kdv_tutari: 0, onceki_borc: 0, ay_borcu: 0, toplam_borc: 0, odenen: 0, kalan_borc: 0 }), [borcOzetleri])
 
   useEffect(() => {
     if (currentSube) checkAdminAndLoadData()
@@ -122,10 +129,25 @@ export default function KargoCariOzetPage() {
       return saveOdemeDuzeltme()
     })
     return () => registerSaveHandler(null)
-  }, [odemeFormu, odemeFormuKirli, duzeltmeFormu, duzeltmeFormuKirli, selectedOzet, selectedDuzeltmeOzet, currentSube?.id, scope, ayYil])
+  }, [odemeFormu, odemeFormuKirli, duzeltmeFormu, duzeltmeFormuKirli, selectedOzet, selectedDuzeltmeOzet, firmalar, currentSube?.id, scope, ayYil])
 
   function sumField<T extends Record<string, any>>(rows: T[] | null, key: keyof T) {
     return (rows || []).reduce((sum, row) => sum + (Number(row[key]) || 0), 0)
+  }
+
+  function applyFirmKdv(
+    debt: { oncekiBorc: number; ayBorcu: number; toplamBorc: number; odenen: number; kalanBorc: number },
+    kdvDahil: boolean,
+  ) {
+    const kdvTutari = kdvDahil ? Math.max(0, debt.toplamBorc) * KDV_RATE : 0
+    const toplamBorc = debt.toplamBorc + kdvTutari
+
+    return {
+      ...debt,
+      toplamBorc,
+      kdvTutari,
+      kalanBorc: toplamBorc - debt.odenen,
+    }
   }
 
   function parseAyYil(value: string | null | undefined) {
@@ -179,7 +201,7 @@ export default function KargoCariOzetPage() {
     return totals
   }
 
-  async function calculateFirmDebt(firmaId: string) {
+  async function calculateFirmDebt(firmaId: string, kdvDahil = false) {
     if (!currentSube) return null
 
     if (scope === "monthly") {
@@ -223,13 +245,13 @@ export default function KargoCariOzetPage() {
       const oncekiBorc = priorDebt - priorPaid
       const toplamBorc = oncekiBorc + ayBorcu
 
-      return {
+      return applyFirmKdv({
         oncekiBorc,
         ayBorcu,
         toplamBorc,
         odenen,
         kalanBorc: toplamBorc - odenen,
-      }
+      }, kdvDahil)
     }
 
     const [
@@ -263,13 +285,13 @@ export default function KargoCariOzetPage() {
     const movementPaid = sumField(odemeHareketleriData, "odenen")
     const odenen = Math.max(aggregatePaid, movementPaid)
 
-    return {
+    return applyFirmKdv({
       oncekiBorc: 0,
       ayBorcu: toplamBorc,
       toplamBorc,
       odenen,
       kalanBorc: toplamBorc - odenen,
-    }
+    }, kdvDahil)
   }
 
   async function checkAdminAndLoadData() {
@@ -290,7 +312,7 @@ export default function KargoCariOzetPage() {
 
     const { data: firmaData, error } = await supabase
       .from("kargo_cari_firmalar")
-      .select("id, ad")
+      .select("id, ad, kdv_dahil")
       .eq("sube_id", currentSube.id)
       .eq("aktif", true)
       .order("sira", { ascending: true })
@@ -324,7 +346,7 @@ export default function KargoCariOzetPage() {
       let borc
 
       try {
-        borc = await calculateFirmDebt(firma.id)
+        borc = await calculateFirmDebt(firma.id, Boolean(firma.kdv_dahil))
       } catch (error: any) {
         toast.error(`${firma.ad} borçları okunamadı: ${error?.message || "Bilinmeyen hata"}`)
         borc = null
@@ -333,6 +355,8 @@ export default function KargoCariOzetPage() {
       ozetler.push({
         firma_id: firma.id,
         firma_ad: firma.ad,
+        kdv_dahil: Boolean(firma.kdv_dahil),
+        kdv_tutari: borc?.kdvTutari || 0,
         onceki_borc: borc?.oncekiBorc || 0,
         ay_borcu: borc?.ayBorcu || 0,
         toplam_borc: borc?.toplamBorc || 0,
@@ -343,6 +367,34 @@ export default function KargoCariOzetPage() {
 
     setBorcOzetleri(ozetler)
     await loadOdemeHareketleri(firmaList)
+  }
+
+  async function toggleFirmaKdv(firmaId: string, enabled: boolean) {
+    if (!currentSube) return
+
+    setUpdatingKdvFirmaId(firmaId)
+
+    try {
+      const { error } = await supabase
+        .from("kargo_cari_firmalar")
+        .update({ kdv_dahil: enabled })
+        .eq("id", firmaId)
+        .eq("sube_id", currentSube.id)
+
+      if (error) throw error
+
+      const nextFirmalar = firmalar.map(firma => (
+        firma.id === firmaId ? { ...firma, kdv_dahil: enabled } : firma
+      ))
+
+      setFirmalar(nextFirmalar)
+      await loadBorcOzetleri(nextFirmalar)
+      toast.success(enabled ? "%20 KDV bu firma için kalıcı açıldı." : "%20 KDV bu firma için kapatıldı.")
+    } catch (error: any) {
+      toast.error(error?.message || "KDV ayarı kaydedilemedi.")
+    } finally {
+      setUpdatingKdvFirmaId(null)
+    }
   }
 
   async function loadOdemeHareketleri(firmaList: KargoFirma[]) {
@@ -422,7 +474,8 @@ export default function KargoCariOzetPage() {
   }
 
   async function getFreshDebtForFirm(firmaId: string) {
-    return calculateFirmDebt(firmaId)
+    const firma = firmalar.find(item => item.id === firmaId)
+    return calculateFirmDebt(firmaId, Boolean(firma?.kdv_dahil))
   }
 
   async function saveYeniOdeme() {
@@ -621,8 +674,30 @@ export default function KargoCariOzetPage() {
     return date.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" })
   }
 
+  function getPdfDebtValues(ozet: FirmaBorcOzet) {
+    const extraKdv = withKdv && !ozet.kdv_dahil ? Math.max(0, ozet.toplam_borc) * KDV_RATE : 0
+    const kdvTutari = ozet.kdv_tutari + extraKdv
+    const toplamBorc = ozet.toplam_borc + extraKdv
+
+    return {
+      matrah: toplamBorc - kdvTutari,
+      kdvTutari,
+      toplamBorc,
+      kalanBorc: toplamBorc - ozet.odenen,
+    }
+  }
+
   function exportBorcPdf() {
     const hasMovements = odemeHareketleri.length > 0
+    const pdfAnyKdv = withKdv || borcOzetleri.some(ozet => ozet.kdv_dahil)
+    const pdfOzetleri = borcOzetleri.map(ozet => ({ ...ozet, pdf: getPdfDebtValues(ozet) }))
+    const pdfGenelToplam = pdfOzetleri.reduce((acc, ozet) => ({
+      matrah: acc.matrah + ozet.pdf.matrah,
+      kdv_tutari: acc.kdv_tutari + ozet.pdf.kdvTutari,
+      toplam_borc: acc.toplam_borc + ozet.pdf.toplamBorc,
+      odenen: acc.odenen + ozet.odenen,
+      kalan_borc: acc.kalan_borc + ozet.pdf.kalanBorc,
+    }), { matrah: 0, kdv_tutari: 0, toplam_borc: 0, odenen: 0, kalan_borc: 0 })
 
     const borcHeaders = hasMovements
       ? (scope === "monthly"
@@ -630,98 +705,83 @@ export default function KargoCariOzetPage() {
               "Firma",
               "Önceki Borç",
               "Ay Borcu",
-              "Toplam Borç" + (withKdv ? " (KDV Dahil)" : ""),
+              "Toplam Borç" + (pdfAnyKdv ? " (KDV Dahil)" : ""),
               "Ödenen",
-              "Kalan Borç" + (withKdv ? " (KDV Dahil)" : "")
+              "Kalan Borç" + (pdfAnyKdv ? " (KDV Dahil)" : "")
             ]
           : [
               "Firma",
-              "Toplam Borç" + (withKdv ? " (KDV Dahil)" : ""),
+              "Toplam Borç" + (pdfAnyKdv ? " (KDV Dahil)" : ""),
               "Ödenen",
-              "Kalan Borç" + (withKdv ? " (KDV Dahil)" : "")
+              "Kalan Borç" + (pdfAnyKdv ? " (KDV Dahil)" : "")
             ])
-      : (withKdv
+      : (pdfAnyKdv
           ? ["Firma", "Matrah (KDV Hariç)", "KDV (%20)", "Güncel Borç (KDV Dahil)"]
           : ["Firma", "Güncel Borç"])
 
     const borcRows = hasMovements
       ? (scope === "monthly"
           ? [
-              ...borcOzetleri.map(ozet => {
-                const toplamBorcVal = withKdv ? ozet.toplam_borc * 1.20 : ozet.toplam_borc
-                const kalanBorcVal = withKdv ? toplamBorcVal - ozet.odenen : ozet.kalan_borc
-                return [
-                  ozet.firma_ad,
-                  `${formatNumber(ozet.onceki_borc)} TL`,
-                  `${formatNumber(ozet.ay_borcu)} TL`,
-                  `${formatNumber(toplamBorcVal)} TL`,
-                  `${formatNumber(ozet.odenen)} TL`,
-                  `${formatNumber(kalanBorcVal)} TL`,
-                ]
-              }),
+              ...pdfOzetleri.map(ozet => [
+                ozet.firma_ad,
+                `${formatNumber(ozet.onceki_borc)} TL`,
+                `${formatNumber(ozet.ay_borcu)} TL`,
+                `${formatNumber(ozet.pdf.toplamBorc)} TL`,
+                `${formatNumber(ozet.odenen)} TL`,
+                `${formatNumber(ozet.pdf.kalanBorc)} TL`,
+              ]),
               [
                 "GENEL TOPLAM",
                 `${formatNumber(genelToplam.onceki_borc)} TL`,
                 `${formatNumber(genelToplam.ay_borcu)} TL`,
-                `${formatNumber(withKdv ? genelToplam.toplam_borc * 1.20 : genelToplam.toplam_borc)} TL`,
-                `${formatNumber(genelToplam.odenen)} TL`,
-                `${formatNumber(withKdv ? (genelToplam.toplam_borc * 1.20) - genelToplam.odenen : genelToplam.kalan_borc)} TL`,
+                `${formatNumber(pdfGenelToplam.toplam_borc)} TL`,
+                `${formatNumber(pdfGenelToplam.odenen)} TL`,
+                `${formatNumber(pdfGenelToplam.kalan_borc)} TL`,
               ],
             ]
           : [
-              ...borcOzetleri.map(ozet => {
-                const toplamBorcVal = withKdv ? ozet.toplam_borc * 1.20 : ozet.toplam_borc
-                const kalanBorcVal = withKdv ? toplamBorcVal - ozet.odenen : ozet.kalan_borc
-                return [
-                  ozet.firma_ad,
-                  `${formatNumber(toplamBorcVal)} TL`,
-                  `${formatNumber(ozet.odenen)} TL`,
-                  `${formatNumber(kalanBorcVal)} TL`,
-                ]
-              }),
-              [
-                "GENEL TOPLAM",
-                `${formatNumber(withKdv ? genelToplam.toplam_borc * 1.20 : genelToplam.toplam_borc)} TL`,
-                `${formatNumber(genelToplam.odenen)} TL`,
-                `${formatNumber(withKdv ? (genelToplam.toplam_borc * 1.20) - genelToplam.odenen : genelToplam.kalan_borc)} TL`,
-              ],
-            ])
-      : (withKdv
-          ? [
-              ...borcOzetleri.map(ozet => {
-                const kdvTutar = ozet.kalan_borc * 0.20
-                const kdvDahilKalan = ozet.kalan_borc * 1.20
-                return [
-                  ozet.firma_ad,
-                  `${formatNumber(ozet.kalan_borc)} TL`,
-                  `${formatNumber(kdvTutar)} TL`,
-                  `${formatNumber(kdvDahilKalan)} TL`,
-                ]
-              }),
-              [
-                "GENEL TOPLAM",
-                `${formatNumber(genelToplam.kalan_borc)} TL`,
-                `${formatNumber(genelToplam.kalan_borc * 0.20)} TL`,
-                `${formatNumber(genelToplam.kalan_borc * 1.20)} TL`,
-              ],
-            ]
-          : [
-              ...borcOzetleri.map(ozet => [
+              ...pdfOzetleri.map(ozet => [
                 ozet.firma_ad,
-                `${formatNumber(ozet.kalan_borc)} TL`,
+                `${formatNumber(ozet.pdf.toplamBorc)} TL`,
+                `${formatNumber(ozet.odenen)} TL`,
+                `${formatNumber(ozet.pdf.kalanBorc)} TL`,
               ]),
               [
                 "GENEL TOPLAM",
-                `${formatNumber(genelToplam.kalan_borc)} TL`,
+                `${formatNumber(pdfGenelToplam.toplam_borc)} TL`,
+                `${formatNumber(pdfGenelToplam.odenen)} TL`,
+                `${formatNumber(pdfGenelToplam.kalan_borc)} TL`,
+              ],
+            ])
+      : (pdfAnyKdv
+          ? [
+              ...pdfOzetleri.map(ozet => [
+                ozet.firma_ad,
+                `${formatNumber(ozet.pdf.matrah)} TL`,
+                `${formatNumber(ozet.pdf.kdvTutari)} TL`,
+                `${formatNumber(ozet.pdf.kalanBorc)} TL`,
+              ]),
+              [
+                "GENEL TOPLAM",
+                `${formatNumber(pdfGenelToplam.matrah)} TL`,
+                `${formatNumber(pdfGenelToplam.kdv_tutari)} TL`,
+                `${formatNumber(pdfGenelToplam.kalan_borc)} TL`,
+              ],
+            ]
+          : [
+              ...pdfOzetleri.map(ozet => [
+                ozet.firma_ad,
+                `${formatNumber(ozet.pdf.kalanBorc)} TL`,
+              ]),
+              [
+                "GENEL TOPLAM",
+                `${formatNumber(pdfGenelToplam.kalan_borc)} TL`,
               ],
             ])
 
-    const kdvTotalDahilToplam = genelToplam.toplam_borc * 1.20
-    const kdvTotalDahilKalan = kdvTotalDahilToplam - genelToplam.odenen
-
     openPdfReport({
       title: "Kargo Cari Borç Özeti",
-      subtitle: `${currentSube?.ad || ""} - ${scope === "monthly" ? `${month} ${year}` : "Tüm zamanlar"}${withKdv ? " (%20 KDV Dahil)" : ""}`,
+      subtitle: `${currentSube?.ad || ""} - ${scope === "monthly" ? `${month} ${year}` : "Tüm zamanlar"}${pdfAnyKdv ? " (%20 KDV Dahil)" : ""}`,
       orientation: "landscape",
       metrics: hasMovements
         ? [
@@ -729,12 +789,14 @@ export default function KargoCariOzetPage() {
               { label: "Önceki Borç", value: `${formatNumber(genelToplam.onceki_borc)} TL` },
               { label: "Ay Borcu", value: `${formatNumber(genelToplam.ay_borcu)} TL` },
             ] : []),
-            { label: "Toplam Borç" + (withKdv ? " (KDV Dahil)" : ""), value: `${formatNumber(withKdv ? kdvTotalDahilToplam : genelToplam.toplam_borc)} TL` },
-            { label: "Toplam Ödenen", value: `${formatNumber(genelToplam.odenen)} TL` },
-            { label: "Kalan Borç" + (withKdv ? " (KDV Dahil)" : ""), value: `${formatNumber(withKdv ? kdvTotalDahilKalan : genelToplam.kalan_borc)} TL` },
+            ...(pdfAnyKdv ? [{ label: "KDV", value: `${formatNumber(pdfGenelToplam.kdv_tutari)} TL` }] : []),
+            { label: "Toplam Borç" + (pdfAnyKdv ? " (KDV Dahil)" : ""), value: `${formatNumber(pdfGenelToplam.toplam_borc)} TL` },
+            { label: "Toplam Ödenen", value: `${formatNumber(pdfGenelToplam.odenen)} TL` },
+            { label: "Kalan Borç" + (pdfAnyKdv ? " (KDV Dahil)" : ""), value: `${formatNumber(pdfGenelToplam.kalan_borc)} TL` },
           ]
         : [
-            { label: "Güncel Borç" + (withKdv ? " (KDV Dahil)" : ""), value: `${formatNumber(withKdv ? genelToplam.kalan_borc * 1.20 : genelToplam.kalan_borc)} TL` },
+            ...(pdfAnyKdv ? [{ label: "KDV", value: `${formatNumber(pdfGenelToplam.kdv_tutari)} TL` }] : []),
+            { label: "Güncel Borç" + (pdfAnyKdv ? " (KDV Dahil)" : ""), value: `${formatNumber(pdfGenelToplam.kalan_borc)} TL` },
           ],
       tables: hasMovements
         ? [
@@ -833,7 +895,7 @@ export default function KargoCariOzetPage() {
               checked={withKdv}
               onCheckedChange={(checked) => setWithKdv(checked === true)}
             />
-            <span>%20 KDV Ekle</span>
+            <span>PDF'de %20 KDV</span>
           </label>
         </div>
       </div>
@@ -949,6 +1011,27 @@ export default function KargoCariOzetPage() {
                           <p className="mt-1 break-words font-bold">{formatNumber(item.value)} TL</p>
                         </div>
                       ))}
+                      {scope === "monthly" ? (
+                        <Button
+                          type="button"
+                          variant={ozet.kdv_dahil ? "default" : "outline"}
+                          onClick={() => toggleFirmaKdv(ozet.firma_id, !ozet.kdv_dahil)}
+                          disabled={updatingKdvFirmaId === ozet.firma_id}
+                          className="h-auto min-h-[58px] flex-col items-start justify-center gap-1 rounded-md px-2 py-2 text-left"
+                        >
+                          <span className="flex items-center gap-1 text-[11px] font-semibold">
+                            {updatingKdvFirmaId === ozet.firma_id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Percent className="h-3.5 w-3.5" />
+                            )}
+                            {ozet.kdv_dahil ? "%20 KDV Aktif" : "%20 KDV Ekle"}
+                          </span>
+                          <span className="text-xs font-bold">
+                            {ozet.kdv_dahil ? `+${formatNumber(ozet.kdv_tutari)} TL` : "Kalıcı uygula"}
+                          </span>
+                        </Button>
+                      ) : null}
                     </div>
                     <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
                       <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${percent}%` }} />
@@ -998,7 +1081,9 @@ export default function KargoCariOzetPage() {
                     <div>{formatNumber(selectedOzet?.kalan_borc || 0)} TL</div>
                     {selectedOzet && scope === "monthly" ? (
                       <div className="mt-1 text-xs font-medium text-muted-foreground">
-                        Önceki {formatNumber(selectedOzet.onceki_borc)} + Ay {formatNumber(selectedOzet.ay_borcu)} - Ödenen {formatNumber(selectedOzet.odenen)}
+                        Önceki {formatNumber(selectedOzet.onceki_borc)} + Ay {formatNumber(selectedOzet.ay_borcu)}
+                        {selectedOzet.kdv_dahil ? <> + KDV {formatNumber(selectedOzet.kdv_tutari)}</> : null}
+                        {" - "}Ödenen {formatNumber(selectedOzet.odenen)}
                       </div>
                     ) : null}
                   </td>
