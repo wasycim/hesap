@@ -783,11 +783,17 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
           `${formatNumber(columnTotals.satilan_tutar)} TL`,
           `${formatNumber(columnTotals.kalan_kar)} TL`,
         ]
-    const kdvPdfRow = showKdvRow
+    const kdvPdfRows = showKdvRow
       ? (customerPdf
-          ? ["KDV", "%20", `+${formatNumber(kdvAmount)} TL`, kdvFormulaText.replaceAll("₺", "TL")]
-          : ["KDV", "%20", `+${formatNumber(kdvAmount)} TL`, kdvFormulaText.replaceAll("₺", "TL"), "-", "-"])
-      : null
+          ? [
+              ["KDV", "%20", "KDV TUTARI", `+${formatNumber(kdvAmount)} TL`],
+              ["TOPLAM (KDV DAHİL)", "", "", `${formatNumber(kdvIncludedTotal)} TL`],
+            ]
+          : [
+              ["KDV", "%20", "KDV TUTARI", `+${formatNumber(kdvAmount)} TL`, "-", "-"],
+              ["TOPLAM (KDV DAHİL)", "", "", `${formatNumber(kdvIncludedTotal)} TL`, "-", "-"],
+            ])
+      : []
 
     openPdfReport({
       title: `${firma.ad} Kargo Cari Raporu`,
@@ -811,7 +817,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         title: "Aylık Firma Detayı",
         headers: detailHeaders,
         firstColumnWidth: "82px",
-        rows: [...detailRows, totalRow, ...(kdvPdfRow ? [kdvPdfRow] : [])],
+        rows: [...detailRows, totalRow, ...kdvPdfRows],
       }],
     })
   }
@@ -852,24 +858,34 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         `${formatNumber(row.alinan_tutar)} TL`,
       ])
       const previousAyBorcu = sumField(previousRows, "alinan_tutar")
+      const buildDebtDetailRows = (detailRows: Array<Array<string | number>>, total: number) => {
+        const rows: Array<Array<string | number>> = [
+          ...(detailRows.length ? detailRows : [["-", "-", "-", "Kayıt yok"]]),
+          ["TOPLAM", "", "", `${formatNumber(total)} TL`],
+        ]
+
+        if (effectiveWithKdv && total > 0) {
+          const detailKdv = total * KDV_RATE
+          rows.push(
+            ["KDV", "%20", "KDV TUTARI", `+${formatNumber(detailKdv)} TL`],
+            ["TOPLAM (KDV DAHİL)", "", "", `${formatNumber(total + detailKdv)} TL`],
+          )
+        }
+
+        return rows
+      }
       const detailTables = [
         {
           title: `${month} ${year} Borç Oluşturan Fişler`,
           headers: ["Tarih", "Fiş No", "Gönderilen Yer", "Alınan Tutar"],
           firstColumnWidth: "82px",
-          rows: [
-            ...(fisRows.length ? fisRows : [["-", "-", "-", "Kayıt yok"]]),
-            ["TOPLAM", "", "", `${formatNumber(snapshot.ayBorcu)} TL`],
-          ],
+          rows: buildDebtDetailRows(fisRows, snapshot.ayBorcu),
         },
         ...(includePreviousMonthDebtDetails ? [{
           title: `${previousPeriod.month} ${previousPeriod.year} Borç Oluşturan Fişler`,
           headers: ["Tarih", "Fiş No", "Gönderilen Yer", "Alınan Tutar"],
           firstColumnWidth: "82px",
-          rows: [
-            ...(previousFisRows.length ? previousFisRows : [["-", "-", "-", "Kayıt yok"]]),
-            ["TOPLAM", "", "", `${formatNumber(previousAyBorcu)} TL`],
-          ],
+          rows: buildDebtDetailRows(previousFisRows, previousAyBorcu),
         }] : []),
       ]
 
@@ -928,10 +944,9 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     satilan_tutar: rows.reduce((sum, row) => sum + row.satilan_tutar, 0),
     kalan_kar: rows.reduce((sum, row) => sum + row.kalan_kar, 0),
   }
-  const showKdvRow = Boolean(firma?.kdv_dahil) && rows.length > 0
+  const showKdvRow = (Boolean(firma?.kdv_dahil) || withKdv) && rows.length > 0
   const kdvAmount = showKdvRow ? Math.max(0, columnTotals.alinan_tutar) * KDV_RATE : 0
   const kdvIncludedTotal = columnTotals.alinan_tutar + kdvAmount
-  const kdvFormulaText = `${formatNumber(columnTotals.alinan_tutar)} ₺ + ${formatNumber(kdvAmount)} ₺ = ${formatNumber(kdvIncludedTotal)} ₺`
   const activeKargoDate = getEveningCutoffBusinessDate(userVardiya, currentTime)
 
   if (loading && !firma) {
@@ -1206,20 +1221,36 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                 <td className="p-2 border"></td>
               </tr>
               {showKdvRow ? (
-                <tr className="border-t-2 border-amber-300 bg-amber-50 font-semibold text-amber-900 dark:border-amber-500/60 dark:bg-amber-500/15 dark:text-amber-100">
-                  <td className="sticky-index-column border bg-amber-100 p-2 text-center text-xs font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-100">
-                    KDV
-                  </td>
-                  <td className="sticky-date-column border bg-amber-100 p-2 text-center text-xs font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-100">
-                    SABİT
-                  </td>
-                  <td className="border p-2 text-center font-bold">%20</td>
-                  <td className="border p-2 text-center font-bold">+{formatNumber(kdvAmount)} ₺</td>
-                  <td className="border p-2 text-right text-xs font-black sm:text-sm">{kdvFormulaText}</td>
-                  <td className="border p-2 text-center text-muted-foreground">-</td>
-                  <td className="border p-2 text-center text-muted-foreground">-</td>
-                  <td className="border p-2 text-center text-xs font-bold text-amber-700 dark:text-amber-100">Kilitli</td>
-                </tr>
+                <>
+                  <tr className="border-t-2 border-amber-300 bg-amber-50 font-semibold text-amber-900 dark:border-amber-500/60 dark:bg-amber-500/15 dark:text-amber-100">
+                    <td className="sticky-index-column border bg-amber-100 p-2 text-center text-xs font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-100">
+                      KDV
+                    </td>
+                    <td className="sticky-date-column border bg-amber-100 p-2 text-center text-xs font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-100">
+                      SABİT
+                    </td>
+                    <td className="border p-2 text-center font-bold">%20</td>
+                    <td className="border p-2 text-center font-bold">KDV TUTARI</td>
+                    <td className="border p-2 text-right font-black">+{formatNumber(kdvAmount)} ₺</td>
+                    <td className="border p-2 text-center text-muted-foreground">-</td>
+                    <td className="border p-2 text-center text-muted-foreground">-</td>
+                    <td className="border p-2 text-center text-xs font-bold text-amber-700 dark:text-amber-100">Kilitli</td>
+                  </tr>
+                  <tr className="bg-orange-50 font-black text-orange-900 dark:bg-orange-500/15 dark:text-orange-100">
+                    <td className="sticky-index-column border bg-orange-100 p-2 text-center text-xs font-bold text-orange-700 dark:bg-orange-500/20 dark:text-orange-100">
+                      TOPLAM
+                    </td>
+                    <td className="sticky-date-column border bg-orange-100 p-2 text-center text-xs font-bold text-orange-700 dark:bg-orange-500/20 dark:text-orange-100">
+                      KDV DAHİL
+                    </td>
+                    <td className="border p-2"></td>
+                    <td className="border p-2 text-center font-bold">TOPLAM (KDV DAHİL)</td>
+                    <td className="border p-2 text-right text-sm font-black">{formatNumber(kdvIncludedTotal)} ₺</td>
+                    <td className="border p-2 text-center text-muted-foreground">-</td>
+                    <td className="border p-2 text-center text-muted-foreground">-</td>
+                    <td className="border p-2 text-center text-xs font-bold text-orange-700 dark:text-orange-100">Kilitli</td>
+                  </tr>
+                </>
               ) : null}
             </tfoot>
           )}
