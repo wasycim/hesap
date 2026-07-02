@@ -783,6 +783,11 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
           `${formatNumber(columnTotals.satilan_tutar)} TL`,
           `${formatNumber(columnTotals.kalan_kar)} TL`,
         ]
+    const kdvPdfRow = showKdvRow
+      ? (customerPdf
+          ? ["KDV", "%20", `+${formatNumber(kdvAmount)} TL`, kdvFormulaText.replaceAll("₺", "TL")]
+          : ["KDV", "%20", `+${formatNumber(kdvAmount)} TL`, kdvFormulaText.replaceAll("₺", "TL"), "-", "-"])
+      : null
 
     openPdfReport({
       title: `${firma.ad} Kargo Cari Raporu`,
@@ -806,7 +811,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         title: "Aylık Firma Detayı",
         headers: detailHeaders,
         firstColumnWidth: "82px",
-        rows: [...detailRows, totalRow],
+        rows: [...detailRows, totalRow, ...(kdvPdfRow ? [kdvPdfRow] : [])],
       }],
     })
   }
@@ -923,6 +928,10 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     satilan_tutar: rows.reduce((sum, row) => sum + row.satilan_tutar, 0),
     kalan_kar: rows.reduce((sum, row) => sum + row.kalan_kar, 0),
   }
+  const showKdvRow = Boolean(firma?.kdv_dahil) && rows.length > 0
+  const kdvAmount = showKdvRow ? Math.max(0, columnTotals.alinan_tutar) * KDV_RATE : 0
+  const kdvIncludedTotal = columnTotals.alinan_tutar + kdvAmount
+  const kdvFormulaText = `${formatNumber(columnTotals.alinan_tutar)} ₺ + ${formatNumber(kdvAmount)} ₺ = ${formatNumber(kdvIncludedTotal)} ₺`
   const activeKargoDate = getEveningCutoffBusinessDate(userVardiya, currentTime)
 
   if (loading && !firma) {
@@ -1196,6 +1205,22 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                 </td>
                 <td className="p-2 border"></td>
               </tr>
+              {showKdvRow ? (
+                <tr className="border-t-2 border-amber-300 bg-amber-50 font-semibold text-amber-900 dark:border-amber-500/60 dark:bg-amber-500/15 dark:text-amber-100">
+                  <td className="sticky-index-column border bg-amber-100 p-2 text-center text-xs font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-100">
+                    KDV
+                  </td>
+                  <td className="sticky-date-column border bg-amber-100 p-2 text-center text-xs font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-100">
+                    SABİT
+                  </td>
+                  <td className="border p-2 text-center font-bold">%20</td>
+                  <td className="border p-2 text-center font-bold">+{formatNumber(kdvAmount)} ₺</td>
+                  <td className="border p-2 text-right text-xs font-black sm:text-sm">{kdvFormulaText}</td>
+                  <td className="border p-2 text-center text-muted-foreground">-</td>
+                  <td className="border p-2 text-center text-muted-foreground">-</td>
+                  <td className="border p-2 text-center text-xs font-bold text-amber-700 dark:text-amber-100">Kilitli</td>
+                </tr>
+              ) : null}
             </tfoot>
           )}
         </table>
