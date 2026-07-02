@@ -27,6 +27,8 @@ import {
 } from "@/lib/date-navigation"
 import { getEveningCutoffBusinessDate } from "@/lib/evening-cutoff-business-date"
 import { openPdfReport } from "@/lib/pdf-report"
+import { CurrencyInput, parseCurrencyInputValue } from "@/components/dashboard/currency-input"
+import { handleSpreadsheetKeyDown } from "@/components/dashboard/spreadsheet-navigation"
 
 interface KargoRow {
   id?: string
@@ -786,11 +788,11 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     const kdvPdfRows = showKdvRow
       ? (customerPdf
           ? [
-              ["KDV", "%20", "KDV TUTARI", `+${formatNumber(kdvAmount)} TL`],
+              ["KDV", "%20", "KDV TUTARI", `${formatNumber(kdvAmount)} TL`],
               ["TOPLAM (KDV DAHİL)", "", "", `${formatNumber(kdvIncludedTotal)} TL`],
             ]
           : [
-              ["KDV", "%20", "KDV TUTARI", `+${formatNumber(kdvAmount)} TL`, "-", "-"],
+              ["KDV", "%20", "KDV TUTARI", `${formatNumber(kdvAmount)} TL`, "-", "-"],
               ["TOPLAM (KDV DAHİL)", "", "", `${formatNumber(kdvIncludedTotal)} TL`, "-", "-"],
             ])
       : []
@@ -867,7 +869,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         if (effectiveWithKdv && total > 0) {
           const detailKdv = total * KDV_RATE
           rows.push(
-            ["KDV", "%20", "KDV TUTARI", `+${formatNumber(detailKdv)} TL`],
+            ["KDV", "%20", "KDV TUTARI", `${formatNumber(detailKdv)} TL`],
             ["TOPLAM (KDV DAHİL)", "", "", `${formatNumber(total + detailKdv)} TL`],
           )
         }
@@ -1129,6 +1131,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                             value={formatEditableDate(row.tarih)}
                             onChange={(e) => updateCell(rowIndex, col, e.target.value)}
                             onBlur={(e) => commitDateCell(rowIndex, e.target.value)}
+                            onKeyDown={handleSpreadsheetKeyDown}
                             className="spreadsheet-active-input w-full bg-muted px-2 py-1 text-center font-medium text-foreground focus:outline-none"
                             placeholder="12.06"
                             aria-label="Tarih"
@@ -1149,6 +1152,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                         type="text"
                         value={row.fis_no || ""}
                         onChange={(e) => updateCell(rowIndex, col, e.target.value)}
+                        onKeyDown={handleSpreadsheetKeyDown}
                         onBlur={(e) => {
                           if (!canEditRow) return
                           const val = e.target.value
@@ -1170,6 +1174,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                         <input
                           type="text"
                           value={row.gonderilen_yer || ""}
+                          onKeyDown={handleSpreadsheetKeyDown}
                           onChange={(e) => {
                             const onlyLetters = e.target.value
                               .replace(/[^a-zA-ZğüşöçıİĞÜŞÖÇ\s]/g, "") // sadece harf + boşluk
@@ -1177,16 +1182,17 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                             updateCell(rowIndex, col, onlyLetters)
                           }}
                           disabled={!canEditRow}
-                          className="spreadsheet-active-input w-full bg-transparent px-2 py-1 text-left text-foreground focus:outline-none"
+                          className="spreadsheet-active-input w-full bg-transparent px-2 py-1 text-center text-foreground focus:outline-none"
                           placeholder="Gönderilen yer"
                         />
                       ) : (
-                        <input
-                          type="number"
+                        <CurrencyInput
                           value={(row as any)[col] || ""}
-                          onChange={(e) => updateCell(rowIndex, col, e.target.value)}
+                          onChange={(e) => updateCell(rowIndex, col, parseCurrencyInputValue(e.target.value))}
+                          onKeyDown={handleSpreadsheetKeyDown}
                           disabled={!canEditRow}
-                          className="spreadsheet-active-input w-full bg-transparent px-2 py-1 text-right text-foreground focus:outline-none"
+                          containerClassName="min-h-[30px] px-2 py-1"
+                          inputClassName="!text-center"
                           placeholder="0,00"
                         />
                       )}
@@ -1213,9 +1219,9 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                 <td className="sticky-date-column border bg-muted p-2 text-center">TOPLAM</td>
                 <td className="p-2 border"></td>
                 <td className="p-2 border"></td>
-                <td className="p-2 border text-right">{formatNumber(columnTotals.alinan_tutar)} ₺</td>
-                <td className="p-2 border text-right">{formatNumber(columnTotals.satilan_tutar)} ₺</td>
-                <td className={`p-2 border text-right font-bold ${columnTotals.kalan_kar >= 0 ? "text-green-700 dark:text-green-200" : "text-red-700 dark:text-red-200"}`}>
+                <td className="border p-2 text-center tabular-nums">{formatNumber(columnTotals.alinan_tutar)} ₺</td>
+                <td className="border p-2 text-center tabular-nums">{formatNumber(columnTotals.satilan_tutar)} ₺</td>
+                <td className={`border p-2 text-center font-bold tabular-nums ${columnTotals.kalan_kar >= 0 ? "text-green-700 dark:text-green-200" : "text-red-700 dark:text-red-200"}`}>
                   {formatNumber(columnTotals.kalan_kar)} ₺
                 </td>
                 <td className="p-2 border"></td>
@@ -1231,7 +1237,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                     </td>
                     <td className="border p-2 text-center font-bold">%20</td>
                     <td className="border p-2 text-center font-bold">KDV TUTARI</td>
-                    <td className="border p-2 text-right font-black">+{formatNumber(kdvAmount)} ₺</td>
+                    <td className="border p-2 text-center font-black tabular-nums">{formatNumber(kdvAmount)} ₺</td>
                     <td className="border p-2 text-center text-muted-foreground">-</td>
                     <td className="border p-2 text-center text-muted-foreground">-</td>
                     <td className="border p-2 text-center text-xs font-bold text-amber-700 dark:text-amber-100">Kilitli</td>
@@ -1245,7 +1251,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
                     </td>
                     <td className="border p-2"></td>
                     <td className="border p-2 text-center font-bold">TOPLAM (KDV DAHİL)</td>
-                    <td className="border p-2 text-right text-sm font-black">{formatNumber(kdvIncludedTotal)} ₺</td>
+                    <td className="border p-2 text-center text-sm font-black tabular-nums">{formatNumber(kdvIncludedTotal)} ₺</td>
                     <td className="border p-2 text-center text-muted-foreground">-</td>
                     <td className="border p-2 text-center text-muted-foreground">-</td>
                     <td className="border p-2 text-center text-xs font-bold text-orange-700 dark:text-orange-100">Kilitli</td>

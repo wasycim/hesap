@@ -24,6 +24,8 @@ import {
 import { logSecurityEvent } from "@/lib/audit-log"
 import { openPdfReport } from "@/lib/pdf-report"
 import { getCorbaBusinessDate } from "@/lib/corba-business-date"
+import { CurrencyInput, parseCurrencyInputValue } from "@/components/dashboard/currency-input"
+import { handleSpreadsheetKeyDown } from "@/components/dashboard/spreadsheet-navigation"
 
 interface Personel {
   id: string
@@ -586,12 +588,13 @@ export default function CorbalarPage() {
                       </td>
                       {personeller.map(personel => (
                         <td key={personel.id} className="p-0 border">
-                          <input
-                            type="number"
+                          <CurrencyInput
                             value={row.personel_values[personel.id] || ""}
-                            onChange={(e) => updateCell(rowIndex, personel.id, Number(e.target.value) || 0)}
+                            onChange={(e) => updateCell(rowIndex, personel.id, parseCurrencyInputValue(e.target.value))}
+                            onKeyDown={handleSpreadsheetKeyDown}
                             disabled={!canEditRow}
-                            className="spreadsheet-active-input w-full bg-transparent px-2 py-1 text-right text-foreground focus:outline-none"
+                            containerClassName="min-h-[30px] px-2 py-1"
+                            inputClassName="!text-center"
                             placeholder="0,00"
                           />
                         </td>
@@ -622,8 +625,8 @@ export default function CorbalarPage() {
                       <td className="sticky-index-column border bg-muted p-2"></td>
                       <td className="sticky-date-column border bg-muted p-2 text-center">TOPLAM</td>
                       {personeller.map(personel => (
-                        <td key={personel.id} className="p-2 border text-right">
-                          {formatNumber(personelTotals[personel.id] || 0)} TL
+                        <td key={personel.id} className="border p-2 text-center font-bold tabular-nums">
+                          {formatNumber(personelTotals[personel.id] || 0)} ₺
                         </td>
                       ))}
                       <td className="p-2 border"></td>
