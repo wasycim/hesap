@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { createClient } from "@/lib/supabase/server"
+import { getRequestAuthUser } from "@/lib/mobile-auth"
 
 type Detail = { date: string; amount: number; description: string }
 type OvertimeDetail = Detail & { minutes: number; rate: number; source: "attendance" | "manual" }
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getRequestAuthUser(request)
   if (!user) return NextResponse.json({ error: "Oturum bulunamadı." }, { status: 401 })
 
   const now = new Date()
@@ -120,4 +119,3 @@ function clampInt(value: string | null, min: number, max: number, fallback: numb
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : fallback
 }
-

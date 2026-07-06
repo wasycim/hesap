@@ -6,14 +6,13 @@ import {
   deviceTrustCookieOptions,
   issueDeviceTrustToken,
 } from "@/lib/security/device-trust"
+import { getRequestAuthUser } from "@/lib/mobile-auth"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { createClient } from "@/lib/supabase/server"
 
 const codeTtlMs = 10 * 60 * 1000
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getRequestAuthUser(request)
   if (!user) return NextResponse.json({ error: "Oturum bulunamadı." }, { status: 401 })
 
   const body = await request.json().catch(() => ({}))

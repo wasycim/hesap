@@ -19,11 +19,13 @@
     "eas:testflight": "npx --yes eas-cli@20.5.0 build --platform ios --profile production --auto-submit"
   },
   "dependencies": {
-    "expo": "^57.0.1",
+    "expo": "~57.0.2",
+    "expo-print": "~57.0.0",
+    "expo-secure-store": "~57.0.0",
+    "expo-sharing": "~57.0.2",
     "expo-status-bar": "^57.0.0",
     "react": "19.2.3",
-    "react-native": "^0.86.0",
-    "react-native-webview": "13.16.1"
+    "react-native": "^0.86.0"
   },
   "overrides": {
     "uuid": "11.1.1"

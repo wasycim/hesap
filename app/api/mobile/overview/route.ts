@@ -1,11 +1,10 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { createClient } from "@/lib/supabase/server"
 import { getLocalDateString } from "@/lib/date-navigation"
+import { getRequestAuthUser } from "@/lib/mobile-auth"
 
-export async function GET() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export async function GET(request: NextRequest) {
+  const user = await getRequestAuthUser(request)
   if (!user) return NextResponse.json({ error: "Oturum bulunamadı." }, { status: 401 })
 
   const admin = createAdminClient()
@@ -46,4 +45,3 @@ export async function GET() {
     kalan: toplamGelir - toplamGider,
   }, { headers: { "Cache-Control": "no-store" } })
 }
-
