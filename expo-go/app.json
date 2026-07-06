@@ -27,6 +27,12 @@
     },
     "owner": "wasycimm",
     "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Mesai QR kodunu okutmak için kameraya erişim gerekiyor."
+        }
+      ],
       "expo-secure-store",
       "expo-sharing"
     ]

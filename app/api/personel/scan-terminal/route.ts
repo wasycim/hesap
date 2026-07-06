@@ -11,9 +11,41 @@ import {
   todayInIstanbul,
 } from "@/lib/qr-attendance/dashboard-vardiya"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { getRequestAuthUser } from "@/lib/mobile-auth"
+import { syncRealProfileToAttendanceUser } from "@/lib/qr-attendance/sync-users"
+
+async function getScannerSession(request: NextRequest) {
+  const webSession = await getAuthSession()
+  if (webSession) return webSession
+
+  const authUser = await getRequestAuthUser(request)
+  if (!authUser) return null
+
+  const admin = createAdminClient()
+  const { data: profile, error } = await admin
+    .from("user_profiles")
+    .select("user_id, email, tc_kimlik, is_admin, vardiya")
+    .eq("user_id", authUser.id)
+    .maybeSingle()
+
+  if (error || !profile?.tc_kimlik) return null
+
+  const attendanceUser = await syncRealProfileToAttendanceUser(profile, {
+    email: authUser.email || profile.email || undefined,
+    user_metadata: authUser.user_metadata || {},
+  })
+
+  if (!attendanceUser?.isActive) return null
+  return {
+    id: attendanceUser.id,
+    role: attendanceUser.role,
+    name: attendanceUser.name,
+    tcKimlik: attendanceUser.tcKimlik,
+  }
+}
 
 export async function POST(request: NextRequest) {
-  const session = await getAuthSession()
+  const session = await getScannerSession(request)
 
   if (!session) {
     return NextResponse.json({ error: "Oturum bulunamadi. Tekrar giris yapin." }, { status: 401 })

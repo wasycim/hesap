@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { createClient } from "@/lib/supabase/server"
+import { getRequestAuthUser } from "@/lib/mobile-auth"
 import { getShiftLabel, shiftBoundary } from "@/lib/qr-attendance/time"
 import { roundOvertimeToPaidMinutes } from "@/lib/mesai/overtime"
 import { getDashboardShiftCatalog } from "@/lib/qr-attendance/dashboard-vardiya"
@@ -146,12 +146,12 @@ type ResolvedShift = {
   label?: string
 }
 
-async function getDashboardAccess() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+async function getDashboardAccess(request: NextRequest) {
+  const user = await getRequestAuthUser(request)
   if (!user) return { user: null, isAdmin: false, profile: null }
 
-  const { data: profile } = await supabase
+  const admin = createAdminClient()
+  const { data: profile } = await admin
     .from("user_profiles")
     .select("user_id, display_name, tc_kimlik, sube_id, is_admin, is_developer, dashboard_access")
     .eq("user_id", user.id)
@@ -165,7 +165,7 @@ async function getDashboardAccess() {
 }
 
 export async function GET(request: NextRequest) {
-  const access = await getDashboardAccess()
+  const access = await getDashboardAccess(request)
   if (!access.user || access.profile?.dashboard_access === false) {
     return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
   }

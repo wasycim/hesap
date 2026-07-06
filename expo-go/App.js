@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   RefreshControl,
   SafeAreaView,
@@ -13,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native"
+import { CameraView, useCameraPermissions } from "expo-camera"
 import { StatusBar } from "expo-status-bar"
 import * as Print from "expo-print"
 import * as SecureStore from "expo-secure-store"
@@ -43,6 +45,32 @@ function monthLabel(month, year) {
   return new Date(year, month - 1, 1).toLocaleDateString("tr-TR", {
     month: "long",
     year: "numeric",
+  })
+}
+
+function dateKey(date = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul" }).format(date)
+}
+
+function addDaysKey(days) {
+  const date = new Date(`${dateKey()}T00:00:00.000Z`)
+  date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
+function monthStartKey() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`
+}
+
+function formatDateTime(value) {
+  if (!value) return "-"
+  return new Date(value).toLocaleString("tr-TR", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Istanbul",
   })
 }
 
@@ -84,6 +112,7 @@ async function readJson(response) {
 
 export default function App() {
   const now = useMemo(() => new Date(), [])
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions()
   const [booting, setBooting] = useState(true)
   const [session, setSession] = useState(null)
   const [pendingSession, setPendingSession] = useState(null)
@@ -97,6 +126,11 @@ export default function App() {
   const [error, setError] = useState("")
   const [overview, setOverview] = useState(null)
   const [salary, setSalary] = useState(null)
+  const [attendance, setAttendance] = useState(null)
+  const [tracking, setTracking] = useState(null)
+  const [scannerOpen, setScannerOpen] = useState(false)
+  const [scanLocked, setScanLocked] = useState(false)
+  const [scanMessage, setScanMessage] = useState("")
   const [period, setPeriod] = useState({ month: now.getMonth() + 1, year: now.getFullYear() })
 
   const persistSession = useCallback(async (nextSession) => {
@@ -111,6 +145,11 @@ export default function App() {
     setChallenge(null)
     setOverview(null)
     setSalary(null)
+    setAttendance(null)
+    setTracking(null)
+    setScannerOpen(false)
+    setScanLocked(false)
+    setScanMessage("")
     setScreen("overview")
   }, [])
 
@@ -241,21 +280,60 @@ export default function App() {
     }
   }, [clearSession, period.month, period.year, requestJson, session])
 
+  const loadAttendance = useCallback(async () => {
+    if (!session) return
+    setLoading(true)
+    setError("")
+    try {
+      setAttendance(await requestJson(`/api/mobile/mesai?from=${addDaysKey(-14)}&to=${dateKey()}`))
+    } catch (reason) {
+      if (reason.status === 401) await clearSession()
+      setError(reason.message || "Mesai bilgisi yüklenemedi.")
+      setAttendance(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [clearSession, requestJson, session])
+
+  const loadTracking = useCallback(async () => {
+    if (!session) return
+    setLoading(true)
+    setError("")
+    try {
+      const params = new URLSearchParams({
+        from: monthStartKey(),
+        to: dateKey(),
+        subeId: "all",
+      })
+      setTracking(await requestJson(`/api/dashboard/mesai-takip?${params.toString()}`))
+    } catch (reason) {
+      if (reason.status === 401) await clearSession()
+      setError(reason.message || "Mesai takip bilgisi yüklenemedi.")
+      setTracking(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [clearSession, requestJson, session])
+
   useEffect(() => {
     if (!session) return
     if (screen === "overview") loadOverview()
     if (screen === "salary") loadSalary()
-  }, [loadOverview, loadSalary, screen, session])
+    if (screen === "attendance") loadAttendance()
+    if (screen === "tracking") loadTracking()
+  }, [loadAttendance, loadOverview, loadSalary, loadTracking, screen, session])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
     try {
       if (screen === "overview") await loadOverview()
       if (screen === "salary") await loadSalary()
+      if (screen === "attendance") await loadAttendance()
+      if (screen === "tracking") await loadTracking()
     } finally {
       setRefreshing(false)
     }
-  }, [loadOverview, loadSalary, screen])
+  }, [loadAttendance, loadOverview, loadSalary, loadTracking, screen])
 
   async function handleLogin() {
     const tcKimlik = normalizeTc(loginForm.tcKimlik)
@@ -322,6 +400,44 @@ export default function App() {
   function moveMonth(delta) {
     const date = new Date(period.year, period.month - 1 + delta, 1)
     setPeriod({ month: date.getMonth() + 1, year: date.getFullYear() })
+  }
+
+  async function openScanner() {
+    const permission = cameraPermission?.granted ? cameraPermission : await requestCameraPermission()
+    if (!permission?.granted) {
+      Alert.alert("Kamera izni gerekli", "Mesai QR okutmak için kameraya izin verin.")
+      return
+    }
+
+    setScanLocked(false)
+    setScanMessage("")
+    setScannerOpen(true)
+  }
+
+  async function handleBarcodeScanned(event) {
+    if (scanLocked) return
+    const qr = String(event?.data || "").trim()
+    if (!qr) return
+
+    setScanLocked(true)
+    setScanMessage("QR kontrol ediliyor…")
+    try {
+      const identity = await getDeviceIdentity()
+      const result = await requestJson("/api/personel/scan-terminal", {
+        method: "POST",
+        body: JSON.stringify({ qr, deviceId: identity.deviceId }),
+      })
+      const actionText = result.action === "CHECK_OUT" ? "Çıkış alındı" : "Giriş alındı"
+      setScannerOpen(false)
+      Alert.alert(actionText, `${result.user?.name || "Personel"} · ${result.shift?.label || "Vardiya yok"}`)
+      await loadAttendance()
+    } catch (reason) {
+      setScanMessage(reason.message || "QR işlemi başarısız.")
+      setTimeout(() => {
+        setScanLocked(false)
+        setScanMessage("")
+      }, 2200)
+    }
   }
 
   async function shareSalaryPdf() {
@@ -427,6 +543,8 @@ export default function App() {
       <View style={styles.tabs}>
         <TabButton label="Genel Bakış" active={screen === "overview"} onPress={() => setScreen("overview")} />
         <TabButton label="Maaşım" active={screen === "salary"} onPress={() => setScreen("salary")} />
+        <TabButton label="Mesai" active={screen === "attendance"} onPress={() => setScreen("attendance")} />
+        <TabButton label="Mesai Takip" active={screen === "tracking"} onPress={() => setScreen("tracking")} />
       </View>
 
       <ScrollView
@@ -446,7 +564,39 @@ export default function App() {
             onShare={shareSalaryPdf}
           />
         ) : null}
+        {screen === "attendance" ? <AttendanceScreen data={attendance} onOpenScanner={openScanner} /> : null}
+        {screen === "tracking" ? <TrackingScreen data={tracking} /> : null}
       </ScrollView>
+
+      <Modal visible={scannerOpen} animationType="slide" onRequestClose={() => setScannerOpen(false)}>
+        <SafeAreaView style={styles.scannerRoot}>
+          <StatusBar style="light" backgroundColor="#020617" />
+          <View style={styles.scannerHeader}>
+            <View>
+              <Text style={styles.topEyebrow}>MESAI QR</Text>
+              <Text style={styles.scannerTitle}>Terminal kodunu okut</Text>
+            </View>
+            <TouchableOpacity style={styles.logoutButton} onPress={() => setScannerOpen(false)}>
+              <Text style={styles.logoutText}>Kapat</Text>
+            </TouchableOpacity>
+          </View>
+          <CameraView
+            style={styles.cameraView}
+            facing="back"
+            barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+            onBarcodeScanned={scanLocked ? undefined : handleBarcodeScanned}
+          >
+            <View style={styles.scanFrame}>
+              <View style={styles.scanBox}>
+                <Text style={styles.scanBoxText}>QR kodu bu alanın içine alın</Text>
+              </View>
+            </View>
+          </CameraView>
+          <View style={styles.scannerFooter}>
+            <Text style={styles.scannerFooterText}>{scanMessage || "Terminal ekranındaki güncel QR kodu okutun."}</Text>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -517,11 +667,11 @@ function OverviewScreen({ data }) {
   )
 }
 
-function StatCard({ label, value, tone, wide }) {
+function StatCard({ label, value, tone, wide, money = true }) {
   return (
     <View style={[styles.statCard, wide && styles.statWide, styles[`tone_${tone}`]]}>
       <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{formatMoney(value)}</Text>
+      <Text style={styles.statValue}>{money ? formatMoney(value) : String(value)}</Text>
     </View>
   )
 }
@@ -566,6 +716,152 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare }) {
           }))} />
         </>
       )}
+    </View>
+  )
+}
+
+function AttendanceScreen({ data, onOpenScanner }) {
+  const todayLogs = (data?.logs || []).filter((item) => item.workDate === data?.today)
+  const recentLogs = (data?.logs || []).slice(0, 12)
+  const isOpen = Boolean(data?.openLog)
+
+  return (
+    <View>
+      <View style={[styles.salaryHero, isOpen ? styles.attendanceOpenHero : styles.attendanceReadyHero]}>
+        <Text style={styles.salaryHeroLabel}>{isOpen ? "Aktif mesai" : "Mesai hazır"}</Text>
+        <Text style={styles.salaryHeroValue}>{isOpen ? "Giriş açık" : "QR okut"}</Text>
+        <Text style={styles.salaryHeroSub}>
+          {isOpen
+            ? `${formatDateTime(data.openLog.checkInAt)} girişli kayıt devam ediyor.`
+            : "Terminal ekranındaki QR kodu telefon kamerasıyla okutun."}
+        </Text>
+        <TouchableOpacity style={styles.pdfButton} onPress={onOpenScanner}>
+          <Text style={styles.pdfButtonText}>{isOpen ? "Çıkış QR okut" : "Giriş QR okut"}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.detailSection}>
+        <Text style={styles.sectionTitle}>Bugünkü kayıtlar</Text>
+        {todayLogs.length ? todayLogs.map((item) => <AttendanceRow item={item} key={item.id} />) : (
+          <Text style={styles.emptyText}>Bugün henüz mesai kaydı yok.</Text>
+        )}
+      </View>
+
+      <View style={styles.detailSection}>
+        <Text style={styles.sectionTitle}>Son kayıtlar</Text>
+        {recentLogs.length ? recentLogs.map((item) => <AttendanceRow item={item} key={`recent-${item.id}`} />) : (
+          <Text style={styles.emptyText}>Son 14 gün için kayıt bulunamadı.</Text>
+        )}
+      </View>
+    </View>
+  )
+}
+
+function AttendanceRow({ item }) {
+  const closed = Boolean(item.checkOutAt)
+  return (
+    <View style={styles.detailRow}>
+      <View style={styles.detailTextWrap}>
+        <Text style={styles.detailTitle}>{formatDate(item.workDate)} · {item.shift?.label || "Vardiya yok"}</Text>
+        <Text style={styles.detailMeta}>
+          Giriş {formatDateTime(item.checkInAt)} · Çıkış {item.checkOutAt ? formatDateTime(item.checkOutAt) : "devam ediyor"}
+        </Text>
+        <Text style={styles.detailMeta}>
+          Çalışma {formatMinutes(item.workedMinutes)}{item.lateMinutes ? ` · Geç ${formatMinutes(item.lateMinutes)}` : ""}{item.overtimeMinutes ? ` · Fazla ${formatMinutes(item.overtimeMinutes)}` : ""}
+        </Text>
+      </View>
+      <Text style={[styles.detailAmount, closed ? styles.positiveText : styles.warningText]}>{closed ? "Kapalı" : "Açık"}</Text>
+    </View>
+  )
+}
+
+function TrackingScreen({ data }) {
+  const totals = (data?.personelSummaries || []).reduce((acc, item) => {
+    acc.logs += Number(item.logCount || 0)
+    acc.open += Number(item.openCount || 0)
+    acc.late += Number(item.lateMinutes || 0)
+    acc.overtime += Number(item.overtimeMinutes || 0)
+    acc.payable += Number(item.payableOvertimeMinutes || 0)
+    acc.worked += Number(item.workedMinutes || 0)
+    return acc
+  }, { logs: 0, open: 0, late: 0, overtime: 0, payable: 0, worked: 0 })
+
+  if (!data) {
+    return <EmptyState title="Mesai takip bekleniyor" text="Rapor verileri yüklendiğinde burada görünecek." />
+  }
+
+  return (
+    <View>
+      <View style={styles.heroCard}>
+        <Text style={styles.heroEyebrow}>AYLIK TAKİP</Text>
+        <Text style={styles.heroTitle}>{formatDate(data.range?.from)} - {formatDate(data.range?.to)}</Text>
+        <Text style={styles.heroSub}>Giriş/çıkış, geç kalma ve fazla mesai özeti</Text>
+      </View>
+
+      <View style={styles.statsGrid}>
+        <StatCard label="Kayıt" value={totals.logs} tone="blue" money={false} />
+        <StatCard label="Açık" value={totals.open} tone={totals.open ? "red" : "green"} money={false} />
+        <StatCard label="Geç" value={formatMinutes(totals.late)} tone={totals.late ? "red" : "green"} money={false} />
+        <StatCard label="Fazla" value={formatMinutes(totals.overtime)} tone="green" money={false} />
+      </View>
+
+      {(data.branchSummaries || []).length ? (
+        <View style={styles.detailSection}>
+          <Text style={styles.sectionTitle}>Şube özetleri</Text>
+          {(data.branchSummaries || []).map((item) => (
+            <SummaryRow
+              key={item.branch?.id || item.branch?.ad}
+              title={item.branch?.ad || "Şube"}
+              meta={`${item.personelCount || 0} personel · ${item.logCount || 0} kayıt · açık ${item.openCount || 0}`}
+              amount={item.payableOvertimeMinutes ? `Maaşa ${formatMinutes(item.payableOvertimeMinutes)}` : formatMinutes(item.workedMinutes)}
+            />
+          ))}
+        </View>
+      ) : null}
+
+      <View style={styles.detailSection}>
+        <Text style={styles.sectionTitle}>Personel özetleri</Text>
+        {(data.personelSummaries || []).length ? (data.personelSummaries || []).slice(0, 40).map((item) => (
+          <SummaryRow
+            key={`${item.personelId}-${item.name}`}
+            title={item.name}
+            meta={`${item.branch?.ad || "Şube"} · ${item.logCount || 0} kayıt · geç ${formatMinutes(item.lateMinutes)}`}
+            amount={item.payableOvertimeMinutes ? `Maaşa ${formatMinutes(item.payableOvertimeMinutes)}` : formatMinutes(item.workedMinutes)}
+          />
+        )) : <Text style={styles.emptyText}>Personel özeti bulunamadı.</Text>}
+      </View>
+
+      <View style={styles.detailSection}>
+        <Text style={styles.sectionTitle}>Detaylar</Text>
+        {(data.details || []).length ? (data.details || []).slice(0, 40).map((item) => (
+          <View style={styles.detailRow} key={`${item.id}-${item.workDate}`}>
+            <View style={styles.detailTextWrap}>
+              <Text style={styles.detailTitle}>{item.personel} · {formatDate(item.workDate)}</Text>
+              <Text style={styles.detailMeta}>
+                {formatDateTime(item.checkInAt)} - {item.checkOutAt ? formatDateTime(item.checkOutAt) : "devam ediyor"} · {item.shift?.label || "Vardiya yok"}
+              </Text>
+              <Text style={styles.detailMeta}>
+                Çalışma {formatMinutes(item.workedMinutes)}{item.lateMinutes ? ` · Geç ${formatMinutes(item.lateMinutes)}` : ""}{item.overtimeMinutes ? ` · Fazla ${formatMinutes(item.overtimeMinutes)}` : ""}
+              </Text>
+            </View>
+            <Text style={[styles.detailAmount, item.status === "OPEN" ? styles.warningText : styles.positiveText]}>
+              {item.status === "OPEN" ? "Açık" : item.approvalStatus === "approved" ? "Onaylı" : "Kapalı"}
+            </Text>
+          </View>
+        )) : <Text style={styles.emptyText}>Detay kaydı bulunamadı.</Text>}
+      </View>
+    </View>
+  )
+}
+
+function SummaryRow({ title, meta, amount }) {
+  return (
+    <View style={styles.detailRow}>
+      <View style={styles.detailTextWrap}>
+        <Text style={styles.detailTitle}>{title}</Text>
+        <Text style={styles.detailMeta}>{meta}</Text>
+      </View>
+      <Text style={styles.detailAmount}>{amount}</Text>
     </View>
   )
 }
@@ -801,12 +1097,13 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
     paddingHorizontal: 18,
     paddingBottom: 14,
   },
   tabButton: {
-    flex: 1,
+    width: "48%",
     borderRadius: 16,
     paddingVertical: 12,
     alignItems: "center",
@@ -971,6 +1268,12 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 12,
   },
+  attendanceOpenHero: {
+    backgroundColor: "#7c2d12",
+  },
+  attendanceReadyHero: {
+    backgroundColor: "#0f766e",
+  },
   salaryHeroLabel: {
     color: "#a7f3d0",
     fontWeight: "900",
@@ -1026,6 +1329,9 @@ const styles = StyleSheet.create({
   },
   negativeText: {
     color: "#dc2626",
+  },
+  warningText: {
+    color: "#d97706",
   },
   detailSection: {
     borderRadius: 22,
@@ -1083,5 +1389,69 @@ const styles = StyleSheet.create({
     marginTop: 5,
     lineHeight: 20,
     fontWeight: "600",
+  },
+  scannerRoot: {
+    flex: 1,
+    backgroundColor: "#020617",
+  },
+  scannerHeader: {
+    paddingHorizontal: 18,
+    paddingTop: Platform.OS === "android" ? 18 : 8,
+    paddingBottom: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#020617",
+  },
+  scannerTitle: {
+    color: "#f8fafc",
+    fontSize: 20,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+  cameraView: {
+    flex: 1,
+  },
+  scanFrame: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(2,6,23,0.12)",
+  },
+  scanBox: {
+    width: 270,
+    height: 270,
+    borderRadius: 30,
+    borderWidth: 3,
+    borderColor: "#34d399",
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    paddingBottom: 18,
+    shadowColor: "#000",
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+  },
+  scanBoxText: {
+    overflow: "hidden",
+    borderRadius: 999,
+    backgroundColor: "rgba(2,6,23,0.76)",
+    color: "#d1fae5",
+    fontSize: 12,
+    fontWeight: "900",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  scannerFooter: {
+    minHeight: 72,
+    padding: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#020617",
+  },
+  scannerFooterText: {
+    color: "#cbd5e1",
+    textAlign: "center",
+    fontWeight: "800",
   },
 })
