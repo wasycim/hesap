@@ -20,6 +20,7 @@ import { openPdfReport } from "@/lib/pdf-report"
 import { getShiftBusinessDate } from "@/lib/shift-business-date"
 import { CurrencyInput, parseCurrencyInputValue } from "@/components/dashboard/currency-input"
 import { isBesASube } from "@/lib/sube-utils"
+import { TRACKING_UNLU_1_KEY, formatTrackingRangeValue } from "@/lib/tracking-range"
 
 interface GelirRow {
   id?: string
@@ -31,7 +32,7 @@ interface GelirRow {
   anadolu_ulasim: number
   inegol_seyahat: number
   alasehir_turizm: number
-  unlu_1: number
+  unlu_1: number | string
   unlu_2: number
   pamukkale_kargo: number
   diger_komisyon: number
@@ -118,6 +119,11 @@ function isTrackingOnlyColumn(column: string, isCurrentBesASube: boolean) {
 
 function isSummableColumn(column: string, isCurrentBesASube: boolean) {
   return !["tarih", "durum", "vardiya"].includes(column) && !isTrackingOnlyColumn(column, isCurrentBesASube)
+}
+
+function getTrackingOnlyCellValue(value: unknown) {
+  if (value === 0 || value === "0") return ""
+  return formatTrackingRangeValue(value)
 }
 
 function isSpreadsheetControl(element: Element | null): element is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
@@ -236,6 +242,7 @@ function calculateOnDortFirmalarTotal(details: Record<string, number>) {
 
 function getCustomNumericTotal(customValues: Record<string, any> | null | undefined) {
   return Object.entries(customValues || {}).reduce((sum, [key, value]) => {
+    if (key === TRACKING_UNLU_1_KEY) return sum
     if (key === ON_DORT_FIRMA_DETAYLARI_KEY) return sum
     if (value && typeof value === "object") return sum
     return sum + (Number(value) || 0)
@@ -255,7 +262,7 @@ function recalculateGelirRow(row: GelirRow, isCurrentBesASube: boolean): GelirRo
     row.anadolu_ulasim +
     row.inegol_seyahat +
     row.alasehir_turizm +
-    (isCurrentBesASube ? 0 : row.unlu_1) +
+    (isCurrentBesASube ? 0 : Number(row.unlu_1) || 0) +
     row.unlu_2 +
     row.pamukkale_kargo +
     row.diger_komisyon +
@@ -464,11 +471,14 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
   function updateCell(rowIndex: number, column: string, value: string | number) {
     const newRows = [...rows]
     const row = { ...newRows[rowIndex] }
-    const numericValue = parseCurrencyInputValue(value)
+    const isTrackingOnly = isTrackingOnlyColumn(column, isCurrentBesASube)
+    const numericValue = isTrackingOnly ? 0 : parseCurrencyInputValue(value)
     
     const isCustomColumn = column.startsWith("custom_") || column.startsWith("firma_")
 
-    if (isCustomColumn) {
+    if (isTrackingOnly) {
+      ;(row as any)[column] = String(value ?? "")
+    } else if (isCustomColumn) {
       row.custom_values = { ...row.custom_values, [column]: numericValue }
     } else if (column === "durum") {
       row.durum = value as string
@@ -601,7 +611,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
             if (col === "tarih") return formatDate(row.tarih)
             if (col === "vardiya") return row.vardiya || "Tek"
             if (col === "durum") return row.durum
-            if (isTrackingOnlyColumn(col, isCurrentBesASube)) return String(getCellValue(row, col) || "")
+            if (isTrackingOnlyColumn(col, isCurrentBesASube)) return getTrackingOnlyCellValue(getCellValue(row, col))
             return `${formatNumber(Number(getCellValue(row, col)) || 0)} TL`
           })),
           visibleColumns.map(col => {
@@ -628,7 +638,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
             if (col === "tarih") return formatDate(row.tarih)
             if (col === "vardiya") return row.vardiya || "Tek"
             if (col === "durum") return row.durum
-            if (isTrackingOnlyColumn(col, isCurrentBesASube)) return String(getCellValue(row, col) || "")
+            if (isTrackingOnlyColumn(col, isCurrentBesASube)) return getTrackingOnlyCellValue(getCellValue(row, col))
             return `${formatNumber(Number(getCellValue(row, col)) || 0)} TL`
           })),
           groupColumns.map(col => {
@@ -828,19 +838,18 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                         {formatNumber(row.kasa_gelen || 0)}₺
                       </div>
                     ) : isTrackingOnlyColumn(col, isCurrentBesASube) && canEdit ? (
-                      <CurrencyInput
+                      <input
                         type="text"
-                        value={getCellValue(row, col) || ""}
+                        value={String(getCellValue(row, col) || "")}
                         onChange={(e) => updateCell(rowIndex, col, e.target.value)}
+                        onBlur={(e) => updateCell(rowIndex, col, formatTrackingRangeValue(e.target.value))}
                         onKeyDown={handleSpreadsheetKeyDown}
-                        showCurrencySymbol={false}
-                        containerClassName="py-1"
-                        inputClassName="!text-center"
-                        placeholder="0"
+                        className="spreadsheet-active-input w-full bg-transparent px-2 py-1 text-center font-medium text-foreground focus:outline-none"
+                        placeholder="1.234 - 1.562"
                       />
                     ) : isTrackingOnlyColumn(col, isCurrentBesASube) ? (
                       <div className="px-2 py-1 text-center text-muted-foreground">
-                        {getCellValue(row, col) || ""}
+                        {getTrackingOnlyCellValue(getCellValue(row, col))}
                       </div>
                     ) : canEdit ? (
                       <CurrencyInput

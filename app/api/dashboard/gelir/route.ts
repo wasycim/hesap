@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getMonthEndDate, getMonthStartDate } from "@/lib/date-navigation"
 import { getShiftBusinessDate } from "@/lib/shift-business-date"
+import { isBesASube } from "@/lib/sube-utils"
+import { TRACKING_UNLU_1_KEY, formatTrackingRangeValue } from "@/lib/tracking-range"
 
 const VARDIYASIZ_SUBELER = ["carsi", "darica"]
 
@@ -98,6 +100,7 @@ export async function GET(request: NextRequest) {
   if (!sube) return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 })
 
   const isTekVardiya = VARDIYASIZ_SUBELER.includes(normalizeSubeName(sube.ad)) || (!isAdmin && (!profile?.vardiya || profile.vardiya === "T"))
+  const isCurrentBesASube = isBesASube(sube)
 
   const [settingsRes, firmaRes, gelirRes, giderRes] = await Promise.all([
     admin
@@ -164,6 +167,8 @@ export async function GET(request: NextRequest) {
   const rows = (gelirRes.data || [])
     .filter((row: any) => dateInRange(row.tarih, monthStart, monthEnd))
     .map((row: any) => {
+      const customValues = row.custom_values || {}
+      const trackingUnluValue = customValues[TRACKING_UNLU_1_KEY] ?? (Number(row.unlu_1) ? row.unlu_1 : "")
       const vardiya = isTekVardiya ? "" : (row.vardiya || "S")
       const giderler = giderTotals.get(getGiderTotalKey(row.tarih, row.vardiya || "S", isTekVardiya)) ?? (Number(row.giderler) || 0)
       const toplam = Number(row.toplam) || 0
@@ -177,7 +182,7 @@ export async function GET(request: NextRequest) {
         anadolu_ulasim: Number(row.anadolu_ulasim) || 0,
         inegol_seyahat: Number(row.inegol_seyahat) || 0,
         alasehir_turizm: Number(row.alasehir_turizm) || 0,
-        unlu_1: Number(row.unlu_1) || 0,
+        unlu_1: isCurrentBesASube ? formatTrackingRangeValue(trackingUnluValue) : Number(row.unlu_1) || 0,
         unlu_2: Number(row.unlu_2) || 0,
         pamukkale_kargo: Number(row.pamukkale_kargo) || 0,
         diger_komisyon: Number(row.diger_komisyon) || 0,
@@ -186,7 +191,7 @@ export async function GET(request: NextRequest) {
         giderler,
         kalan: toplam - giderler,
         durum: row.durum || "KONTROL EDİLMEDİ",
-        custom_values: row.custom_values || {},
+        custom_values: customValues,
       }
     })
 
@@ -222,6 +227,7 @@ export async function POST(request: NextRequest) {
   if (!sube) return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 })
 
   const isTekVardiya = VARDIYASIZ_SUBELER.includes(normalizeSubeName(sube.ad)) || (!isAdmin && (!profile?.vardiya || profile.vardiya === "T"))
+  const isCurrentBesASube = isBesASube(sube)
   const today = getShiftBusinessDate(profile?.vardiya)
   const editableRows = dedupeRowsByKey(rows.filter((row: any) => {
     if (!dateInRange(String(row.tarih || ""), monthStart, monthEnd)) return false
@@ -247,7 +253,13 @@ export async function POST(request: NextRequest) {
   if (editableRows.length > 0) {
     const insertData = editableRows.map((row: any) => {
       const giderler = giderTotals.get(getGiderTotalKey(row.tarih, row.vardiya || "S", isTekVardiya)) || 0
-      const customValues = row.custom_values && typeof row.custom_values === "object" ? row.custom_values : {}
+      const customValues = row.custom_values && typeof row.custom_values === "object" ? { ...row.custom_values } : {}
+      if (isCurrentBesASube) {
+        customValues[TRACKING_UNLU_1_KEY] = formatTrackingRangeValue(row.unlu_1 ?? customValues[TRACKING_UNLU_1_KEY])
+      } else {
+        delete customValues[TRACKING_UNLU_1_KEY]
+      }
+
       return {
         user_id: row.user_id || user.id,
         sube_id: sube.id,
@@ -258,7 +270,7 @@ export async function POST(request: NextRequest) {
         anadolu_ulasim: Number(row.anadolu_ulasim) || 0,
         inegol_seyahat: Number(row.inegol_seyahat) || 0,
         alasehir_turizm: Number(row.alasehir_turizm) || 0,
-        unlu_1: Number(row.unlu_1) || 0,
+        unlu_1: isCurrentBesASube ? 0 : Number(row.unlu_1) || 0,
         unlu_2: Number(row.unlu_2) || 0,
         pamukkale_kargo: Number(row.pamukkale_kargo) || 0,
         diger_komisyon: Number(row.diger_komisyon) || 0,
