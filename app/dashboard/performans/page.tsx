@@ -1455,7 +1455,7 @@ export default function PerformansAnaliziPage() {
                                         <TrendingUp className="h-4 w-4" />
                                         Şube {row.subeAd} - {isDailyTrend ? "Günlük Ciro Dağılımı" : "Aylık Ciro Kırılımı"}
                                       </div>
-                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                                         
                                         <div className="border rounded-xl bg-card overflow-hidden shadow-sm">
                                           <table className="w-full text-xs">
@@ -1489,7 +1489,7 @@ export default function PerformansAnaliziPage() {
                                           </table>
                                         </div>
 
-                                        <div className="h-[140px] w-full">
+                                        <div className="h-[380px] w-full md:sticky md:top-4">
                                           <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={row.breakdown}>
                                               <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.06)" />
@@ -1620,7 +1620,7 @@ export default function PerformansAnaliziPage() {
                                         <TrendingUp className="h-4 w-4" />
                                         {row.companyLabel} - {isDailyTrend ? "Günlük Ciro Dağılımı" : "Aylık Ciro Kırılımı"}
                                       </div>
-                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                                         
                                         <div className="border rounded-xl bg-card overflow-hidden shadow-sm">
                                           <table className="w-full text-xs">
@@ -1654,7 +1654,7 @@ export default function PerformansAnaliziPage() {
                                           </table>
                                         </div>
 
-                                        <div className="h-[140px] w-full">
+                                        <div className="h-[380px] w-full md:sticky md:top-4">
                                           <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={row.breakdown}>
                                               <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.06)" />
