@@ -83,9 +83,9 @@ interface CompanyOption {
 type PeriodPreset = "bu_ay" | "gecen_ay" | "son_3_ay" | "son_6_ay" | "bu_yil" | "custom"
 
 const BUILTIN_FIRMALAR: Omit<CompanyOption, "isShared">[] = [
-  { key: "pamukkale_turizm", label: "Pamukkale Turizm", type: "builtin", color: "bg-red-500", text: "text-white", komisyonOrani: 5 },
-  { key: "anadolu_ulasim", label: "Anadolu Ulaşım", type: "builtin", color: "bg-blue-600", text: "text-white", komisyonOrani: 5 },
-  { key: "inegol_seyahat", label: "İnegöl Seyahat", type: "builtin", color: "bg-orange-500", text: "text-white", komisyonOrani: 5 },
+  { key: "pamukkale_turizm", label: "Pamukkale Turizm", type: "builtin", color: "bg-red-500", text: "text-white", komisyonOrani: 0 },
+  { key: "anadolu_ulasim", label: "Anadolu Ulaşım", type: "builtin", color: "bg-blue-600", text: "text-white", komisyonOrani: 0 },
+  { key: "inegol_seyahat", label: "İnegöl Seyahat", type: "builtin", color: "bg-orange-500", text: "text-white", komisyonOrani: 0 },
   { key: "alasehir_turizm", label: "Alaşehir Turizm", type: "builtin", color: "bg-yellow-500", text: "text-yellow-950", komisyonOrani: 20 },
   { key: "unlu_2", label: "Ünlü", type: "builtin", color: "bg-cyan-600", text: "text-white", komisyonOrani: 20 },
   { key: "pamukkale_kargo", label: "Pamukkale Kargo", type: "builtin", color: "bg-rose-500", text: "text-white", komisyonOrani: 10 },
