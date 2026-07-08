@@ -686,14 +686,14 @@ export default function PerformansAnaliziPage() {
         if (activeTab === "firma") {
           if (selectedSubeId !== "all" && item.subeId !== selectedSubeId) return
         }
-        item.monthlyBreakdown.forEach((m) => {
-          const current = trendMap.get(m.monthSortKey) || { label: m.monthLabel, ciro: 0 }
+        item.breakdown.forEach((m) => {
+          const current = trendMap.get(m.sortKey) || { label: m.label, ciro: 0 }
           current.ciro += m.ciro
           if (activeTab === "firma" && selectedSubeId === "all") {
             const key = `sube_${item.subeId}`
             current[key] = (current[key] || 0) + m.ciro
           }
-          trendMap.set(m.monthSortKey, current)
+          trendMap.set(m.sortKey, current)
         })
       })
     }
