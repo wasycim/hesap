@@ -232,10 +232,11 @@ export default function PerformansAnaliziPage() {
   // Filtered records by selected shift (vardiya)
   const filteredRecords = useMemo(() => {
     if (selectedVardiya === "all") return records
+    const mappedVal = selectedVardiya === "Sabah" ? "S" : "A"
     return records.filter(r => {
       // Vardiyasız (tek vardiya) kayıtlar hem sabah hem akşam seçimlerinde filtrelenmeden listelenir
-      if (!r.vardiya) return true
-      return r.vardiya === selectedVardiya
+      if (r.vardiya !== "S" && r.vardiya !== "A") return true
+      return r.vardiya === mappedVal
     })
   }, [records, selectedVardiya])
 
