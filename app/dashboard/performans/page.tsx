@@ -654,6 +654,7 @@ export default function PerformansAnaliziPage() {
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([key, value]) => ({
         sortKey: key,
+        name: value.label,
         ...value,
         formattedCiro: formatMoney(value.ciro)
       }))
@@ -1161,7 +1162,7 @@ export default function PerformansAnaliziPage() {
                             })}
                           </Pie>
                           <Tooltip
-                            formatter={(value: number) => [`${formatMoney(value)} TL`, "Ciro"]}
+                            formatter={(value: number, name: string) => [`${formatMoney(value)} TL`, name]}
                             contentStyle={{
                               backgroundColor: "var(--card)",
                               borderColor: "var(--border)",
@@ -1192,7 +1193,7 @@ export default function PerformansAnaliziPage() {
                           <XAxis type="number" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} fontSize={10} stroke="rgba(128,128,128,0.4)" />
                           <YAxis dataKey="name" type="category" width={75} fontSize={10} stroke="rgba(128,128,128,0.4)" />
                           <Tooltip
-                            formatter={(value: number) => [`${formatMoney(value)} TL`, "Ciro"]}
+                            formatter={(value: number, name: string) => [`${formatMoney(value)} TL`, name]}
                             contentStyle={{
                               backgroundColor: "var(--card)",
                               borderColor: "var(--border)",
@@ -1261,7 +1262,7 @@ export default function PerformansAnaliziPage() {
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.08)" />
-                        <XAxis dataKey="name" fontSize={10} stroke="rgba(128,128,128,0.4)" />
+                        <XAxis dataKey="name" fontSize={10} stroke="rgba(128,128,128,0.4)" minTickGap={30} />
                         <YAxis tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} fontSize={10} stroke="rgba(128,128,128,0.4)" />
                         
                         <Tooltip
