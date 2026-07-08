@@ -19,7 +19,8 @@ import {
   Building,
   Target,
   Search,
-  BadgePercent
+  BadgePercent,
+  Layers
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -52,12 +53,6 @@ interface DbFirma {
   color: string
 }
 
-interface Sube {
-  id: string
-  ad: string
-  kod: string
-}
-
 interface GelirRecord {
   sube_id: string
   tarih: string
@@ -66,7 +61,6 @@ interface GelirRecord {
   anadolu_ulasim: number
   inegol_seyahat: number
   alasehir_turizm: number
-  unlu_1: number
   unlu_2: number
   pamukkale_kargo: number
   diger_komisyon: number
@@ -85,7 +79,6 @@ interface CompanyOption {
 
 type PeriodPreset = "bu_ay" | "gecen_ay" | "son_3_ay" | "son_6_ay" | "bu_yil" | "custom"
 
-// Core list of built-in database columns. Shared status will be determined dynamically.
 const BUILTIN_FIRMALAR: Omit<CompanyOption, "isShared">[] = [
   { key: "pamukkale_turizm", label: "Pamukkale Turizm", type: "builtin", color: "bg-red-500", text: "text-white" },
   { key: "anadolu_ulasim", label: "Anadolu Ulaşım", type: "builtin", color: "bg-blue-600", text: "text-white" },
@@ -96,7 +89,6 @@ const BUILTIN_FIRMALAR: Omit<CompanyOption, "isShared">[] = [
   { key: "diger_komisyon", label: "Diğer Komisyon", type: "builtin", color: "bg-slate-500", text: "text-white" },
 ]
 
-// Only these keys are explicitly flagged as the main "Ortak Firmalar"
 const MAIN_SHARED_KEYS = new Set(["pamukkale_turizm", "anadolu_ulasim", "inegol_seyahat"])
 
 function formatMoney(value: number) {
@@ -118,6 +110,9 @@ export default function PerformansAnaliziPage() {
   const { subeler: contextSubeler, isAdmin, loading: subeLoading } = useSube()
   const today = getLocalDateString()
 
+  // Tab State: "firma" (Firma Odaklı Analiz) or "sube" (Şube Odaklı Analiz)
+  const [activeTab, setActiveTab] = useState<"firma" | "sube">("firma")
+
   // State definitions
   const [period, setPeriod] = useState<PeriodPreset>("bu_ay")
   const [startDate, setStartDate] = useState("")
@@ -127,8 +122,21 @@ export default function PerformansAnaliziPage() {
   const [dbFirmalar, setDbFirmalar] = useState<DbFirma[]>([])
   const [records, setRecords] = useState<GelirRecord[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // Expandable table row keys
   const [expandedSubeId, setExpandedSubeId] = useState<string | null>(null)
+  const [expandedCompanyKey, setExpandedCompanyKey] = useState<string | null>(null)
+  
   const [searchTerm, setSearchTerm] = useState("")
+
+  // Auto-switch selectedSubeId if transitioning to sube-focused tab
+  useEffect(() => {
+    if (activeTab === "sube" && (selectedSubeId === "all" || !selectedSubeId)) {
+      if (contextSubeler.length > 0) {
+        setSelectedSubeId(contextSubeler[0].id)
+      }
+    }
+  }, [activeTab, contextSubeler, selectedSubeId])
 
   // Set date ranges based on preset
   useEffect(() => {
@@ -189,7 +197,6 @@ export default function PerformansAnaliziPage() {
           anadolu_ulasim, 
           inegol_seyahat, 
           alasehir_turizm, 
-          unlu_1, 
           unlu_2, 
           pamukkale_kargo, 
           diger_komisyon, 
@@ -207,7 +214,6 @@ export default function PerformansAnaliziPage() {
         anadolu_ulasim: Number(row.anadolu_ulasim) || 0,
         inegol_seyahat: Number(row.inegol_seyahat) || 0,
         alasehir_turizm: Number(row.alasehir_turizm) || 0,
-        unlu_1: Number(row.unlu_1) || 0,
         unlu_2: Number(row.unlu_2) || 0,
         pamukkale_kargo: Number(row.pamukkale_kargo) || 0,
         diger_komisyon: Number(row.diger_komisyon) || 0,
@@ -221,20 +227,17 @@ export default function PerformansAnaliziPage() {
 
   // 1. Compute list of all available companies (built-in + grouped custom ones)
   const availableCompanies = useMemo(() => {
-    // Map builtin list to include isShared flag
     const list: CompanyOption[] = BUILTIN_FIRMALAR.map(c => ({
       ...c,
       isShared: MAIN_SHARED_KEYS.has(c.key)
     }))
 
-    // Group custom firms from database by name
     const customGroups = new Map<string, { label: string; mappings: { sube_id: string; id: string }[]; color: string }>()
 
     dbFirmalar.forEach((firm) => {
       const normalized = normalizeFirmaName(firm.ad)
       if (!normalized) return
 
-      // Don't add if it matches a builtin name
       const matchesBuiltin = BUILTIN_FIRMALAR.some(b => normalizeFirmaName(b.label) === normalized)
       if (matchesBuiltin) return
 
@@ -250,7 +253,6 @@ export default function PerformansAnaliziPage() {
       }
     })
 
-    // Sort custom companies by branch coverage count descending
     const sortedCustoms = Array.from(customGroups.entries())
       .map(([normKey, info]) => ({
         key: `custom_${normKey}`,
@@ -270,7 +272,7 @@ export default function PerformansAnaliziPage() {
         type: c.type,
         color: c.color,
         text: c.text,
-        isShared: false, // Custom firms are never flagged as main shared ones by default
+        isShared: false,
         mappings: c.mappings
       })
     })
@@ -278,21 +280,31 @@ export default function PerformansAnaliziPage() {
     return list
   }, [dbFirmalar])
 
-  // Filtered available companies based on search
   const filteredCompanies = useMemo(() => {
     if (!searchTerm.trim()) return availableCompanies
     const term = normalizeFirmaName(searchTerm)
     return availableCompanies.filter(comp => normalizeFirmaName(comp.label).includes(term))
   }, [availableCompanies, searchTerm])
 
-  // Selected company object
   const selectedCompany = useMemo(() => {
     return availableCompanies.find(c => c.key === selectedCompanyKey) || availableCompanies[0]
   }, [availableCompanies, selectedCompanyKey])
 
-  // 2. Perform analytics aggregation per branch
-  const analyticsData = useMemo(() => {
-    if (!selectedCompany) return []
+  // Determine if trend chart should show daily details instead of monthly points
+  const isDailyTrend = useMemo(() => {
+    if (!startDate || !endDate) return true
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    const diffTime = Math.abs(end.getTime() - start.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays <= 45 // Show daily points if range is 1.5 months or less
+  }, [startDate, endDate])
+
+  // ============================================
+  // TAB 1: FIRMA ODAKLI ANALİZ (Company Focused)
+  // ============================================
+  const firmaAnalyticsData = useMemo(() => {
+    if (activeTab !== "firma" || !selectedCompany) return []
 
     return contextSubeler.map((sube) => {
       const subeRecords = records.filter(r => r.sube_id === sube.id)
@@ -300,7 +312,6 @@ export default function PerformansAnaliziPage() {
       let recordCount = 0
       const uniqueDays = new Set<string>()
 
-      // Map to track monthly details
       const monthMap = new Map<string, { label: string; ciro: number; recordCount: number; uniqueDays: Set<string> }>()
 
       subeRecords.forEach((record) => {
@@ -319,7 +330,6 @@ export default function PerformansAnaliziPage() {
           recordCount++
           uniqueDays.add(record.tarih)
 
-          // Group by month
           const date = new Date(record.tarih)
           if (!Number.isNaN(date.getTime())) {
             const yearStr = date.getFullYear()
@@ -357,96 +367,252 @@ export default function PerformansAnaliziPage() {
         monthlyBreakdown
       }
     })
-  }, [contextSubeler, records, selectedCompany])
+  }, [activeTab, contextSubeler, records, selectedCompany])
 
-  // Filtered branches list to show in UI
-  const filteredAnalyticsData = useMemo(() => {
-    if (selectedSubeId === "all") return analyticsData
-    return analyticsData.filter(d => d.subeId === selectedSubeId)
-  }, [analyticsData, selectedSubeId])
+  const filteredFirmaAnalytics = useMemo(() => {
+    if (selectedSubeId === "all") return firmaAnalyticsData
+    return firmaAnalyticsData.filter(d => d.subeId === selectedSubeId)
+  }, [firmaAnalyticsData, selectedSubeId])
 
-  // 3. Compute KPI Summaries
+  // ============================================
+  // TAB 2: ŞUBE ODAKLI ANALİZ (Branch Focused)
+  // ============================================
+  const currentBranchObject = useMemo(() => {
+    const activeSubeId = selectedSubeId === "all" ? (contextSubeler[0]?.id || "") : selectedSubeId
+    return contextSubeler.find(s => s.id === activeSubeId)
+  }, [contextSubeler, selectedSubeId])
+
+  const subeAnalyticsData = useMemo(() => {
+    if (activeTab !== "sube" || !currentBranchObject) return []
+
+    const branchRecords = records.filter(r => r.sube_id === currentBranchObject.id)
+
+    return availableCompanies.map((comp) => {
+      let totalCiro = 0
+      let recordCount = 0
+      const uniqueDays = new Set<string>()
+      const monthMap = new Map<string, { label: string; ciro: number; recordCount: number; uniqueDays: Set<string> }>()
+
+      branchRecords.forEach((record) => {
+        let val = 0
+        if (comp.type === "builtin") {
+          val = record[comp.key as keyof GelirRecord] as number || 0
+        } else if (comp.type === "custom" && comp.mappings) {
+          const mapping = comp.mappings.find(m => m.sube_id === currentBranchObject.id)
+          if (mapping) {
+            val = Number(record.custom_values?.[`firma_${mapping.id}`]) || 0
+          }
+        }
+
+        if (val > 0) {
+          totalCiro += val
+          recordCount++
+          uniqueDays.add(record.tarih)
+
+          const date = new Date(record.tarih)
+          if (!Number.isNaN(date.getTime())) {
+            const yearStr = date.getFullYear()
+            const monthStr = MONTHS[date.getMonth()]
+            const label = `${monthStr} ${yearStr}`
+            const sortKey = `${yearStr}-${String(date.getMonth() + 1).padStart(2, "0")}`
+
+            const current = monthMap.get(sortKey) || { label, ciro: 0, recordCount: 0, uniqueDays: new Set<string>() }
+            current.ciro += val
+            current.recordCount++
+            current.uniqueDays.add(record.tarih)
+            monthMap.set(sortKey, current)
+          }
+        }
+      })
+
+      const monthlyBreakdown = Array.from(monthMap.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([sortKey, value]) => ({
+          monthSortKey: sortKey,
+          monthLabel: value.label,
+          ciro: value.ciro,
+          recordCount: value.recordCount,
+          uniqueDaysCount: value.uniqueDays.size
+        }))
+
+      return {
+        companyKey: comp.key,
+        companyLabel: comp.label,
+        type: comp.type,
+        color: comp.color,
+        isShared: comp.isShared,
+        totalCiro,
+        averageDailyCiro: uniqueDays.size > 0 ? totalCiro / uniqueDays.size : 0,
+        recordCount,
+        uniqueDaysCount: uniqueDays.size,
+        monthlyBreakdown
+      }
+    }).filter(d => d.totalCiro > 0) // Only return companies that have registered ciro in this branch
+  }, [activeTab, currentBranchObject, records, availableCompanies])
+
+  // ============================================
+  // COMBINED STATS & SUMMARY DATA (KPIs)
+  // ============================================
   const kpiData = useMemo(() => {
     let totalCiro = 0
     let totalActiveDays = 0
-    let activeBranchesCount = 0
-    let topBranch = { name: "-", ciro: 0, share: 0 }
+    let activeElementsCount = 0 // active branches in Tab 1, active companies in Tab 2
+    let topElement = { name: "-", ciro: 0, share: 0 }
 
-    analyticsData.forEach((subeData) => {
-      totalCiro += subeData.totalCiro
-      totalActiveDays += subeData.uniqueDaysCount
-      if (subeData.totalCiro > 0) {
-        activeBranchesCount++
+    if (activeTab === "firma") {
+      firmaAnalyticsData.forEach((subeData) => {
+        totalCiro += subeData.totalCiro
+        totalActiveDays += subeData.uniqueDaysCount
+        if (subeData.totalCiro > 0) activeElementsCount++
+      })
+
+      let maxCiro = 0
+      let bestName = "-"
+      firmaAnalyticsData.forEach((subeData) => {
+        if (subeData.totalCiro > maxCiro) {
+          maxCiro = subeData.totalCiro
+          bestName = subeData.subeAd
+        }
+      })
+      if (totalCiro > 0 && maxCiro > 0) {
+        topElement = { name: bestName, ciro: maxCiro, share: (maxCiro / totalCiro) * 100 }
       }
-    })
+    } else {
+      // Tab 2
+      subeAnalyticsData.forEach((compData) => {
+        totalCiro += compData.totalCiro
+        totalActiveDays += compData.uniqueDaysCount
+        if (compData.totalCiro > 0) activeElementsCount++
+      })
 
-    // Find top branch
-    let maxCiro = 0
-    let bestBranchName = "-"
-    analyticsData.forEach((subeData) => {
-      if (subeData.totalCiro > maxCiro) {
-        maxCiro = subeData.totalCiro
-        bestBranchName = subeData.subeAd
-      }
-    })
-
-    if (totalCiro > 0 && maxCiro > 0) {
-      topBranch = {
-        name: bestBranchName,
-        ciro: maxCiro,
-        share: (maxCiro / totalCiro) * 100
+      let maxCiro = 0
+      let bestName = "-"
+      subeAnalyticsData.forEach((compData) => {
+        if (compData.totalCiro > maxCiro) {
+          maxCiro = compData.totalCiro
+          bestName = compData.companyLabel
+        }
+      })
+      if (totalCiro > 0 && maxCiro > 0) {
+        topElement = { name: bestName, ciro: maxCiro, share: (maxCiro / totalCiro) * 100 }
       }
     }
 
     return {
       totalCiro,
-      activeBranchesCount,
-      topBranch,
+      activeElementsCount,
+      topElement,
       dailyAverage: totalActiveDays > 0 ? totalCiro / totalActiveDays : 0
     }
-  }, [analyticsData])
+  }, [activeTab, firmaAnalyticsData, subeAnalyticsData])
 
-  // 4. Compute Charts Data
+  // ============================================
+  // COMBINED CHARTS GENERATOR (Theme Friendly)
+  // ============================================
   const chartsData = useMemo(() => {
-    // Sube comparison
-    const subesComparison = analyticsData
-      .filter(d => d.totalCiro > 0)
-      .map(d => ({
-        name: d.subeAd,
-        ciro: d.totalCiro,
-        formattedCiro: formatMoney(d.totalCiro)
-      }))
+    // 1. Doughnut & Horizontal Bar Comparison Data
+    const comparison = (activeTab === "firma" ? firmaAnalyticsData : subeAnalyticsData)
+      .map(d => {
+        const name = activeTab === "firma" 
+          ? (d as any).subeAd 
+          : (d as any).companyLabel
+        const ciro = d.totalCiro
+        return {
+          name,
+          ciro,
+          formattedCiro: formatMoney(ciro)
+        }
+      })
+      .filter(d => d.ciro > 0)
       .sort((a, b) => b.ciro - a.ciro)
 
-    // Monthly Trend
-    const monthlyTrendMap = new Map<string, { monthLabel: string; ciro: number }>()
+    // 2. Trend Data: Automatically Daily if isDailyTrend is true, otherwise Monthly
+    const trendMap = new Map<string, { label: string; ciro: number }>()
 
-    analyticsData.forEach((subeData) => {
-      if (selectedSubeId !== "all" && subeData.subeId !== selectedSubeId) return
+    if (isDailyTrend) {
+      // Fill all dates in range with 0 ciro to avoid empty graphs
+      if (startDate && endDate) {
+        const start = new Date(startDate)
+        const end = new Date(endDate)
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const dateStr = getLocalDateString(d)
+          const dateObj = new Date(dateStr)
+          const day = dateObj.getDate()
+          const monthShort = new Intl.DateTimeFormat("tr-TR", { month: "short" }).format(dateObj)
+          trendMap.set(dateStr, { label: `${day} ${monthShort}`, ciro: 0 })
+        }
+      }
 
-      subeData.monthlyBreakdown.forEach((m) => {
-        const current = monthlyTrendMap.get(m.monthSortKey) || { monthLabel: m.monthLabel, ciro: 0 }
-        current.ciro += m.ciro
-        monthlyTrendMap.set(m.monthSortKey, current)
+      records.forEach((record) => {
+        // Filter by branch
+        if (activeTab === "firma") {
+          if (selectedSubeId !== "all" && record.sube_id !== selectedSubeId) return
+        } else {
+          // Tab: sube
+          if (record.sube_id !== currentBranchObject?.id) return
+        }
+
+        // Get value
+        let val = 0
+        if (activeTab === "firma") {
+          if (selectedCompany.type === "builtin") {
+            val = record[selectedCompany.key as keyof GelirRecord] as number || 0
+          } else if (selectedCompany.type === "custom" && selectedCompany.mappings) {
+            const mapping = selectedCompany.mappings.find(m => m.sube_id === record.sube_id)
+            if (mapping) {
+              val = Number(record.custom_values?.[`firma_${mapping.id}`]) || 0
+            }
+          }
+        } else {
+          // Sum all companies for selected sube
+          availableCompanies.forEach((comp) => {
+            if (comp.type === "builtin") {
+              val += record[comp.key as keyof GelirRecord] as number || 0
+            } else if (comp.type === "custom" && comp.mappings) {
+              const mapping = comp.mappings.find(m => m.sube_id === currentBranchObject?.id)
+              if (mapping) {
+                val += Number(record.custom_values?.[`firma_${mapping.id}`]) || 0
+              }
+            }
+          })
+        }
+
+        if (val > 0) {
+          const current = trendMap.get(record.tarih) || { label: record.tarih, ciro: 0 }
+          current.ciro += val
+          trendMap.set(record.tarih, current)
+        }
       })
-    })
+    } else {
+      // Monthly aggregation
+      const listData = activeTab === "firma" ? firmaAnalyticsData : subeAnalyticsData
+      listData.forEach((item) => {
+        if (activeTab === "firma") {
+          if (selectedSubeId !== "all" && item.subeId !== selectedSubeId) return
+        }
+        item.monthlyBreakdown.forEach((m) => {
+          const current = trendMap.get(m.monthSortKey) || { label: m.monthLabel, ciro: 0 }
+          current.ciro += m.ciro
+          trendMap.set(m.monthSortKey, current)
+        })
+      })
+    }
 
-    const monthlyTrend = Array.from(monthlyTrendMap.entries())
+    const trend = Array.from(trendMap.entries())
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([sortKey, value]) => ({
-        monthSortKey: sortKey,
-        name: value.monthLabel,
+      .map(([key, value]) => ({
+        sortKey: key,
+        name: value.label,
         ciro: value.ciro,
         formattedCiro: formatMoney(value.ciro)
       }))
 
     return {
-      subesComparison,
-      monthlyTrend
+      comparison,
+      trend
     }
-  }, [analyticsData, selectedSubeId])
+  }, [activeTab, firmaAnalyticsData, subeAnalyticsData, records, selectedCompany, selectedSubeId, currentBranchObject, isDailyTrend, startDate, endDate, availableCompanies])
 
-  // Loading indicator for sube loading
   if (subeLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -458,7 +624,6 @@ export default function PerformansAnaliziPage() {
     )
   }
 
-  // Permission lock
   if (!isAdmin) {
     return (
       <div className="flex h-[80vh] items-center justify-center">
@@ -482,18 +647,18 @@ export default function PerformansAnaliziPage() {
     <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto animate-in fade-in duration-500">
       
       {/* HEADER SECTION */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-b pb-5">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shadow-inner group hover:scale-105 transition-transform">
             <BarChart3 className="h-6 w-6 group-hover:animate-[bounce_0.6s_ease-in-out_infinite]" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Performans Analizi</h1>
-            <p className="text-sm text-muted-foreground">Şubeler ve firmalar bazında ciro ve performans göstergeleri.</p>
+            <h1 className="text-2xl font-bold tracking-tight">Performans & Rapor Analizi</h1>
+            <p className="text-sm text-muted-foreground">Şubeler ve firmalar bazında detaylı ciro dağılımları ve trend analizleri.</p>
           </div>
         </div>
 
-        {/* Date presets & date pickers */}
+        {/* Filters Panel */}
         <div className="flex flex-wrap items-center gap-3">
           <Select value={period} onValueChange={(val) => setPeriod(val as PeriodPreset)}>
             <SelectTrigger className="w-[160px] h-11 rounded-xl bg-card border shadow-sm">
@@ -529,196 +694,251 @@ export default function PerformansAnaliziPage() {
             </div>
           )}
 
-          <Select value={selectedSubeId} onValueChange={setSelectedSubeId}>
-            <SelectTrigger className="w-[180px] h-11 rounded-xl bg-card border shadow-sm">
-              <Building2 className="mr-2 h-4 w-4 text-muted-foreground" />
-              <SelectValue placeholder="Şube seçin" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tüm Şubeler</SelectItem>
-              {contextSubeler.map((sube) => (
-                <SelectItem key={sube.id} value={sube.id}>
-                  Şube {sube.ad}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Conditional Dropdown based on active Tab */}
+          {activeTab === "firma" ? (
+            <Select value={selectedSubeId} onValueChange={setSelectedSubeId}>
+              <SelectTrigger className="w-[180px] h-11 rounded-xl bg-card border shadow-sm">
+                <Building2 className="mr-2 h-4 w-4 text-muted-foreground" />
+                <SelectValue placeholder="Şube seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tüm Şubeler</SelectItem>
+                {contextSubeler.map((sube) => (
+                  <SelectItem key={sube.id} value={sube.id}>
+                    Şube {sube.ad}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            // Tab 2 (Sube Mode) requires picking one specific branch to analyze
+            <Select value={selectedSubeId === "all" ? (contextSubeler[0]?.id || "") : selectedSubeId} onValueChange={setSelectedSubeId}>
+              <SelectTrigger className="w-[180px] h-11 rounded-xl bg-card border shadow-sm">
+                <Building2 className="mr-2 h-4 w-4 text-muted-foreground" />
+                <SelectValue placeholder="Şube seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                {contextSubeler.map((sube) => (
+                  <SelectItem key={sube.id} value={sube.id}>
+                    Şube {sube.ad}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </div>
 
-      {/* FIRM SELECTION PANEL */}
-      <Card className="border border-border/60 bg-card/65 backdrop-blur-md shadow-sm overflow-hidden rounded-2xl">
-        <CardHeader className="py-4 border-b">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <Target className="h-5 w-5 text-indigo-500" />
-                Firma Seçimi
-              </CardTitle>
-              <CardDescription>Performansını analiz etmek istediğiniz firmayı seçin.</CardDescription>
+      {/* TAB SELECTOR BUTTONS (Firma Odaklı / Şube Odaklı) */}
+      <div className="flex items-center justify-start p-1 bg-muted/40 rounded-2xl w-fit border border-border/40">
+        <button
+          onClick={() => {
+            setActiveTab("firma")
+            setExpandedSubeId(null)
+            setExpandedCompanyKey(null)
+          }}
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
+            activeTab === "firma"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Target className="h-4.5 w-4.5 text-indigo-500" />
+          Firma Analizi
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab("sube")
+            setExpandedSubeId(null)
+            setExpandedCompanyKey(null)
+          }}
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
+            activeTab === "sube"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Building2 className="h-4.5 w-4.5 text-indigo-500" />
+          Şube Analizi
+        </button>
+      </div>
+
+      {/* VIEW PANEL: FIRMA ANALİZİ */}
+      {activeTab === "firma" && (
+        <Card className="border border-border/60 bg-card/65 backdrop-blur-md shadow-sm overflow-hidden rounded-2xl">
+          <CardHeader className="py-4 border-b">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <Target className="h-5 w-5 text-indigo-500" />
+                  Firma Seçimi
+                </CardTitle>
+                <CardDescription>Performansını analiz etmek istediğiniz firmayı seçin.</CardDescription>
+              </div>
+              <div className="relative w-full sm:w-[260px]">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Firma ara..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full h-9 pl-9 pr-4 text-sm rounded-lg border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
             </div>
-            
-            {/* Search Input */}
-            <div className="relative w-full sm:w-[260px]">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Firma ara..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full h-9 pl-9 pr-4 text-sm rounded-lg border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-5">
-          {filteredCompanies.length === 0 ? (
-            <div className="text-center py-6 text-sm text-muted-foreground">
-              Arama kriterine uygun firma bulunamadı.
-            </div>
-          ) : (
-            <div className="space-y-6">
-              
-              {/* 1. ORTAK FİRMALAR (Main Shared Companies in Grid) */}
-              {(!searchTerm.trim() || filteredCompanies.some(c => c.isShared)) && (
-                <div>
-                  <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80 mb-3.5 flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                    Ortak Firmalar (Ana Hatlar)
-                  </div>
-                  
-                  {/* Grid Layout for Shared Companies */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {filteredCompanies.filter(c => c.isShared).map((comp) => {
-                      const isSelected = selectedCompanyKey === comp.key
-                      
-                      // Custom brand styles
-                      let customCardStyle = ""
-                      let watermark = ""
-                      if (isSelected) {
-                        if (comp.key === "pamukkale_turizm") {
-                          customCardStyle = "bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-500/20 border-transparent ring-2 ring-rose-500/20 scale-[1.03]"
-                          watermark = "P"
-                        } else if (comp.key === "anadolu_ulasim") {
-                          customCardStyle = "bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-600/20 border-transparent ring-2 ring-blue-600/20 scale-[1.03]"
-                          watermark = "A"
-                        } else if (comp.key === "inegol_seyahat") {
-                          customCardStyle = "bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/20 border-transparent ring-2 ring-amber-500/20 scale-[1.03]"
-                          watermark = "İ"
+          </CardHeader>
+          <CardContent className="p-5">
+            {filteredCompanies.length === 0 ? (
+              <div className="text-center py-6 text-sm text-muted-foreground">
+                Arama kriterine uygun firma bulunamadı.
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* 1. ORTAK FİRMALAR (Shared Companies in Grid) */}
+                {(!searchTerm.trim() || filteredCompanies.some(c => c.isShared)) && (
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80 mb-3.5 flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                      Ortak Firmalar (Ana Hatlar)
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {filteredCompanies.filter(c => c.isShared).map((comp) => {
+                        const isSelected = selectedCompanyKey === comp.key
+                        let customCardStyle = ""
+                        let watermark = ""
+                        if (isSelected) {
+                          if (comp.key === "pamukkale_turizm") {
+                            customCardStyle = "bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-500/20 border-transparent ring-2 ring-rose-500/20 scale-[1.03]"
+                            watermark = "P"
+                          } else if (comp.key === "anadolu_ulasim") {
+                            customCardStyle = "bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-600/20 border-transparent ring-2 ring-blue-600/20 scale-[1.03]"
+                            watermark = "A"
+                          } else if (comp.key === "inegol_seyahat") {
+                            customCardStyle = "bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/20 border-transparent ring-2 ring-amber-500/20 scale-[1.03]"
+                            watermark = "İ"
+                          }
+                        } else {
+                          if (comp.key === "pamukkale_turizm") {
+                            customCardStyle = "bg-rose-500/5 hover:bg-rose-500/10 border-rose-500/15 text-rose-700 dark:text-rose-400 hover:scale-[1.01]"
+                            watermark = "P"
+                          } else if (comp.key === "anadolu_ulasim") {
+                            customCardStyle = "bg-blue-500/5 hover:bg-blue-500/10 border-blue-500/15 text-blue-700 dark:text-blue-400 hover:scale-[1.01]"
+                            watermark = "A"
+                          } else if (comp.key === "inegol_seyahat") {
+                            customCardStyle = "bg-amber-500/5 hover:bg-amber-500/10 border-amber-500/15 text-amber-700 dark:text-amber-400 hover:scale-[1.01]"
+                            watermark = "İ"
+                          }
                         }
-                      } else {
-                        if (comp.key === "pamukkale_turizm") {
-                          customCardStyle = "bg-rose-500/5 hover:bg-rose-500/10 border-rose-500/15 text-rose-700 dark:text-rose-400 hover:scale-[1.01]"
-                          watermark = "P"
-                        } else if (comp.key === "anadolu_ulasim") {
-                          customCardStyle = "bg-blue-500/5 hover:bg-blue-500/10 border-blue-500/15 text-blue-700 dark:text-blue-400 hover:scale-[1.01]"
-                          watermark = "A"
-                        } else if (comp.key === "inegol_seyahat") {
-                          customCardStyle = "bg-amber-500/5 hover:bg-amber-500/10 border-amber-500/15 text-amber-700 dark:text-amber-400 hover:scale-[1.01]"
-                          watermark = "İ"
-                        }
-                      }
 
-                      return (
-                        <button
-                          key={comp.key}
-                          onClick={() => {
-                            setSelectedCompanyKey(comp.key)
-                            setExpandedSubeId(null)
-                          }}
-                          className={`relative flex flex-col justify-between p-4 h-24 rounded-2xl border transition-all duration-300 text-left overflow-hidden cursor-pointer ${customCardStyle}`}
-                        >
-                          {/* Background Watermark Initial */}
-                          <div className={`absolute -right-2 -bottom-6 text-7xl font-black select-none pointer-events-none transition-opacity duration-300 font-serif ${
-                            isSelected ? "opacity-15 text-white" : "opacity-8 text-current"
-                          }`}>
-                            {watermark}
-                          </div>
-
-                          <div className="flex items-center justify-between w-full">
-                            <span className={`h-3 w-3 rounded-full ${isSelected ? "bg-white" : comp.color} shrink-0`} />
-                            <Badge 
-                              variant="outline" 
-                              className={`text-[9px] px-1.5 py-0.5 border-none rounded-md leading-none font-bold uppercase tracking-wider ${
-                                isSelected 
-                                  ? "bg-white/20 text-white" 
-                                  : "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"
-                              }`}
-                            >
-                              Ortak Firma
-                            </Badge>
-                          </div>
-                          <div className="font-bold text-base leading-tight tracking-tight mt-auto z-10">
-                            {comp.label}
-                          </div>
-                        </button>
-                      )
-                    })}
+                        return (
+                          <button
+                            key={comp.key}
+                            onClick={() => {
+                              setSelectedCompanyKey(comp.key)
+                              setExpandedSubeId(null)
+                            }}
+                            className={`relative flex flex-col justify-between p-4 h-24 rounded-2xl border transition-all duration-300 text-left overflow-hidden cursor-pointer ${customCardStyle}`}
+                          >
+                            <div className={`absolute -right-2 -bottom-6 text-7xl font-black select-none pointer-events-none transition-opacity duration-300 font-serif ${
+                              isSelected ? "opacity-15 text-white" : "opacity-8 text-current"
+                            }`}>
+                              {watermark}
+                            </div>
+                            <div className="flex items-center justify-between w-full">
+                              <span className={`h-3 w-3 rounded-full ${isSelected ? "bg-white" : comp.color} shrink-0`} />
+                              <Badge 
+                                variant="outline" 
+                                className={`text-[9px] px-1.5 py-0.5 border-none rounded-md leading-none font-bold uppercase tracking-wider ${
+                                  isSelected ? "bg-white/20 text-white" : "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"
+                                }`}
+                              >
+                                Ortak Firma
+                              </Badge>
+                            </div>
+                            <div className="font-bold text-base leading-tight tracking-tight mt-auto z-10">
+                              {comp.label}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* 2. DİĞER FİRMALAR (Other builtin + dynamic firms) */}
-              {(!searchTerm.trim() || filteredCompanies.some(c => !c.isShared)) && (
-                <div className="border-t border-dashed pt-4">
-                  <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80 mb-3 flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-slate-400 dark:bg-slate-500" />
-                    Diğer Firmalar
-                  </div>
-                  
-                  {/* Flex wrapping pills for other/local companies */}
-                  <div className="flex flex-wrap gap-2">
-                    {filteredCompanies.filter(c => !c.isShared).map((comp) => {
-                      const isSelected = selectedCompanyKey === comp.key
-                      const isCustom = comp.type === "custom"
-                      const coverage = comp.mappings?.length || 0
-                      
-                      return (
-                        <button
-                          key={comp.key}
-                          onClick={() => {
-                            setSelectedCompanyKey(comp.key)
-                            setExpandedSubeId(null)
-                          }}
-                          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm transition-all duration-300 relative group cursor-pointer ${
-                            isSelected
-                              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-transparent shadow-md scale-105 font-semibold"
-                              : "bg-muted/30 hover:bg-muted border-border/60 hover:scale-[1.02] text-foreground/80"
-                          }`}
-                        >
-                          <span className={`h-2.5 w-2.5 rounded-full ${
-                            isSelected 
-                              ? "bg-white animate-pulse" 
-                              : isCustom 
-                                ? "bg-indigo-400 dark:bg-indigo-500" 
-                                : comp.color
-                          } shrink-0`} />
-                          
-                          <span className="font-medium">{comp.label}</span>
-                          
-                          <Badge 
-                            variant="outline" 
-                            className={`text-[9px] px-1 py-0 border-none rounded-md leading-none ${
-                              isSelected 
-                                ? "bg-white/20 text-white" 
-                                : isCustom 
-                                  ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" 
-                                  : "bg-slate-500/10 text-slate-600 dark:text-slate-400"
+                {/* 2. DİĞER FİRMALAR */}
+                {(!searchTerm.trim() || filteredCompanies.some(c => !c.isShared)) && (
+                  <div className="border-t border-dashed pt-4">
+                    <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80 mb-3 flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-slate-400 dark:bg-slate-500" />
+                      Diğer Firmalar
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {filteredCompanies.filter(c => !c.isShared).map((comp) => {
+                        const isSelected = selectedCompanyKey === comp.key
+                        const isCustom = comp.type === "custom"
+                        const coverage = comp.mappings?.length || 0
+                        return (
+                          <button
+                            key={comp.key}
+                            onClick={() => {
+                              setSelectedCompanyKey(comp.key)
+                              setExpandedSubeId(null)
+                            }}
+                            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm transition-all duration-300 relative group cursor-pointer ${
+                              isSelected
+                                ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-transparent shadow-md scale-105 font-semibold"
+                                : "bg-muted/30 hover:bg-muted border-border/60 hover:scale-[1.02] text-foreground/80"
                             }`}
                           >
-                            {isCustom ? `${coverage} Şube` : "Yerleşik"}
-                          </Badge>
-                        </button>
-                      )
-                    })}
+                            <span className={`h-2.5 w-2.5 rounded-full ${
+                              isSelected ? "bg-white animate-pulse" : isCustom ? "bg-indigo-400 dark:bg-indigo-500" : comp.color
+                            } shrink-0`} />
+                            <span className="font-medium">{comp.label}</span>
+                            <Badge 
+                              variant="outline" 
+                              className={`text-[9px] px-1 py-0 border-none rounded-md leading-none ${
+                                isSelected 
+                                  ? "bg-white/20 text-white" 
+                                  : isCustom ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" : "bg-slate-500/10 text-slate-600 dark:text-slate-400"
+                              }`}
+                            >
+                              {isCustom ? `${coverage} Şube` : "Yerleşik"}
+                            </Badge>
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
+      {/* VIEW PANEL: ŞUBE ANALİZİ */}
+      {activeTab === "sube" && (
+        <Card className="border border-border/60 bg-card/65 backdrop-blur-md shadow-sm rounded-2xl">
+          <CardHeader className="py-4 border-b">
+            <div className="flex items-center gap-2">
+              <Building className="h-5 w-5 text-indigo-500" />
+              <div>
+                <CardTitle className="text-lg font-bold">
+                  Şube Detay Analizi
+                </CardTitle>
+                <CardDescription>
+                  Şube <strong>{currentBranchObject?.ad || "-"}</strong> bünyesindeki tüm firmaların ciro dağılımları.
+                </CardDescription>
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent className="p-5">
+            <div className="text-sm text-muted-foreground">
+              Analiz edilen şubeyi ve tarih periyodunu yukarıdaki sağ panelden değiştirebilirsiniz. Aşağıdaki tabloda şubeye ciro kaydetmiş olan tüm ortak ve şubeye özel firmaların dökümü yer almaktadır.
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* LOADING STATE FOR QUERIES */}
       {loading ? (
@@ -731,8 +951,7 @@ export default function PerformansAnaliziPage() {
       ) : (
         <>
           {/* KPI METRICS OVERVIEW */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 font-sans">
             {/* KPI 1: Toplam Ciro */}
             <Card className="relative overflow-hidden border border-border/60 bg-gradient-to-br from-indigo-50/40 via-card to-card dark:from-indigo-950/10 dark:via-card dark:to-card shadow-sm rounded-2xl">
               <CardHeader className="pb-2">
@@ -744,7 +963,7 @@ export default function PerformansAnaliziPage() {
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1">
                   <Clock className="h-3 w-3 shrink-0" />
-                  Seçilen filtrelerdeki genel toplam ciro.
+                  Seçilen filtrelere ait toplam ciro.
                 </p>
                 <div className="absolute right-4 bottom-4 h-12 w-12 text-indigo-200 dark:text-indigo-950/40">
                   <TrendingUp className="h-full w-full" />
@@ -752,21 +971,23 @@ export default function PerformansAnaliziPage() {
               </CardContent>
             </Card>
 
-            {/* KPI 2: En Yüksek Ciro Yapan Şube */}
+            {/* KPI 2: En Başarılı Eleman */}
             <Card className="relative overflow-hidden border border-border/60 bg-gradient-to-br from-emerald-50/40 via-card to-card dark:from-emerald-950/10 dark:via-card dark:to-card shadow-sm rounded-2xl">
               <CardHeader className="pb-2">
-                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">En Başarılı Şube</CardDescription>
+                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {activeTab === "firma" ? "En Başarılı Şube" : "En Başarılı Firma"}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
-                  {kpiData.topBranch.name}
+                  {kpiData.topElement.name}
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1.5">
                   <BadgePercent className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                  <span>{formatMoney(kpiData.topBranch.ciro)} TL (%{kpiData.topBranch.share.toFixed(1)}) pay.</span>
+                  <span>{formatMoney(kpiData.topElement.ciro)} TL (%{kpiData.topElement.share.toFixed(1)}) pay.</span>
                 </p>
                 <div className="absolute right-4 bottom-4 h-12 w-12 text-emerald-200 dark:text-emerald-950/40">
-                  <Building className="h-full w-full" />
+                  {activeTab === "firma" ? <Building className="h-full w-full" /> : <Target className="h-full w-full" />}
                 </div>
               </CardContent>
             </Card>
@@ -782,7 +1003,7 @@ export default function PerformansAnaliziPage() {
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1">
                   <ArrowLeftRight className="h-3 w-3 shrink-0" />
-                  İşlem gören takvim günlerinin günlük ciro ortalaması.
+                  Aktif olunan takvim günlerinin günlük ciro ortalaması.
                 </p>
                 <div className="absolute right-4 bottom-4 h-12 w-12 text-amber-200 dark:text-amber-950/40">
                   <Sparkles className="h-full w-full" />
@@ -790,21 +1011,23 @@ export default function PerformansAnaliziPage() {
               </CardContent>
             </Card>
 
-            {/* KPI 4: Aktif Şubeler */}
+            {/* KPI 4: Aktif Sayı */}
             <Card className="relative overflow-hidden border border-border/60 bg-gradient-to-br from-purple-50/40 via-card to-card dark:from-purple-950/10 dark:via-card dark:to-card shadow-sm rounded-2xl">
               <CardHeader className="pb-2">
-                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Aktif Şube Sayısı</CardDescription>
+                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {activeTab === "firma" ? "Aktif Şube Sayısı" : "Aktif Firma Sayısı"}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold tracking-tight text-purple-600 dark:text-purple-400 font-mono">
-                  {kpiData.activeBranchesCount} / {contextSubeler.length}
+                  {kpiData.activeElementsCount} / {activeTab === "firma" ? contextSubeler.length : availableCompanies.length}
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1">
                   <HelpCircle className="h-3 w-3 shrink-0" />
-                  Seçilen firmadan ciro bildiren şube sayısı.
+                  Ciro kaydı bulunan aktif elamanlar.
                 </p>
                 <div className="absolute right-4 bottom-4 h-12 w-12 text-purple-200 dark:text-purple-950/40">
-                  <PieIcon className="h-full w-full" />
+                  <Layers className="h-full w-full" />
                 </div>
               </CardContent>
             </Card>
@@ -813,29 +1036,33 @@ export default function PerformansAnaliziPage() {
           {/* VISUAL ANALYTICS SECTION (CHARTS) */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             
-            {/* Chart 1: Sube Comparison */}
+            {/* Chart 1: Distribution comparison */}
             <Card className="border border-border/60 bg-card/75 backdrop-blur-md shadow-sm rounded-2xl">
               <CardHeader className="pb-3 border-b">
                 <CardTitle className="text-base font-bold flex items-center gap-2">
-                  <Building className="h-4.5 w-4.5 text-indigo-500" />
-                  Şube Performans Dağılımı
+                  <PieIcon className="h-4.5 w-4.5 text-indigo-500" />
+                  {activeTab === "firma" ? "Şube Performans Dağılımı" : "Firma Ciro Dağılımı"}
                 </CardTitle>
-                <CardDescription>Şubelerin toplam cirodaki payları ve karşılaştırmaları.</CardDescription>
+                <CardDescription>
+                  {activeTab === "firma" 
+                    ? "Şubelerin toplam cirodaki payları ve karşılaştırmaları." 
+                    : `Şube ${currentBranchObject?.ad || ""} içerisindeki firmaların ciro dağılımları.`}
+                </CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
-                {chartsData.subesComparison.length === 0 ? (
+                {chartsData.comparison.length === 0 ? (
                   <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
                     Bu periyotta ciro kaydı bulunmamaktadır.
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
                     
-                    {/* Doughnut Chart */}
+                    {/* Doughnut Chart with transparent strokes */}
                     <div className="col-span-1 md:col-span-2 h-[260px] relative flex justify-center items-center">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie
-                            data={chartsData.subesComparison}
+                            data={chartsData.comparison}
                             dataKey="ciro"
                             nameKey="name"
                             cx="50%"
@@ -846,7 +1073,7 @@ export default function PerformansAnaliziPage() {
                             stroke="none"
                             animationDuration={800}
                           >
-                            {chartsData.subesComparison.map((entry, index) => {
+                            {chartsData.comparison.map((entry, index) => {
                               const colors = [
                                 "rgb(79, 70, 229)", // Indigo 600
                                 "rgb(16, 185, 129)", // Emerald 500
@@ -879,11 +1106,11 @@ export default function PerformansAnaliziPage() {
                       </div>
                     </div>
 
-                    {/* Side Bar Comparison Chart */}
+                    {/* Horizontal Bar Chart comparison */}
                     <div className="col-span-1 md:col-span-3 h-[280px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
-                          data={chartsData.subesComparison}
+                          data={chartsData.comparison}
                           layout="vertical"
                           margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
                         >
@@ -902,7 +1129,7 @@ export default function PerformansAnaliziPage() {
                             labelStyle={{ color: "var(--foreground)", fontWeight: "bold" }}
                           />
                           <Bar dataKey="ciro" radius={[0, 8, 8, 0]} animationDuration={800}>
-                            {chartsData.subesComparison.map((entry, index) => {
+                            {chartsData.comparison.map((entry, index) => {
                               const colors = [
                                 "rgb(79, 70, 229)", // Indigo 600
                                 "rgb(16, 185, 129)", // Emerald 500
@@ -925,7 +1152,7 @@ export default function PerformansAnaliziPage() {
               </CardContent>
             </Card>
 
-            {/* Chart 2: Monthly Trend */}
+            {/* Chart 2: Zaman Serisi Trendi */}
             <Card className="border border-border/60 bg-card/75 backdrop-blur-md shadow-sm rounded-2xl">
               <CardHeader className="pb-3 border-b">
                 <CardTitle className="text-base font-bold flex items-center gap-2">
@@ -933,19 +1160,23 @@ export default function PerformansAnaliziPage() {
                   Ciro Trendi (Zaman Serisi)
                 </CardTitle>
                 <CardDescription>
-                  {selectedSubeId === "all" ? "Tüm şubelerin aylık ciro kırılımı." : `Şube ${contextSubeler.find(s => s.id === selectedSubeId)?.ad || ""} aylık ciro kırılımı.`}
+                  {activeTab === "firma" ? (
+                    selectedSubeId === "all" ? `Tüm şubelerin ${isDailyTrend ? "günlük" : "aylık"} ciro kırılımı.` : `Şube ${contextSubeler.find(s => s.id === selectedSubeId)?.ad || ""} ${isDailyTrend ? "günlük" : "aylık"} ciro kırılımı.`
+                  ) : (
+                    `Şube ${currentBranchObject?.ad || ""} ${isDailyTrend ? "günlük" : "aylık"} genel ciro kırılımı.`
+                  )}
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
-                {chartsData.monthlyTrend.length === 0 ? (
+                {chartsData.trend.length === 0 ? (
                   <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
-                    Bu periyotta trend oluşturacak veri bulunmamaktadır.
+                    Bu periyotta ciro trendi oluşturacak veri bulunmamaktadır.
                   </div>
                 ) : (
                   <div className="h-[280px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart
-                        data={chartsData.monthlyTrend}
+                        data={chartsData.trend}
                         margin={{ top: 10, right: 10, left: 10, bottom: 5 }}
                       >
                         <defs>
@@ -986,157 +1217,316 @@ export default function PerformansAnaliziPage() {
 
           </div>
 
-          {/* DETAILED ANALYSIS TABLE CARD */}
-          <Card className="border border-border/60 bg-card/65 backdrop-blur-md shadow-sm rounded-2xl">
-            <CardHeader className="pb-3 border-b">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <BarChart3 className="h-4.5 w-4.5 text-indigo-500" />
-                Şube Bazlı Detay Raporu
-              </CardTitle>
-              <CardDescription>
-                Şubelerin ciro oranları, günlük ortalamalar ve takvim günü bazlı kırılımları. Satırlara tıklayarak vardiya detaylarını inceleyebilirsiniz.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b bg-muted/30 text-xs font-semibold text-muted-foreground uppercase">
-                      <th className="p-4 w-12">Detay</th>
-                      <th className="p-4">Şube Adı</th>
-                      <th className="p-4 text-right">Toplam Ciro</th>
-                      <th className="p-4 text-center max-w-[140px] hidden sm:table-cell">Ciro Dağılımı</th>
-                      <th className="p-4 text-right hidden md:table-cell">Günlük Ortalama</th>
-                      <th className="p-4 text-right hidden sm:table-cell">Gün Sayısı</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y text-sm">
-                    {filteredAnalyticsData
-                      .sort((a, b) => b.totalCiro - a.totalCiro)
-                      .map((row) => {
-                        const hasCiro = row.totalCiro > 0
-                        const sharePercent = kpiData.totalCiro > 0 ? (row.totalCiro / kpiData.totalCiro) * 100 : 0
-                        const isExpanded = expandedSubeId === row.subeId
+          {/* DETAILED SUMMARY TABLE CARD: FIRMA ODAKLI GÖRÜNÜM */}
+          {activeTab === "firma" && (
+            <Card className="border border-border/60 bg-card/65 backdrop-blur-md shadow-sm rounded-2xl">
+              <CardHeader className="pb-3 border-b">
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <BarChart3 className="h-4.5 w-4.5 text-indigo-500" />
+                  Şube Bazlı Detay Raporu
+                </CardTitle>
+                <CardDescription>
+                  Şubelerin ciro oranları, günlük ortalamalar ve takvim günü bazlı kırılımları. Satırlara tıklayarak vardiya detaylarını inceleyebilirsiniz.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b bg-muted/30 text-xs font-semibold text-muted-foreground uppercase">
+                        <th className="p-4 w-12">Detay</th>
+                        <th className="p-4">Şube Adı</th>
+                        <th className="p-4 text-right">Toplam Ciro</th>
+                        <th className="p-4 text-center max-w-[140px] hidden sm:table-cell">Ciro Dağılımı</th>
+                        <th className="p-4 text-right hidden md:table-cell">Günlük Ortalama</th>
+                        <th className="p-4 text-right hidden sm:table-cell">Gün Sayısı</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y text-sm">
+                      {filteredFirmaAnalytics
+                        .sort((a, b) => b.totalCiro - a.totalCiro)
+                        .map((row) => {
+                          const hasCiro = row.totalCiro > 0
+                          const sharePercent = kpiData.totalCiro > 0 ? (row.totalCiro / kpiData.totalCiro) * 100 : 0
+                          const isExpanded = expandedSubeId === row.subeId
 
-                        return (
-                          <Fragment key={row.subeId}>
-                            {/* Main Row */}
-                            <tr
-                              key={row.subeId}
-                              onClick={() => hasCiro && setExpandedSubeId(isExpanded ? null : row.subeId)}
-                              className={`hover:bg-muted/30 transition-colors cursor-pointer ${
-                                isExpanded ? "bg-muted/15 font-semibold" : ""
-                              } ${!hasCiro ? "opacity-60 cursor-not-allowed" : ""}`}
-                            >
-                              <td className="p-4 text-center">
-                                {hasCiro && (
-                                  <ChevronRight
-                                    className={`h-4.5 w-4.5 text-muted-foreground transition-transform duration-300 ${
-                                      isExpanded ? "rotate-90 text-indigo-500" : ""
-                                    }`}
-                                  />
-                                )}
-                              </td>
-                              <td className="p-4">
-                                <div className="font-semibold text-foreground">Şube {row.subeAd}</div>
-                                <div className="text-[11px] text-muted-foreground font-mono">KOD: {row.subeKod}</div>
-                              </td>
-                              <td className="p-4 text-right font-bold text-foreground">
-                                {formatMoney(row.totalCiro)} TL
-                              </td>
-                              {/* Progress bar column */}
-                              <td className="p-4 hidden sm:table-cell text-center">
-                                <div className="flex items-center justify-center gap-3">
-                                  <Progress value={sharePercent} className="h-2 w-24 bg-muted shrink-0" />
-                                  <span className="text-xs text-muted-foreground font-mono font-bold w-12 text-left">
-                                    %{sharePercent.toFixed(1)}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="p-4 text-right font-mono text-foreground hidden md:table-cell">
-                                {formatMoney(row.averageDailyCiro)} TL
-                              </td>
-                              {/* Clarified Calendar Days and Shifts count */}
-                              <td className="p-4 text-right hidden sm:table-cell">
-                                <div className="font-bold text-foreground">{row.uniqueDaysCount} Gün</div>
-                                <div className="text-[10px] text-muted-foreground font-medium">{row.recordCount} Vardiya</div>
-                              </td>
-                            </tr>
-
-                            {/* Expanded Accordion Row for Monthly Breakdown */}
-                            {isExpanded && hasCiro && (
-                              <tr key={`${row.subeId}-expanded`} className="bg-muted/10 border-b">
-                                <td colSpan={6} className="p-4 sm:px-8">
-                                  <div className="space-y-3 p-4 bg-background/55 border rounded-2xl animate-in slide-in-from-top-4 duration-300 shadow-inner">
-                                    <div className="text-xs font-bold text-indigo-500 uppercase tracking-wider flex items-center gap-1.5">
-                                      <TrendingUp className="h-4 w-4" />
-                                      Şube {row.subeAd} - Aylık Ciro Kırılımı
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                                      
-                                      {/* Monthly breakdown mini-table */}
-                                      <div className="border rounded-xl bg-card overflow-hidden shadow-sm">
-                                        <table className="w-full text-xs">
-                                          <thead>
-                                            <tr className="border-b bg-muted/40 font-semibold text-muted-foreground uppercase">
-                                              <th className="p-2.5">Ay</th>
-                                              <th className="p-2.5 text-right">Ciro</th>
-                                              <th className="p-2.5 text-right">Gün (Vardiya) Sayısı</th>
-                                            </tr>
-                                          </thead>
-                                          <tbody className="divide-y">
-                                            {row.monthlyBreakdown.map((m) => (
-                                              <tr key={m.monthSortKey} className="hover:bg-muted/10">
-                                                <td className="p-2.5 font-medium">{m.monthLabel}</td>
-                                                <td className="p-2.5 text-right font-bold text-foreground">
-                                                  {formatMoney(m.ciro)} TL
-                                                </td>
-                                                <td className="p-2.5 text-right font-medium">
-                                                  <span className="text-foreground font-bold">{m.uniqueDaysCount} Gün</span>
-                                                  <span className="text-muted-foreground text-[10px] ml-1">({m.recordCount} Vardiya)</span>
-                                                </td>
-                                              </tr>
-                                            ))}
-                                          </tbody>
-                                        </table>
-                                      </div>
-
-                                      {/* Mini charts trend for branch */}
-                                      <div className="h-[140px] w-full">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                          <BarChart data={row.monthlyBreakdown}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.06)" />
-                                            <XAxis dataKey="monthLabel" fontSize={8} tickLine={false} />
-                                            <YAxis fontSize={8} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} width={24} />
-                                            <Tooltip
-                                              formatter={(value: number) => [`${formatMoney(value)} TL`, "Ciro"]}
-                                              contentStyle={{
-                                                backgroundColor: "var(--card)",
-                                                borderColor: "var(--border)",
-                                                color: "var(--foreground)",
-                                                borderRadius: "8px",
-                                                fontSize: "10px"
-                                              }}
-                                              labelStyle={{ color: "var(--foreground)", fontWeight: "bold" }}
-                                            />
-                                            <Bar dataKey="ciro" fill="rgb(99, 102, 241)" fillOpacity={0.8} radius={[4, 4, 0, 0]} />
-                                          </BarChart>
-                                        </ResponsiveContainer>
-                                      </div>
-
-                                    </div>
+                          return (
+                            <Fragment key={row.subeId}>
+                              {/* Main Row */}
+                              <tr
+                                onClick={() => hasCiro && setExpandedSubeId(isExpanded ? null : row.subeId)}
+                                className={`hover:bg-muted/30 transition-colors cursor-pointer ${
+                                  isExpanded ? "bg-muted/15 font-semibold" : ""
+                                } ${!hasCiro ? "opacity-60 cursor-not-allowed" : ""}`}
+                              >
+                                <td className="p-4 text-center">
+                                  {hasCiro && (
+                                    <ChevronRight
+                                      className={`h-4.5 w-4.5 text-muted-foreground transition-transform duration-300 ${
+                                        isExpanded ? "rotate-90 text-indigo-500" : ""
+                                      }`}
+                                    />
+                                  )}
+                                </td>
+                                <td className="p-4">
+                                  <div className="font-semibold text-foreground">Şube {row.subeAd}</div>
+                                  {/* Subtitle removed as requested: no KOD subtitle shown anymore */}
+                                </td>
+                                <td className="p-4 text-right font-bold text-foreground">
+                                  {formatMoney(row.totalCiro)} TL
+                                </td>
+                                {/* Centered Progress Bar */}
+                                <td className="p-4 hidden sm:table-cell text-center">
+                                  <div className="flex items-center justify-center gap-3">
+                                    <Progress value={sharePercent} className="h-2 w-24 bg-muted shrink-0" />
+                                    <span className="text-xs text-muted-foreground font-mono font-bold w-12 text-left">
+                                      %{sharePercent.toFixed(1)}
+                                    </span>
                                   </div>
                                 </td>
+                                <td className="p-4 text-right font-mono text-foreground hidden md:table-cell">
+                                  {formatMoney(row.averageDailyCiro)} TL
+                                </td>
+                                <td className="p-4 text-right hidden sm:table-cell">
+                                  <div className="font-bold text-foreground">{row.uniqueDaysCount} Gün</div>
+                                  <div className="text-[10px] text-muted-foreground font-medium">{row.recordCount} Vardiya</div>
+                                </td>
                               </tr>
-                            )}
-                          </Fragment>
-                        )
-                      })}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+
+                              {/* Expanded Accordion Row for Monthly Breakdown */}
+                              {isExpanded && hasCiro && (
+                                <tr className="bg-muted/10 border-b">
+                                  <td colSpan={6} className="p-4 sm:px-8">
+                                    <div className="space-y-3 p-4 bg-background/55 border rounded-2xl animate-in slide-in-from-top-4 duration-300 shadow-inner">
+                                      <div className="text-xs font-bold text-indigo-500 uppercase tracking-wider flex items-center gap-1.5">
+                                        <TrendingUp className="h-4 w-4" />
+                                        Şube {row.subeAd} - Aylık Ciro Kırılımı
+                                      </div>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                                        
+                                        <div className="border rounded-xl bg-card overflow-hidden shadow-sm">
+                                          <table className="w-full text-xs">
+                                            <thead>
+                                              <tr className="border-b bg-muted/40 font-semibold text-muted-foreground uppercase">
+                                                <th className="p-2.5">Ay</th>
+                                                <th className="p-2.5 text-right">Ciro</th>
+                                                <th className="p-2.5 text-right">Gün (Vardiya) Sayısı</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody className="divide-y">
+                                              {row.monthlyBreakdown.map((m) => (
+                                                <tr key={m.monthSortKey} className="hover:bg-muted/10">
+                                                  <td className="p-2.5 font-medium">{m.monthLabel}</td>
+                                                  <td className="p-2.5 text-right font-bold text-foreground">
+                                                    {formatMoney(m.ciro)} TL
+                                                  </td>
+                                                  <td className="p-2.5 text-right font-medium">
+                                                    <span className="text-foreground font-bold">{m.uniqueDaysCount} Gün</span>
+                                                    <span className="text-muted-foreground text-[10px] ml-1">({m.recordCount} Vardiya)</span>
+                                                  </td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+
+                                        <div className="h-[140px] w-full">
+                                          <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={row.monthlyBreakdown}>
+                                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.06)" />
+                                              <XAxis dataKey="monthLabel" fontSize={8} tickLine={false} />
+                                              <YAxis fontSize={8} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} width={24} />
+                                              <Tooltip
+                                                formatter={(value: number) => [`${formatMoney(value)} TL`, "Ciro"]}
+                                                contentStyle={{
+                                                  backgroundColor: "var(--card)",
+                                                  borderColor: "var(--border)",
+                                                  color: "var(--foreground)",
+                                                  borderRadius: "8px",
+                                                  fontSize: "10px"
+                                                }}
+                                                labelStyle={{ color: "var(--foreground)", fontWeight: "bold" }}
+                                              />
+                                              <Bar dataKey="ciro" fill="rgb(99, 102, 241)" fillOpacity={0.8} radius={[4, 4, 0, 0]} />
+                                            </BarChart>
+                                          </ResponsiveContainer>
+                                        </div>
+
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          )
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* DETAILED SUMMARY TABLE CARD: ŞUBE ODAKLI GÖRÜNÜM */}
+          {activeTab === "sube" && (
+            <Card className="border border-border/60 bg-card/65 backdrop-blur-md shadow-sm rounded-2xl">
+              <CardHeader className="pb-3 border-b">
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <BarChart3 className="h-4.5 w-4.5 text-indigo-500" />
+                  Firma Bazlı Ciro Dağılımı (Şube: {currentBranchObject?.ad || "-"})
+                </CardTitle>
+                <CardDescription>
+                  Seçilen şubedeki firmaların toplam ve günlük ortalama ciroları. Satırlara tıklayarak aylık kırılım geçmişini inceleyebilirsiniz.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b bg-muted/30 text-xs font-semibold text-muted-foreground uppercase">
+                        <th className="p-4 w-12">Detay</th>
+                        <th className="p-4">Firma Adı</th>
+                        <th className="p-4">Türü</th>
+                        <th className="p-4 text-right">Toplam Ciro</th>
+                        <th className="p-4 text-center max-w-[140px] hidden sm:table-cell">Ciro Dağılımı</th>
+                        <th className="p-4 text-right hidden md:table-cell">Günlük Ortalama</th>
+                        <th className="p-4 text-right hidden sm:table-cell">Gün Sayısı</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y text-sm">
+                      {subeAnalyticsData
+                        .sort((a, b) => b.totalCiro - a.totalCiro)
+                        .map((row) => {
+                          const hasCiro = row.totalCiro > 0
+                          const sharePercent = kpiData.totalCiro > 0 ? (row.totalCiro / kpiData.totalCiro) * 100 : 0
+                          const isExpanded = expandedCompanyKey === row.companyKey
+
+                          return (
+                            <Fragment key={row.companyKey}>
+                              {/* Main Row */}
+                              <tr
+                                onClick={() => hasCiro && setExpandedCompanyKey(isExpanded ? null : row.companyKey)}
+                                className={`hover:bg-muted/30 transition-colors cursor-pointer ${
+                                  isExpanded ? "bg-muted/15 font-semibold" : ""
+                                }`}
+                              >
+                                <td className="p-4 text-center">
+                                  {hasCiro && (
+                                    <ChevronRight
+                                      className={`h-4.5 w-4.5 text-muted-foreground transition-transform duration-300 ${
+                                        isExpanded ? "rotate-90 text-indigo-500" : ""
+                                      }`}
+                                    />
+                                  )}
+                                </td>
+                                <td className="p-4 font-semibold text-foreground">
+                                  {row.companyLabel}
+                                </td>
+                                <td className="p-4">
+                                  {row.isShared ? (
+                                    <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-none font-bold">
+                                      Ortak Firma
+                                    </Badge>
+                                  ) : (
+                                    <Badge className="bg-slate-500/10 text-slate-600 dark:text-slate-400 border-none font-bold">
+                                      Özel Firma
+                                    </Badge>
+                                  )}
+                                </td>
+                                <td className="p-4 text-right font-bold text-foreground">
+                                  {formatMoney(row.totalCiro)} TL
+                                </td>
+                                {/* Centered Progress Bar */}
+                                <td className="p-4 hidden sm:table-cell text-center">
+                                  <div className="flex items-center justify-center gap-3">
+                                    <Progress value={sharePercent} className="h-2 w-24 bg-muted shrink-0" />
+                                    <span className="text-xs text-muted-foreground font-mono font-bold w-12 text-left">
+                                      %{sharePercent.toFixed(1)}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="p-4 text-right font-mono text-foreground hidden md:table-cell">
+                                  {formatMoney(row.averageDailyCiro)} TL
+                                </td>
+                                <td className="p-4 text-right hidden sm:table-cell">
+                                  <div className="font-bold text-foreground">{row.uniqueDaysCount} Gün</div>
+                                  <div className="text-[10px] text-muted-foreground font-medium">{row.recordCount} Vardiya</div>
+                                </td>
+                              </tr>
+
+                              {/* Expanded Accordion Row for Monthly Breakdown */}
+                              {isExpanded && hasCiro && (
+                                <tr className="bg-muted/10 border-b">
+                                  <td colSpan={7} className="p-4 sm:px-8">
+                                    <div className="space-y-3 p-4 bg-background/55 border rounded-2xl animate-in slide-in-from-top-4 duration-300 shadow-inner">
+                                      <div className="text-xs font-bold text-indigo-500 uppercase tracking-wider flex items-center gap-1.5">
+                                        <TrendingUp className="h-4 w-4" />
+                                        {row.companyLabel} - Aylık Ciro Kırılımı
+                                      </div>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                                        
+                                        <div className="border rounded-xl bg-card overflow-hidden shadow-sm">
+                                          <table className="w-full text-xs">
+                                            <thead>
+                                              <tr className="border-b bg-muted/40 font-semibold text-muted-foreground uppercase">
+                                                <th className="p-2.5">Ay</th>
+                                                <th className="p-2.5 text-right">Ciro</th>
+                                                <th className="p-2.5 text-right">Gün (Vardiya) Sayısı</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody className="divide-y">
+                                              {row.monthlyBreakdown.map((m) => (
+                                                <tr key={m.monthSortKey} className="hover:bg-muted/10">
+                                                  <td className="p-2.5 font-medium">{m.monthLabel}</td>
+                                                  <td className="p-2.5 text-right font-bold text-foreground">
+                                                    {formatMoney(m.ciro)} TL
+                                                  </td>
+                                                  <td className="p-2.5 text-right font-medium">
+                                                    <span className="text-foreground font-bold">{m.uniqueDaysCount} Gün</span>
+                                                    <span className="text-muted-foreground text-[10px] ml-1">({m.recordCount} Vardiya)</span>
+                                                  </td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+
+                                        <div className="h-[140px] w-full">
+                                          <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={row.monthlyBreakdown}>
+                                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.06)" />
+                                              <XAxis dataKey="monthLabel" fontSize={8} tickLine={false} />
+                                              <YAxis fontSize={8} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} width={24} />
+                                              <Tooltip
+                                                formatter={(value: number) => [`${formatMoney(value)} TL`, "Ciro"]}
+                                                contentStyle={{
+                                                  backgroundColor: "var(--card)",
+                                                  borderColor: "var(--border)",
+                                                  color: "var(--foreground)",
+                                                  borderRadius: "8px",
+                                                  fontSize: "10px"
+                                                }}
+                                                labelStyle={{ color: "var(--foreground)", fontWeight: "bold" }}
+                                              />
+                                              <Bar dataKey="ciro" fill="rgb(99, 102, 241)" fillOpacity={0.8} radius={[4, 4, 0, 0]} />
+                                            </BarChart>
+                                          </ResponsiveContainer>
+                                        </div>
+
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          )
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
 
