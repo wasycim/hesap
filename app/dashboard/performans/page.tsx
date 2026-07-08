@@ -1107,6 +1107,7 @@ export default function PerformansAnaliziPage() {
                               boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)"
                             }}
                             labelStyle={{ color: "var(--foreground)", fontWeight: "bold" }}
+                            itemStyle={{ color: "var(--foreground)" }}
                           />
                         </PieChart>
                       </ResponsiveContainer>
@@ -1137,6 +1138,7 @@ export default function PerformansAnaliziPage() {
                               boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)"
                             }}
                             labelStyle={{ color: "var(--foreground)", fontWeight: "bold" }}
+                            itemStyle={{ color: "var(--foreground)" }}
                           />
                           <Bar dataKey="ciro" radius={[0, 8, 8, 0]} animationDuration={800}>
                             {chartsData.comparison.map((entry, index) => {
@@ -1208,6 +1210,7 @@ export default function PerformansAnaliziPage() {
                             boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)"
                           }}
                           labelStyle={{ color: "var(--foreground)", fontWeight: "bold" }}
+                          itemStyle={{ color: "var(--foreground)" }}
                         />
                         <Area 
                           type="monotone" 
@@ -1356,6 +1359,7 @@ export default function PerformansAnaliziPage() {
                                                   fontSize: "10px"
                                                 }}
                                                 labelStyle={{ color: "var(--foreground)", fontWeight: "bold" }}
+                                                itemStyle={{ color: "var(--foreground)" }}
                                               />
                                               <Bar dataKey="ciro" fill="rgb(99, 102, 241)" fillOpacity={0.8} radius={[4, 4, 0, 0]} />
                                             </BarChart>
@@ -1517,6 +1521,7 @@ export default function PerformansAnaliziPage() {
                                                   fontSize: "10px"
                                                 }}
                                                 labelStyle={{ color: "var(--foreground)", fontWeight: "bold" }}
+                                                itemStyle={{ color: "var(--foreground)" }}
                                               />
                                               <Bar dataKey="ciro" fill="rgb(99, 102, 241)" fillOpacity={0.8} radius={[4, 4, 0, 0]} />
                                             </BarChart>
