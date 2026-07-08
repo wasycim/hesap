@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { Fragment, useEffect, useMemo, useState } from "react"
 import { 
   BarChart3, 
   CalendarDays, 
@@ -862,7 +862,14 @@ export default function PerformansAnaliziPage() {
                           </Pie>
                           <Tooltip
                             formatter={(value: number) => [`${formatMoney(value)} TL`, "Ciro"]}
-                            contentStyle={{ borderRadius: "12px", border: "1px solid var(--border)", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)" }}
+                            contentStyle={{
+                              backgroundColor: "var(--card)",
+                              borderColor: "var(--border)",
+                              color: "var(--foreground)",
+                              borderRadius: "12px",
+                              boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)"
+                            }}
+                            labelStyle={{ color: "var(--foreground)", fontWeight: "bold" }}
                           />
                         </PieChart>
                       </ResponsiveContainer>
@@ -885,7 +892,14 @@ export default function PerformansAnaliziPage() {
                           <YAxis dataKey="name" type="category" width={65} fontSize={10} stroke="rgba(128,128,128,0.4)" />
                           <Tooltip
                             formatter={(value: number) => [`${formatMoney(value)} TL`, "Ciro"]}
-                            contentStyle={{ borderRadius: "12px", border: "1px solid var(--border)" }}
+                            contentStyle={{
+                              backgroundColor: "var(--card)",
+                              borderColor: "var(--border)",
+                              color: "var(--foreground)",
+                              borderRadius: "12px",
+                              boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)"
+                            }}
+                            labelStyle={{ color: "var(--foreground)", fontWeight: "bold" }}
                           />
                           <Bar dataKey="ciro" radius={[0, 8, 8, 0]} animationDuration={800}>
                             {chartsData.subesComparison.map((entry, index) => {
@@ -945,7 +959,14 @@ export default function PerformansAnaliziPage() {
                         <YAxis tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} fontSize={10} stroke="rgba(128,128,128,0.4)" />
                         <Tooltip
                           formatter={(value: number) => [`${formatMoney(value)} TL`, "Toplam Ciro"]}
-                          contentStyle={{ borderRadius: "12px", border: "1px solid var(--border)", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)" }}
+                          contentStyle={{
+                            backgroundColor: "var(--card)",
+                            borderColor: "var(--border)",
+                            color: "var(--foreground)",
+                            borderRadius: "12px",
+                            boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)"
+                          }}
+                          labelStyle={{ color: "var(--foreground)", fontWeight: "bold" }}
                         />
                         <Area 
                           type="monotone" 
@@ -998,7 +1019,7 @@ export default function PerformansAnaliziPage() {
                         const isExpanded = expandedSubeId === row.subeId
 
                         return (
-                          <>
+                          <Fragment key={row.subeId}>
                             {/* Main Row */}
                             <tr
                               key={row.subeId}
@@ -1089,7 +1110,14 @@ export default function PerformansAnaliziPage() {
                                             <YAxis fontSize={8} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} width={24} />
                                             <Tooltip
                                               formatter={(value: number) => [`${formatMoney(value)} TL`, "Ciro"]}
-                                              contentStyle={{ fontSize: "10px", borderRadius: "8px" }}
+                                              contentStyle={{
+                                                backgroundColor: "var(--card)",
+                                                borderColor: "var(--border)",
+                                                color: "var(--foreground)",
+                                                borderRadius: "8px",
+                                                fontSize: "10px"
+                                              }}
+                                              labelStyle={{ color: "var(--foreground)", fontWeight: "bold" }}
                                             />
                                             <Bar dataKey="ciro" fill="rgb(99, 102, 241)" fillOpacity={0.8} radius={[4, 4, 0, 0]} />
                                           </BarChart>
@@ -1101,7 +1129,7 @@ export default function PerformansAnaliziPage() {
                                 </td>
                               </tr>
                             )}
-                          </>
+                          </Fragment>
                         )
                       })}
                   </tbody>
