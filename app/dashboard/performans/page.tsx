@@ -229,24 +229,14 @@ export default function PerformansAnaliziPage() {
     }
   }
 
-  // Check if current selected branch has Morning/Evening shifts in records
-  const branchHasShifts = useMemo(() => {
-    const activeSubeId = selectedSubeId === "all" ? null : selectedSubeId
-    const targetRecords = activeSubeId ? records.filter(r => r.sube_id === activeSubeId) : records
-    return targetRecords.some(r => r.vardiya === "Sabah" || r.vardiya === "Akşam")
-  }, [records, selectedSubeId])
-
-  // Automatically reset selectedVardiya to "all" if branch has no shifts
-  useEffect(() => {
-    if (!branchHasShifts && selectedVardiya !== "all") {
-      setSelectedVardiya("all")
-    }
-  }, [branchHasShifts, selectedVardiya])
-
   // Filtered records by selected shift (vardiya)
   const filteredRecords = useMemo(() => {
     if (selectedVardiya === "all") return records
-    return records.filter(r => r.vardiya === selectedVardiya)
+    return records.filter(r => {
+      // Vardiyasız (tek vardiya) kayıtlar hem sabah hem akşam seçimlerinde filtrelenmeden listelenir
+      if (!r.vardiya) return true
+      return r.vardiya === selectedVardiya
+    })
   }, [records, selectedVardiya])
 
   // 1. Compute list of all available companies (built-in + grouped custom ones)
@@ -797,29 +787,21 @@ export default function PerformansAnaliziPage() {
             </Select>
           )}
 
-          {/* Shift (Vardiya) Selector with smart autoselect */}
-          <div className="flex items-center gap-1.5">
-            <Select 
-              disabled={!branchHasShifts} 
-              value={selectedVardiya} 
-              onValueChange={setSelectedVardiya}
-            >
-              <SelectTrigger className="w-[150px] h-11 rounded-xl bg-card border shadow-sm">
-                <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
-                <SelectValue placeholder="Vardiya" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tüm Vardiyalar</SelectItem>
-                <SelectItem value="Sabah">Sabah</SelectItem>
-                <SelectItem value="Akşam">Akşam</SelectItem>
-              </SelectContent>
-            </Select>
-            {!branchHasShifts && selectedSubeId !== "all" && (
-              <Badge variant="outline" className="h-9 px-2.5 text-[10px] border-amber-500/20 text-amber-600 dark:text-amber-400 bg-amber-500/5 rounded-lg flex items-center justify-center font-bold tracking-wider uppercase">
-                Tek Vardiya
-              </Badge>
-            )}
-          </div>
+          {/* Shift (Vardiya) Selector */}
+          <Select 
+            value={selectedVardiya} 
+            onValueChange={setSelectedVardiya}
+          >
+            <SelectTrigger className="w-[150px] h-11 rounded-xl bg-card border shadow-sm">
+              <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+              <SelectValue placeholder="Vardiya" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tüm Vardiyalar</SelectItem>
+              <SelectItem value="Sabah">Sabah</SelectItem>
+              <SelectItem value="Akşam">Akşam</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
