@@ -43,7 +43,8 @@ import {
   PieChart,
   Pie,
   AreaChart,
-  Area
+  Area,
+  Legend
 } from "recharts"
 
 interface DbFirma {
@@ -51,6 +52,7 @@ interface DbFirma {
   sube_id: string
   ad: string
   color: string
+  komisyon_orani: number | null
 }
 
 interface GelirRecord {
@@ -74,19 +76,20 @@ interface CompanyOption {
   color: string
   text: string
   isShared: boolean // Whether it is classified as one of the main shared/common firms
-  mappings?: { sube_id: string; id: string }[] // For custom firms
+  komisyonOrani?: number
+  mappings?: { sube_id: string; id: string; komisyon_orani: number | null }[] // For custom firms
 }
 
 type PeriodPreset = "bu_ay" | "gecen_ay" | "son_3_ay" | "son_6_ay" | "bu_yil" | "custom"
 
 const BUILTIN_FIRMALAR: Omit<CompanyOption, "isShared">[] = [
-  { key: "pamukkale_turizm", label: "Pamukkale Turizm", type: "builtin", color: "bg-red-500", text: "text-white" },
-  { key: "anadolu_ulasim", label: "Anadolu Ulaşım", type: "builtin", color: "bg-blue-600", text: "text-white" },
-  { key: "inegol_seyahat", label: "İnegöl Seyahat", type: "builtin", color: "bg-orange-500", text: "text-white" },
-  { key: "alasehir_turizm", label: "Alaşehir Turizm", type: "builtin", color: "bg-yellow-500", text: "text-yellow-950" },
-  { key: "unlu_2", label: "Ünlü", type: "builtin", color: "bg-cyan-600", text: "text-white" },
-  { key: "pamukkale_kargo", label: "Pamukkale Kargo", type: "builtin", color: "bg-rose-500", text: "text-white" },
-  { key: "diger_komisyon", label: "Diğer Komisyon", type: "builtin", color: "bg-slate-500", text: "text-white" },
+  { key: "pamukkale_turizm", label: "Pamukkale Turizm", type: "builtin", color: "bg-red-500", text: "text-white", komisyonOrani: 5 },
+  { key: "anadolu_ulasim", label: "Anadolu Ulaşım", type: "builtin", color: "bg-blue-600", text: "text-white", komisyonOrani: 5 },
+  { key: "inegol_seyahat", label: "İnegöl Seyahat", type: "builtin", color: "bg-orange-500", text: "text-white", komisyonOrani: 5 },
+  { key: "alasehir_turizm", label: "Alaşehir Turizm", type: "builtin", color: "bg-yellow-500", text: "text-yellow-950", komisyonOrani: 20 },
+  { key: "unlu_2", label: "Ünlü", type: "builtin", color: "bg-cyan-600", text: "text-white", komisyonOrani: 20 },
+  { key: "pamukkale_kargo", label: "Pamukkale Kargo", type: "builtin", color: "bg-rose-500", text: "text-white", komisyonOrani: 10 },
+  { key: "diger_komisyon", label: "Diğer Komisyon", type: "builtin", color: "bg-slate-500", text: "text-white", komisyonOrani: 100 },
 ]
 
 const MAIN_SHARED_KEYS = new Set(["pamukkale_turizm", "anadolu_ulasim", "inegol_seyahat"])
@@ -118,6 +121,7 @@ export default function PerformansAnaliziPage() {
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState(today)
   const [selectedSubeId, setSelectedSubeId] = useState<string>("all")
+  const [selectedVardiya, setSelectedVardiya] = useState<string>("all")
   const [selectedCompanyKey, setSelectedCompanyKey] = useState<string>("pamukkale_turizm")
   const [dbFirmalar, setDbFirmalar] = useState<DbFirma[]>([])
   const [records, setRecords] = useState<GelirRecord[]>([])
@@ -176,10 +180,10 @@ export default function PerformansAnaliziPage() {
   async function loadData() {
     setLoading(true)
     try {
-      // 1. Fetch active custom firms from database
+      // 1. Fetch active custom firms from database (with commission rates)
       const { data: dbFirmsRes, error: dbFirmsError } = await supabase
         .from("gelir_firmalar")
-        .select("id, sube_id, ad, color")
+        .select("id, sube_id, ad, color, komisyon_orani")
         .eq("aktif", true)
         .order("sira", { ascending: true })
 
@@ -225,6 +229,26 @@ export default function PerformansAnaliziPage() {
     }
   }
 
+  // Check if current selected branch has Morning/Evening shifts in records
+  const branchHasShifts = useMemo(() => {
+    const activeSubeId = selectedSubeId === "all" ? null : selectedSubeId
+    const targetRecords = activeSubeId ? records.filter(r => r.sube_id === activeSubeId) : records
+    return targetRecords.some(r => r.vardiya === "Sabah" || r.vardiya === "Akşam")
+  }, [records, selectedSubeId])
+
+  // Automatically reset selectedVardiya to "all" if branch has no shifts
+  useEffect(() => {
+    if (!branchHasShifts && selectedVardiya !== "all") {
+      setSelectedVardiya("all")
+    }
+  }, [branchHasShifts, selectedVardiya])
+
+  // Filtered records by selected shift (vardiya)
+  const filteredRecords = useMemo(() => {
+    if (selectedVardiya === "all") return records
+    return records.filter(r => r.vardiya === selectedVardiya)
+  }, [records, selectedVardiya])
+
   // 1. Compute list of all available companies (built-in + grouped custom ones)
   const availableCompanies = useMemo(() => {
     const list: CompanyOption[] = BUILTIN_FIRMALAR.map(c => ({
@@ -232,7 +256,7 @@ export default function PerformansAnaliziPage() {
       isShared: MAIN_SHARED_KEYS.has(c.key)
     }))
 
-    const customGroups = new Map<string, { label: string; mappings: { sube_id: string; id: string }[]; color: string }>()
+    const customGroups = new Map<string, { label: string; mappings: { sube_id: string; id: string; komisyon_orani: number | null }[]; color: string }>()
 
     dbFirmalar.forEach((firm) => {
       const normalized = normalizeFirmaName(firm.ad)
@@ -243,11 +267,11 @@ export default function PerformansAnaliziPage() {
 
       const existing = customGroups.get(normalized)
       if (existing) {
-        existing.mappings.push({ sube_id: firm.sube_id, id: firm.id })
+        existing.mappings.push({ sube_id: firm.sube_id, id: firm.id, komisyon_orani: firm.komisyon_orani })
       } else {
         customGroups.set(normalized, {
           label: firm.ad,
-          mappings: [{ sube_id: firm.sube_id, id: firm.id }],
+          mappings: [{ sube_id: firm.sube_id, id: firm.id, komisyon_orani: firm.komisyon_orani }],
           color: firm.color || "bg-indigo-500"
         })
       }
@@ -300,6 +324,26 @@ export default function PerformansAnaliziPage() {
     return diffDays <= 45 // Show daily points if range is 1.5 months or less
   }, [startDate, endDate])
 
+  // Helper function to resolve commission rate & amount for any row
+  const getCommissionData = (company: CompanyOption, subeId: string, totalCiro: number) => {
+    let rate = 10 // default custom commission
+    if (company.type === "builtin") {
+      rate = company.komisyonOrani ?? 10
+    } else if (company.type === "custom" && company.mappings) {
+      const mapping = company.mappings.find(m => m.sube_id === subeId)
+      if (mapping && mapping.komisyon_orani !== null) {
+        rate = Number(mapping.komisyon_orani)
+      }
+    }
+    const komisyonTutarı = totalCiro * (rate / 100)
+    const hakedis = totalCiro - komisyonTutarı
+    return {
+      rate,
+      komisyonTutarı,
+      hakedis
+    }
+  }
+
   // ============================================
   // TAB 1: FIRMA ODAKLI ANALİZ (Company Focused)
   // ============================================
@@ -307,7 +351,7 @@ export default function PerformansAnaliziPage() {
     if (activeTab !== "firma" || !selectedCompany) return []
 
     return contextSubeler.map((sube) => {
-      const subeRecords = records.filter(r => r.sube_id === sube.id)
+      const subeRecords = filteredRecords.filter(r => r.sube_id === sube.id)
       let totalCiro = 0
       let recordCount = 0
       const uniqueDays = new Set<string>()
@@ -356,18 +400,22 @@ export default function PerformansAnaliziPage() {
           uniqueDaysCount: value.uniqueDays.size
         }))
 
+      const comm = getCommissionData(selectedCompany, sube.id, totalCiro)
+
       return {
         subeId: sube.id,
         subeAd: sube.ad,
         subeKod: sube.kod,
         totalCiro,
-        averageDailyCiro: uniqueDays.size > 0 ? totalCiro / uniqueDays.size : 0,
         recordCount,
         uniqueDaysCount: uniqueDays.size,
+        komisyonOrani: comm.rate,
+        komisyonTutari: comm.komisyonTutarı,
+        hakedis: comm.hakedis,
         monthlyBreakdown
       }
     })
-  }, [activeTab, contextSubeler, records, selectedCompany])
+  }, [activeTab, contextSubeler, filteredRecords, selectedCompany])
 
   const filteredFirmaAnalytics = useMemo(() => {
     if (selectedSubeId === "all") return firmaAnalyticsData
@@ -385,7 +433,7 @@ export default function PerformansAnaliziPage() {
   const subeAnalyticsData = useMemo(() => {
     if (activeTab !== "sube" || !currentBranchObject) return []
 
-    const branchRecords = records.filter(r => r.sube_id === currentBranchObject.id)
+    const branchRecords = filteredRecords.filter(r => r.sube_id === currentBranchObject.id)
 
     return availableCompanies.map((comp) => {
       let totalCiro = 0
@@ -435,6 +483,8 @@ export default function PerformansAnaliziPage() {
           uniqueDaysCount: value.uniqueDays.size
         }))
 
+      const comm = getCommissionData(comp, currentBranchObject.id, totalCiro)
+
       return {
         companyKey: comp.key,
         companyLabel: comp.label,
@@ -442,13 +492,15 @@ export default function PerformansAnaliziPage() {
         color: comp.color,
         isShared: comp.isShared,
         totalCiro,
-        averageDailyCiro: uniqueDays.size > 0 ? totalCiro / uniqueDays.size : 0,
         recordCount,
         uniqueDaysCount: uniqueDays.size,
+        komisyonOrani: comm.rate,
+        komisyonTutari: comm.komisyonTutarı,
+        hakedis: comm.hakedis,
         monthlyBreakdown
       }
-    }).filter(d => d.totalCiro > 0) // Only return companies that have registered ciro in this branch
-  }, [activeTab, currentBranchObject, records, availableCompanies])
+    }).filter(d => d.totalCiro > 0)
+  }, [activeTab, currentBranchObject, filteredRecords, availableCompanies])
 
   // ============================================
   // COMBINED STATS & SUMMARY DATA (KPIs)
@@ -456,7 +508,7 @@ export default function PerformansAnaliziPage() {
   const kpiData = useMemo(() => {
     let totalCiro = 0
     let totalActiveDays = 0
-    let activeElementsCount = 0 // active branches in Tab 1, active companies in Tab 2
+    let activeElementsCount = 0
     let topElement = { name: "-", ciro: 0, share: 0 }
 
     if (activeTab === "firma") {
@@ -478,7 +530,6 @@ export default function PerformansAnaliziPage() {
         topElement = { name: bestName, ciro: maxCiro, share: (maxCiro / totalCiro) * 100 }
       }
     } else {
-      // Tab 2
       subeAnalyticsData.forEach((compData) => {
         totalCiro += compData.totalCiro
         totalActiveDays += compData.uniqueDaysCount
@@ -507,15 +558,13 @@ export default function PerformansAnaliziPage() {
   }, [activeTab, firmaAnalyticsData, subeAnalyticsData])
 
   // ============================================
-  // COMBINED CHARTS GENERATOR (Theme Friendly)
+  // COMBINED CHARTS GENERATOR (Multi-branch Lines)
   // ============================================
   const chartsData = useMemo(() => {
     // 1. Doughnut & Horizontal Bar Comparison Data
     const comparison = (activeTab === "firma" ? firmaAnalyticsData : subeAnalyticsData)
       .map(d => {
-        const name = activeTab === "firma" 
-          ? (d as any).subeAd 
-          : (d as any).companyLabel
+        const name = activeTab === "firma" ? (d as any).subeAd : (d as any).companyLabel
         const ciro = d.totalCiro
         return {
           name,
@@ -526,11 +575,10 @@ export default function PerformansAnaliziPage() {
       .filter(d => d.ciro > 0)
       .sort((a, b) => b.ciro - a.ciro)
 
-    // 2. Trend Data: Automatically Daily if isDailyTrend is true, otherwise Monthly
-    const trendMap = new Map<string, { label: string; ciro: number }>()
+    // 2. Trend Data Aggregator: Handles multi-branch lines if selectedSubeId === "all"
+    const trendMap = new Map<string, { label: string; ciro: number; [key: string]: any }>()
 
     if (isDailyTrend) {
-      // Fill all dates in range with 0 ciro to avoid empty graphs
       if (startDate && endDate) {
         const start = new Date(startDate)
         const end = new Date(endDate)
@@ -539,16 +587,21 @@ export default function PerformansAnaliziPage() {
           const dateObj = new Date(dateStr)
           const day = dateObj.getDate()
           const monthShort = new Intl.DateTimeFormat("tr-TR", { month: "short" }).format(dateObj)
-          trendMap.set(dateStr, { label: `${day} ${monthShort}`, ciro: 0 })
+          
+          const defaultObj: any = { label: `${day} ${monthShort}`, ciro: 0 }
+          if (activeTab === "firma" && selectedSubeId === "all") {
+            contextSubeler.forEach(sube => {
+              defaultObj[`sube_${sube.id}`] = 0
+            })
+          }
+          trendMap.set(dateStr, defaultObj)
         }
       }
 
-      records.forEach((record) => {
-        // Filter by branch
+      filteredRecords.forEach((record) => {
         if (activeTab === "firma") {
           if (selectedSubeId !== "all" && record.sube_id !== selectedSubeId) return
         } else {
-          // Tab: sube
           if (record.sube_id !== currentBranchObject?.id) return
         }
 
@@ -564,7 +617,6 @@ export default function PerformansAnaliziPage() {
             }
           }
         } else {
-          // Sum all companies for selected sube
           availableCompanies.forEach((comp) => {
             if (comp.type === "builtin") {
               val += record[comp.key as keyof GelirRecord] as number || 0
@@ -580,12 +632,18 @@ export default function PerformansAnaliziPage() {
         if (val > 0) {
           const current = trendMap.get(record.tarih) || { label: record.tarih, ciro: 0 }
           current.ciro += val
+          
+          if (activeTab === "firma" && selectedSubeId === "all") {
+            const key = `sube_${record.sube_id}`
+            current[key] = (current[key] || 0) + val
+          }
           trendMap.set(record.tarih, current)
         }
       })
     } else {
-      // Monthly aggregation
+      // Monthly points aggregation
       const listData = activeTab === "firma" ? firmaAnalyticsData : subeAnalyticsData
+      
       listData.forEach((item) => {
         if (activeTab === "firma") {
           if (selectedSubeId !== "all" && item.subeId !== selectedSubeId) return
@@ -593,6 +651,10 @@ export default function PerformansAnaliziPage() {
         item.monthlyBreakdown.forEach((m) => {
           const current = trendMap.get(m.monthSortKey) || { label: m.monthLabel, ciro: 0 }
           current.ciro += m.ciro
+          if (activeTab === "firma" && selectedSubeId === "all") {
+            const key = `sube_${item.subeId}`
+            current[key] = (current[key] || 0) + m.ciro
+          }
           trendMap.set(m.monthSortKey, current)
         })
       })
@@ -602,8 +664,7 @@ export default function PerformansAnaliziPage() {
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([key, value]) => ({
         sortKey: key,
-        name: value.label,
-        ciro: value.ciro,
+        ...value,
         formattedCiro: formatMoney(value.ciro)
       }))
 
@@ -611,7 +672,7 @@ export default function PerformansAnaliziPage() {
       comparison,
       trend
     }
-  }, [activeTab, firmaAnalyticsData, subeAnalyticsData, records, selectedCompany, selectedSubeId, currentBranchObject, isDailyTrend, startDate, endDate, availableCompanies])
+  }, [activeTab, firmaAnalyticsData, subeAnalyticsData, filteredRecords, selectedCompany, selectedSubeId, currentBranchObject, isDailyTrend, startDate, endDate, availableCompanies, contextSubeler])
 
   if (subeLoading) {
     return (
@@ -704,7 +765,7 @@ export default function PerformansAnaliziPage() {
             </div>
           )}
 
-          {/* Conditional Dropdown based on active Tab */}
+          {/* Sube Selector */}
           {activeTab === "firma" ? (
             <Select value={selectedSubeId} onValueChange={setSelectedSubeId}>
               <SelectTrigger className="w-[180px] h-11 rounded-xl bg-card border shadow-sm">
@@ -721,7 +782,6 @@ export default function PerformansAnaliziPage() {
               </SelectContent>
             </Select>
           ) : (
-            // Tab 2 (Sube Mode) requires picking one specific branch to analyze
             <Select value={selectedSubeId === "all" ? (contextSubeler[0]?.id || "") : selectedSubeId} onValueChange={setSelectedSubeId}>
               <SelectTrigger className="w-[180px] h-11 rounded-xl bg-card border shadow-sm">
                 <Building2 className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -736,10 +796,34 @@ export default function PerformansAnaliziPage() {
               </SelectContent>
             </Select>
           )}
+
+          {/* Shift (Vardiya) Selector with smart autoselect */}
+          <div className="flex items-center gap-1.5">
+            <Select 
+              disabled={!branchHasShifts} 
+              value={selectedVardiya} 
+              onValueChange={setSelectedVardiya}
+            >
+              <SelectTrigger className="w-[150px] h-11 rounded-xl bg-card border shadow-sm">
+                <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+                <SelectValue placeholder="Vardiya" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tüm Vardiyalar</SelectItem>
+                <SelectItem value="Sabah">Sabah</SelectItem>
+                <SelectItem value="Akşam">Akşam</SelectItem>
+              </SelectContent>
+            </Select>
+            {!branchHasShifts && selectedSubeId !== "all" && (
+              <Badge variant="outline" className="h-9 px-2.5 text-[10px] border-amber-500/20 text-amber-600 dark:text-amber-400 bg-amber-500/5 rounded-lg flex items-center justify-center font-bold tracking-wider uppercase">
+                Tek Vardiya
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* TAB SELECTOR BUTTONS (Firma Odaklı / Şube Odaklı) */}
+      {/* TAB SELECTOR BUTTONS */}
       <div className="flex items-center justify-start p-1 bg-muted/40 rounded-2xl w-fit border border-border/40">
         <button
           onClick={() => {
@@ -804,7 +888,7 @@ export default function PerformansAnaliziPage() {
               </div>
             ) : (
               <div className="space-y-6">
-                {/* 1. ORTAK FİRMALAR (Shared Companies in Grid) */}
+                {/* Ortak Firmalar */}
                 {(!searchTerm.trim() || filteredCompanies.some(c => c.isShared)) && (
                   <div>
                     <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80 mb-3.5 flex items-center gap-2">
@@ -875,7 +959,7 @@ export default function PerformansAnaliziPage() {
                   </div>
                 )}
 
-                {/* 2. DİĞER FİRMALAR */}
+                {/* Diğer Firmalar */}
                 {(!searchTerm.trim() || filteredCompanies.some(c => !c.isShared)) && (
                   <div className="border-t border-dashed pt-4">
                     <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80 mb-3 flex items-center gap-2">
@@ -942,9 +1026,9 @@ export default function PerformansAnaliziPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-5">
+          <CardContent className="p-5 font-sans">
             <div className="text-sm text-muted-foreground">
-              Analiz edilen şubeyi ve tarih periyodunu yukarıdaki sağ panelden değiştirebilirsiniz. Aşağıdaki tabloda şubeye ciro kaydetmiş olan tüm ortak ve şubeye özel firmaların dökümü yer almaktadır.
+              Analiz edilen şubeyi, vardiyayı ve tarih periyodunu yukarıdaki sağ panelden değiştirebilirsiniz. Aşağıdaki tabloda şubeye ciro kaydetmiş olan tüm ortak ve şubeye özel firmaların detaylı dağılımları, komisyon oranları ve net hakedişleri listelenmektedir.
             </div>
           </CardContent>
         </Card>
@@ -962,7 +1046,6 @@ export default function PerformansAnaliziPage() {
         <>
           {/* KPI METRICS OVERVIEW */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 font-sans">
-            {/* KPI 1: Toplam Ciro */}
             <Card className="relative overflow-hidden border border-border/60 bg-gradient-to-br from-indigo-50/40 via-card to-card dark:from-indigo-950/10 dark:via-card dark:to-card shadow-sm rounded-2xl">
               <CardHeader className="pb-2">
                 <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Toplam Ciro</CardDescription>
@@ -981,7 +1064,6 @@ export default function PerformansAnaliziPage() {
               </CardContent>
             </Card>
 
-            {/* KPI 2: En Başarılı Eleman */}
             <Card className="relative overflow-hidden border border-border/60 bg-gradient-to-br from-emerald-50/40 via-card to-card dark:from-emerald-950/10 dark:via-card dark:to-card shadow-sm rounded-2xl">
               <CardHeader className="pb-2">
                 <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1002,7 +1084,6 @@ export default function PerformansAnaliziPage() {
               </CardContent>
             </Card>
 
-            {/* KPI 3: Günlük Ortalama */}
             <Card className="relative overflow-hidden border border-border/60 bg-gradient-to-br from-amber-50/40 via-card to-card dark:from-amber-950/10 dark:via-card dark:to-card shadow-sm rounded-2xl">
               <CardHeader className="pb-2">
                 <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Günlük Ortalama Ciro</CardDescription>
@@ -1021,7 +1102,6 @@ export default function PerformansAnaliziPage() {
               </CardContent>
             </Card>
 
-            {/* KPI 4: Aktif Sayı */}
             <Card className="relative overflow-hidden border border-border/60 bg-gradient-to-br from-purple-50/40 via-card to-card dark:from-purple-950/10 dark:via-card dark:to-card shadow-sm rounded-2xl">
               <CardHeader className="pb-2">
                 <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1034,7 +1114,7 @@ export default function PerformansAnaliziPage() {
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1">
                   <HelpCircle className="h-3 w-3 shrink-0" />
-                  Ciro kaydı bulunan aktif elamanlar.
+                  Ciro kaydı bulunan aktif elemanlar.
                 </p>
                 <div className="absolute right-4 bottom-4 h-12 w-12 text-purple-200 dark:text-purple-950/40">
                   <Layers className="h-full w-full" />
@@ -1043,11 +1123,11 @@ export default function PerformansAnaliziPage() {
             </Card>
           </div>
 
-          {/* VISUAL ANALYTICS SECTION (CHARTS) */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* VISUAL ANALYTICS VERTICAL STACK (Full Width Charts) */}
+          <div className="flex flex-col gap-6">
             
-            {/* Chart 1: Distribution comparison */}
-            <Card className="border border-border/60 bg-card/75 backdrop-blur-md shadow-sm rounded-2xl">
+            {/* Chart 1: Distribution comparison (Full Width) */}
+            <Card className="border border-border/60 bg-card/75 backdrop-blur-md shadow-sm rounded-2xl w-full">
               <CardHeader className="pb-3 border-b">
                 <CardTitle className="text-base font-bold flex items-center gap-2">
                   <PieIcon className="h-4.5 w-4.5 text-indigo-500" />
@@ -1061,13 +1141,13 @@ export default function PerformansAnaliziPage() {
               </CardHeader>
               <CardContent className="pt-6">
                 {chartsData.comparison.length === 0 ? (
-                  <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+                  <div className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">
                     Bu periyotta ciro kaydı bulunmamaktadır.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-center">
                     
-                    {/* Doughnut Chart with transparent strokes */}
+                    {/* Doughnut Chart */}
                     <div className="col-span-1 md:col-span-2 h-[260px] relative flex justify-center items-center">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
@@ -1077,10 +1157,11 @@ export default function PerformansAnaliziPage() {
                             nameKey="name"
                             cx="50%"
                             cy="50%"
-                            innerRadius={55}
-                            outerRadius={80}
-                            paddingAngle={4}
+                            innerRadius={60}
+                            outerRadius={85}
+                            paddingAngle={3}
                             stroke="none"
+                            style={{ outline: "none" }}
                             animationDuration={800}
                           >
                             {chartsData.comparison.map((entry, index) => {
@@ -1127,7 +1208,7 @@ export default function PerformansAnaliziPage() {
                         >
                           <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.08)" horizontal={false} />
                           <XAxis type="number" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} fontSize={10} stroke="rgba(128,128,128,0.4)" />
-                          <YAxis dataKey="name" type="category" width={65} fontSize={10} stroke="rgba(128,128,128,0.4)" />
+                          <YAxis dataKey="name" type="category" width={75} fontSize={10} stroke="rgba(128,128,128,0.4)" />
                           <Tooltip
                             formatter={(value: number) => [`${formatMoney(value)} TL`, "Ciro"]}
                             contentStyle={{
@@ -1164,8 +1245,8 @@ export default function PerformansAnaliziPage() {
               </CardContent>
             </Card>
 
-            {/* Chart 2: Zaman Serisi Trendi */}
-            <Card className="border border-border/60 bg-card/75 backdrop-blur-md shadow-sm rounded-2xl">
+            {/* Chart 2: Zaman Serisi Trendi (Full Width with multi-branch rendering) */}
+            <Card className="border border-border/60 bg-card/75 backdrop-blur-md shadow-sm rounded-2xl w-full">
               <CardHeader className="pb-3 border-b">
                 <CardTitle className="text-base font-bold flex items-center gap-2">
                   <TrendingUp className="h-4.5 w-4.5 text-indigo-500" />
@@ -1173,19 +1254,19 @@ export default function PerformansAnaliziPage() {
                 </CardTitle>
                 <CardDescription>
                   {activeTab === "firma" ? (
-                    selectedSubeId === "all" ? `Tüm şubelerin ${isDailyTrend ? "günlük" : "aylık"} ciro kırılımı.` : `Şube ${contextSubeler.find(s => s.id === selectedSubeId)?.ad || ""} ${isDailyTrend ? "günlük" : "aylık"} ciro kırılımı.`
+                    selectedSubeId === "all" ? `Her şubenin ${isDailyTrend ? "günlük" : "aylık"} ciro karşılaştırma serisi.` : `Şube ${contextSubeler.find(s => s.id === selectedSubeId)?.ad || ""} ${isDailyTrend ? "günlük" : "aylık"} ciro kırılımı.`
                   ) : (
-                    `Şube ${currentBranchObject?.ad || ""} ${isDailyTrend ? "günlük" : "aylık"} genel ciro kırılımı.`
+                    `Şube ${currentBranchObject?.ad || ""} ${isDailyTrend ? "günlük" : "aylık"} genel ciro trendi.`
                   )}
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
                 {chartsData.trend.length === 0 ? (
-                  <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+                  <div className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">
                     Bu periyotta ciro trendi oluşturacak veri bulunmamaktadır.
                   </div>
                 ) : (
-                  <div className="h-[280px] w-full">
+                  <div className="h-[320px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart
                         data={chartsData.trend}
@@ -1200,8 +1281,9 @@ export default function PerformansAnaliziPage() {
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.08)" />
                         <XAxis dataKey="name" fontSize={10} stroke="rgba(128,128,128,0.4)" />
                         <YAxis tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} fontSize={10} stroke="rgba(128,128,128,0.4)" />
+                        
                         <Tooltip
-                          formatter={(value: number) => [`${formatMoney(value)} TL`, "Toplam Ciro"]}
+                          formatter={(value: number, name: string) => [`${formatMoney(value)} TL`, name]}
                           contentStyle={{
                             backgroundColor: "var(--card)",
                             borderColor: "var(--border)",
@@ -1212,15 +1294,46 @@ export default function PerformansAnaliziPage() {
                           labelStyle={{ color: "var(--foreground)", fontWeight: "bold" }}
                           itemStyle={{ color: "var(--foreground)" }}
                         />
-                        <Area 
-                          type="monotone" 
-                          dataKey="ciro" 
-                          stroke="rgb(99, 102, 241)" 
-                          strokeWidth={3} 
-                          fillOpacity={1} 
-                          fill="url(#colorCiro)" 
-                          animationDuration={900}
-                        />
+                        <Legend verticalAlign="top" height={36} iconType="circle" />
+                        
+                        {/* Render multiple lines if all branches selected, otherwise just render the single main line */}
+                        {activeTab === "firma" && selectedSubeId === "all" ? (
+                          contextSubeler.map((sube, index) => {
+                            const colors = [
+                              "rgb(79, 70, 229)", // Indigo 500
+                              "rgb(16, 185, 129)", // Emerald 500
+                              "rgb(245, 158, 11)", // Amber 500
+                              "rgb(239, 68, 68)",  // Red 500
+                              "rgb(168, 85, 247)", // Purple 500
+                              "rgb(6, 182, 212)"   // Cyan 500
+                            ];
+                            const color = colors[index % colors.length];
+                            return (
+                              <Area
+                                key={sube.id}
+                                type="monotone"
+                                dataKey={`sube_${sube.id}`}
+                                name={`Şube ${sube.ad}`}
+                                stroke={color}
+                                fill={color}
+                                fillOpacity={0.03}
+                                strokeWidth={2.5}
+                                animationDuration={800}
+                              />
+                            );
+                          })
+                        ) : (
+                          <Area 
+                            type="monotone" 
+                            dataKey="ciro" 
+                            name="Toplam Ciro"
+                            stroke="rgb(99, 102, 241)" 
+                            strokeWidth={3} 
+                            fillOpacity={1} 
+                            fill="url(#colorCiro)" 
+                            animationDuration={900}
+                          />
+                        )}
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -1236,23 +1349,24 @@ export default function PerformansAnaliziPage() {
               <CardHeader className="pb-3 border-b">
                 <CardTitle className="text-base font-bold flex items-center gap-2">
                   <BarChart3 className="h-4.5 w-4.5 text-indigo-500" />
-                  Şube Bazlı Detay Raporu
+                  Şube Bazlı Hakediş Raporu
                 </CardTitle>
                 <CardDescription>
-                  Şubelerin ciro oranları, günlük ortalamalar ve takvim günü bazlı kırılımları. Satırlara tıklayarak vardiya detaylarını inceleyebilirsiniz.
+                  Şubelerin toplam satış ciroları, komisyon oranları ve kalan net hakedişleri. Satırlara tıklayarak vardiya geçmişini inceleyebilirsiniz.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                  <table className="w-full text-left border-collapse font-sans">
                     <thead>
                       <tr className="border-b bg-muted/30 text-xs font-semibold text-muted-foreground uppercase">
                         <th className="p-4 w-12">Detay</th>
                         <th className="p-4">Şube Adı</th>
-                        <th className="p-4 text-right">Toplam Ciro</th>
-                        <th className="p-4 text-center max-w-[140px] hidden sm:table-cell">Ciro Dağılımı</th>
-                        <th className="p-4 text-right hidden md:table-cell">Günlük Ortalama</th>
-                        <th className="p-4 text-right hidden sm:table-cell">Gün Sayısı</th>
+                        <th className="p-4 text-right">Bilet Cirosu</th>
+                        <th className="p-4 text-right">Komisyon Oranı</th>
+                        <th className="p-4 text-right text-emerald-600 dark:text-emerald-400">Komisyon Tutarı</th>
+                        <th className="p-4 text-right text-indigo-600 dark:text-indigo-400">Net Hakediş</th>
+                        <th className="p-4 text-right hidden sm:table-cell">Aktif Gün</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y text-sm">
@@ -1260,7 +1374,6 @@ export default function PerformansAnaliziPage() {
                         .sort((a, b) => b.totalCiro - a.totalCiro)
                         .map((row) => {
                           const hasCiro = row.totalCiro > 0
-                          const sharePercent = kpiData.totalCiro > 0 ? (row.totalCiro / kpiData.totalCiro) * 100 : 0
                           const isExpanded = expandedSubeId === row.subeId
 
                           return (
@@ -1281,24 +1394,20 @@ export default function PerformansAnaliziPage() {
                                     />
                                   )}
                                 </td>
-                                <td className="p-4">
-                                  <div className="font-semibold text-foreground">Şube {row.subeAd}</div>
-                                  {/* Subtitle removed as requested: no KOD subtitle shown anymore */}
+                                <td className="p-4 font-semibold text-foreground">
+                                  Şube {row.subeAd}
                                 </td>
-                                <td className="p-4 text-right font-bold text-foreground">
+                                <td className="p-4 text-right font-bold text-foreground font-mono">
                                   {formatMoney(row.totalCiro)} TL
                                 </td>
-                                {/* Centered Progress Bar */}
-                                <td className="p-4 hidden sm:table-cell text-center">
-                                  <div className="flex items-center justify-center gap-3">
-                                    <Progress value={sharePercent} className="h-2 w-24 bg-muted shrink-0" />
-                                    <span className="text-xs text-muted-foreground font-mono font-bold w-12 text-left">
-                                      %{sharePercent.toFixed(1)}
-                                    </span>
-                                  </div>
+                                <td className="p-4 text-right text-muted-foreground font-mono font-semibold">
+                                  %{row.komisyonOrani}
                                 </td>
-                                <td className="p-4 text-right font-mono text-foreground hidden md:table-cell">
-                                  {formatMoney(row.averageDailyCiro)} TL
+                                <td className="p-4 text-right text-emerald-600 dark:text-emerald-400 font-mono font-bold">
+                                  {formatMoney(row.komisyonTutari)} TL
+                                </td>
+                                <td className="p-4 text-right text-indigo-600 dark:text-indigo-400 font-mono font-bold">
+                                  {formatMoney(row.hakedis)} TL
                                 </td>
                                 <td className="p-4 text-right hidden sm:table-cell">
                                   <div className="font-bold text-foreground">{row.uniqueDaysCount} Gün</div>
@@ -1309,7 +1418,7 @@ export default function PerformansAnaliziPage() {
                               {/* Expanded Accordion Row for Monthly Breakdown */}
                               {isExpanded && hasCiro && (
                                 <tr className="bg-muted/10 border-b">
-                                  <td colSpan={6} className="p-4 sm:px-8">
+                                  <td colSpan={7} className="p-4 sm:px-8">
                                     <div className="space-y-3 p-4 bg-background/55 border rounded-2xl animate-in slide-in-from-top-4 duration-300 shadow-inner">
                                       <div className="text-xs font-bold text-indigo-500 uppercase tracking-wider flex items-center gap-1.5">
                                         <TrendingUp className="h-4 w-4" />
@@ -1387,24 +1496,25 @@ export default function PerformansAnaliziPage() {
               <CardHeader className="pb-3 border-b">
                 <CardTitle className="text-base font-bold flex items-center gap-2">
                   <BarChart3 className="h-4.5 w-4.5 text-indigo-500" />
-                  Firma Bazlı Ciro Dağılımı (Şube: {currentBranchObject?.ad || "-"})
+                  Firma Bazlı Hakediş Raporu (Şube: {currentBranchObject?.ad || "-"})
                 </CardTitle>
                 <CardDescription>
-                  Seçilen şubedeki firmaların toplam ve günlük ortalama ciroları. Satırlara tıklayarak aylık kırılım geçmişini inceleyebilirsiniz.
+                  Seçilen şubedeki firmaların toplam ciroları, komisyon oranları ve kalan net hakediş tutarları.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                  <table className="w-full text-left border-collapse font-sans">
                     <thead>
                       <tr className="border-b bg-muted/30 text-xs font-semibold text-muted-foreground uppercase">
                         <th className="p-4 w-12">Detay</th>
                         <th className="p-4">Firma Adı</th>
                         <th className="p-4">Türü</th>
-                        <th className="p-4 text-right">Toplam Ciro</th>
-                        <th className="p-4 text-center max-w-[140px] hidden sm:table-cell">Ciro Dağılımı</th>
-                        <th className="p-4 text-right hidden md:table-cell">Günlük Ortalama</th>
-                        <th className="p-4 text-right hidden sm:table-cell">Gün Sayısı</th>
+                        <th className="p-4 text-right">Bilet Cirosu</th>
+                        <th className="p-4 text-right">Komisyon Oranı</th>
+                        <th className="p-4 text-right text-emerald-600 dark:text-emerald-400">Komisyon Tutarı</th>
+                        <th className="p-4 text-right text-indigo-600 dark:text-indigo-400">Net Hakediş</th>
+                        <th className="p-4 text-right hidden sm:table-cell">Aktif Gün</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y text-sm">
@@ -1412,7 +1522,6 @@ export default function PerformansAnaliziPage() {
                         .sort((a, b) => b.totalCiro - a.totalCiro)
                         .map((row) => {
                           const hasCiro = row.totalCiro > 0
-                          const sharePercent = kpiData.totalCiro > 0 ? (row.totalCiro / kpiData.totalCiro) * 100 : 0
                           const isExpanded = expandedCompanyKey === row.companyKey
 
                           return (
@@ -1433,7 +1542,7 @@ export default function PerformansAnaliziPage() {
                                     />
                                   )}
                                 </td>
-                                <td className="p-4 font-semibold text-foreground">
+                                <td className="p-4 font-bold text-foreground">
                                   {row.companyLabel}
                                 </td>
                                 <td className="p-4">
@@ -1447,20 +1556,17 @@ export default function PerformansAnaliziPage() {
                                     </Badge>
                                   )}
                                 </td>
-                                <td className="p-4 text-right font-bold text-foreground">
+                                <td className="p-4 text-right font-bold text-foreground font-mono">
                                   {formatMoney(row.totalCiro)} TL
                                 </td>
-                                {/* Centered Progress Bar */}
-                                <td className="p-4 hidden sm:table-cell text-center">
-                                  <div className="flex items-center justify-center gap-3">
-                                    <Progress value={sharePercent} className="h-2 w-24 bg-muted shrink-0" />
-                                    <span className="text-xs text-muted-foreground font-mono font-bold w-12 text-left">
-                                      %{sharePercent.toFixed(1)}
-                                    </span>
-                                  </div>
+                                <td className="p-4 text-right text-muted-foreground font-mono font-semibold">
+                                  %{row.komisyonOrani}
                                 </td>
-                                <td className="p-4 text-right font-mono text-foreground hidden md:table-cell">
-                                  {formatMoney(row.averageDailyCiro)} TL
+                                <td className="p-4 text-right text-emerald-600 dark:text-emerald-400 font-mono font-bold">
+                                  {formatMoney(row.komisyonTutari)} TL
+                                </td>
+                                <td className="p-4 text-right text-indigo-600 dark:text-indigo-400 font-mono font-bold">
+                                  {formatMoney(row.hakedis)} TL
                                 </td>
                                 <td className="p-4 text-right hidden sm:table-cell">
                                   <div className="font-bold text-foreground">{row.uniqueDaysCount} Gün</div>
@@ -1471,7 +1577,7 @@ export default function PerformansAnaliziPage() {
                               {/* Expanded Accordion Row for Monthly Breakdown */}
                               {isExpanded && hasCiro && (
                                 <tr className="bg-muted/10 border-b">
-                                  <td colSpan={7} className="p-4 sm:px-8">
+                                  <td colSpan={8} className="p-4 sm:px-8">
                                     <div className="space-y-3 p-4 bg-background/55 border rounded-2xl animate-in slide-in-from-top-4 duration-300 shadow-inner">
                                       <div className="text-xs font-bold text-indigo-500 uppercase tracking-wider flex items-center gap-1.5">
                                         <TrendingUp className="h-4 w-4" />
