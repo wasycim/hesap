@@ -91,8 +91,7 @@ const BUILTIN_FIRMALAR: Omit<CompanyOption, "isShared">[] = [
   { key: "anadolu_ulasim", label: "Anadolu Ulaşım", type: "builtin", color: "bg-blue-600", text: "text-white" },
   { key: "inegol_seyahat", label: "İnegöl Seyahat", type: "builtin", color: "bg-orange-500", text: "text-white" },
   { key: "alasehir_turizm", label: "Alaşehir Turizm", type: "builtin", color: "bg-yellow-500", text: "text-yellow-950" },
-  { key: "unlu_1", label: "Ünlü 1", type: "builtin", color: "bg-teal-600", text: "text-white" },
-  { key: "unlu_2", label: "Ünlü 2", type: "builtin", color: "bg-cyan-600", text: "text-white" },
+  { key: "unlu_2", label: "Ünlü", type: "builtin", color: "bg-cyan-600", text: "text-white" },
   { key: "pamukkale_kargo", label: "Pamukkale Kargo", type: "builtin", color: "bg-rose-500", text: "text-white" },
   { key: "diger_komisyon", label: "Diğer Komisyon", type: "builtin", color: "bg-slate-500", text: "text-white" },
 ]
@@ -844,6 +843,7 @@ export default function PerformansAnaliziPage() {
                             innerRadius={55}
                             outerRadius={80}
                             paddingAngle={4}
+                            stroke="none"
                             animationDuration={800}
                           >
                             {chartsData.subesComparison.map((entry, index) => {
@@ -1045,10 +1045,10 @@ export default function PerformansAnaliziPage() {
                                 {formatMoney(row.totalCiro)} TL
                               </td>
                               {/* Progress bar column */}
-                              <td className="p-4 hidden sm:table-cell max-w-[140px]">
-                                <div className="flex items-center gap-2">
-                                  <Progress value={sharePercent} className="h-2 w-16 bg-muted shrink-0" />
-                                  <span className="text-xs text-muted-foreground font-mono font-bold w-10">
+                              <td className="p-4 hidden sm:table-cell text-center">
+                                <div className="flex items-center justify-center gap-3">
+                                  <Progress value={sharePercent} className="h-2 w-24 bg-muted shrink-0" />
+                                  <span className="text-xs text-muted-foreground font-mono font-bold w-12 text-left">
                                     %{sharePercent.toFixed(1)}
                                   </span>
                                 </div>
