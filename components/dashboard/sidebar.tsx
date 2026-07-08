@@ -75,6 +75,7 @@ const maasMenuItem = { key: "maaslar", title: "Maaşlar", href: "/dashboard/maas
 const adminMenuItems = [
   { key: "bildirim_gonder", title: "Bildirim Gonder", href: "/dashboard/bildirim-gonder", icon: BellPlus, color: "text-emerald-500" },
   { title: "Şube Ciro Raporları", href: "/dashboard/sube-ciro-raporlari", icon: BarChart3, color: "text-emerald-500" },
+  { title: "Performans Analizi", href: "/dashboard/performans", icon: BarChart3, color: "text-indigo-500" },
   { title: "Sütun Ayarları", href: "/dashboard/sutun-ayarlar", icon: Columns3, color: "text-sky-500" },
   { title: "Görünüm Ayarları", href: "/dashboard/gorunum-ayarlar", icon: Eye, color: "text-indigo-500" },
   { title: "Genel Ayarlar", href: "/dashboard/ayarlar", icon: Settings, color: "text-gray-400" },
@@ -102,6 +103,7 @@ const developerMenuItems = [
 const permissionKeyByHref: Record<string, string> = {
   "/dashboard/bildirim-gonder": "bildirim_gonder",
   "/dashboard/sube-ciro-raporlari": "sube_ciro_raporlari",
+  "/dashboard/performans": "performans",
   "/dashboard/sutun-ayarlar": "sutun_ayarlar",
   "/dashboard/gorunum-ayarlar": "gorunum_ayarlar",
   "/dashboard/ayarlar": "ayarlar",
@@ -129,6 +131,7 @@ function getMenuIconMotion(href: string) {
   if (href === "/dashboard/mesai-takip") return "menu-icon-pop"
   if (href === "/dashboard/corbalar") return "menu-icon-soup"
   if (href === "/dashboard/sube-ciro-raporlari") return "menu-icon-report"
+  if (href === "/dashboard/performans") return "menu-icon-report"
   if (href === "/dashboard/14-no-hesap") return "menu-icon-bank"
   if (href === "/dashboard/ayarlar") return "menu-icon-spin"
   if (href === "/dashboard/guvenlik-ayarlar") return "menu-icon-security"

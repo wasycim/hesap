@@ -15,6 +15,7 @@ const allPermissionKeys = [
   "maaslar",
   "bildirim_gonder",
   "sube_ciro_raporlari",
+  "performans",
   "sutun_ayarlar",
   "gorunum_ayarlar",
   "ayarlar",
