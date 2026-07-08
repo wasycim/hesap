@@ -645,6 +645,16 @@ export default function PerformansAnaliziPage() {
 
   return (
     <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto animate-in fade-in duration-500">
+      <style>{`
+        .recharts-pie-sector,
+        .recharts-sector,
+        path:focus,
+        g:focus,
+        svg:focus,
+        .recharts-wrapper *:focus {
+          outline: none !important;
+        }
+      `}</style>
       
       {/* HEADER SECTION */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-b pb-5">
