@@ -346,6 +346,7 @@ export default function PerformansAnaliziPage() {
       let recordCount = 0
       const uniqueDays = new Set<string>()
 
+      const dailyMap = new Map<string, { label: string; ciro: number; recordCount: number; uniqueDays: Set<string> }>()
       const monthMap = new Map<string, { label: string; ciro: number; recordCount: number; uniqueDays: Set<string> }>()
 
       subeRecords.forEach((record) => {
@@ -366,29 +367,51 @@ export default function PerformansAnaliziPage() {
 
           const date = new Date(record.tarih)
           if (!Number.isNaN(date.getTime())) {
+            // Aylık gruplama
             const yearStr = date.getFullYear()
             const monthStr = MONTHS[date.getMonth()]
-            const label = `${monthStr} ${yearStr}`
-            const sortKey = `${yearStr}-${String(date.getMonth() + 1).padStart(2, "0")}`
+            const monthLabel = `${monthStr} ${yearStr}`
+            const monthSortKey = `${yearStr}-${String(date.getMonth() + 1).padStart(2, "0")}`
 
-            const current = monthMap.get(sortKey) || { label, ciro: 0, recordCount: 0, uniqueDays: new Set<string>() }
-            current.ciro += val
-            current.recordCount++
-            current.uniqueDays.add(record.tarih)
-            monthMap.set(sortKey, current)
+            const currentMonth = monthMap.get(monthSortKey) || { label: monthLabel, ciro: 0, recordCount: 0, uniqueDays: new Set<string>() }
+            currentMonth.ciro += val
+            currentMonth.recordCount++
+            currentMonth.uniqueDays.add(record.tarih)
+            monthMap.set(monthSortKey, currentMonth)
+
+            // Günlük gruplama
+            const day = date.getDate()
+            const monthShort = new Intl.DateTimeFormat("tr-TR", { month: "short" }).format(date)
+            const dateLabel = `${day} ${monthShort}`
+            
+            const currentDay = dailyMap.get(record.tarih) || { label: dateLabel, ciro: 0, recordCount: 0, uniqueDays: new Set<string>() }
+            currentDay.ciro += val
+            currentDay.recordCount++
+            currentDay.uniqueDays.add(record.tarih)
+            dailyMap.set(record.tarih, currentDay)
           }
         }
       })
 
-      const monthlyBreakdown = Array.from(monthMap.entries())
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([sortKey, value]) => ({
-          monthSortKey: sortKey,
-          monthLabel: value.label,
-          ciro: value.ciro,
-          recordCount: value.recordCount,
-          uniqueDaysCount: value.uniqueDays.size
-        }))
+      const breakdown = isDailyTrend
+        ? Array.from(dailyMap.entries())
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([sortKey, value]) => ({
+              sortKey,
+              label: value.label,
+              ciro: value.ciro,
+              recordCount: value.recordCount,
+              uniqueDaysCount: value.uniqueDays.size
+            }))
+        : Array.from(monthMap.entries())
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([sortKey, value]) => ({
+              sortKey,
+              label: value.label,
+              ciro: value.ciro,
+              recordCount: value.recordCount,
+              uniqueDaysCount: value.uniqueDays.size
+            }))
 
       const comm = getCommissionData(selectedCompany, sube.id, totalCiro)
 
@@ -402,10 +425,10 @@ export default function PerformansAnaliziPage() {
         komisyonOrani: comm.rate,
         komisyonTutari: comm.komisyonTutarı,
         hakedis: comm.hakedis,
-        monthlyBreakdown
+        breakdown
       }
     })
-  }, [activeTab, contextSubeler, filteredRecords, selectedCompany])
+  }, [activeTab, contextSubeler, filteredRecords, selectedCompany, isDailyTrend])
 
   const filteredFirmaAnalytics = useMemo(() => {
     if (selectedSubeId === "all") return firmaAnalyticsData
@@ -429,6 +452,8 @@ export default function PerformansAnaliziPage() {
       let totalCiro = 0
       let recordCount = 0
       const uniqueDays = new Set<string>()
+
+      const dailyMap = new Map<string, { label: string; ciro: number; recordCount: number; uniqueDays: Set<string> }>()
       const monthMap = new Map<string, { label: string; ciro: number; recordCount: number; uniqueDays: Set<string> }>()
 
       branchRecords.forEach((record) => {
@@ -449,29 +474,51 @@ export default function PerformansAnaliziPage() {
 
           const date = new Date(record.tarih)
           if (!Number.isNaN(date.getTime())) {
+            // Aylık gruplama
             const yearStr = date.getFullYear()
             const monthStr = MONTHS[date.getMonth()]
-            const label = `${monthStr} ${yearStr}`
-            const sortKey = `${yearStr}-${String(date.getMonth() + 1).padStart(2, "0")}`
+            const monthLabel = `${monthStr} ${yearStr}`
+            const monthSortKey = `${yearStr}-${String(date.getMonth() + 1).padStart(2, "0")}`
 
-            const current = monthMap.get(sortKey) || { label, ciro: 0, recordCount: 0, uniqueDays: new Set<string>() }
-            current.ciro += val
-            current.recordCount++
-            current.uniqueDays.add(record.tarih)
-            monthMap.set(sortKey, current)
+            const currentMonth = monthMap.get(monthSortKey) || { label: monthLabel, ciro: 0, recordCount: 0, uniqueDays: new Set<string>() }
+            currentMonth.ciro += val
+            currentMonth.recordCount++
+            currentMonth.uniqueDays.add(record.tarih)
+            monthMap.set(monthSortKey, currentMonth)
+
+            // Günlük gruplama
+            const day = date.getDate()
+            const monthShort = new Intl.DateTimeFormat("tr-TR", { month: "short" }).format(date)
+            const dateLabel = `${day} ${monthShort}`
+            
+            const currentDay = dailyMap.get(record.tarih) || { label: dateLabel, ciro: 0, recordCount: 0, uniqueDays: new Set<string>() }
+            currentDay.ciro += val
+            currentDay.recordCount++
+            currentDay.uniqueDays.add(record.tarih)
+            dailyMap.set(record.tarih, currentDay)
           }
         }
       })
 
-      const monthlyBreakdown = Array.from(monthMap.entries())
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([sortKey, value]) => ({
-          monthSortKey: sortKey,
-          monthLabel: value.label,
-          ciro: value.ciro,
-          recordCount: value.recordCount,
-          uniqueDaysCount: value.uniqueDays.size
-        }))
+      const breakdown = isDailyTrend
+        ? Array.from(dailyMap.entries())
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([sortKey, value]) => ({
+              sortKey,
+              label: value.label,
+              ciro: value.ciro,
+              recordCount: value.recordCount,
+              uniqueDaysCount: value.uniqueDays.size
+            }))
+        : Array.from(monthMap.entries())
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([sortKey, value]) => ({
+              sortKey,
+              label: value.label,
+              ciro: value.ciro,
+              recordCount: value.recordCount,
+              uniqueDaysCount: value.uniqueDays.size
+            }))
 
       const comm = getCommissionData(comp, currentBranchObject.id, totalCiro)
 
@@ -487,10 +534,10 @@ export default function PerformansAnaliziPage() {
         komisyonOrani: comm.rate,
         komisyonTutari: comm.komisyonTutarı,
         hakedis: comm.hakedis,
-        monthlyBreakdown
+        breakdown
       }
     }).filter(d => d.totalCiro > 0)
-  }, [activeTab, currentBranchObject, filteredRecords, availableCompanies])
+  }, [activeTab, currentBranchObject, filteredRecords, availableCompanies, isDailyTrend])
 
   // ============================================
   // COMBINED STATS & SUMMARY DATA (KPIs)
@@ -1398,14 +1445,14 @@ export default function PerformansAnaliziPage() {
                                 </td>
                               </tr>
 
-                              {/* Expanded Accordion Row for Monthly Breakdown */}
+                              {/* Expanded Accordion Row for Breakdown */}
                               {isExpanded && hasCiro && (
                                 <tr className="bg-muted/10 border-b">
                                   <td colSpan={7} className="p-4 sm:px-8">
                                     <div className="space-y-3 p-4 bg-background/55 border rounded-2xl animate-in slide-in-from-top-4 duration-300 shadow-inner">
                                       <div className="text-xs font-bold text-indigo-500 uppercase tracking-wider flex items-center gap-1.5">
                                         <TrendingUp className="h-4 w-4" />
-                                        Şube {row.subeAd} - Aylık Ciro Kırılımı
+                                        Şube {row.subeAd} - {isDailyTrend ? "Günlük Ciro Dağılımı" : "Aylık Ciro Kırılımı"}
                                       </div>
                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
                                         
@@ -1413,21 +1460,27 @@ export default function PerformansAnaliziPage() {
                                           <table className="w-full text-xs">
                                             <thead>
                                               <tr className="border-b bg-muted/40 font-semibold text-muted-foreground uppercase">
-                                                <th className="p-2.5">Ay</th>
+                                                <th className="p-2.5">{isDailyTrend ? "Tarih" : "Ay"}</th>
                                                 <th className="p-2.5 text-right">Ciro</th>
-                                                <th className="p-2.5 text-right">Gün (Vardiya) Sayısı</th>
+                                                <th className="p-2.5 text-right">{isDailyTrend ? "Vardiya" : "Gün (Vardiya) Sayısı"}</th>
                                               </tr>
                                             </thead>
                                             <tbody className="divide-y">
-                                              {row.monthlyBreakdown.map((m) => (
-                                                <tr key={m.monthSortKey} className="hover:bg-muted/10">
-                                                  <td className="p-2.5 font-medium">{m.monthLabel}</td>
+                                              {row.breakdown.map((m) => (
+                                                <tr key={m.sortKey} className="hover:bg-muted/10">
+                                                  <td className="p-2.5 font-medium">{m.label}</td>
                                                   <td className="p-2.5 text-right font-bold text-foreground">
                                                     {formatMoney(m.ciro)} TL
                                                   </td>
                                                   <td className="p-2.5 text-right font-medium">
-                                                    <span className="text-foreground font-bold">{m.uniqueDaysCount} Gün</span>
-                                                    <span className="text-muted-foreground text-[10px] ml-1">({m.recordCount} Vardiya)</span>
+                                                    {isDailyTrend ? (
+                                                      <span className="text-foreground font-bold">{m.recordCount} Vardiya</span>
+                                                    ) : (
+                                                      <>
+                                                        <span className="text-foreground font-bold">{m.uniqueDaysCount} Gün</span>
+                                                        <span className="text-muted-foreground text-[10px] ml-1">({m.recordCount} Vardiya)</span>
+                                                      </>
+                                                    )}
                                                   </td>
                                                 </tr>
                                               ))}
@@ -1437,9 +1490,9 @@ export default function PerformansAnaliziPage() {
 
                                         <div className="h-[140px] w-full">
                                           <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart data={row.monthlyBreakdown}>
+                                            <BarChart data={row.breakdown}>
                                               <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.06)" />
-                                              <XAxis dataKey="monthLabel" fontSize={8} tickLine={false} />
+                                              <XAxis dataKey="label" fontSize={8} tickLine={false} minTickGap={10} />
                                               <YAxis fontSize={8} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} width={24} />
                                               <Tooltip
                                                 formatter={(value: number) => [`${formatMoney(value)} TL`, "Ciro"]}
@@ -1557,14 +1610,14 @@ export default function PerformansAnaliziPage() {
                                 </td>
                               </tr>
 
-                              {/* Expanded Accordion Row for Monthly Breakdown */}
+                              {/* Expanded Accordion Row for Breakdown */}
                               {isExpanded && hasCiro && (
                                 <tr className="bg-muted/10 border-b">
                                   <td colSpan={8} className="p-4 sm:px-8">
                                     <div className="space-y-3 p-4 bg-background/55 border rounded-2xl animate-in slide-in-from-top-4 duration-300 shadow-inner">
                                       <div className="text-xs font-bold text-indigo-500 uppercase tracking-wider flex items-center gap-1.5">
                                         <TrendingUp className="h-4 w-4" />
-                                        {row.companyLabel} - Aylık Ciro Kırılımı
+                                        {row.companyLabel} - {isDailyTrend ? "Günlük Ciro Dağılımı" : "Aylık Ciro Kırılımı"}
                                       </div>
                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
                                         
@@ -1572,21 +1625,27 @@ export default function PerformansAnaliziPage() {
                                           <table className="w-full text-xs">
                                             <thead>
                                               <tr className="border-b bg-muted/40 font-semibold text-muted-foreground uppercase">
-                                                <th className="p-2.5">Ay</th>
+                                                <th className="p-2.5">{isDailyTrend ? "Tarih" : "Ay"}</th>
                                                 <th className="p-2.5 text-right">Ciro</th>
-                                                <th className="p-2.5 text-right">Gün (Vardiya) Sayısı</th>
+                                                <th className="p-2.5 text-right">{isDailyTrend ? "Vardiya" : "Gün (Vardiya) Sayısı"}</th>
                                               </tr>
                                             </thead>
                                             <tbody className="divide-y">
-                                              {row.monthlyBreakdown.map((m) => (
-                                                <tr key={m.monthSortKey} className="hover:bg-muted/10">
-                                                  <td className="p-2.5 font-medium">{m.monthLabel}</td>
+                                              {row.breakdown.map((m) => (
+                                                <tr key={m.sortKey} className="hover:bg-muted/10">
+                                                  <td className="p-2.5 font-medium">{m.label}</td>
                                                   <td className="p-2.5 text-right font-bold text-foreground">
                                                     {formatMoney(m.ciro)} TL
                                                   </td>
                                                   <td className="p-2.5 text-right font-medium">
-                                                    <span className="text-foreground font-bold">{m.uniqueDaysCount} Gün</span>
-                                                    <span className="text-muted-foreground text-[10px] ml-1">({m.recordCount} Vardiya)</span>
+                                                    {isDailyTrend ? (
+                                                      <span className="text-foreground font-bold">{m.recordCount} Vardiya</span>
+                                                    ) : (
+                                                      <>
+                                                        <span className="text-foreground font-bold">{m.uniqueDaysCount} Gün</span>
+                                                        <span className="text-muted-foreground text-[10px] ml-1">({m.recordCount} Vardiya)</span>
+                                                      </>
+                                                    )}
                                                   </td>
                                                 </tr>
                                               ))}
@@ -1596,9 +1655,9 @@ export default function PerformansAnaliziPage() {
 
                                         <div className="h-[140px] w-full">
                                           <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart data={row.monthlyBreakdown}>
+                                            <BarChart data={row.breakdown}>
                                               <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.06)" />
-                                              <XAxis dataKey="monthLabel" fontSize={8} tickLine={false} />
+                                              <XAxis dataKey="label" fontSize={8} tickLine={false} minTickGap={10} />
                                               <YAxis fontSize={8} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} width={24} />
                                               <Tooltip
                                                 formatter={(value: number) => [`${formatMoney(value)} TL`, "Ciro"]}
