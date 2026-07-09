@@ -845,7 +845,7 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
                         onBlur={(e) => updateCell(rowIndex, col, formatTrackingRangeValue(e.target.value))}
                         onKeyDown={handleSpreadsheetKeyDown}
                         className="spreadsheet-active-input w-full bg-transparent px-2 py-1 text-center font-medium text-foreground focus:outline-none"
-                        placeholder="1.234 - 1.562"
+                        placeholder="0"
                       />
                     ) : isTrackingOnlyColumn(col, isCurrentBesASube) ? (
                       <div className="px-2 py-1 text-center text-muted-foreground">
