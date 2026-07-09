@@ -368,7 +368,7 @@ export default function PerformansAnaliziPage() {
             title: "Ciro Trendi (Zaman Serisi)",
             type: "timeline",
             data: chartsData.trend.map(point => ({
-              label: point.name,
+              label: point.name.split(" ")[0],
               value: point.ciro,
               color: "#6366f1"
             }))
@@ -435,7 +435,7 @@ export default function PerformansAnaliziPage() {
             title: "Ciro Trendi (Zaman Serisi)",
             type: "timeline",
             data: chartsData.trend.map(point => ({
-              label: point.name,
+              label: point.name.split(" ")[0],
               value: point.ciro,
               color: "#6366f1"
             }))
@@ -1433,6 +1433,48 @@ export default function PerformansAnaliziPage() {
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
+                    </div>
+
+                    {/* Comparison Breakdown Table */}
+                    <div className="col-span-1 md:col-span-5 mt-4 pt-4 border-t border-border/40">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-border/40 text-muted-foreground text-xs font-semibold">
+                              <th className="pb-2 text-left w-6">#</th>
+                              <th className="pb-2 text-left">{activeTab === "firma" ? "Şube Adı" : "Firma Adı"}</th>
+                              <th className="pb-2 text-right">Ciro</th>
+                              <th className="pb-2 text-right">Pay (%)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {chartsData.comparison.map((item, index) => {
+                              const colors = [
+                                "rgb(79, 70, 229)", // Indigo 600
+                                "rgb(16, 185, 129)", // Emerald 500
+                                "rgb(245, 158, 11)", // Amber 500
+                                "rgb(239, 68, 68)",  // Red 500
+                                "rgb(168, 85, 247)", // Purple 500
+                                "rgb(6, 182, 212)",  // Cyan 500
+                                "rgb(236, 72, 153)", // Pink 500
+                                "rgb(100, 116, 139)" // Slate 500
+                              ]
+                              const color = colors[index % colors.length]
+                              const share = kpiData.totalCiro > 0 ? (item.ciro / kpiData.totalCiro) * 100 : 0
+                              return (
+                                <tr key={item.name} className="border-b border-border/20 last:border-0 hover:bg-muted/10">
+                                  <td className="py-2">
+                                    <div className="w-3.5 h-3.5 rounded-full border border-border/20 shadow-sm" style={{ backgroundColor: color }} />
+                                  </td>
+                                  <td className="py-2 font-semibold text-foreground">{item.name}</td>
+                                  <td className="py-2 text-right font-black text-foreground">{formatMoney(item.ciro)} TL</td>
+                                  <td className="py-2 text-right font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">{share.toFixed(1)}%</td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
 
                   </div>
