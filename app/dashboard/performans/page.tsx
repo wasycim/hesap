@@ -388,7 +388,24 @@ export default function PerformansAnaliziPage() {
         ],
         tables: [
           {
-            title: "Şube Bazlı Hakediş Raporu",
+            title: "Ciro Dağılımı ve Katkı Payları Raporu",
+            headers: ["Şube Adı", "Bilet Cirosu", "Ciro Payı (%)"],
+            firstColumnWidth: "30%",
+            rows: [
+              ...chartsData.comparison.map(item => [
+                item.name,
+                `${formatMoney(item.ciro)} TL`,
+                `%${(kpiData.totalCiro > 0 ? (item.ciro / kpiData.totalCiro) * 100 : 0).toFixed(1)}`
+              ]),
+              [
+                "TOPLAM",
+                `${formatMoney(kpiData.totalCiro)} TL`,
+                "%100.0"
+              ]
+            ]
+          },
+          {
+            title: "Şube Bazlı Hakediş Detay Raporu",
             headers: ["Şube Adı", "Bilet Cirosu", "Komisyon Oranı", "Komisyon Tutarı", "Net Hakediş", "Aktif Gün", "Vardiya Sayısı"],
             firstColumnWidth: "20%",
             rows: [
@@ -455,7 +472,24 @@ export default function PerformansAnaliziPage() {
         ],
         tables: [
           {
-            title: "Firma Bazlı Hakediş Raporu",
+            title: "Ciro Dağılımı ve Katkı Payları Raporu",
+            headers: ["Firma Adı", "Bilet Cirosu", "Ciro Payı (%)"],
+            firstColumnWidth: "30%",
+            rows: [
+              ...chartsData.comparison.map(item => [
+                item.name,
+                `${formatMoney(item.ciro)} TL`,
+                `%${(kpiData.totalCiro > 0 ? (item.ciro / kpiData.totalCiro) * 100 : 0).toFixed(1)}`
+              ]),
+              [
+                "TOPLAM",
+                `${formatMoney(kpiData.totalCiro)} TL`,
+                "%100.0"
+              ]
+            ]
+          },
+          {
+            title: "Firma Bazlı Hakediş Detay Raporu",
             headers: ["Firma Adı", "Türü", "Bilet Cirosu", "Komisyon Oranı", "Komisyon Tutarı", "Net Hakediş", "Aktif Gün", "Vardiya Sayısı"],
             firstColumnWidth: "20%",
             rows: [
