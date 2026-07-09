@@ -374,6 +374,30 @@ export default function PerformansAnaliziPage() {
             }))
           },
           {
+            title: "Ciro Dağılımı (Pasta Grafik)",
+            type: "doughnut",
+            data: filteredFirmaAnalytics
+              .sort((a, b) => b.totalCiro - a.totalCiro)
+              .map((row, idx) => {
+                const colors = [
+                  "rgb(79, 70, 229)", // Indigo 600
+                  "rgb(16, 185, 129)", // Emerald 500
+                  "rgb(245, 158, 11)", // Amber 500
+                  "rgb(239, 68, 68)",  // Red 500
+                  "rgb(168, 85, 247)", // Purple 500
+                  "rgb(6, 182, 212)",  // Cyan 500
+                  "rgb(236, 72, 153)", // Pink 500
+                  "rgb(100, 116, 139)" // Slate 500
+                ]
+                return {
+                  label: `Şube ${row.subeAd}`,
+                  value: row.totalCiro,
+                  color: colors[idx % colors.length],
+                  percentage: kpiData.totalCiro > 0 ? (row.totalCiro / kpiData.totalCiro) * 100 : 0
+                }
+              })
+          },
+          {
             title: "Şube Ciro Dağılımı",
             type: "bar",
             data: filteredFirmaAnalytics
@@ -456,6 +480,30 @@ export default function PerformansAnaliziPage() {
               value: point.ciro,
               color: "#6366f1"
             }))
+          },
+          {
+            title: "Ciro Dağılımı (Pasta Grafik)",
+            type: "doughnut",
+            data: subeAnalyticsData
+              .sort((a, b) => b.totalCiro - a.totalCiro)
+              .map((row, idx) => {
+                const colors = [
+                  "rgb(79, 70, 229)", // Indigo 600
+                  "rgb(16, 185, 129)", // Emerald 500
+                  "rgb(245, 158, 11)", // Amber 500
+                  "rgb(239, 68, 68)",  // Red 500
+                  "rgb(168, 85, 247)", // Purple 500
+                  "rgb(6, 182, 212)",  // Cyan 500
+                  "rgb(236, 72, 153)", // Pink 500
+                  "rgb(100, 116, 139)" // Slate 500
+                ]
+                return {
+                  label: row.companyLabel,
+                  value: row.totalCiro,
+                  color: colors[idx % colors.length],
+                  percentage: kpiData.totalCiro > 0 ? (row.totalCiro / kpiData.totalCiro) * 100 : 0
+                }
+              })
           },
           {
             title: "Firma Ciro Dağılımı",

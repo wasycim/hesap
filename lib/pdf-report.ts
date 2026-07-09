@@ -22,7 +22,7 @@ interface PdfChartDataPoint {
 
 interface PdfChart {
   title: string
-  type: "bar" | "timeline"
+  type: "bar" | "timeline" | "doughnut"
   data: PdfChartDataPoint[]
 }
 
@@ -202,7 +202,7 @@ function buildPdfHtml({
     } else if (chart.type === "timeline") {
       const maxValue = Math.max(...chart.data.map(d => d.value), 1)
       return `
-        <div class="pdf-timeline-container">
+        <div class="pdf-timeline-container pdf-chart-timeline-card">
           <div class="pdf-chart-title">${escapeHtml(chart.title)}</div>
           <div class="pdf-timeline-bars">
             ${chart.data.map(d => {
@@ -217,6 +217,47 @@ function buildPdfHtml({
                 </div>
               `
             }).join("")}
+          </div>
+        </div>
+      `
+    } else if (chart.type === "doughnut") {
+      const totalCiro = chart.data.reduce((acc, d) => acc + d.value, 0)
+      let cumulativePercentage = 0
+      const gradientParts: string[] = []
+      
+      chart.data.forEach((d) => {
+        const pct = d.percentage ?? (totalCiro > 0 ? (d.value / totalCiro) * 100 : 0)
+        const start = cumulativePercentage.toFixed(2)
+        cumulativePercentage += pct
+        const end = cumulativePercentage.toFixed(2)
+        const barColor = d.color || "#0f766e"
+        gradientParts.push(`${barColor} ${start}% ${end}%`)
+      })
+      
+      const conicGradientString = gradientParts.length > 0 ? gradientParts.join(", ") : "#cbd5e1 0% 100%"
+      
+      return `
+        <div class="pdf-chart-container pdf-chart-doughnut-card">
+          <div class="pdf-chart-title">${escapeHtml(chart.title)}</div>
+          <div class="pdf-doughnut-layout">
+            <div class="pdf-doughnut" style="background: conic-gradient(${conicGradientString});">
+              <div class="pdf-doughnut-hole">
+                <div class="pdf-doughnut-total-label">TOPLAM</div>
+                <div class="pdf-doughnut-total-val">${formatMoney(totalCiro).split(",")[0]} TL</div>
+              </div>
+            </div>
+            <div class="pdf-doughnut-legend">
+              ${chart.data.map((d) => {
+                const pct = d.percentage ?? (totalCiro > 0 ? (d.value / totalCiro) * 100 : 0)
+                return `
+                  <div class="pdf-legend-item">
+                    <span class="pdf-legend-color" style="background-color: ${d.color || "#0f766e"}"></span>
+                    <span class="pdf-legend-label">${escapeHtml(d.label)}</span>
+                    <span class="pdf-legend-value">${pct.toFixed(1)}%</span>
+                  </div>
+                `
+              }).join("")}
+            </div>
           </div>
         </div>
       `
@@ -468,6 +509,89 @@ function buildPdfHtml({
             text-overflow: ellipsis;
             text-align: center;
             width: 100%;
+          }
+          
+          .pdf-chart-timeline-card {
+            grid-column: 1 / -1;
+          }
+          .pdf-doughnut-layout {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+            margin-bottom: 5px;
+          }
+          .pdf-doughnut {
+            position: relative;
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+          }
+          .pdf-doughnut-hole {
+            width: 88px;
+            height: 88px;
+            border-radius: 50%;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+          }
+          .pdf-doughnut-total-label {
+            font-size: 7px;
+            font-weight: 800;
+            color: #64748b;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            line-height: 1;
+          }
+          .pdf-doughnut-total-val {
+            font-size: 11px;
+            font-weight: 950;
+            color: #0f172a;
+            margin-top: 3px;
+            line-height: 1.1;
+            white-space: nowrap;
+          }
+          .pdf-doughnut-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            flex-grow: 1;
+            min-width: 0;
+          }
+          .pdf-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 9px;
+          }
+          .pdf-legend-color {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+          }
+          .pdf-legend-label {
+            font-weight: 800;
+            color: #334155;
+            flex-grow: 1;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+          }
+          .pdf-legend-value {
+            font-weight: 800;
+            color: #0f172a;
+            font-variant-numeric: tabular-nums;
+            margin-left: auto;
           }
         </style>
       </head>
