@@ -363,6 +363,29 @@ export default function PerformansAnaliziPage() {
           { label: "Net Hakediş", value: `${formatMoney(totalHakedis)} TL` },
           { label: "En Başarılı Şube", value: kpiData.topElement.name },
         ],
+        charts: [
+          {
+            title: "Ciro Trendi (Zaman Serisi)",
+            type: "timeline",
+            data: chartsData.trend.map(point => ({
+              label: point.name,
+              value: point.ciro,
+              color: "#6366f1"
+            }))
+          },
+          {
+            title: "Şube Ciro Dağılımı",
+            type: "bar",
+            data: filteredFirmaAnalytics
+              .sort((a, b) => b.totalCiro - a.totalCiro)
+              .map(row => ({
+                label: `Şube ${row.subeAd}`,
+                value: row.totalCiro,
+                color: "#0f766e",
+                percentage: kpiData.totalCiro > 0 ? (row.totalCiro / kpiData.totalCiro) * 100 : 0
+              }))
+          }
+        ],
         tables: [
           {
             title: "Şube Bazlı Hakediş Raporu",
@@ -406,6 +429,29 @@ export default function PerformansAnaliziPage() {
           { label: "Toplam Komisyon", value: `${formatMoney(totalKomisyon)} TL` },
           { label: "Net Hakediş", value: `${formatMoney(totalHakedis)} TL` },
           { label: "En Başarılı Firma", value: kpiData.topElement.name },
+        ],
+        charts: [
+          {
+            title: "Ciro Trendi (Zaman Serisi)",
+            type: "timeline",
+            data: chartsData.trend.map(point => ({
+              label: point.name,
+              value: point.ciro,
+              color: "#6366f1"
+            }))
+          },
+          {
+            title: "Firma Ciro Dağılımı",
+            type: "bar",
+            data: subeAnalyticsData
+              .sort((a, b) => b.totalCiro - a.totalCiro)
+              .map(row => ({
+                label: row.companyLabel,
+                value: row.totalCiro,
+                color: row.color || "#0f766e",
+                percentage: kpiData.totalCiro > 0 ? (row.totalCiro / kpiData.totalCiro) * 100 : 0
+              }))
+          }
         ],
         tables: [
           {

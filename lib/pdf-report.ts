@@ -13,6 +13,19 @@ interface PdfTable {
   firstColumnWidth?: string
 }
 
+interface PdfChartDataPoint {
+  label: string
+  value: number
+  color?: string
+  percentage?: number
+}
+
+interface PdfChart {
+  title: string
+  type: "bar" | "timeline"
+  data: PdfChartDataPoint[]
+}
+
 interface PdfReportOptions {
   title: string
   subtitle?: string
@@ -21,6 +34,7 @@ interface PdfReportOptions {
   action?: PdfAction
   metrics?: PdfMetric[]
   tables: PdfTable[]
+  charts?: PdfChart[]
   archive?: boolean
 }
 
@@ -121,9 +135,11 @@ function buildPdfHtml({
   orientation,
   metrics,
   tables,
+  charts = [],
   autoPrint,
 }: Required<Pick<PdfReportOptions, "title" | "orientation" | "metrics" | "tables">> & {
   subtitle?: string
+  charts?: PdfChart[]
   autoPrint: boolean
 }) {
   const maxColumnCount = Math.max(...tables.map(table => table.headers.length), 1)
@@ -155,6 +171,58 @@ function buildPdfHtml({
       </table>
     </section>
   `).join("")
+
+  const formatMoney = (value: number) => {
+    return value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  }
+
+  const chartHtml = (charts || []).map(chart => {
+    if (chart.type === "bar") {
+      const maxValue = Math.max(...chart.data.map(d => d.value), 1)
+      return `
+        <div class="pdf-chart-container">
+          <div class="pdf-chart-title">${escapeHtml(chart.title)}</div>
+          <div class="pdf-chart-bars">
+            ${chart.data.map(d => {
+              const pct = d.percentage ?? ((d.value / maxValue) * 100)
+              const barColor = d.color || "#0f766e"
+              return `
+                <div class="pdf-chart-row">
+                  <span class="pdf-chart-label">${escapeHtml(d.label)}</span>
+                  <div class="pdf-chart-track">
+                    <div class="pdf-chart-fill" style="width: ${pct}%; background-color: ${barColor};"></div>
+                  </div>
+                  <span class="pdf-chart-value">${formatMoney(d.value)} TL ${d.percentage !== undefined ? `(%${d.percentage.toFixed(1)})` : ""}</span>
+                </div>
+              `
+            }).join("")}
+          </div>
+        </div>
+      `
+    } else if (chart.type === "timeline") {
+      const maxValue = Math.max(...chart.data.map(d => d.value), 1)
+      return `
+        <div class="pdf-timeline-container">
+          <div class="pdf-chart-title">${escapeHtml(chart.title)}</div>
+          <div class="pdf-timeline-bars">
+            ${chart.data.map(d => {
+              const heightPct = (d.value / maxValue) * 100
+              const barColor = d.color || "#4f46e5"
+              return `
+                <div class="pdf-timeline-bar-wrapper">
+                  <div class="pdf-timeline-bar-track">
+                    <div class="pdf-timeline-bar-fill" style="height: ${heightPct}%; background-color: ${barColor};" title="${escapeHtml(d.label)}: ${formatMoney(d.value)} TL"></div>
+                  </div>
+                  <div class="pdf-timeline-bar-label">${escapeHtml(d.label)}</div>
+                </div>
+              `
+            }).join("")}
+          </div>
+        </div>
+      `
+    }
+    return ""
+  }).join("")
 
   return `
     <!doctype html>
@@ -294,6 +362,113 @@ function buildPdfHtml({
             body { padding: 0; }
             .paper { width: auto; min-height: 0; box-shadow: none; margin: 0; }
           }
+          
+          /* PDF Charts Styling */
+          .pdf-charts-wrapper {
+            display: grid;
+            grid-template-columns: repeat(${orientation === "landscape" ? "2" : "1"}, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 12px;
+          }
+          .pdf-chart-container {
+            border: 1px solid #dbe3ee;
+            border-radius: 10px;
+            background: #f8fafc;
+            padding: 12px;
+            break-inside: avoid;
+          }
+          .pdf-timeline-container {
+            border: 1px solid #dbe3ee;
+            border-radius: 10px;
+            background: #f8fafc;
+            padding: 12px;
+            break-inside: avoid;
+          }
+          .pdf-chart-title {
+            font-size: 11px;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: .02em;
+          }
+          .pdf-chart-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+          }
+          .pdf-chart-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 9px;
+          }
+          .pdf-chart-label {
+            width: 120px;
+            font-weight: 800;
+            color: #334155;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+          }
+          .pdf-chart-track {
+            flex-grow: 1;
+            height: 10px;
+            background: #e2e8f0;
+            border-radius: 5px;
+            overflow: hidden;
+          }
+          .pdf-chart-fill {
+            height: 100%;
+            border-radius: 5px;
+          }
+          .pdf-chart-value {
+            width: 140px;
+            text-align: right;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            color: #0f172a;
+          }
+          .pdf-timeline-bars {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            height: 90px;
+            gap: 3px;
+            padding-top: 6px;
+            border-bottom: 2px solid #cbd5e1;
+          }
+          .pdf-timeline-bar-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-grow: 1;
+            min-width: 0;
+          }
+          .pdf-timeline-bar-track {
+            width: 100%;
+            height: 76px;
+            display: flex;
+            align-items: flex-end;
+            background: rgba(226, 232, 240, 0.4);
+            border-radius: 2px 2px 0 0;
+            overflow: hidden;
+          }
+          .pdf-timeline-bar-fill {
+            width: 100%;
+            border-radius: 2px 2px 0 0;
+          }
+          .pdf-timeline-bar-label {
+            font-size: 7px;
+            font-weight: 700;
+            color: #64748b;
+            margin-top: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-align: center;
+            width: 100%;
+          }
         </style>
       </head>
       <body>
@@ -320,6 +495,7 @@ function buildPdfHtml({
                   `).join("")}
                 </div>
               ` : ""}
+              ${chartHtml ? `<div class="pdf-charts-wrapper">${chartHtml}</div>` : ""}
               ${tableHtml}
             </main>
           </div>
@@ -372,14 +548,15 @@ export function openPdfReport({
   action = "print",
   metrics = [],
   tables,
+  charts = [],
   archive = true,
 }: PdfReportOptions) {
   if (typeof window !== "undefined" && document.documentElement.classList.contains("native-app")) {
     if (archive) {
-      const html = buildPdfHtml({ title, subtitle, orientation, metrics, tables, autoPrint: false })
+      const html = buildPdfHtml({ title, subtitle, orientation, metrics, tables, charts, autoPrint: false })
       archivePdfReport(title, subtitle, html)
     }
-    void shareNativePdf({ title, subtitle, orientation, metrics, tables }).catch((error) => {
+    void shareNativePdf({ title, subtitle, orientation, metrics, tables, charts }).catch((error) => {
       window.alert(error instanceof Error ? `PDF paylaşılamadı: ${error.message}` : "PDF paylaşılamadı.")
     })
     return
@@ -395,6 +572,7 @@ export function openPdfReport({
         skipOrientationPicker: true,
         metrics,
         tables,
+        charts,
         archive,
       })
     })
@@ -407,6 +585,7 @@ export function openPdfReport({
     orientation,
     metrics,
     tables,
+    charts,
     autoPrint: action === "print",
   })
 
