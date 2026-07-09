@@ -317,15 +317,53 @@ export default function PerformansAnaliziPage() {
     return diffDays <= 45 // Show daily points if range is 1.5 months or less
   }, [startDate, endDate])
 
+  // Resolves the ciro amount for a given record and company option (including 14 no custom firms on other branches)
+  const getRecordCompanyValue = (record: GelirRecord, company: CompanyOption) => {
+    if (company.type === "builtin") {
+      return Number(record[company.key as keyof GelirRecord]) || 0
+    }
+    
+    if (company.type === "custom" && company.mappings) {
+      const onDortSube = contextSubeler.find(s => s.ad.toLocaleLowerCase("tr-TR").includes("14"))
+      
+      if (record.sube_id === onDortSube?.id) {
+        const mapping = company.mappings.find(m => m.sube_id === onDortSube.id)
+        if (mapping) {
+          return Number(record.custom_values?.[`firma_${mapping.id}`]) || 0
+        }
+      } else {
+        const onDortMapping = company.mappings.find(m => m.sube_id === onDortSube?.id)
+        if (onDortMapping) {
+          const details = record.custom_values?.on_dort_firma_detaylari as Record<string, number> | undefined
+          if (details && details[onDortMapping.id] !== undefined) {
+            return Number(details[onDortMapping.id]) || 0
+          }
+        }
+        
+        const mapping = company.mappings.find(m => m.sube_id === record.sube_id)
+        if (mapping) {
+          return Number(record.custom_values?.[`firma_${mapping.id}`]) || 0
+        }
+      }
+    }
+    
+    return 0
+  }
+
   // Helper function to resolve commission rate & amount for any row
   const getCommissionData = (company: CompanyOption, subeId: string, totalCiro: number) => {
     let rate = 10 // default custom commission
     if (company.type === "builtin") {
       rate = company.komisyonOrani ?? 10
     } else if (company.type === "custom" && company.mappings) {
+      const onDortSube = contextSubeler.find(s => s.ad.toLocaleLowerCase("tr-TR").includes("14"))
+      const onDortMapping = company.mappings.find(m => m.sube_id === onDortSube?.id)
+      
       const mapping = company.mappings.find(m => m.sube_id === subeId)
       if (mapping && mapping.komisyon_orani !== null) {
         rate = Number(mapping.komisyon_orani)
+      } else if (onDortMapping && onDortMapping.komisyon_orani !== null) {
+        rate = Number(onDortMapping.komisyon_orani)
       }
     }
     const komisyonTutarı = totalCiro * (rate / 100)
@@ -586,15 +624,7 @@ export default function PerformansAnaliziPage() {
       const monthMap = new Map<string, { label: string; ciro: number; recordCount: number; uniqueDays: Set<string> }>()
 
       subeRecords.forEach((record) => {
-        let val = 0
-        if (selectedCompany.type === "builtin") {
-          val = record[selectedCompany.key as keyof GelirRecord] as number || 0
-        } else if (selectedCompany.type === "custom" && selectedCompany.mappings) {
-          const mapping = selectedCompany.mappings.find(m => m.sube_id === sube.id)
-          if (mapping) {
-            val = Number(record.custom_values?.[`firma_${mapping.id}`]) || 0
-          }
-        }
+        const val = getRecordCompanyValue(record, selectedCompany)
 
         if (val > 0) {
           totalCiro += val
@@ -693,15 +723,7 @@ export default function PerformansAnaliziPage() {
       const monthMap = new Map<string, { label: string; ciro: number; recordCount: number; uniqueDays: Set<string> }>()
 
       branchRecords.forEach((record) => {
-        let val = 0
-        if (comp.type === "builtin") {
-          val = record[comp.key as keyof GelirRecord] as number || 0
-        } else if (comp.type === "custom" && comp.mappings) {
-          const mapping = comp.mappings.find(m => m.sube_id === currentBranchObject.id)
-          if (mapping) {
-            val = Number(record.custom_values?.[`firma_${mapping.id}`]) || 0
-          }
-        }
+        const val = getRecordCompanyValue(record, comp)
 
         if (val > 0) {
           totalCiro += val
@@ -881,24 +903,10 @@ export default function PerformansAnaliziPage() {
         // Get value
         let val = 0
         if (activeTab === "firma") {
-          if (selectedCompany.type === "builtin") {
-            val = record[selectedCompany.key as keyof GelirRecord] as number || 0
-          } else if (selectedCompany.type === "custom" && selectedCompany.mappings) {
-            const mapping = selectedCompany.mappings.find(m => m.sube_id === record.sube_id)
-            if (mapping) {
-              val = Number(record.custom_values?.[`firma_${mapping.id}`]) || 0
-            }
-          }
+          val = getRecordCompanyValue(record, selectedCompany)
         } else {
           availableCompanies.forEach((comp) => {
-            if (comp.type === "builtin") {
-              val += record[comp.key as keyof GelirRecord] as number || 0
-            } else if (comp.type === "custom" && comp.mappings) {
-              const mapping = comp.mappings.find(m => m.sube_id === currentBranchObject?.id)
-              if (mapping) {
-                val += Number(record.custom_values?.[`firma_${mapping.id}`]) || 0
-              }
-            }
+            val += getRecordCompanyValue(record, comp)
           })
         }
 
