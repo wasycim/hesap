@@ -20,9 +20,11 @@ import {
   Target,
   Search,
   BadgePercent,
-  Layers
+  Layers,
+  FileText
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { openPdfReport } from "@/lib/pdf-report"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { ModernDatePicker } from "@/components/ui/modern-date-picker"
@@ -332,6 +334,111 @@ export default function PerformansAnaliziPage() {
       rate,
       komisyonTutarı,
       hakedis
+    }
+  }
+
+  // PDF Export function
+  const exportPdf = () => {
+    const formatD = (val: string) => {
+      if (!val) return ""
+      return new Date(val).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" })
+    }
+
+    const startStr = formatD(startDate)
+    const endStr = formatD(endDate)
+    const dateRangeStr = `${startStr} - ${endStr}`
+    const vardiyaText = selectedVardiya === "all" ? "Tüm Vardiyalar" : selectedVardiya
+
+    if (activeTab === "firma" && selectedCompany) {
+      const totalHakedis = filteredFirmaAnalytics.reduce((sum, item) => sum + item.hakedis, 0)
+      const totalKomisyon = filteredFirmaAnalytics.reduce((sum, item) => sum + item.komisyonTutari, 0)
+
+      openPdfReport({
+        title: "Firma Performans Raporu",
+        subtitle: `${selectedCompany.label} | ${dateRangeStr} (${vardiyaText})`,
+        orientation: "landscape",
+        metrics: [
+          { label: "Toplam Satış", value: `${formatMoney(kpiData.totalCiro)} TL` },
+          { label: "Toplam Komisyon", value: `${formatMoney(totalKomisyon)} TL` },
+          { label: "Net Hakediş", value: `${formatMoney(totalHakedis)} TL` },
+          { label: "En Başarılı Şube", value: kpiData.topElement.name },
+        ],
+        tables: [
+          {
+            title: "Şube Bazlı Hakediş Raporu",
+            headers: ["Şube Adı", "Bilet Cirosu", "Komisyon Oranı", "Komisyon Tutarı", "Net Hakediş", "Aktif Gün", "Vardiya Sayısı"],
+            firstColumnWidth: "20%",
+            rows: [
+              ...filteredFirmaAnalytics
+                .sort((a, b) => b.totalCiro - a.totalCiro)
+                .map(row => [
+                  `Şube ${row.subeAd}`,
+                  `${formatMoney(row.totalCiro)} TL`,
+                  `%${row.komisyonOrani}`,
+                  `${formatMoney(row.komisyonTutari)} TL`,
+                  `${formatMoney(row.hakedis)} TL`,
+                  `${row.uniqueDaysCount} Gün`,
+                  `${row.recordCount} Vardiya`
+                ]),
+              [
+                "TOPLAM",
+                `${formatMoney(kpiData.totalCiro)} TL`,
+                "-",
+                `${formatMoney(totalKomisyon)} TL`,
+                `${formatMoney(totalHakedis)} TL`,
+                "",
+                ""
+              ]
+            ]
+          }
+        ]
+      })
+    } else if (activeTab === "sube" && currentBranchObject) {
+      const totalHakedis = subeAnalyticsData.reduce((sum, item) => sum + item.hakedis, 0)
+      const totalKomisyon = subeAnalyticsData.reduce((sum, item) => sum + item.komisyonTutari, 0)
+
+      openPdfReport({
+        title: "Şube Performans Raporu",
+        subtitle: `Şube ${currentBranchObject.ad} | ${dateRangeStr} (${vardiyaText})`,
+        orientation: "landscape",
+        metrics: [
+          { label: "Toplam Satış", value: `${formatMoney(kpiData.totalCiro)} TL` },
+          { label: "Toplam Komisyon", value: `${formatMoney(totalKomisyon)} TL` },
+          { label: "Net Hakediş", value: `${formatMoney(totalHakedis)} TL` },
+          { label: "En Başarılı Firma", value: kpiData.topElement.name },
+        ],
+        tables: [
+          {
+            title: "Firma Bazlı Hakediş Raporu",
+            headers: ["Firma Adı", "Türü", "Bilet Cirosu", "Komisyon Oranı", "Komisyon Tutarı", "Net Hakediş", "Aktif Gün", "Vardiya Sayısı"],
+            firstColumnWidth: "20%",
+            rows: [
+              ...subeAnalyticsData
+                .sort((a, b) => b.totalCiro - a.totalCiro)
+                .map(row => [
+                  row.companyLabel,
+                  row.isShared ? "Ortak Firma" : "Özel Firma",
+                  `${formatMoney(row.totalCiro)} TL`,
+                  `%${row.komisyonOrani}`,
+                  `${formatMoney(row.komisyonTutari)} TL`,
+                  `${formatMoney(row.hakedis)} TL`,
+                  `${row.uniqueDaysCount} Gün`,
+                  `${row.recordCount} Vardiya`
+                ]),
+              [
+                "TOPLAM",
+                "",
+                `${formatMoney(kpiData.totalCiro)} TL`,
+                "-",
+                `${formatMoney(totalKomisyon)} TL`,
+                `${formatMoney(totalHakedis)} TL`,
+                "",
+                ""
+              ]
+            ]
+          }
+        ]
+      })
     }
   }
 
@@ -851,6 +958,17 @@ export default function PerformansAnaliziPage() {
               <SelectItem value="Akşam">Akşam</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* PDF Raporu Dışa Aktarma Butonu */}
+          <Button
+            onClick={exportPdf}
+            variant="outline"
+            className="h-11 rounded-xl bg-card border shadow-sm gap-2 hover:bg-muted/50 cursor-pointer"
+            title="PDF Raporu Al"
+          >
+            <FileText className="h-4.5 w-4.5 text-rose-600 dark:text-rose-400" />
+            <span className="font-semibold text-foreground">PDF</span>
+          </Button>
         </div>
       </div>
 
