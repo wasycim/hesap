@@ -2,7 +2,7 @@
 Description=Run Hesap full PostgreSQL backup daily
 
 [Timer]
-OnCalendar=*-*-* 00:00:00
+OnCalendar=*-*-* 04:00:00
 RandomizedDelaySec=10min
 Persistent=true
 
