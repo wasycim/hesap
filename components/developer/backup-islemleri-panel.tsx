@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react"
 import { toast } from "sonner"
-import { DatabaseBackup, Download, ShieldAlert, Trash2, Upload, ServerCrash, RefreshCw } from "lucide-react"
+import { DatabaseBackup, Download, ShieldAlert, Trash2, Upload, ServerCrash, RefreshCw, X, Check, FileJson, AlertTriangle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -35,6 +35,13 @@ export function BackupIslemleriPanel() {
   >(null)
   const [lastBackup, setLastBackup] = useState<BackupPayload | null>(null)
   const [backupType, setBackupType] = useState<"full" | "log" | null>(null)
+  
+  // Pending backup preview state
+  const [pendingBackup, setPendingBackup] = useState<{
+    type: "full" | "log"
+    payload: BackupPayload
+    fileName: string
+  } | null>(null)
 
   // Full Database Backup Functions
   async function downloadFullBackup() {
@@ -58,40 +65,6 @@ export function BackupIslemleriPanel() {
     link.click()
     URL.revokeObjectURL(url)
     toast.success("Tüm veritabanı yedeği başarıyla indirildi.")
-  }
-
-  async function uploadFullBackup(file: File | null) {
-    if (!file) return
-    if (!window.confirm("Seçilen veritabanı yedeği geri yüklenecektir. Mevcut verilerin üzerine yazılabilir. Devam etmek istiyor musunuz?")) return
-
-    setBusy("upload-full")
-    const text = await file.text()
-    let payload: unknown
-    try {
-      payload = JSON.parse(text)
-    } catch {
-      setBusy(null)
-      toast.error("Yüklenen dosya JSON formatında değil.")
-      return
-    }
-
-    const response = await fetch("/api/admin/backup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    })
-    const result = await response.json().catch(() => ({}))
-    setBusy(null)
-    if (fullFileRef.current) fullFileRef.current.value = ""
-
-    if (!response.ok) {
-      toast.error(result.error || "Veritabanı yedeği geri yüklenemedi.")
-      return
-    }
-
-    setLastBackup(payload as BackupPayload)
-    setBackupType("full")
-    toast.success(`Tüm veritabanı yedeği başarıyla yüklendi. Geri yüklenen tablolar: ${(result.restored || []).join(", ") || "kayıt yok"}`)
   }
 
   // Log & Security Backup Functions
@@ -118,36 +91,62 @@ export function BackupIslemleriPanel() {
     toast.success("Log ve güvenlik yedeği indirildi.")
   }
 
-  async function uploadLogBackup(file: File | null) {
+  // Handle local file parsing and load preview
+  async function handleFileSelect(file: File | null, type: "full" | "log") {
     if (!file) return
-    setBusy("upload-log")
     const text = await file.text()
     let payload: unknown
     try {
       payload = JSON.parse(text)
     } catch {
-      setBusy(null)
       toast.error("Yüklenen dosya JSON formatında değil.")
       return
     }
 
-    const response = await fetch("/api/admin/log-backup", {
+    if (!payload || typeof payload !== "object" || !("tables" in payload)) {
+      toast.error("Geçersiz yedek dosyası yapısı. 'tables' alanı bulunamadı.")
+      return
+    }
+
+    setPendingBackup({
+      type,
+      payload: payload as BackupPayload,
+      fileName: file.name
+    })
+    
+    // Reset file input values
+    if (fullFileRef.current) fullFileRef.current.value = ""
+    if (logFileRef.current) logFileRef.current.value = ""
+    
+    toast.info("Yedek dosyası önizlemesi hazır. Lütfen kontrol edip onaylayın.")
+  }
+
+  // Execute restore after user confirmation
+  async function executeRestore() {
+    if (!pendingBackup) return
+    
+    const { type, payload } = pendingBackup
+    const busyKey = type === "full" ? "upload-full" : "upload-log"
+    const apiEndpoint = type === "full" ? "/api/admin/backup" : "/api/admin/log-backup"
+    
+    setBusy(busyKey)
+    const response = await fetch(apiEndpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     })
     const result = await response.json().catch(() => ({}))
     setBusy(null)
-    if (logFileRef.current) logFileRef.current.value = ""
+    setPendingBackup(null)
 
     if (!response.ok) {
-      toast.error(result.error || "Log yedeği yüklenemedi.")
+      toast.error(result.error || "Yedek geri yüklenemedi.")
       return
     }
 
-    setLastBackup(payload as BackupPayload)
-    setBackupType("log")
-    toast.success(`Log yedeği yüklendi: ${(result.restored || []).join(", ") || "kayıt yok"}`)
+    setLastBackup(payload)
+    setBackupType(type)
+    toast.success(`Yedek başarıyla geri yüklendi. İşlem yapılan tablolar: ${(result.restored || []).join(", ") || "kayıt yok"}`)
   }
 
   async function deleteTarget(target: "logs" | "security-settings" | "all") {
@@ -187,6 +186,65 @@ export function BackupIslemleriPanel() {
         </Badge>
       </header>
 
+      {/* PENDING BACKUP PREVIEW SECTION */}
+      {pendingBackup && (
+        <Card className="border-amber-500/40 dark:border-amber-600/40 bg-amber-500/5 shadow-md animate-in fade-in zoom-in-95 duration-200">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-xl font-bold text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="h-5 w-5 animate-pulse" />
+                Yüklenecek Yedek Önizlemesi
+              </CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => setPendingBackup(null)} className="h-8 w-8 hover:bg-amber-500/20">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <CardDescription className="text-muted-foreground mt-1">
+              Dosya adı: <span className="font-mono font-bold text-foreground">{pendingBackup.fileName}</span> (
+              {pendingBackup.type === "full" ? "Tüm Veritabanı Yedeği" : "Sistem Log & Ayar Yedeği"})
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-xl bg-amber-500/10 p-3 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
+              <strong>DİKKAT:</strong> "Yüklemeyi Onayla ve Başlat" butonuna bastığınızda, bu yedek dosyasının içindeki tablolar veritabanındaki mevcut kayıtların üzerine yazılacaktır. Bu işlem geri alınamaz!
+            </div>
+            
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Dosyadaki Tablolar ve Kayıt Sayıları:</h4>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 max-h-48 overflow-y-auto pr-1">
+                {tableCount(pendingBackup.payload).map((item) => (
+                  <div key={item.table} className="flex items-center justify-between rounded-xl border border-amber-500/20 bg-background/50 p-2 text-xs">
+                    <span className="font-semibold truncate max-w-[150px]" title={item.table}>{item.table}</span>
+                    <Badge variant="secondary" className="px-1.5 py-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                      {item.count} satır
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2 border-t border-amber-500/20">
+              <Button 
+                onClick={executeRestore} 
+                disabled={busy !== null}
+                className="gap-2 bg-amber-600 hover:bg-amber-700 text-white font-bold"
+              >
+                {busy !== null ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                Yüklemeyi Onayla ve Başlat
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setPendingBackup(null)}
+                disabled={busy !== null}
+                className="border-amber-600/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+              >
+                İptal Et
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <section className="grid gap-6 md:grid-cols-2">
         {/* Full Database Backup Card */}
         <Card className="border-border hover:border-cyan-500/20 transition-all duration-300 shadow-sm hover:shadow">
@@ -201,7 +259,7 @@ export function BackupIslemleriPanel() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-xs leading-relaxed text-muted-foreground">
-              İndirilen dosya JSON formatındadır. Geri yükleme işlemi, aynı ID'li kayıtları günceller ve eksik olanları sisteme ekler. Hassas şifreler veya gizli anahtarlar bu yedeğin içerisine yazılmaz.
+              İndirilen dosya JSON formatındadır. Geri yükleme işlemi öncesinde yedek içeriği önizlenir, ardından onaylanırsa yüklenir. Hassas şifreler veya gizli anahtarlar bu yedeğin içerisine yazılmaz.
             </p>
             <div className="flex flex-wrap gap-2 pt-2">
               <Button onClick={downloadFullBackup} disabled={busy !== null} className="gap-2 bg-cyan-600 hover:bg-cyan-700 text-white">
@@ -215,15 +273,15 @@ export function BackupIslemleriPanel() {
                 className="gap-2 border-cyan-600/30 hover:bg-cyan-50/20 dark:hover:bg-cyan-950/10 text-cyan-600 dark:text-cyan-400"
                 onClick={() => fullFileRef.current?.click()}
               >
-                {busy === "upload-full" ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                Veritabanı Yedeği Yükle
+                <Upload className="h-4 w-4" />
+                Veritabanı Yedeği Seç
               </Button>
               <input
                 ref={fullFileRef}
                 type="file"
                 accept="application/json"
                 className="hidden"
-                onChange={(event) => uploadFullBackup(event.target.files?.[0] || null)}
+                onChange={(event) => handleFileSelect(event.target.files?.[0] || null, "full")}
               />
             </div>
           </CardContent>
@@ -242,7 +300,7 @@ export function BackupIslemleriPanel() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-xs leading-relaxed text-muted-foreground">
-              Sistem güvenliği, denetim kaydı (audit) ve ayar yapısını taşımak için kullanılır. İşlemsel kayıtları (gelir, gider vb.) kapsamaz, sadece sistem ayarlarını ve logları kapsar.
+              Sistem güvenliği ve ayar yapısını taşımak için kullanılır. İşlemsel kayıtları (gelir, gider vb.) kapsamaz, yüklemeden önce dosya içeriğindeki satır sayılarını inceleyebilirsiniz.
             </p>
             <div className="flex flex-wrap gap-2 pt-2">
               <Button onClick={downloadLogBackup} disabled={busy !== null} className="gap-2 bg-violet-600 hover:bg-violet-700 text-white">
@@ -256,15 +314,15 @@ export function BackupIslemleriPanel() {
                 className="gap-2 border-violet-600/30 hover:bg-violet-50/20 dark:hover:bg-violet-950/10 text-violet-600 dark:text-violet-400"
                 onClick={() => logFileRef.current?.click()}
               >
-                {busy === "upload-log" ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                Log Yedeği Yükle
+                <Upload className="h-4 w-4" />
+                Log Yedeği Seç
               </Button>
               <input
                 ref={logFileRef}
                 type="file"
                 accept="application/json"
                 className="hidden"
-                onChange={(event) => uploadLogBackup(event.target.files?.[0] || null)}
+                onChange={(event) => handleFileSelect(event.target.files?.[0] || null, "log")}
               />
             </div>
           </CardContent>
