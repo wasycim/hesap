@@ -19,7 +19,7 @@ const SHELL_URLS = [
   "/dashboard/mail-islemleri",
   "/dashboard/lisanslar",
   "/dashboard/operasyon",
-  "/dashboard/log-backup",
+  "/dashboard/backup-islemleri",
   "/dashboard/hesap",
   "/dashboard/bildirimler",
   "/status",

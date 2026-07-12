@@ -3,11 +3,16 @@ set -euo pipefail
 
 source /etc/hesap/backup.env
 export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION
+host="${BACKUP_NODE_NAME:-vps}"
 
 umask 077
 mkdir -p /var/lib/hesap/backups /var/log/hesap
-chgrp postgres /var/lib/hesap/backups
-chmod 750 /var/lib/hesap/backups
+if getent group postgres >/dev/null; then
+  chgrp postgres /var/lib/hesap/backups
+  chmod 750 /var/lib/hesap/backups
+else
+  chmod 700 /var/lib/hesap/backups
+fi
 
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 file="hesap-postgres-${stamp}.dump"
@@ -27,14 +32,18 @@ started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     --no-acl \
     --file="$dump"
 
-  chgrp postgres "$dump"
-  chmod 640 "$dump"
+  if getent group postgres >/dev/null; then
+    chgrp postgres "$dump"
+    chmod 640 "$dump"
+  else
+    chmod 600 "$dump"
+  fi
 
   sha=$(sha256sum "$dump" | awk '{print $1}')
   size=$(stat -c%s "$dump")
 
   aws --endpoint-url "$R2_ENDPOINT" \
-    s3 cp "$dump" "s3://${R2_BUCKET_NAME}/postgres/${file}" \
+    s3 cp "$dump" "s3://${R2_BUCKET_NAME}/postgres/${host}/${file}" \
     --only-show-errors
 
   if [ "${BACKUP_RESTORE_STANDBY:-1}" = "1" ]; then
@@ -77,7 +86,8 @@ SQL
     -v size="$size" \
     -v bucket="$R2_BUCKET_NAME" \
     -v started="$started" \
-    -v completed="$completed" <<'SQL' || true
+    -v completed="$completed" \
+    -v host="$host" <<'SQL' || true
 insert into public.security_events (event_type, details)
 values (
   'vps_backup_completed',
@@ -89,7 +99,8 @@ values (
     'startedAt', :'started',
     'completedAt', :'completed',
     'scope', 'full_postgresql_dump',
-    'includes', jsonb_build_array('gelir_kayitlari', 'gider_kayitlari', 'corbalar', 'attendance_logs')
+    'includes', jsonb_build_array('gelir_kayitlari', 'gider_kayitlari', 'corbalar', 'attendance_logs'),
+    'host', :'host'
   )
 );
 SQL

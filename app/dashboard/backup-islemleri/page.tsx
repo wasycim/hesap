@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation"
-import { LogBackupPanel } from "@/components/developer/log-backup-panel"
+import { BackupIslemleriPanel } from "@/components/developer/backup-islemleri-panel"
 import { getDashboardAdmin } from "@/lib/admin/require-admin"
 
-export default async function LogBackupPage() {
+export default async function BackupIslemleriPage() {
   const guard = await getDashboardAdmin()
   if (!guard.user || !guard.isDeveloper) {
     redirect("/dashboard")
   }
 
-  return <LogBackupPanel />
+  return <BackupIslemleriPanel />
 }

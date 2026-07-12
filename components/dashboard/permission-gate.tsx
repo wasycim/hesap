@@ -29,7 +29,7 @@ const routePermissions: Array<{ prefix: string; key: string }> = [
   { prefix: "/dashboard/admin-ayarlar", key: "admin_ayarlar" },
   { prefix: "/dashboard/lisanslar", key: "lisanslar" },
   { prefix: "/dashboard/operasyon", key: "operasyon" },
-  { prefix: "/dashboard/log-backup", key: "log_backup" },
+  { prefix: "/dashboard/backup-islemleri", key: "log_backup" },
   { prefix: "/dashboard/cay", key: "cay" },
   { prefix: "/dashboard/bildirimler", key: "bildirimler" },
   { prefix: "/dashboard/hesap", key: "hesap" },
