@@ -28,36 +28,36 @@ export async function sendBackupDownloadedEmail({
   await transporter.sendMail({
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to: userEmail,
-    subject: `🚨 Kritik İşlem: Yedek Dosyası İndirildi - Hesap App`,
+    subject: `Hesap App - Yedek Dosyası İndirildi`,
     text: [
-      `Kritik İşlem Bildirimi:`,
-      `Hesap App veritabanı yedeği manuel olarak indirildi.`,
-      `İndiren Kullanıcı: ${userEmail}`,
+      `Bilgi Bildirimi:`,
+      `Hesap App veritabanı yedek dosyası indirildi.`,
+      `İşlemi Yapan Yönetici: ${userEmail}`,
       `IP Adresi: ${ipAddress}`,
       `Tarih Aralığı Filtresi: ${filterRange}`,
       `Tarayıcı Cihaz Bilgisi: ${userAgent}`,
       `Tarih: ${timeString}`,
     ].join("\n"),
     html: `
-      <div style="margin:0;padding:30px;background:#fff1f2;font-family:Arial,sans-serif;color:#0f172a">
-        <div style="max-width:620px;margin:0 auto;overflow:hidden;border:1px solid #fda4af;border-radius:22px;background:#fff;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1)">
-          <div style="padding:26px;background:#e11d48;color:#fff">
-            <div style="color:#ffe4e6;font-size:12px;font-weight:900;letter-spacing:.1em">KRİTİK İŞLEM UYARISI</div>
-            <h1 style="margin:9px 0 0;font-size:24px;font-weight:bold">Yedek Dosyası İndirildi</h1>
+      <div style="margin:0;padding:30px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a">
+        <div style="max-width:600px;margin:0 auto;overflow:hidden;border:1px solid #e2e8f0;border-radius:16px;background:#fff;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05)">
+          <div style="padding:22px;background:#0f172a;color:#fff">
+            <div style="color:#38bdf8;font-size:11px;font-weight:800;letter-spacing:.05em">SİSTEM BİLDİRİMİ</div>
+            <h1 style="margin:6px 0 0;font-size:20px;font-weight:bold">Yedek İndirme İşlemi</h1>
           </div>
-          <div style="padding:26px">
-            <p style="margin:0 0 16px;color:#334155;line-height:1.7;font-size:15px">
-              Hesap App veritabanına ait yedek dosyası manuel olarak dışa aktarılmıştır (indirildi).
+          <div style="padding:24px">
+            <p style="margin:0 0 16px;color:#475569;line-height:1.6;font-size:14px">
+              Hesap App veritabanına ait yedek dosyası manuel olarak indirilmiştir.
             </p>
-            <div style="border-radius:14px;background:#fff1f2;border:1px solid #fecdd3;padding:18px;color:#9f1239;font-size:13px;line-height:1.8">
-              <b>İndiren Yönetici:</b> ${userEmail}<br>
+            <div style="border-radius:12px;background:#f1f5f9;border:1px solid #e2e8f0;padding:16px;color:#334155;font-size:13px;line-height:1.8">
+              <b>İşlemi Yapan Yönetici:</b> ${userEmail}<br>
               <b>IP Adresi:</b> ${ipAddress}<br>
               <b>Tarih Filtresi:</b> ${filterRange}<br>
               <b>Cihaz Detayı:</b> ${userAgent}<br>
-              <b>Tarih/Saat:</b> ${timeString} (TSİ)
+              <b>İşlem Zamanı:</b> ${timeString}
             </div>
-            <p style="margin:20px 0 0;color:#64748b;font-size:12px;line-height:1.6">
-              Bu işlem sizin bilginiz dışında gerçekleştiyse, lütfen derhal şifrenizi sıfırlayın ve erişim yetkilerini inceleyin.
+            <p style="margin:20px 0 0;color:#94a3b8;font-size:11px;line-height:1.5">
+              Bu e-posta, sistem güvenliği kapsamında otomatik bilgilendirme amacıyla gönderilmiştir.
             </p>
           </div>
         </div>
