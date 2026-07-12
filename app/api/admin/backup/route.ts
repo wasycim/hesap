@@ -12,13 +12,13 @@ async function fetchAllRowsWithFilters(
   admin: ReturnType<typeof createAdminClient>,
   table: string,
   selectCols: string,
-  filterFn?: (q: any) => any,
-  maxLimit = 10000000
+  filterFn?: (q: any) => any
 ) {
   const allRows: any[] = []
   const pageSize = 1000
+  let from = 0
 
-  for (let from = 0; from < maxLimit; from += pageSize) {
+  while (true) {
     const to = from + pageSize - 1
     let query = admin.from(table).select(selectCols).range(from, to)
     if (filterFn) {
@@ -31,6 +31,7 @@ async function fetchAllRowsWithFilters(
     if (!data || data.length === 0) break
     allRows.push(...data)
     if (data.length < pageSize) break
+    from += pageSize
   }
   return { data: allRows }
 }
