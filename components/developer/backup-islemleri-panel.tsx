@@ -43,10 +43,57 @@ export function BackupIslemleriPanel() {
     fileName: string
   } | null>(null)
 
+  // Date Filtering States
+  const [rangeType, setRangeType] = useState<string>("all")
+  const [customStart, setCustomStart] = useState<string>("")
+  const [customEnd, setCustomEnd] = useState<string>("")
+
+  // Calculate Date range values for query params
+  function getDateRange() {
+    const now = new Date()
+    let startDate = ""
+    let endDate = now.toISOString().slice(0, 10)
+
+    if (rangeType === "all") {
+      return { startDate: "", endDate: "" }
+    }
+
+    if (rangeType === "last-week") {
+      const start = new Date()
+      start.setDate(now.getDate() - 7)
+      startDate = start.toISOString().slice(0, 10)
+    } else if (rangeType === "last-month") {
+      const start = new Date()
+      start.setMonth(now.getMonth() - 1)
+      startDate = start.toISOString().slice(0, 10)
+    } else if (rangeType === "last-4-months") {
+      const start = new Date()
+      start.setMonth(now.getMonth() - 4)
+      startDate = start.toISOString().slice(0, 10)
+    } else if (rangeType === "last-6-months") {
+      const start = new Date()
+      start.setMonth(now.getMonth() - 6)
+      startDate = start.toISOString().slice(0, 10)
+    } else if (rangeType === "this-year") {
+      startDate = `${now.getFullYear()}-01-01`
+    } else if (rangeType === "custom") {
+      startDate = customStart
+      endDate = customEnd
+    }
+
+    return { startDate, endDate }
+  }
+
   // Full Database Backup Functions
   async function downloadFullBackup() {
     setBusy("download-full")
-    const response = await fetch("/api/admin/backup", { cache: "no-store" })
+    const { startDate, endDate } = getDateRange()
+    let queryParams = ""
+    if (startDate || endDate) {
+      queryParams = `?startDate=${startDate}&endDate=${endDate}`
+    }
+
+    const response = await fetch(`/api/admin/backup${queryParams}`, { cache: "no-store" })
     const data = await response.json().catch(() => null) as BackupPayload | null
     setBusy(null)
 
@@ -61,7 +108,13 @@ export function BackupIslemleriPanel() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
-    link.download = `hesap-database-backup-${new Date().toISOString().slice(0, 10)}.json`
+    
+    let dateSuffix = ""
+    if (startDate || endDate) {
+      dateSuffix = `-${startDate || "baslangic"}_to_${endDate || "bitis"}`
+    }
+    link.download = `hesap-database-backup-${new Date().toISOString().slice(0, 10)}${dateSuffix}.json`
+    
     link.click()
     URL.revokeObjectURL(url)
     toast.success("Tüm veritabanı yedeği başarıyla indirildi.")
@@ -261,6 +314,50 @@ export function BackupIslemleriPanel() {
             <p className="text-xs leading-relaxed text-muted-foreground">
               İndirilen dosya JSON formatındadır. Geri yükleme işlemi öncesinde yedek içeriği önizlenir, ardından onaylanırsa yüklenir. Hassas şifreler veya gizli anahtarlar bu yedeğin içerisine yazılmaz.
             </p>
+
+            {/* Date Range Selection Area */}
+            <div className="space-y-3 bg-muted/40 border border-border/60 rounded-xl p-3.5 text-xs my-2">
+              <label className="flex flex-col gap-1.5 font-bold text-muted-foreground">
+                Yedeklenecek Tarih Aralığı:
+                <select
+                  value={rangeType}
+                  onChange={(e) => setRangeType(e.target.value)}
+                  className="flex h-9 w-full items-center justify-between rounded-lg border border-input bg-background px-3 py-1 text-xs outline-none focus:ring-2 focus:ring-cyan-500 text-foreground font-semibold"
+                >
+                  <option value="all">Tüm Zamanlar (Tavsiye Edilen)</option>
+                  <option value="last-week">Geçen Hafta (Son 7 Gün)</option>
+                  <option value="last-month">Geçen Ay (Son 30 Gün)</option>
+                  <option value="last-4-months">Son 4 Ay</option>
+                  <option value="last-6-months">Son 6 Ay</option>
+                  <option value="this-year">Bu Yıl ({new Date().getFullYear()})</option>
+                  <option value="custom">Özel Tarih Aralığı...</option>
+                </select>
+              </label>
+
+              {rangeType === "custom" && (
+                <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-border/40 border-dashed animate-in fade-in duration-200">
+                  <label className="flex flex-col gap-1 text-[10px] font-bold text-muted-foreground">
+                    Başlangıç Tarihi:
+                    <input
+                      type="date"
+                      value={customStart}
+                      onChange={(e) => setCustomStart(e.target.value)}
+                      className="flex h-8 w-full rounded-md border border-input bg-background px-2.5 py-1 text-xs outline-none focus:ring-2 focus:ring-cyan-500 font-medium text-foreground"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-[10px] font-bold text-muted-foreground">
+                    Bitiş Tarihi:
+                    <input
+                      type="date"
+                      value={customEnd}
+                      onChange={(e) => setCustomEnd(e.target.value)}
+                      className="flex h-8 w-full rounded-md border border-input bg-background px-2.5 py-1 text-xs outline-none focus:ring-2 focus:ring-cyan-500 font-medium text-foreground"
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+
             <div className="flex flex-wrap gap-2 pt-2">
               <Button onClick={downloadFullBackup} disabled={busy !== null} className="gap-2 bg-cyan-600 hover:bg-cyan-700 text-white">
                 {busy === "download-full" ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
@@ -302,7 +399,7 @@ export function BackupIslemleriPanel() {
             <p className="text-xs leading-relaxed text-muted-foreground">
               Sistem güvenliği ve ayar yapısını taşımak için kullanılır. İşlemsel kayıtları (gelir, gider vb.) kapsamaz, yüklemeden önce dosya içeriğindeki satır sayılarını inceleyebilirsiniz.
             </p>
-            <div className="flex flex-wrap gap-2 pt-2">
+            <div className="flex flex-wrap gap-2 pt-10">
               <Button onClick={downloadLogBackup} disabled={busy !== null} className="gap-2 bg-violet-600 hover:bg-violet-700 text-white">
                 {busy === "download-log" ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 Log Yedeği İndir
