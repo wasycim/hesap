@@ -17,7 +17,14 @@ export async function GET() {
   const skippedTables: string[] = []
 
   for (const table of backupTables) {
-    const { data, error } = await admin.from(table).select("*").limit(10000)
+    let query = admin.from(table).select("*")
+    if (table === "backup_snapshots") {
+      // Exclude heavy 'tables' column containing complete past backups to prevent statement timeouts
+      query = admin.from(table).select(
+        "id, title, table_counts, created_by, created_at, interval, object_path, size_bytes, checksum_sha256, recipients, encrypted, status, error_message, completed_at"
+      )
+    }
+    const { data, error } = await query.limit(10000)
     if (error) {
       if (isMissingTableError(error)) {
         skippedTables.push(table)
