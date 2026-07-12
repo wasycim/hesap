@@ -39,9 +39,9 @@ export async function GET(request: NextRequest) {
     const info = await transporter.sendMail({
       from: process.env.SMTP_FROM || user,
       to: "ykacaran480@gmail.com",
-      subject: "Test Mail from Hesap App Diagnostics",
-      text: "If you read this, SMTP delivery is successful! Please check if this landed in Spam.",
-      html: "<p>If you read this, SMTP delivery is successful! Please check if this landed in Spam.</p>"
+      subject: "Hesap App - E-Posta Gönderim Testi",
+      text: "Eğer bu e-postayı okuyabiliyorsanız, SMTP bağlantısı ve e-posta gönderimi başarıyla tamamlanmıştır! Lütfen bu e-postanın Gereksiz (Spam) klasörüne düşüp düşmediğini kontrol edin.",
+      html: "<p>Eğer bu e-postayı okuyabiliyorsanız, SMTP bağlantısı ve e-posta gönderimi başarıyla tamamlanmıştır! Lütfen bu e-postanın Gereksiz (Spam) klasörüne düşüp düşmediğini kontrol edin.</p>"
     })
 
     logs.push(`Mail sent successfully! Message-ID: ${info.messageId}`)
