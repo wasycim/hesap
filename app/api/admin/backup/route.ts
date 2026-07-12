@@ -8,23 +8,79 @@ function isMissingTableError(error: { code?: string; message?: string }) {
   return error.code === "PGRST205" || message.includes("could not find the table") || message.includes("does not exist")
 }
 
-export async function GET() {
+async function fetchAllRowsWithFilters(
+  admin: ReturnType<typeof createAdminClient>,
+  table: string,
+  selectCols: string,
+  filterFn?: (q: any) => any,
+  maxLimit = 100000
+) {
+  const allRows: any[] = []
+  const pageSize = 1000
+
+  for (let from = 0; from < maxLimit; from += pageSize) {
+    const to = from + pageSize - 1
+    let query = admin.from(table).select(selectCols).range(from, to)
+    if (filterFn) {
+      query = filterFn(query)
+    }
+    const { data, error } = await query
+    if (error) {
+      return { error }
+    }
+    if (!data || data.length === 0) break
+    allRows.push(...data)
+    if (data.length < pageSize) break
+  }
+  return { data: allRows }
+}
+
+export async function GET(request: NextRequest) {
   const adminGuard = await requireDashboardAdmin()
   if (!adminGuard.ok) return adminGuard.response
+
+  const searchParams = request.nextUrl.searchParams
+  const startDate = searchParams.get("startDate")
+  const endDate = searchParams.get("endDate")
 
   const admin = createAdminClient()
   const tables: Record<string, unknown[]> = {}
   const skippedTables: string[] = []
+  
+  const exportedRecordIds = new Set<string>()
 
   for (const table of backupTables) {
-    let query = admin.from(table).select("*")
-    if (table === "backup_snapshots") {
-      // Exclude heavy 'tables' column containing complete past backups to prevent statement timeouts
-      query = admin.from(table).select(
-        "id, title, table_counts, created_by, created_at, interval, object_path, size_bytes, checksum_sha256, recipients, encrypted, status, error_message, completed_at"
-      )
+    const selectCols = table === "backup_snapshots"
+      ? "id, title, table_counts, created_by, created_at, interval, object_path, size_bytes, checksum_sha256, recipients, encrypted, status, error_message, completed_at"
+      : "*"
+
+    const filterFn = (query: any) => {
+      if (startDate || endDate) {
+        if (table === "records") {
+          if (startDate) query = query.gte("record_date", startDate)
+          if (endDate) query = query.lte("record_date", endDate)
+        } else if ([
+          "gelir_kayitlari", "gider_kayitlari", "corbalar", 
+          "kargo_cari_kayitlar", "kargo_cari_notlari", "vardiya_planlari", 
+          "on_dort_no_hesap_kayitlari"
+        ].includes(table)) {
+          if (startDate) query = query.gte("tarih", startDate)
+          if (endDate) query = query.lte("tarih", endDate)
+        } else if (table === "attendance_logs") {
+          if (startDate) query = query.gte("work_date", startDate)
+          if (endDate) query = query.lte("work_date", endDate)
+        } else if (["security_events", "app_notifications", "push_delivery_logs"].includes(table)) {
+          if (startDate) query = query.gte("created_at", `${startDate}T00:00:00.000Z`)
+          if (endDate) query = query.lte("created_at", `${endDate}T23:59:59.999Z`)
+        } else if (table === "kargo_cari_odemeler") {
+          if (startDate) query = query.gte("updated_at", `${startDate}T00:00:00.000Z`)
+          if (endDate) query = query.lte("updated_at", `${endDate}T23:59:59.999Z`)
+        }
+      }
+      return query
     }
-    const { data, error } = await query.limit(10000)
+
+    const { data, error } = await fetchAllRowsWithFilters(admin, table, selectCols, filterFn)
     if (error) {
       if (isMissingTableError(error)) {
         skippedTables.push(table)
@@ -32,14 +88,26 @@ export async function GET() {
       }
       return NextResponse.json({ error: `${table}: ${error.message}` }, { status: 500 })
     }
-    tables[table] = data || []
+
+    let rows = data || []
+    if (startDate || endDate) {
+      if (table === "records") {
+        rows.forEach((row: any) => {
+          if (row.id) exportedRecordIds.add(row.id)
+        })
+      } else if (["company_amounts", "partner_shares", "record_summary"].includes(table)) {
+        rows = rows.filter((row: any) => exportedRecordIds.has(row.record_id))
+      }
+    }
+
+    tables[table] = rows
   }
 
   await admin.from("security_events").insert({
     user_id: adminGuard.user.id,
     user_email: adminGuard.user.email,
     event_type: "backup_export",
-    details: { tables: backupTables, exported_at: new Date().toISOString() },
+    details: { tables: backupTables, exported_at: new Date().toISOString(), filter: { startDate, endDate } },
   })
 
   return NextResponse.json({
@@ -48,6 +116,7 @@ export async function GET() {
     exportedBy: adminGuard.user.email,
     skippedTables,
     tables,
+    filter: { startDate, endDate }
   })
 }
 
