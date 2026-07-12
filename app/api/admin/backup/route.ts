@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireDashboardAdmin } from "@/lib/admin/require-admin"
 import { backupTables } from "@/lib/backup/tables"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { sendBackupDownloadedEmail } from "@/lib/email/backup-download-alert"
 
 function isMissingTableError(error: { code?: string; message?: string }) {
   const message = String(error.message || "").toLowerCase()
@@ -110,6 +111,19 @@ export async function GET(request: NextRequest) {
     event_type: "backup_export",
     details: { tables: backupTables, exported_at: new Date().toISOString(), filter: { startDate, endDate } },
   })
+
+  const ipAddress = request.headers.get("x-forwarded-for") || request.ip || "Bilinmiyor"
+  const userAgent = request.headers.get("user-agent") || "Bilinmiyor"
+  const filterRange = startDate || endDate
+    ? `${startDate || "Başlangıç"} ile ${endDate || "Bugün"} arası`
+    : "Tüm Zamanlar"
+
+  await sendBackupDownloadedEmail({
+    userEmail: adminGuard.user.email,
+    ipAddress,
+    userAgent,
+    filterRange,
+  }).catch((err) => console.error("Backup download alert email error:", err))
 
   return NextResponse.json({
     version: 2,
