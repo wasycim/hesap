@@ -13,7 +13,7 @@ async function fetchAllRowsWithFilters(
   table: string,
   selectCols: string,
   filterFn?: (q: any) => any,
-  maxLimit = 100000
+  maxLimit = 10000000
 ) {
   const allRows: any[] = []
   const pageSize = 1000
