@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireDashboardAdmin } from "@/lib/admin/require-admin"
 import { backupTables } from "@/lib/backup/tables"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { sendBackupDownloadedEmail } from "@/lib/email/backup-download-alert"
+import { sendBackupDownloadedEmail, sendBackupRestoredEmail } from "@/lib/email/backup-download-alert"
 
 function isMissingTableError(error: { code?: string; message?: string }) {
   const message = String(error.message || "").toLowerCase()
@@ -181,11 +181,27 @@ export async function POST(request: NextRequest) {
     restored.push(table)
   }
 
+  const ipAddress = request.headers.get("x-forwarded-for") || request.ip || "Bilinmiyor"
+  const userAgent = request.headers.get("user-agent") || "Bilinmiyor"
+
+  await sendBackupRestoredEmail({
+    userEmail: adminGuard.user.email,
+    ipAddress,
+    userAgent,
+    backupType: "full",
+    tableCount: restored.length,
+  }).catch((err) => console.error("Backup restore alert email error:", err))
+
   await admin.from("security_events").insert({
     user_id: adminGuard.user.id,
     user_email: adminGuard.user.email,
     event_type: "backup_restore",
-    details: { tables: restored, restored_at: new Date().toISOString() },
+    details: { 
+      tables: restored, 
+      restored_at: new Date().toISOString(),
+      ip_address: ipAddress,
+      user_agent: userAgent,
+    },
   })
 
   return NextResponse.json({ ok: true, restored, skippedTables })

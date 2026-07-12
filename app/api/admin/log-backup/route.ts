@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireDashboardDeveloper } from "@/lib/admin/require-admin"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { sendBackupRestoredEmail } from "@/lib/email/backup-download-alert"
 
 const logBackupTables = [
   "security_events",
@@ -104,11 +105,28 @@ export async function POST(request: NextRequest) {
     restored.push(table)
   }
 
+  const ipAddress = request.headers.get("x-forwarded-for") || request.ip || "Bilinmiyor"
+  const userAgent = request.headers.get("user-agent") || "Bilinmiyor"
+  const userEmail = guard.profile?.email || guard.user.email || "Bilinmiyor"
+
+  await sendBackupRestoredEmail({
+    userEmail,
+    ipAddress,
+    userAgent,
+    backupType: "log",
+    tableCount: restored.length,
+  }).catch((err) => console.error("Backup restore alert email error:", err))
+
   await admin.from("security_events").insert({
     user_id: guard.user.id,
-    user_email: guard.profile?.email || guard.user.email,
+    user_email: userEmail,
     event_type: "log_backup_restore",
-    details: { tables: restored, restored_at: new Date().toISOString() },
+    details: { 
+      tables: restored, 
+      restored_at: new Date().toISOString(),
+      ip_address: ipAddress,
+      user_agent: userAgent,
+    },
   })
 
   return NextResponse.json({ ok: true, restored })
