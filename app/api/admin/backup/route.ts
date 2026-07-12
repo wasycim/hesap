@@ -105,25 +105,44 @@ export async function GET(request: NextRequest) {
     tables[table] = rows
   }
 
-  await admin.from("security_events").insert({
-    user_id: adminGuard.user.id,
-    user_email: adminGuard.user.email,
-    event_type: "backup_export",
-    details: { tables: backupTables, exported_at: new Date().toISOString(), filter: { startDate, endDate } },
-  })
-
   const ipAddress = request.headers.get("x-forwarded-for") || request.ip || "Bilinmiyor"
   const userAgent = request.headers.get("user-agent") || "Bilinmiyor"
   const filterRange = startDate || endDate
     ? `${startDate || "Başlangıç"} ile ${endDate || "Bugün"} arası`
     : "Tüm Zamanlar"
 
-  await sendBackupDownloadedEmail({
-    userEmail: adminGuard.user.email,
-    ipAddress,
-    userAgent,
-    filterRange,
-  }).catch((err) => console.error("Backup download alert email error:", err))
+  let emailStatus = "success"
+  let emailError: string | null = null
+
+  try {
+    await sendBackupDownloadedEmail({
+      userEmail: adminGuard.user.email,
+      ipAddress,
+      userAgent,
+      filterRange,
+    })
+  } catch (err: any) {
+    emailStatus = "failed"
+    emailError = err.message || String(err)
+  }
+
+  await admin.from("security_events").insert({
+    user_id: adminGuard.user.id,
+    user_email: adminGuard.user.email,
+    event_type: "backup_export",
+    details: { 
+      tables: backupTables, 
+      exported_at: new Date().toISOString(), 
+      filter: { startDate, endDate },
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      email_delivery: {
+        status: emailStatus,
+        error: emailError,
+        recipient: adminGuard.user.email
+      }
+    },
+  })
 
   return NextResponse.json({
     version: 2,
