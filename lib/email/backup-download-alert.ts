@@ -11,9 +11,9 @@ export async function sendBackupDownloadedEmail({
   userAgent: string
   filterRange: string
 }) {
-  const smtpTo = process.env.SMTP_USER
-  if (!smtpTo || !process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.warn("SMTP credentials not fully configured, skipping backup download alert email.")
+  const recipients = Array.from(new Set([userEmail, process.env.SMTP_USER || ""])).filter(Boolean)
+  if (!recipients.length || !process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.warn("SMTP credentials or recipients missing, skipping backup download alert email.")
     return
   }
 
@@ -28,7 +28,7 @@ export async function sendBackupDownloadedEmail({
 
   await transporter.sendMail({
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
-    to: smtpTo,
+    to: recipients.join(", "),
     subject: `🚨 Kritik İşlem: Yedek Dosyası İndirildi - Hesap App`,
     text: [
       `Kritik İşlem Bildirimi:`,
