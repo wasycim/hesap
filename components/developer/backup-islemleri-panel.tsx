@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react"
 import { toast } from "sonner"
-import { DatabaseBackup, Download, ShieldAlert, Trash2, Upload, ServerCrash, RefreshCw, X, Check, FileJson, AlertTriangle } from "lucide-react"
+import { DatabaseBackup, Download, ShieldAlert, Trash2, Upload, ServerCrash, RefreshCw, X, Check, FileJson, AlertTriangle, Calendar } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -82,6 +82,22 @@ export function BackupIslemleriPanel() {
     }
 
     return { startDate, endDate }
+  }
+
+  // Format range text for UI display
+  function getFormattedRangePreview() {
+    const { startDate, endDate } = getDateRange()
+    if (!startDate && !endDate) {
+      return "Tüm zamanlara ait veritabanı kayıtları yedeklenecektir."
+    }
+    
+    const formatDate = (dateStr: string) => {
+      if (!dateStr) return ""
+      const [y, m, d] = dateStr.split("-")
+      return `${d}.${m}.${y}`
+    }
+    
+    return `${formatDate(startDate) || "Başlangıç"} - ${formatDate(endDate) || "Bugün"} tarihleri arasındaki veriler yedeklenecektir.`
   }
 
   // Full Database Backup Functions
@@ -315,47 +331,65 @@ export function BackupIslemleriPanel() {
               İndirilen dosya JSON formatındadır. Geri yükleme işlemi öncesinde yedek içeriği önizlenir, ardından onaylanırsa yüklenir. Hassas şifreler veya gizli anahtarlar bu yedeğin içerisine yazılmaz.
             </p>
 
-            {/* Date Range Selection Area */}
-            <div className="space-y-3 bg-muted/40 border border-border/60 rounded-xl p-3.5 text-xs my-2">
-              <label className="flex flex-col gap-1.5 font-bold text-muted-foreground">
+            {/* Premium Date Range Selection Area */}
+            <div className="space-y-4 bg-muted/30 border border-border/80 rounded-2xl p-4 my-2 shadow-2xs">
+              <label className="flex flex-col gap-2 font-bold text-xs text-muted-foreground">
                 Yedeklenecek Tarih Aralığı:
-                <select
-                  value={rangeType}
-                  onChange={(e) => setRangeType(e.target.value)}
-                  className="flex h-9 w-full items-center justify-between rounded-lg border border-input bg-background px-3 py-1 text-xs outline-none focus:ring-2 focus:ring-cyan-500 text-foreground font-semibold"
-                >
-                  <option value="all">Tüm Zamanlar (Tavsiye Edilen)</option>
-                  <option value="last-week">Geçen Hafta (Son 7 Gün)</option>
-                  <option value="last-month">Geçen Ay (Son 30 Gün)</option>
-                  <option value="last-4-months">Son 4 Ay</option>
-                  <option value="last-6-months">Son 6 Ay</option>
-                  <option value="this-year">Bu Yıl ({new Date().getFullYear()})</option>
-                  <option value="custom">Özel Tarih Aralığı...</option>
-                </select>
+                <div className="relative">
+                  <select
+                    value={rangeType}
+                    onChange={(e) => setRangeType(e.target.value)}
+                    className="flex h-10 w-full items-center justify-between rounded-xl border border-input bg-background pl-10 pr-8 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-500 text-foreground font-semibold appearance-none cursor-pointer hover:bg-muted/10 transition-colors"
+                  >
+                    <option value="all">Tüm Zamanlar (Tavsiye Edilen)</option>
+                    <option value="last-week">Geçen Hafta (Son 7 Gün)</option>
+                    <option value="last-month">Geçen Ay (Son 30 Gün)</option>
+                    <option value="last-4-months">Son 4 Ay</option>
+                    <option value="last-6-months">Son 6 Ay</option>
+                    <option value="this-year">Bu Yıl ({new Date().getFullYear()})</option>
+                    <option value="custom">Özel Tarih Aralığı...</option>
+                  </select>
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-cyan-500 pointer-events-none" />
+                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground/75 text-[10px]">
+                    ▼
+                  </div>
+                </div>
               </label>
 
               {rangeType === "custom" && (
-                <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-border/40 border-dashed animate-in fade-in duration-200">
-                  <label className="flex flex-col gap-1 text-[10px] font-bold text-muted-foreground">
+                <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-border/50 border-dashed animate-in fade-in slide-in-from-top-1 duration-200">
+                  <label className="flex flex-col gap-1.5 text-[10px] font-bold text-muted-foreground">
                     Başlangıç Tarihi:
-                    <input
-                      type="date"
-                      value={customStart}
-                      onChange={(e) => setCustomStart(e.target.value)}
-                      className="flex h-8 w-full rounded-md border border-input bg-background px-2.5 py-1 text-xs outline-none focus:ring-2 focus:ring-cyan-500 font-medium text-foreground"
-                    />
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={customStart}
+                        onChange={(e) => setCustomStart(e.target.value)}
+                        className="flex h-10 w-full rounded-xl border border-input bg-background pl-9 pr-3 py-2 text-xs outline-none focus:ring-2 focus:ring-cyan-500 font-semibold text-foreground transition-all cursor-pointer"
+                      />
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                    </div>
                   </label>
-                  <label className="flex flex-col gap-1 text-[10px] font-bold text-muted-foreground">
+                  <label className="flex flex-col gap-1.5 text-[10px] font-bold text-muted-foreground">
                     Bitiş Tarihi:
-                    <input
-                      type="date"
-                      value={customEnd}
-                      onChange={(e) => setCustomEnd(e.target.value)}
-                      className="flex h-8 w-full rounded-md border border-input bg-background px-2.5 py-1 text-xs outline-none focus:ring-2 focus:ring-cyan-500 font-medium text-foreground"
-                    />
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={customEnd}
+                        onChange={(e) => setCustomEnd(e.target.value)}
+                        className="flex h-10 w-full rounded-xl border border-input bg-background pl-9 pr-3 py-2 text-xs outline-none focus:ring-2 focus:ring-cyan-500 font-semibold text-foreground transition-all cursor-pointer"
+                      />
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                    </div>
                   </label>
                 </div>
               )}
+
+              {/* Dynamic Info Box for range preview */}
+              <div className="flex items-start gap-2.5 rounded-xl bg-cyan-500/5 p-3 border border-cyan-500/10 text-[11px] text-cyan-700 dark:text-cyan-400 font-semibold leading-relaxed">
+                <Calendar className="h-4 w-4 text-cyan-600 dark:text-cyan-400 mt-0.5 shrink-0" />
+                <span>{getFormattedRangePreview()}</span>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2 pt-2">
@@ -399,7 +433,7 @@ export function BackupIslemleriPanel() {
             <p className="text-xs leading-relaxed text-muted-foreground">
               Sistem güvenliği ve ayar yapısını taşımak için kullanılır. İşlemsel kayıtları (gelir, gider vb.) kapsamaz, yüklemeden önce dosya içeriğindeki satır sayılarını inceleyebilirsiniz.
             </p>
-            <div className="flex flex-wrap gap-2 pt-10">
+            <div className="flex flex-wrap gap-2 pt-24">
               <Button onClick={downloadLogBackup} disabled={busy !== null} className="gap-2 bg-violet-600 hover:bg-violet-700 text-white">
                 {busy === "download-log" ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 Log Yedeği İndir
