@@ -34,7 +34,7 @@ export const COLOR_OPTIONS = [
 ]
 
 export function getColumnTextColor(color: string): string {
-  if (!color) return "text-white"
+  if (!color || typeof color !== "string") return "text-white"
   const trimmed = color.trim()
   if (trimmed.startsWith("#") || trimmed.startsWith("rgb") || trimmed.startsWith("hsl")) {
     let hex = trimmed.replace("#", "")
@@ -52,7 +52,7 @@ export function getColumnTextColor(color: string): string {
 }
 
 export function getColumnColorClass(color: string): string {
-  if (!color) return ""
+  if (!color || typeof color !== "string") return ""
   const trimmed = color.trim()
   if (trimmed.startsWith("#") || trimmed.startsWith("rgb") || trimmed.startsWith("hsl")) {
     return ""
@@ -61,7 +61,7 @@ export function getColumnColorClass(color: string): string {
 }
 
 export function getColumnColorStyle(color: string): Record<string, string> {
-  if (!color) return {}
+  if (!color || typeof color !== "string") return {}
   const trimmed = color.trim()
   if (trimmed.startsWith("#") || trimmed.startsWith("rgb") || trimmed.startsWith("hsl")) {
     return { backgroundColor: trimmed }
