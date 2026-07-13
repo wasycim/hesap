@@ -135,17 +135,17 @@ function getPdfHeaderStyle(header: string): { bg: string; text: string } | null 
   
   // Gelir colors
   if (norm === "PAMUKKALE TURİZM") return { bg: "#FF0000", text: "#ffffff" }
-  if (norm === "ANADOLU ULAŞIM") return { bg: "#C65911", text: "#FFFF00" }
+  if (norm === "ANADOLU ULAŞIM") return { bg: "#C65911", text: "#ffffff" }
   if (norm === "İNEGÖL SEYAHAT") return { bg: "#00B050", text: "#ffffff" }
-  if (norm === "ALAŞEHİR TURİZM") return { bg: "#F4B084", text: "#0000FF" }
-  if (norm === "ÜNLÜ") return { bg: "#D0CECE", text: "#000000" }
-  if (norm === "PAMUKKALE KARGO") return { bg: "#FFC000", text: "#FF0000" }
+  if (norm === "ALAŞEHİR TURİZM") return { bg: "#F4B084", text: "#ffffff" }
+  if (norm === "ÜNLÜ") return { bg: "#D0CECE", text: "#ffffff" }
+  if (norm === "PAMUKKALE KARGO") return { bg: "#FFC000", text: "#ffffff" }
   if (norm === "DİĞER KOMİSYONLAR" || norm === "DİĞER KOMİSYON" || norm === "KASA-GELEN") return { bg: "#7030A0", text: "#ffffff" }
   if (norm === "TOPLAM" || norm === "GİDERLER" || norm === "KALAN") return { bg: "#FF0000", text: "#ffffff" }
   if (norm === "14 NO FİRMALAR") return { bg: "#838383", text: "#ffffff" }
 
   // Gider colors
-  if (norm === "ULUS ÖDEME") return { bg: "#548235", text: "#FFFF00" }
+  if (norm === "ULUS ÖDEME") return { bg: "#548235", text: "#ffffff" }
   if (norm === "ZİRAAT BANKASI" || norm === "ZİRAAT BANKA") return { bg: "#548235", text: "#ffffff" }
   if (
     norm === "İNŞAAT YEMEK" ||
@@ -165,7 +165,7 @@ function getPdfHeaderStyle(header: string): { bg: string; text: string } | null 
     norm === "EZGİ OTOM" ||
     norm.startsWith("PERSONEL MESA")
   ) {
-    return { bg: "#9BC2E6", text: "#000080" }
+    return { bg: "#9BC2E6", text: "#ffffff" }
   }
   if (norm === "YEMEK") return { bg: "#757171", text: "#ffffff" }
   if (norm === "YARIMCA BİLET") return { bg: "#8497B0", text: "#ffffff" }

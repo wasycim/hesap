@@ -136,19 +136,19 @@ function getGelirBesAColor(label: string): { bg: string; text: string } | null {
     return { bg: "#FF0000", text: "text-white" }
   }
   if (norm === "ANADOLU ULAŞIM") {
-    return { bg: "#C65911", text: "text-yellow-300 font-bold" }
+    return { bg: "#C65911", text: "text-white" }
   }
   if (norm === "İNEGÖL SEYAHAT") {
     return { bg: "#00B050", text: "text-white" }
   }
   if (norm === "ALAŞEHİR TURİZM") {
-    return { bg: "#F4B084", text: "text-blue-800 font-bold" }
+    return { bg: "#F4B084", text: "text-white" }
   }
   if (norm === "ÜNLÜ") {
-    return { bg: "#D0CECE", text: "text-slate-900 font-bold" }
+    return { bg: "#D0CECE", text: "text-white" }
   }
   if (norm === "PAMUKKALE KARGO") {
-    return { bg: "#FFC000", text: "text-red-600 font-bold" }
+    return { bg: "#FFC000", text: "text-white" }
   }
   if (norm === "DİĞER KOMİSYONLAR" || norm === "DİĞER KOMİSYON" || norm === "KASA-GELEN") {
     return { bg: "#7030A0", text: "text-white" }

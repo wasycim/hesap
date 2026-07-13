@@ -136,7 +136,7 @@ function getGiderBesAColor(label: string): { bg: string; text: string } | null {
   const norm = label.toLocaleUpperCase("tr-TR").trim()
   
   if (norm === "ULUS ÖDEME") {
-    return { bg: "#548235", text: "text-yellow-300 font-bold" }
+    return { bg: "#548235", text: "text-white" }
   }
   if (norm === "ZİRAAT BANKASI" || norm === "ZİRAAT BANKA") {
     return { bg: "#548235", text: "text-white" }
@@ -159,7 +159,7 @@ function getGiderBesAColor(label: string): { bg: string; text: string } | null {
     norm === "EZGİ OTOM" ||
     norm.startsWith("PERSONEL MESA")
   ) {
-    return { bg: "#9BC2E6", text: "text-slate-900 font-bold" }
+    return { bg: "#9BC2E6", text: "text-white" }
   }
   if (norm === "YEMEK") {
     return { bg: "#757171", text: "text-white" }
