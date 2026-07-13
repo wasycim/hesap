@@ -678,7 +678,10 @@ export default function AyarlarPage() {
                       <div className="flex min-w-0 items-center gap-2">
                         <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
                       </div>
-                      <div className={`rounded px-2 py-1 text-xs font-bold ${firma.color} ${getColumnTextColor(firma.color)}`}>
+                      <div
+                        className={`rounded px-2 py-1 text-xs font-bold ${getColumnColorClass(firma.color)} ${getColumnTextColor(firma.color)}`}
+                        style={getColumnColorStyle(firma.color)}
+                      >
                         SÜTUN
                       </div>
                     </div>
@@ -688,17 +691,64 @@ export default function AyarlarPage() {
                       className={`mb-3 h-9 font-semibold ${firma.aktif ? "" : "text-muted-foreground line-through"}`}
                       placeholder="Firma adı"
                     />
-                    <div className="grid grid-cols-[1fr_7rem] gap-2">
-                      <Select value={firma.color} onValueChange={(value) => updateGelirFirma(firma.id, { color: value })}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {COLOR_OPTIONS.map(option => (
-                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="grid grid-cols-[1fr_7rem] gap-2 items-center">
+                      <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap gap-1 max-w-[130px]">
+                          {[
+                            { value: "bg-green-600", color: "#16a34a", label: "Yeşil" },
+                            { value: "bg-blue-600", color: "#2563eb", label: "Mavi" },
+                            { value: "bg-yellow-500", color: "#eab308", label: "Sarı" },
+                            { value: "bg-orange-500", color: "#f97316", label: "Turuncu" },
+                            { value: "bg-red-600", color: "#dc2626", label: "Kırmızı" },
+                            { value: "bg-purple-600", color: "#9333ea", label: "Mor" },
+                            { value: "bg-gray-700", color: "#374151", label: "Gri" },
+                            { value: "bg-pink-600", color: "#db2777", label: "Pembe" },
+                            { value: "bg-cyan-600", color: "#0891b2", label: "Turkuaz" },
+                          ].map((preset) => {
+                            const isSelected = firma.color === preset.value;
+                            return (
+                              <button
+                                key={preset.value}
+                                type="button"
+                                onClick={() => updateGelirFirma(firma.id, { color: preset.value })}
+                                className={`h-5 w-5 rounded-full border border-black/10 transition-all hover:scale-110 active:scale-95 shadow-sm ${
+                                  isSelected ? "ring-2 ring-emerald-500 ring-offset-1 scale-105" : "opacity-80 hover:opacity-100"
+                                }`}
+                                style={{ backgroundColor: preset.color }}
+                                title={preset.label}
+                              />
+                            );
+                          })}
+                          {/* Custom Color Picker */}
+                          <div className="relative h-5 w-5">
+                            <input
+                              type="color"
+                              value={firma.color.startsWith("#") ? firma.color : "#2563eb"}
+                              onChange={(e) => updateGelirFirma(firma.id, { color: e.target.value })}
+                              className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
+                            />
+                            <div
+                              className={`h-5 w-5 rounded-full border border-dashed border-slate-400 flex items-center justify-center bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 hover:scale-110 transition-transform shadow-sm ${
+                                firma.color.startsWith("#") ? "ring-2 ring-emerald-500 ring-offset-1 scale-105" : "opacity-80"
+                              }`}
+                              title="Özel Renk"
+                            >
+                              <span className="text-[9px] text-white font-bold leading-none">+</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Hex input if custom color is selected */}
+                        {firma.color.startsWith("#") && (
+                          <input
+                            type="text"
+                            value={firma.color}
+                            onChange={(e) => updateGelirFirma(firma.id, { color: e.target.value })}
+                            className="h-8 w-16 rounded border bg-background px-1 text-[10px] font-mono text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                            placeholder="#000"
+                          />
+                        )}
+                      </div>
                       <Input
                         type="number"
                         min="0"
@@ -774,7 +824,8 @@ export default function AyarlarPage() {
                     {gelirFirmalar.map((firma, index) => (
                       <div
                         key={firma.id}
-                        className={`min-w-40 border-r px-4 py-3 text-center last:border-r-0 ${firma.aktif ? firma.color : "bg-muted"} ${firma.aktif ? getColumnTextColor(firma.color) : "text-muted-foreground"}`}
+                        className={`min-w-40 border-r px-4 py-3 text-center last:border-r-0 ${firma.aktif ? getColumnColorClass(firma.color) : "bg-muted"} ${firma.aktif ? getColumnTextColor(firma.color) : "text-muted-foreground"}`}
+                        style={firma.aktif ? getColumnColorStyle(firma.color) : undefined}
                       >
                         <div className="text-[10px] font-bold uppercase opacity-80">#{index + 1}</div>
                         <div className={`mt-1 truncate text-sm font-extrabold ${firma.aktif ? "" : "line-through"}`}>
