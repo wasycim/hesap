@@ -573,7 +573,7 @@ export default function SutunAyarlarPage() {
         <div>
           <h1 className="text-2xl font-bold">Sütun Ayarları</h1>
           <p className="text-sm text-muted-foreground">
-            {currentSube?.ad ? `${currentSube.ad} şubesi için gelir, gider ve 14 numara hesap sütun ayarları.` : "Şube seçimi bekleniyor."}
+            {currentSube?.ad ? `${currentSube.ad} şubesi için gelir, gider ve alt şube hesapları sütun ayarları.` : "Şube seçimi bekleniyor."}
           </p>
         </div>
         <Button onClick={saveColumns} disabled={saving} className="gap-2">
@@ -602,7 +602,7 @@ export default function SutunAyarlarPage() {
             <TabsList>
               <TabsTrigger value="gelir">Gelir Tablosu</TabsTrigger>
               <TabsTrigger value="gider">Gider Tablosu</TabsTrigger>
-              <TabsTrigger value="on_dort_no_hesap">14 Numara Hesap</TabsTrigger>
+              <TabsTrigger value="on_dort_no_hesap">Alt Şube Hesapları</TabsTrigger>
             </TabsList>
             <TabsContent value="gelir" className="pt-4">
               {renderTableSettings("gelir")}
