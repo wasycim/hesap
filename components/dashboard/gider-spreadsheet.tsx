@@ -12,6 +12,8 @@ import {
   PERSONELLER_GROUP_KEY,
   TableColumnSetting,
   getColumnTextColor,
+  getColumnColorClass,
+  getColumnColorStyle,
   mergeColumnSettings,
 } from "@/lib/table-column-settings"
 import { getLastMissingDateWithinMonth, getMonthYearFromDate, isDateInSelectedMonth } from "@/lib/date-navigation"
@@ -661,7 +663,8 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLElement>) {
               {allColumns.map(col => (
                 <th 
                   key={col.key} 
-                  className={`border p-2 font-semibold whitespace-nowrap ${col.key === "tarih" ? "sticky-date-column" : col.key === "vardiya" ? "sticky-shift-column" : ""} ${col.color} ${getColumnTextColor(col.color)}`}
+                  className={`border p-2 font-semibold whitespace-nowrap ${col.key === "tarih" ? "sticky-date-column" : col.key === "vardiya" ? "sticky-shift-column" : ""} ${getColumnColorClass(col.color)} ${getColumnTextColor(col.color)}`}
+                  style={getColumnColorStyle(col.color)}
                 >
                   {col.label}
                 </th>

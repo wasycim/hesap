@@ -1098,8 +1098,11 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                 return (
                   <th
                     key={key}
-                    className={`border p-2 text-center font-semibold ${color} ${getColumnTextColor(color)}`}
-                    style={section === "all" ? { top: 36 } : undefined}
+                    className={`border p-2 text-center font-semibold ${getColumnColorClass(color)} ${getColumnTextColor(color)}`}
+                    style={{
+                      ...(section === "all" ? { top: 36 } : {}),
+                      ...getColumnColorStyle(color)
+                    }}
                   >
                     {column?.label || key}
                   </th>

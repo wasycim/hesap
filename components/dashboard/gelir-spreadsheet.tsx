@@ -12,6 +12,8 @@ import {
   ON_DORT_FIRMA_DETAYLARI_KEY,
   TableColumnSetting,
   getColumnTextColor,
+  getColumnColorClass,
+  getColumnColorStyle,
   mergeColumnSettings,
 } from "@/lib/table-column-settings"
 import { getLastMissingDateWithinMonth, getMonthYearFromDate, isDateInSelectedMonth } from "@/lib/date-navigation"
@@ -766,14 +768,18 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
           <thead>
             <tr>
               <th className="sticky-index-column border bg-muted p-2 text-muted-foreground">#</th>
-              {visibleColumns.map(col => (
-                <th 
-                  key={col} 
-                  className={`border p-2 font-semibold whitespace-nowrap ${col === "tarih" ? "sticky-date-column" : col === "vardiya" ? "sticky-shift-column" : ""} ${columnColorMap[col] || HEADER_COLORS[col]} ${getColumnTextColor(columnColorMap[col] || HEADER_COLORS[col])}`}
-                >
-                  {columnLabelMap[col] || HEADER_LABELS[col] || col}
-                </th>
-              ))}
+              {visibleColumns.map(col => {
+                const rawColor = columnColorMap[col] || HEADER_COLORS[col] || ""
+                return (
+                  <th 
+                    key={col} 
+                    className={`border p-2 font-semibold whitespace-nowrap ${col === "tarih" ? "sticky-date-column" : col === "vardiya" ? "sticky-shift-column" : ""} ${getColumnColorClass(rawColor)} ${getColumnTextColor(rawColor)}`}
+                    style={getColumnColorStyle(rawColor)}
+                  >
+                    {columnLabelMap[col] || HEADER_LABELS[col] || col}
+                  </th>
+                )
+              })}
               <th className="w-10 border bg-muted p-2"></th>
             </tr>
           </thead>

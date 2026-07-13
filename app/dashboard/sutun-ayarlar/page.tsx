@@ -17,6 +17,8 @@ import {
   TableColumnSetting,
   TableType,
   getColumnTextColor,
+  getColumnColorClass,
+  getColumnColorStyle,
   getDefaultColumns,
   makeCustomColumnKey,
   mergeColumnSettings,
@@ -341,8 +343,9 @@ export default function SutunAyarlarPage() {
               <div
                 key={column.column_key}
                 className={`flex h-10 min-w-32 shrink-0 items-center justify-center border border-r-0 px-3 text-center text-sm font-bold leading-tight last:border-r ${
-                  column.color
+                  getColumnColorClass(column.color)
                   } ${getColumnTextColor(column.color)}`}
+                style={getColumnColorStyle(column.color)}
                 title={column.label}
               >
                 <span className="whitespace-nowrap">{column.label || "SÜTUN"}</span>
@@ -443,21 +446,69 @@ export default function SutunAyarlarPage() {
                     />
                   </td>
                   <td className="p-3">
-                    <Select value={column.color} onValueChange={(value) => updateColumn(tableType, column.column_key, { color: value })}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {COLOR_OPTIONS.map(option => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap gap-1.5 max-w-[200px]">
+                        {[
+                          { value: "bg-green-600", color: "#16a34a", label: "Yeşil" },
+                          { value: "bg-blue-600", color: "#2563eb", label: "Mavi" },
+                          { value: "bg-yellow-500", color: "#eab308", label: "Sarı" },
+                          { value: "bg-orange-500", color: "#f97316", label: "Turuncu" },
+                          { value: "bg-red-600", color: "#dc2626", label: "Kırmızı" },
+                          { value: "bg-purple-600", color: "#9333ea", label: "Mor" },
+                          { value: "bg-gray-700", color: "#374151", label: "Gri" },
+                          { value: "bg-pink-600", color: "#db2777", label: "Pembe" },
+                          { value: "bg-cyan-600", color: "#0891b2", label: "Turkuaz" },
+                        ].map((preset) => {
+                          const isSelected = column.color === preset.value;
+                          return (
+                            <button
+                              key={preset.value}
+                              type="button"
+                              onClick={() => updateColumn(tableType, column.column_key, { color: preset.value })}
+                              className={`h-6 w-6 rounded-full border border-black/10 transition-all hover:scale-110 active:scale-95 shadow-sm ${
+                                isSelected ? "ring-2 ring-indigo-500 ring-offset-1 scale-105" : "opacity-80 hover:opacity-100"
+                              }`}
+                              style={{ backgroundColor: preset.color }}
+                              title={preset.label}
+                            />
+                          );
+                        })}
+                        {/* Custom Color Picker Button */}
+                        <div className="relative h-6 w-6">
+                          <input
+                            type="color"
+                            value={column.color.startsWith("#") ? column.color : "#2563eb"}
+                            onChange={(e) => updateColumn(tableType, column.column_key, { color: e.target.value })}
+                            className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
+                          />
+                          <div
+                            className={`h-6 w-6 rounded-full border border-dashed border-slate-400 flex items-center justify-center bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 hover:scale-110 transition-transform shadow-sm ${
+                              column.color.startsWith("#") ? "ring-2 ring-indigo-500 ring-offset-1 scale-105" : "opacity-80"
+                            }`}
+                            title="Özel Renk Seç"
+                          >
+                            <span className="text-[11px] text-white font-black leading-none">+</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Hex input if custom color is selected */}
+                      {column.color.startsWith("#") && (
+                        <input
+                          type="text"
+                          value={column.color}
+                          onChange={(e) => updateColumn(tableType, column.column_key, { color: e.target.value })}
+                          className="h-8 w-20 rounded border bg-background px-1.5 text-xs font-mono text-foreground outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                          placeholder="#000000"
+                        />
+                      )}
+                    </div>
                   </td>
                   <td className="p-3">
-                    <div className={`inline-flex min-w-32 justify-center rounded px-3 py-2 font-semibold ${column.color} ${getColumnTextColor(column.color)}`}>
+                    <div
+                      className={`inline-flex min-w-32 justify-center rounded px-3 py-2 font-semibold ${getColumnColorClass(column.color)} ${getColumnTextColor(column.color)}`}
+                      style={getColumnColorStyle(column.color)}
+                    >
                       {column.label || "SÜTUN"}
                     </div>
                     {tableType === "gider" && column.column_key === ORTAKLAR_GROUP_KEY && (

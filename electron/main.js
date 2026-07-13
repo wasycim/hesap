@@ -318,6 +318,7 @@ function createWindow() {
 
   mainWindow.once("ready-to-show", () => {
     if (!mainWindow || mainWindow.isDestroyed()) return
+    mainWindow.maximize()
     mainWindow.show()
   })
 

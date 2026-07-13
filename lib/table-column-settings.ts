@@ -34,7 +34,39 @@ export const COLOR_OPTIONS = [
 ]
 
 export function getColumnTextColor(color: string): string {
+  if (!color) return "text-white"
+  const trimmed = color.trim()
+  if (trimmed.startsWith("#") || trimmed.startsWith("rgb") || trimmed.startsWith("hsl")) {
+    let hex = trimmed.replace("#", "")
+    if (hex.length === 3) {
+      hex = hex.split("").map(c => c + c).join("")
+    }
+    if (hex.length !== 6) return "text-white"
+    const r = parseInt(hex.substring(0, 2), 16)
+    const g = parseInt(hex.substring(2, 4), 16)
+    const b = parseInt(hex.substring(4, 6), 16)
+    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000
+    return yiq >= 128 ? "text-slate-900" : "text-white"
+  }
   return COLOR_OPTIONS.find(option => option.value === color)?.text || "text-white"
+}
+
+export function getColumnColorClass(color: string): string {
+  if (!color) return ""
+  const trimmed = color.trim()
+  if (trimmed.startsWith("#") || trimmed.startsWith("rgb") || trimmed.startsWith("hsl")) {
+    return ""
+  }
+  return color
+}
+
+export function getColumnColorStyle(color: string): Record<string, string> {
+  if (!color) return {}
+  const trimmed = color.trim()
+  if (trimmed.startsWith("#") || trimmed.startsWith("rgb") || trimmed.startsWith("hsl")) {
+    return { backgroundColor: trimmed }
+  }
+  return {}
 }
 
 export const GELIR_DEFAULT_COLUMNS: TableColumnSetting[] = [
