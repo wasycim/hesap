@@ -132,6 +132,7 @@ function compareDateVardiya(a: Pick<GiderRow, "tarih" | "vardiya">, b: Pick<Gide
 }
 
 function getGiderBesAColor(label: string): { bg: string; text: string } | null {
+  if (!label || typeof label !== "string") return null
   const norm = label.toLocaleUpperCase("tr-TR").trim()
   
   if (norm === "ULUS ÖDEME") {

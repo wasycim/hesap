@@ -129,6 +129,7 @@ function getTrackingOnlyCellValue(value: unknown) {
 }
 
 function getGelirBesAColor(label: string): { bg: string; text: string } | null {
+  if (!label || typeof label !== "string") return null
   const norm = label.toLocaleUpperCase("tr-TR").trim()
   
   if (norm === "PAMUKKALE TURİZM") {

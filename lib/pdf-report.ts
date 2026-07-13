@@ -130,6 +130,7 @@ function choosePdfOrientation(
 }
 
 function getPdfHeaderStyle(header: string): { bg: string; text: string } | null {
+  if (!header || typeof header !== "string") return null
   const norm = header.toLocaleUpperCase("tr-TR").trim()
   
   // Gelir colors
