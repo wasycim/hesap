@@ -129,6 +129,65 @@ function choosePdfOrientation(
   })
 }
 
+function getPdfHeaderStyle(header: string): { bg: string; text: string } | null {
+  const norm = header.toLocaleUpperCase("tr-TR").trim()
+  
+  // Gelir colors
+  if (norm === "PAMUKKALE TURİZM") return { bg: "#FF0000", text: "#ffffff" }
+  if (norm === "ANADOLU ULAŞIM") return { bg: "#C65911", text: "#FFFF00" }
+  if (norm === "İNEGÖL SEYAHAT") return { bg: "#00B050", text: "#ffffff" }
+  if (norm === "ALAŞEHİR TURİZM") return { bg: "#F4B084", text: "#0000FF" }
+  if (norm === "ÜNLÜ") return { bg: "#D0CECE", text: "#000000" }
+  if (norm === "PAMUKKALE KARGO") return { bg: "#FFC000", text: "#FF0000" }
+  if (norm === "DİĞER KOMİSYONLAR" || norm === "DİĞER KOMİSYON" || norm === "KASA-GELEN") return { bg: "#7030A0", text: "#ffffff" }
+  if (norm === "TOPLAM" || norm === "GİDERLER" || norm === "KALAN") return { bg: "#FF0000", text: "#ffffff" }
+  if (norm === "14 NO FİRMALAR") return { bg: "#838383", text: "#ffffff" }
+
+  // Gider colors
+  if (norm === "ULUS ÖDEME") return { bg: "#548235", text: "#FFFF00" }
+  if (norm === "ZİRAAT BANKASI" || norm === "ZİRAAT BANKA") return { bg: "#548235", text: "#ffffff" }
+  if (
+    norm === "İNŞAAT YEMEK" ||
+    norm === "OSMAN YEMEK" ||
+    norm === "EROL KÖSE" ||
+    norm === "İNEGÖL DÖNÜŞ"
+  ) {
+    return { bg: "#BF8F00", text: "#ffffff" }
+  }
+  if (
+    norm === "ÇETİN OTO" ||
+    norm === "YILMAZ BANK" ||
+    norm === "ÖMÜR KURUKAHVE" ||
+    norm === "İLKER OTOM" ||
+    norm === "FATMANUR KARAHAT" ||
+    norm === "YİĞİT BALABAN" ||
+    norm === "EZGİ OTOM" ||
+    norm.startsWith("PERSONEL MESA")
+  ) {
+    return { bg: "#9BC2E6", text: "#000080" }
+  }
+  if (norm === "YEMEK") return { bg: "#757171", text: "#ffffff" }
+  if (norm === "YARIMCA BİLET") return { bg: "#8497B0", text: "#ffffff" }
+  if (norm === "MAZOT") return { bg: "#5B9BD5", text: "#ffffff" }
+  if (norm === "İŞ BANKASI") return { bg: "#92D050", text: "#ffffff" }
+  if (norm === "BELEDİYE KİRA") return { bg: "#00B050", text: "#ffffff" }
+  if (norm === "ÖMERİN YERİ") return { bg: "#C00000", text: "#ffffff" }
+  if (norm === "BAĞ-KUR/SGK" || norm === "BAG-KUR/SGK" || norm === "BAGKUR/SGK") return { bg: "#ED7D31", text: "#ffffff" }
+  if (
+    norm === "HESABA GELEN" ||
+    norm === "14 NO'YA GİDEN" ||
+    norm === "14 NOYA GİDEN" ||
+    norm === "ÇARŞI BİLET" ||
+    norm === "BAŞKA OFİS" ||
+    norm === "KANDİL (MAZOT)" ||
+    norm === "BANKAYA YATAN"
+  ) {
+    return { bg: "#2F75B5", text: "#ffffff" }
+  }
+  
+  return null
+}
+
 function buildPdfHtml({
   title,
   subtitle,
@@ -155,7 +214,11 @@ function buildPdfHtml({
         )).join("")}</colgroup>
         <thead>
           <tr>
-            ${table.headers.map(header => `<th class="${isMoneyLike(header) ? "money" : ""}">${escapeHtml(header)}</th>`).join("")}
+            ${table.headers.map(header => {
+              const customStyle = getPdfHeaderStyle(header)
+              const styleAttr = customStyle ? ` style="background-color: ${customStyle.bg} !important; color: ${customStyle.text} !important;"` : ""
+              return `<th class="${isMoneyLike(header) ? "money" : ""}"${styleAttr}>${escapeHtml(header)}</th>`
+            }).join("")}
           </tr>
         </thead>
         <tbody>
@@ -759,7 +822,17 @@ async function shareNativePdf({ title, subtitle, orientation, metrics, tables }:
             headerRows: 1,
             widths: table.headers.map((_, index) => index === 0 && table.firstColumnWidth ? table.firstColumnWidth : "*"),
             body: [
-              table.headers.map((header) => ({ text: header, bold: true, color: "#ffffff", fillColor: "#0f766e", alignment: "center", margin: [3, 4] })),
+              table.headers.map((header) => {
+                const customStyle = getPdfHeaderStyle(header)
+                return {
+                  text: header,
+                  bold: true,
+                  color: customStyle ? customStyle.text : "#ffffff",
+                  fillColor: customStyle ? customStyle.bg : "#0f766e",
+                  alignment: "center",
+                  margin: [3, 4],
+                }
+              }),
               ...(table.rows.length
                 ? table.rows.map((row) => row.map((cell) => ({ text: String(cell), alignment: "center", margin: [3, 4] })))
                 : [[

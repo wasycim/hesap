@@ -128,6 +128,40 @@ function getTrackingOnlyCellValue(value: unknown) {
   return formatTrackingRangeValue(value)
 }
 
+function getGelirBesAColor(label: string): { bg: string; text: string } | null {
+  const norm = label.toLocaleUpperCase("tr-TR").trim()
+  
+  if (norm === "PAMUKKALE TURİZM") {
+    return { bg: "#FF0000", text: "text-white" }
+  }
+  if (norm === "ANADOLU ULAŞIM") {
+    return { bg: "#C65911", text: "text-yellow-300 font-bold" }
+  }
+  if (norm === "İNEGÖL SEYAHAT") {
+    return { bg: "#00B050", text: "text-white" }
+  }
+  if (norm === "ALAŞEHİR TURİZM") {
+    return { bg: "#F4B084", text: "text-blue-800 font-bold" }
+  }
+  if (norm === "ÜNLÜ") {
+    return { bg: "#D0CECE", text: "text-slate-900 font-bold" }
+  }
+  if (norm === "PAMUKKALE KARGO") {
+    return { bg: "#FFC000", text: "text-red-600 font-bold" }
+  }
+  if (norm === "DİĞER KOMİSYONLAR" || norm === "DİĞER KOMİSYON" || norm === "KASA-GELEN") {
+    return { bg: "#7030A0", text: "text-white" }
+  }
+  if (norm === "TOPLAM" || norm === "GİDERLER" || norm === "KALAN") {
+    return { bg: "#FF0000", text: "text-white" }
+  }
+  if (norm === "14 NO FİRMALAR") {
+    return { bg: "#838383", text: "text-white" }
+  }
+  return null
+}
+
+
 function isSpreadsheetControl(element: Element | null): element is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
   if (
     !(element instanceof HTMLInputElement) &&
@@ -769,14 +803,21 @@ export function GelirSpreadsheet({ month, year }: GelirSpreadsheetProps) {
             <tr>
               <th className="sticky-index-column border bg-muted p-2 text-muted-foreground">#</th>
               {visibleColumns.map(col => {
+                const label = columnLabelMap[col] || HEADER_LABELS[col] || col
+                const customColor = isCurrentBesASube ? getGelirBesAColor(label) : null
                 const rawColor = columnColorMap[col] || HEADER_COLORS[col] || ""
+                
+                const bgClass = customColor ? "" : getColumnColorClass(rawColor)
+                const textClass = customColor ? customColor.text : getColumnTextColor(rawColor)
+                const style = customColor ? { backgroundColor: customColor.bg } : getColumnColorStyle(rawColor)
+                
                 return (
                   <th 
                     key={col} 
-                    className={`border p-2 font-semibold whitespace-nowrap ${col === "tarih" ? "sticky-date-column" : col === "vardiya" ? "sticky-shift-column" : ""} ${getColumnColorClass(rawColor)} ${getColumnTextColor(rawColor)}`}
-                    style={getColumnColorStyle(rawColor)}
+                    className={`border p-2 font-semibold whitespace-nowrap ${col === "tarih" ? "sticky-date-column" : col === "vardiya" ? "sticky-shift-column" : ""} ${bgClass} ${textClass}`}
+                    style={style}
                   >
-                    {columnLabelMap[col] || HEADER_LABELS[col] || col}
+                    {label}
                   </th>
                 )
               })}

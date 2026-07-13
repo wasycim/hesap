@@ -21,6 +21,7 @@ import { logSecurityEvent } from "@/lib/audit-log"
 import { openPdfReport } from "@/lib/pdf-report"
 import { getShiftBusinessDate } from "@/lib/shift-business-date"
 import { CurrencyInput, parseCurrencyInputValue } from "@/components/dashboard/currency-input"
+import { isBesASube } from "@/lib/sube-utils"
 
 interface Ortak {
   id: string
@@ -130,6 +131,70 @@ function compareDateVardiya(a: Pick<GiderRow, "tarih" | "vardiya">, b: Pick<Gide
   return (VARDIYA_SIRASI[a.vardiya] ?? 99) - (VARDIYA_SIRASI[b.vardiya] ?? 99)
 }
 
+function getGiderBesAColor(label: string): { bg: string; text: string } | null {
+  const norm = label.toLocaleUpperCase("tr-TR").trim()
+  
+  if (norm === "ULUS ÖDEME") {
+    return { bg: "#548235", text: "text-yellow-300 font-bold" }
+  }
+  if (norm === "ZİRAAT BANKASI" || norm === "ZİRAAT BANKA") {
+    return { bg: "#548235", text: "text-white" }
+  }
+  if (
+    norm === "İNŞAAT YEMEK" ||
+    norm === "OSMAN YEMEK" ||
+    norm === "EROL KÖSE" ||
+    norm === "İNEGÖL DÖNÜŞ"
+  ) {
+    return { bg: "#BF8F00", text: "text-white" }
+  }
+  if (
+    norm === "ÇETİN OTO" ||
+    norm === "YILMAZ BANK" ||
+    norm === "ÖMÜR KURUKAHVE" ||
+    norm === "İLKER OTOM" ||
+    norm === "FATMANUR KARAHAT" ||
+    norm === "YİĞİT BALABAN" ||
+    norm === "EZGİ OTOM" ||
+    norm.startsWith("PERSONEL MESA")
+  ) {
+    return { bg: "#9BC2E6", text: "text-slate-900 font-bold" }
+  }
+  if (norm === "YEMEK") {
+    return { bg: "#757171", text: "text-white" }
+  }
+  if (norm === "YARIMCA BİLET") {
+    return { bg: "#8497B0", text: "text-white" }
+  }
+  if (norm === "MAZOT") {
+    return { bg: "#5B9BD5", text: "text-white" }
+  }
+  if (norm === "İŞ BANKASI") {
+    return { bg: "#92D050", text: "text-white" }
+  }
+  if (norm === "BELEDİYE KİRA") {
+    return { bg: "#00B050", text: "text-white" }
+  }
+  if (norm === "ÖMERİN YERİ") {
+    return { bg: "#C00000", text: "text-white" }
+  }
+  if (norm === "BAĞ-KUR/SGK" || norm === "BAG-KUR/SGK" || norm === "BAGKUR/SGK") {
+    return { bg: "#ED7D31", text: "text-white" }
+  }
+  if (
+    norm === "HESABA GELEN" ||
+    norm === "14 NO'YA GİDEN" ||
+    norm === "14 NOYA GİDEN" ||
+    norm === "ÇARŞI BİLET" ||
+    norm === "BAŞKA OFİS" ||
+    norm === "KANDİL (MAZOT)" ||
+    norm === "BANKAYA YATAN"
+  ) {
+    return { bg: "#2F75B5", text: "text-white" }
+  }
+  return null
+}
+
 export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
   const [rows, setRows] = useState<GiderRow[]>([])
   const [ortaklar, setOrtaklar] = useState<Ortak[]>([])
@@ -140,6 +205,7 @@ export function GiderSpreadsheet({ month, year }: GiderSpreadsheetProps) {
   const [offlineLoaded, setOfflineLoaded] = useState(false)
   const supabase = createClient()
   const { currentSube, refreshKey, userVardiya, isAdmin } = useSube()
+  const isCurrentBesASube = isBesASube(currentSube)
   const { markClean, markDirty, registerSaveHandler } = useUnsavedChanges()
   
   const ayYil = `${month}-${year}`
@@ -660,15 +726,23 @@ function handleSpreadsheetKeyDown(e: React.KeyboardEvent<HTMLElement>) {
           <thead>
             <tr>
               <th className="sticky-index-column border bg-muted p-2 text-muted-foreground">#</th>
-              {allColumns.map(col => (
-                <th 
-                  key={col.key} 
-                  className={`border p-2 font-semibold whitespace-nowrap ${col.key === "tarih" ? "sticky-date-column" : col.key === "vardiya" ? "sticky-shift-column" : ""} ${getColumnColorClass(col.color)} ${getColumnTextColor(col.color)}`}
-                  style={getColumnColorStyle(col.color)}
-                >
-                  {col.label}
-                </th>
-              ))}
+              {allColumns.map(col => {
+                const customColor = isCurrentBesASube ? getGiderBesAColor(col.label) : null
+                
+                const bgClass = customColor ? "" : getColumnColorClass(col.color)
+                const textClass = customColor ? customColor.text : getColumnTextColor(col.color)
+                const style = customColor ? { backgroundColor: customColor.bg } : getColumnColorStyle(col.color)
+                
+                return (
+                  <th 
+                    key={col.key} 
+                    className={`border p-2 font-semibold whitespace-nowrap ${col.key === "tarih" ? "sticky-date-column" : col.key === "vardiya" ? "sticky-shift-column" : ""} ${bgClass} ${textClass}`}
+                    style={style}
+                  >
+                    {col.label}
+                  </th>
+                )
+              })}
               <th className="w-10 border bg-muted p-2"></th>
             </tr>
           </thead>

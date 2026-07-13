@@ -256,12 +256,19 @@ function clearDesktopAuthSession() {
         origin: appOrigin,
         storages: ["cookies"],
       })
-    } catch {
-      const cookies = await session.defaultSession.cookies.get({ url: appOrigin })
-      await Promise.all(cookies.map(cookie => session.defaultSession.cookies.remove(appOrigin, cookie.name)))
+    } catch (err) {
+      console.error("clearDesktopAuthSession clearStorageData failed:", err)
+      try {
+        const cookies = await session.defaultSession.cookies.get({ url: appOrigin })
+        await Promise.all(cookies.map(cookie => session.defaultSession.cookies.remove(appOrigin, cookie.name)))
+      } catch (innerErr) {
+        console.error("clearDesktopAuthSession fallback failed:", innerErr)
+      }
     }
   })().finally(() => {
     desktopSessionResetPromise = null
+  }).catch((err) => {
+    console.error("clearDesktopAuthSession promise failed:", err)
   })
 
   return desktopSessionResetPromise
@@ -286,10 +293,20 @@ function prepareLoginForNextOpen() {
 }
 
 async function showMainWindow() {
-  if (desktopLoginPreparationPromise) await desktopLoginPreparationPromise
-  if (!mainWindow || mainWindow.isDestroyed()) createWindow()
+  if (desktopLoginPreparationPromise) {
+    try {
+      await desktopLoginPreparationPromise
+    } catch (err) {
+      console.error("showMainWindow login prep failed:", err)
+    }
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow()
+    return
+  }
   if (mainWindow.isMinimized()) mainWindow.restore()
   mainWindow.show()
+  mainWindow.maximize()
   mainWindow.focus()
 }
 
@@ -601,7 +618,11 @@ app.whenReady().then(async () => {
   configureStartup()
   configurePermissions()
   configureAutoUpdater()
-  await clearDesktopAuthSession()
+  try {
+    await clearDesktopAuthSession()
+  } catch (err) {
+    console.error("whenReady session reset failed:", err)
+  }
   createTray()
   createWindow()
   setTimeout(() => {
@@ -611,7 +632,10 @@ app.whenReady().then(async () => {
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show()
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show()
+    mainWindow.maximize()
+  }
 })
 
 app.on("window-all-closed", () => {
