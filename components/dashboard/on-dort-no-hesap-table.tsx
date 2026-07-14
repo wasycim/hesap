@@ -21,7 +21,7 @@ import {
 } from "@/lib/date-navigation"
 import { openPdfReport } from "@/lib/pdf-report"
 import { createClient } from "@/lib/supabase/client"
-import { TableColumnSetting, getColumnTextColor, mergeColumnSettings } from "@/lib/table-column-settings"
+import { TableColumnSetting, getColumnTextColor, mergeColumnSettings, getColumnColorClass, getColumnColorStyle } from "@/lib/table-column-settings"
 
 type Section = "gelir" | "on_dort" | "banka"
 type TableView = Section | "all"

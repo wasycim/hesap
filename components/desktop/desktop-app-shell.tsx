@@ -132,7 +132,7 @@ export function DesktopAppShell({ children }: { children: React.ReactNode }) {
   }, [])
 
   const versionLabel = useMemo(() => {
-    const version = context.version || "2.0.3"
+    const version = context.version || "2.0.4"
     return version.startsWith("v") ? version : `v${version}`
   }, [context.version])
 
