@@ -1256,6 +1256,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                                 type="button"
                                 variant="ghost"
                                 size="icon-sm"
+                                data-unsaved-ignore="true"
                                 className={`absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 ${
                                   autoControlled
                                     ? "text-emerald-700 hover:bg-emerald-100 dark:text-emerald-200 dark:hover:bg-emerald-500/20"
