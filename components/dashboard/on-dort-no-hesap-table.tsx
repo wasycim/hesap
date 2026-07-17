@@ -835,8 +835,8 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
 
       detail[bucket] += rowTotal
       detail.toplam += rowTotal
-      detail[recordFlag] = true
       detail[controlFlag] = detail[recordFlag] ? detail[controlFlag] && controlled : controlled
+      detail[recordFlag] = true
     })
 
     Object.values(next).forEach(dateDetails => {
