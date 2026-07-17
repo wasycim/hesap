@@ -30,6 +30,7 @@ type AutoIncomeKey = "pamukkale_turizm" | "anadolu_turizm" | "inegol_seyahat"
 type AutoExpenseKey = "kredi_karti_14_no"
 type AutoTransferKey = "on_dort_no_giden"
 type AutoDeliveryKey = "teslim"
+type AutoBesAKesilenKey = "bes_a_kesilen"
 
 interface ShiftBreakdown {
   sabah: number
@@ -48,6 +49,7 @@ interface ShiftBreakdown {
   kaynakAksamKontrolEdildi?: boolean
   karsiSabahKontrolEdildi?: boolean
   karsiAksamKontrolEdildi?: boolean
+  firmDetails?: { name: string; amount: number }[]
 }
 
 interface Row {
@@ -70,7 +72,7 @@ const SECTION_META: Record<Section, { title: string; description: string; keys: 
   on_dort: {
     title: "Gider Kalemleri",
     description: "Kredi kartı, teslim ve diğer çıkışlar.",
-    keys: ["kredi_karti_14_no", "teslim", "diger", "gider_toplam"],
+    keys: ["kredi_karti_14_no", "teslim", "bes_a_kesilen", "diger", "gider_toplam"],
   },
   banka: {
     title: "Banka ve Kalan",
@@ -84,6 +86,7 @@ const AUTO_INCOME_KEYS = new Set<AutoIncomeKey>(["pamukkale_turizm", "anadolu_tu
 const AUTO_EXPENSE_KEYS = new Set<AutoExpenseKey>(["kredi_karti_14_no"])
 const AUTO_TRANSFER_KEYS = new Set<AutoTransferKey>(["on_dort_no_giden"])
 const AUTO_DELIVERY_KEYS = new Set<AutoDeliveryKey>(["teslim"])
+const AUTO_BES_A_KESILEN_KEYS = new Set<AutoBesAKesilenKey>(["bes_a_kesilen"])
 const AUTO_DATA_START_DATE = "2026-07-01"
 const HISTORICAL_OPENING_BALANCE_DATE = "2026-01-01"
 const HISTORICAL_OPENING_BALANCE = 9686
@@ -295,6 +298,8 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
   const [expenseDetails, setExpenseDetails] = useState<Record<string, Record<AutoExpenseKey, ShiftBreakdown>>>({})
   const [transferDetails, setTransferDetails] = useState<Record<string, Record<AutoTransferKey, ShiftBreakdown>>>({})
   const [deliveryDetails, setDeliveryDetails] = useState<Record<string, Record<AutoDeliveryKey, ShiftBreakdown>>>({})
+  const [besAKesilenDetails, setBesAKesilenDetails] = useState<Record<string, Record<AutoBesAKesilenKey, ShiftBreakdown>>>({})
+  const [onDortGelirFirmalar, setOnDortGelirFirmalar] = useState<{ id: string; ad: string }[]>([])
   const [columnSettings, setColumnSettings] = useState<TableColumnSetting[]>(mergeColumnSettings("on_dort_no_hesap", []))
   const [openingBalance, setOpeningBalance] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -408,6 +413,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
       { data: deliverySourceData },
       { data: deliveryCounterData },
       { data: previousRecordData },
+      { data: onDortFirmalarData },
     ] = await Promise.all([
       supabase
         .from("kolon_ayarlari")
@@ -488,11 +494,18 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
         .order("tarih", { ascending: false })
         .limit(1)
         .maybeSingle(),
+      supabase
+        .from("gelir_firmalar")
+        .select("id, ad")
+        .eq("sube_id", incomeSourceSubeId)
+        .eq("aktif", true),
     ])
 
     if (recordError) {
       toast.error("Alt Şube Hesapları kayıtları okunamadı. 009 SQL dosyasını çalıştırın.")
     }
+
+    setOnDortGelirFirmalar(onDortFirmalarData || [])
 
     const nextIncomeDetails = buildIncomeDetails(incomeData || [])
     const nextDateControlDetails = buildDateControlDetails(incomeData || [])
@@ -518,10 +531,12 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
       deliverySourceKey,
       deliveryCounterKey,
     )
-    setIncomeDetails(nextIncomeDetails)
+    const nextBesAKesilenDetails = buildBesAKesilenDetails(deliveryCounterData || [], onDortFirmalarData || [])
+     setIncomeDetails(nextIncomeDetails)
     setExpenseDetails(nextExpenseDetails)
     setTransferDetails(nextTransferDetails)
     setDeliveryDetails(nextDeliveryDetails)
+    setBesAKesilenDetails(nextBesAKesilenDetails)
     setOpeningBalance(
       selectedMonthStartDate === HISTORICAL_OPENING_BALANCE_DATE
         ? HISTORICAL_OPENING_BALANCE
@@ -530,7 +545,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
     setColumnSettings(mergeColumnSettings("on_dort_no_hesap", settingsData as TableColumnSetting[] | null))
     setRows((recordData || [])
       .filter(row => isDateInSelectedMonth(row.tarih, month, year))
-      .map(row => ({ id: row.id, tarih: row.tarih, tutarlar: applyAutoValues(row.tarih, (row.tutarlar || {}) as Values, nextIncomeDetails, nextExpenseDetails, nextTransferDetails, nextDeliveryDetails) }))
+      .map(row => ({ id: row.id, tarih: row.tarih, tutarlar: applyAutoValues(row.tarih, (row.tutarlar || {}) as Values, nextIncomeDetails, nextExpenseDetails, nextTransferDetails, nextDeliveryDetails, nextBesAKesilenDetails) }))
       .sort(compareDateAscending))
     markClean()
     setLoading(false)
@@ -773,6 +788,67 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
     return next
   }
 
+  function buildBesAKesilenDetails(
+    besAGelirRows: any[],
+    onDortFirmalar: { id: string; ad: string }[]
+  ) {
+    const next: Record<string, Record<AutoBesAKesilenKey, ShiftBreakdown>> = {}
+
+    function ensure(tarih: string) {
+      if (!next[tarih]) {
+        next[tarih] = {
+          bes_a_kesilen: {
+            ...createShiftBreakdown(),
+            firmDetails: []
+          }
+        }
+      }
+      return next[tarih].bes_a_kesilen
+    }
+
+    besAGelirRows.forEach(row => {
+      const tarih = row.tarih
+      const detail = ensure(tarih)
+      const vardiya = String(row.vardiya || "S").toLocaleUpperCase("tr-TR")
+      const bucket: "sabah" | "aksam" = vardiya === "A" ? "aksam" : "sabah"
+      const recordFlag = bucket === "sabah" ? "sabahKayitVar" : "aksamKayitVar"
+      const controlFlag = bucket === "sabah" ? "sabahKontrolEdildi" : "aksamKontrolEdildi"
+      const controlled = isControlledStatus(row.durum)
+
+      const customValues = row.custom_values || {}
+      const detailsMap = customValues.on_dort_firma_detaylari || {}
+
+      let rowTotal = 0
+      Object.entries(detailsMap).forEach(([firmaId, amount]) => {
+        const amt = Number(amount) || 0
+        rowTotal += amt
+
+        const firmName = onDortFirmalar.find(f => f.id === firmaId)?.ad || "Bilinmeyen Firma"
+
+        const existing = detail.firmDetails?.find(item => item.name === firmName)
+        if (existing) {
+          existing.amount += amt
+        } else {
+          detail.firmDetails?.push({ name: firmName, amount: amt })
+        }
+      })
+
+      detail[bucket] += rowTotal
+      detail.toplam += rowTotal
+      detail[recordFlag] = true
+      detail[controlFlag] = detail[recordFlag] ? detail[controlFlag] && controlled : controlled
+    })
+
+    Object.values(next).forEach(dateDetails => {
+      const detail = dateDetails.bes_a_kesilen
+      detail.kontrolEdildi = (detail.sabahKayitVar ? detail.sabahKontrolEdildi : true) &&
+                             (detail.aksamKayitVar ? detail.aksamKontrolEdildi : true) &&
+                             (detail.sabahKayitVar || detail.aksamKayitVar)
+    })
+
+    return next
+  }
+
   function applyAutoValues(
     tarih: string,
     values: Values,
@@ -780,6 +856,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
     expenseSource = expenseDetails,
     transferSource = transferDetails,
     deliverySource = deliveryDetails,
+    besAKesilenSource = besAKesilenDetails,
     previousKalan = 0,
   ) {
     const nextValues = {
@@ -812,6 +889,11 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
       nextValues.teslim = delivery.teslim.toplam
     }
 
+    const besAKesilen = besAKesilenSource[tarih]
+    if (besAKesilen) {
+      nextValues.bes_a_kesilen = besAKesilen.bes_a_kesilen.toplam
+    }
+
     return calculate(nextValues, previousKalan)
   }
 
@@ -821,6 +903,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
     expenseSource = expenseDetails,
     transferSource = transferDetails,
     deliverySource = deliveryDetails,
+    besAKesilenSource = besAKesilenDetails,
     initialBalance = openingBalance,
   ) {
     const next = new Map<string, Values>()
@@ -836,6 +919,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
           expenseSource,
           transferSource,
           deliverySource,
+          besAKesilenSource,
           previousKalan,
         )
         next.set(row.tarih, calculated)
@@ -871,7 +955,8 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
       AUTO_INCOME_KEYS.has(key as AutoIncomeKey) ||
       AUTO_EXPENSE_KEYS.has(key as AutoExpenseKey) ||
       AUTO_TRANSFER_KEYS.has(key as AutoTransferKey) ||
-      AUTO_DELIVERY_KEYS.has(key as AutoDeliveryKey)
+      AUTO_DELIVERY_KEYS.has(key as AutoDeliveryKey) ||
+      AUTO_BES_A_KESILEN_KEYS.has(key as AutoBesAKesilenKey)
     )) return
     setRows(prev => prev.map(row => (
       row.tarih === tarih
@@ -1124,6 +1209,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                   const autoExpense = automaticPeriod && AUTO_EXPENSE_KEYS.has(key as AutoExpenseKey)
                   const autoTransfer = automaticPeriod && AUTO_TRANSFER_KEYS.has(key as AutoTransferKey)
                   const autoDelivery = automaticPeriod && AUTO_DELIVERY_KEYS.has(key as AutoDeliveryKey)
+                  const autoBesAKesilen = automaticPeriod && AUTO_BES_A_KESILEN_KEYS.has(key as AutoBesAKesilenKey)
                   const autoDetail = autoIncome
                     ? incomeDetails[row.tarih]?.[key as AutoIncomeKey]
                     : autoExpense
@@ -1132,7 +1218,9 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                         ? transferDetails[row.tarih]?.[key as AutoTransferKey]
                         : autoDelivery
                           ? deliveryDetails[row.tarih]?.[key as AutoDeliveryKey]
-                      : null
+                          : autoBesAKesilen
+                            ? besAKesilenDetails[row.tarih]?.[key as AutoBesAKesilenKey]
+                            : null
                   const autoControlled = Boolean(autoDetail?.kontrolEdildi)
                   const showControlWarning = (autoDelivery || autoTransfer) && autoDetail && (!autoDetail.sabahKontrolEdildi || !autoDetail.aksamKontrolEdildi)
                   const controlWarningItems = getControlWarningItems(
@@ -1142,7 +1230,7 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                   )
                   return (
                     <td key={key} className="border p-0">
-                      {autoIncome || autoExpense || autoTransfer || autoDelivery ? (
+                      {autoIncome || autoExpense || autoTransfer || autoDelivery || autoBesAKesilen ? (
                         <div className={`relative flex min-w-36 items-center justify-center gap-1 px-2 py-1.5 text-center font-semibold ${
                           autoControlled
                             ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200"
@@ -1178,9 +1266,11 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                                     ? `${formatDate(row.tarih)} tarihindeki ${sourceSube?.ad || "14"} şubesi gelir tablosu 5/A GELEN tutarı ile ${transferSourceSube?.ad || "5A"} şubesi gider tablosu 14 NO GİDEN tutarı karşılaştırılır.`
                                     : autoDelivery
                                       ? `${formatDate(row.tarih)} tarihindeki ${sourceSube?.ad || "14"} şubesi gider tablosu 5/A GİDEN tutarı ile ${transferSourceSube?.ad || "5A"} şubesi gelir tablosu 14 NO GELEN tutarı karşılaştırılır.`
-                                    : autoExpense
-                                      ? `${formatDate(row.tarih)} tarihindeki ${sourceSube?.ad || "14"} şubesi gider tablosu PK KREDİ KARTI sabah ve akşam vardiyası toplamı.`
-                                      : `${formatDate(row.tarih)} tarihindeki ${sourceSube?.ad || "14"} şubesi gelir tablosu sabah ve akşam vardiyası toplamı.`}
+                                      : autoExpense
+                                        ? `${formatDate(row.tarih)} tarihindeki ${sourceSube?.ad || "14"} şubesi gider tablosu PK KREDİ KARTI sabah ve akşam vardiyası toplamı.`
+                                        : autoBesAKesilen
+                                          ? `${formatDate(row.tarih)} tarihindeki 5A şubesi gelir tablosu 14 NO FİRMALAR sütunundan otomatik çekilen bilet tutarları.`
+                                          : `${formatDate(row.tarih)} tarihindeki ${sourceSube?.ad || "14"} şubesi gelir tablosu sabah ve akşam vardiyası toplamı.`}
                                 </DialogDescription>
                               </DialogHeader>
                               {controlWarningItems.length > 0 && (
@@ -1192,89 +1282,125 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                                 </div>
                               )}
                               <div className="rounded-lg border">
-                                <div className="grid grid-cols-2 border-b px-3 py-2 text-sm">
-                                  <span>Sabah vardiyası</span>
-                                  <span className="text-right font-semibold">{formatMoney(autoDetail?.sabah || 0)}₺</span>
-                                </div>
-                                <div className={`grid grid-cols-2 border-b px-3 py-2 text-xs ${
-                                  autoDetail?.sabahKayitVar && autoDetail?.sabahKontrolEdildi
-                                    ? "text-emerald-700 dark:text-emerald-200"
-                                    : "text-red-700 dark:text-red-200"
-                                }`}>
-                                  <span>Sabah kontrol</span>
-                                  <span className="text-right font-semibold">
-                                    {autoDetail?.sabahKontrolEdildi ? "Kontrol edildi" : "Kontrol edilmedi"}
-                                  </span>
-                                </div>
-                                <div className="grid grid-cols-2 border-b px-3 py-2 text-sm">
-                                  <span>Akşam vardiyası</span>
-                                  <span className="text-right font-semibold">{formatMoney(autoDetail?.aksam || 0)}₺</span>
-                                </div>
-                                <div className={`grid grid-cols-2 border-b px-3 py-2 text-xs ${
-                                  autoDetail?.aksamKayitVar && autoDetail?.aksamKontrolEdildi
-                                    ? "text-emerald-700 dark:text-emerald-200"
-                                    : "text-red-700 dark:text-red-200"
-                                }`}>
-                                  <span>Akşam kontrol</span>
-                                  <span className="text-right font-semibold">
-                                    {autoDetail?.aksamKontrolEdildi ? "Kontrol edildi" : "Kontrol edilmedi"}
-                                  </span>
-                                </div>
-                                {(autoDelivery || autoTransfer) && (
-                                  <>
-                                    <div className={`grid grid-cols-2 border-b px-3 py-2 text-xs ${
-                                      autoDetail?.sabahEslesti
-                                        ? "text-emerald-700 dark:text-emerald-200"
-                                        : "text-red-700 dark:text-red-200"
-                                    }`}>
-                                      <span>{autoTransfer ? "14 sabah 5/A GELEN" : "14 sabah 5/A GİDEN"}</span>
-                                      <span className="text-right font-semibold">
-                                        {formatMoney(autoDetail?.sabah || 0)}₺
-                                      </span>
+                                {autoBesAKesilen ? (
+                                  <div className="max-h-[300px] overflow-y-auto">
+                                    <div className="bg-muted/40 px-3 py-2 text-xs font-semibold text-foreground border-b">
+                                      Firmalara Göre Bilet Kesintileri
                                     </div>
-                                    <div className={`grid grid-cols-2 border-b px-3 py-2 text-xs ${
-                                      autoDetail?.sabahEslesti
-                                        ? "text-emerald-700 dark:text-emerald-200"
-                                        : "text-red-700 dark:text-red-200"
-                                    }`}>
-                                      <span>{autoTransfer ? "5A sabah 14 NO GİDEN" : "5A sabah 14 NO GELEN"}</span>
-                                      <span className="text-right font-semibold">
-                                        {formatMoney(autoDetail?.karsiSabah || 0)}₺
-                                      </span>
-                                    </div>
-                                    <div className={`grid grid-cols-2 border-b px-3 py-2 text-xs ${
-                                      autoDetail?.aksamEslesti
-                                        ? "text-emerald-700 dark:text-emerald-200"
-                                        : "text-red-700 dark:text-red-200"
-                                    }`}>
-                                      <span>{autoTransfer ? "14 akşam 5/A GELEN" : "14 akşam 5/A GİDEN"}</span>
-                                      <span className="text-right font-semibold">
-                                        {formatMoney(autoDetail?.aksam || 0)}₺
-                                      </span>
-                                    </div>
-                                    <div className={`grid grid-cols-2 border-b px-3 py-2 text-xs ${
-                                      autoDetail?.aksamEslesti
-                                        ? "text-emerald-700 dark:text-emerald-200"
-                                        : "text-red-700 dark:text-red-200"
-                                    }`}>
-                                      <span>{autoTransfer ? "5A akşam 14 NO GİDEN" : "5A akşam 14 NO GELEN"}</span>
-                                      <span className="text-right font-semibold">
-                                        {formatMoney(autoDetail?.karsiAksam || 0)}₺
-                                      </span>
-                                    </div>
-                                    {(!autoDetail?.sabahEslesti || !autoDetail?.aksamEslesti) && (
-                                      <div className="border-b bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 dark:bg-red-500/15 dark:text-red-200">
-                                        {autoTransfer
-                                          ? "14 şubesindeki 5/A GELEN ile 5A şubesindeki 14 NO GİDEN tutarı eşleşmiyor."
-                                          : "14 şubesindeki 5/A GİDEN ile 5A şubesindeki 14 NO GELEN tutarı eşleşmiyor."}
+                                    {!autoDetail?.firmDetails || autoDetail.firmDetails.length === 0 ? (
+                                      <div className="p-3 text-center text-xs text-muted-foreground">
+                                        Kayıt bulunamadı.
                                       </div>
+                                    ) : (
+                                      autoDetail.firmDetails.map((firm, idx) => (
+                                        <div key={idx} className="grid grid-cols-2 border-b px-3 py-2 text-sm">
+                                          <span className="font-medium">{firm.name}</span>
+                                          <span className="text-right font-semibold">{formatMoney(firm.amount)}₺</span>
+                                        </div>
+                                      ))
                                     )}
+                                    <div className="grid grid-cols-2 border-b px-3 py-2 text-sm bg-muted/20">
+                                      <span className="font-bold">Genel Toplam</span>
+                                      <span className="text-right font-bold text-primary">{formatMoney(autoDetail?.toplam || 0)}₺</span>
+                                    </div>
+                                    <div className={`grid grid-cols-2 px-3 py-2 text-xs ${
+                                      autoDetail?.kontrolEdildi
+                                        ? "text-emerald-700 dark:text-emerald-200"
+                                        : "text-red-700 dark:text-red-200"
+                                    }`}>
+                                      <span>5A Kontrol Durumu</span>
+                                      <span className="text-right font-semibold">
+                                        {autoDetail?.kontrolEdildi ? "Kontrol edildi (5A)" : "Kontrol edilmedi (5A)"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="grid grid-cols-2 border-b px-3 py-2 text-sm">
+                                      <span>Sabah vardiyası</span>
+                                      <span className="text-right font-semibold">{formatMoney(autoDetail?.sabah || 0)}₺</span>
+                                    </div>
+                                    <div className={`grid grid-cols-2 border-b px-3 py-2 text-xs ${
+                                      autoDetail?.sabahKayitVar && autoDetail?.sabahKontrolEdildi
+                                        ? "text-emerald-700 dark:text-emerald-200"
+                                        : "text-red-700 dark:text-red-200"
+                                    }`}>
+                                      <span>Sabah kontrol</span>
+                                      <span className="text-right font-semibold">
+                                        {autoDetail?.sabahKontrolEdildi ? "Kontrol edildi" : "Kontrol edilmedi"}
+                                      </span>
+                                    </div>
+                                    <div className="grid grid-cols-2 border-b px-3 py-2 text-sm">
+                                      <span>Akşam vardiyası</span>
+                                      <span className="text-right font-semibold">{formatMoney(autoDetail?.aksam || 0)}₺</span>
+                                    </div>
+                                    <div className={`grid grid-cols-2 border-b px-3 py-2 text-xs ${
+                                      autoDetail?.aksamKayitVar && autoDetail?.aksamKontrolEdildi
+                                        ? "text-emerald-700 dark:text-emerald-200"
+                                        : "text-red-700 dark:text-red-200"
+                                    }`}>
+                                      <span>Akşam kontrol</span>
+                                      <span className="text-right font-semibold">
+                                        {autoDetail?.aksamKontrolEdildi ? "Kontrol edildi" : "Kontrol edilmedi"}
+                                      </span>
+                                    </div>
+                                    {(autoDelivery || autoTransfer) && (
+                                      <>
+                                        <div className={`grid grid-cols-2 border-b px-3 py-2 text-xs ${
+                                          autoDetail?.sabahEslesti
+                                            ? "text-emerald-700 dark:text-emerald-200"
+                                            : "text-red-700 dark:text-red-200"
+                                        }`}>
+                                          <span>{autoTransfer ? "14 sabah 5/A GELEN" : "14 sabah 5/A GİDEN"}</span>
+                                          <span className="text-right font-semibold">
+                                            {formatMoney(autoDetail?.sabah || 0)}₺
+                                          </span>
+                                        </div>
+                                        <div className={`grid grid-cols-2 border-b px-3 py-2 text-xs ${
+                                          autoDetail?.sabahEslesti
+                                            ? "text-emerald-700 dark:text-emerald-200"
+                                            : "text-red-700 dark:text-red-200"
+                                        }`}>
+                                          <span>{autoTransfer ? "5A sabah 14 NO GİDEN" : "5A sabah 14 NO GELEN"}</span>
+                                          <span className="text-right font-semibold">
+                                            {formatMoney(autoDetail?.karsiSabah || 0)}₺
+                                          </span>
+                                        </div>
+                                        <div className={`grid grid-cols-2 border-b px-3 py-2 text-xs ${
+                                          autoDetail?.aksamEslesti
+                                            ? "text-emerald-700 dark:text-emerald-200"
+                                            : "text-red-700 dark:text-red-200"
+                                        }`}>
+                                          <span>{autoTransfer ? "14 akşam 5/A GELEN" : "14 akşam 5/A GİDEN"}</span>
+                                          <span className="text-right font-semibold">
+                                            {formatMoney(autoDetail?.aksam || 0)}₺
+                                          </span>
+                                        </div>
+                                        <div className={`grid grid-cols-2 border-b px-3 py-2 text-xs ${
+                                          autoDetail?.aksamEslesti
+                                            ? "text-emerald-700 dark:text-emerald-200"
+                                            : "text-red-700 dark:text-red-200"
+                                        }`}>
+                                          <span>{autoTransfer ? "5A akşam 14 NO GİDEN" : "5A akşam 14 NO GELEN"}</span>
+                                          <span className="text-right font-semibold">
+                                            {formatMoney(autoDetail?.karsiAksam || 0)}₺
+                                          </span>
+                                        </div>
+                                        {(!autoDetail?.sabahEslesti || !autoDetail?.aksamEslesti) && (
+                                          <div className="border-b bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 dark:bg-red-500/15 dark:text-red-200">
+                                            {autoTransfer
+                                              ? "14 şubesindeki 5/A GELEN ile 5A şubesindeki 14 NO GİDEN tutarı eşleşmiyor."
+                                              : "14 şubesindeki 5/A GİDEN ile 5A şubesindeki 14 NO GELEN tutarı eşleşmiyor."}
+                                          </div>
+                                        )}
+                                      </>
+                                    )}
+                                    <div className="grid grid-cols-2 bg-muted px-3 py-2 text-sm font-bold">
+                                      <span>Toplam</span>
+                                      <span className="text-right">{formatMoney(autoDetail?.toplam || 0)}₺</span>
+                                    </div>
                                   </>
                                 )}
-                                <div className="grid grid-cols-2 bg-muted px-3 py-2 text-sm font-bold">
-                                  <span>Toplam</span>
-                                  <span className="text-right">{formatMoney(autoDetail?.toplam || 0)}₺</span>
-                                </div>
                               </div>
                             </DialogContent>
                           </Dialog>

@@ -334,7 +334,7 @@ export default function PerformansAnaliziPage() {
       } else {
         const onDortMapping = company.mappings.find(m => m.sube_id === onDortSube?.id)
         if (onDortMapping) {
-          const details = record.custom_values?.on_dort_firma_detaylari as Record<string, number> | undefined
+          const details = record.custom_values?.on_dort_firma_detaylari as unknown as Record<string, number> | undefined
           if (details && details[onDortMapping.id] !== undefined) {
             return Number(details[onDortMapping.id]) || 0
           }
@@ -927,13 +927,13 @@ export default function PerformansAnaliziPage() {
       
       listData.forEach((item) => {
         if (activeTab === "firma") {
-          if (selectedSubeId !== "all" && item.subeId !== selectedSubeId) return
+          if (selectedSubeId !== "all" && (item as any).subeId !== selectedSubeId) return
         }
         item.breakdown.forEach((m) => {
           const current = trendMap.get(m.sortKey) || { label: m.label, ciro: 0 }
           current.ciro += m.ciro
           if (activeTab === "firma" && selectedSubeId === "all") {
-            const key = `sube_${item.subeId}`
+            const key = `sube_${(item as any).subeId}`
             current[key] = (current[key] || 0) + m.ciro
           }
           trendMap.set(m.sortKey, current)
@@ -955,6 +955,58 @@ export default function PerformansAnaliziPage() {
       trend
     }
   }, [activeTab, firmaAnalyticsData, subeAnalyticsData, filteredRecords, selectedCompany, selectedSubeId, currentBranchObject, isDailyTrend, startDate, endDate, availableCompanies, contextSubeler])
+
+  const shiftAnalytics = useMemo(() => {
+    let sabahCiro = 0
+    let aksamCiro = 0
+    let sabahCount = 0
+    let aksamCount = 0
+
+    const targetRecords = records.filter(r => {
+      if (activeTab === "firma") {
+        if (selectedSubeId !== "all" && r.sube_id !== selectedSubeId) return false
+      } else {
+        if (r.sube_id !== selectedSubeId) return false
+      }
+      return true
+    })
+
+    targetRecords.forEach(record => {
+      let val = 0
+      if (activeTab === "firma") {
+        val = getRecordCompanyValue(record, selectedCompany)
+      } else {
+        availableCompanies.forEach(comp => {
+          val += getRecordCompanyValue(record, comp)
+        })
+      }
+
+      const v = String(record.vardiya || "").toLocaleUpperCase("tr-TR")
+      if (v === "S") {
+        sabahCiro += val
+        if (val > 0) sabahCount++
+      } else if (v === "A") {
+        aksamCiro += val
+        if (val > 0) aksamCount++
+      }
+    })
+
+    const totalCiro = sabahCiro + aksamCiro
+    const totalCount = sabahCount + aksamCount
+
+    return {
+      sabahCiro,
+      aksamCiro,
+      sabahCount,
+      aksamCount,
+      sabahCiroPercent: totalCiro > 0 ? (sabahCiro / totalCiro) * 100 : 0,
+      aksamCiroPercent: totalCiro > 0 ? (aksamCiro / totalCiro) * 100 : 0,
+      sabahCountPercent: totalCount > 0 ? (sabahCount / totalCount) * 100 : 0,
+      aksamCountPercent: totalCount > 0 ? (aksamCount / totalCount) * 100 : 0,
+      totalCiro,
+      totalCount
+    }
+  }, [records, activeTab, selectedSubeId, selectedCompany, availableCompanies])
 
   if (subeLoading) {
     return (
@@ -1663,6 +1715,104 @@ export default function PerformansAnaliziPage() {
                         )}
                       </AreaChart>
                     </ResponsiveContainer>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Chart 3: Vardiya Performans Karşılaştırması */}
+            <Card className="border border-border/60 bg-card/75 backdrop-blur-md shadow-sm rounded-2xl w-full">
+              <CardHeader className="pb-3 border-b">
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <Clock className="h-4.5 w-4.5 text-amber-500" />
+                  Vardiya Performans Karşılaştırması
+                </CardTitle>
+                <CardDescription>
+                  Seçilen filtreler altında Sabah ve Akşam vardiyalarının ciro payları ve karşılaştırması.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6 font-sans">
+                {shiftAnalytics.totalCiro === 0 ? (
+                  <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
+                    Bu periyotta vardiya bazlı ciro kaydı bulunmamaktadır.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    
+                    {/* Pie Chart */}
+                    <div className="h-[220px] relative flex justify-center items-center">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={[
+                              { name: "Sabah Vardiyası", ciro: shiftAnalytics.sabahCiro },
+                              { name: "Akşam Vardiyası", ciro: shiftAnalytics.aksamCiro }
+                            ].filter(d => d.ciro > 0)}
+                            dataKey="ciro"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={55}
+                            outerRadius={75}
+                            paddingAngle={4}
+                            stroke="none"
+                            style={{ outline: "none" }}
+                          >
+                            <Cell fill="rgb(245, 158, 11)" /> {/* Amber 500 for Sabah */}
+                            <Cell fill="rgb(79, 70, 229)" />  {/* Indigo 600 for Akşam */}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value: number) => [`${formatMoney(value)} TL`]}
+                            contentStyle={{
+                              backgroundColor: "var(--card)",
+                              borderColor: "var(--border)",
+                              color: "var(--foreground)",
+                              borderRadius: "12px",
+                              boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)"
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="absolute text-center">
+                        <span className="block text-[10px] uppercase font-bold text-muted-foreground leading-none">Toplam Ciro</span>
+                        <span className="block text-sm font-black text-foreground mt-0.5">{formatMoney(shiftAnalytics.totalCiro).split(",")[0]} TL</span>
+                      </div>
+                    </div>
+
+                    {/* Stats Breakdown */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b pb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="h-3.5 w-3.5 rounded-full bg-amber-500" />
+                          <span className="text-sm font-semibold">Sabah Vardiyası</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="block text-sm font-bold text-foreground">{formatMoney(shiftAnalytics.sabahCiro)} TL</span>
+                          <span className="block text-xs text-muted-foreground">% {shiftAnalytics.sabahCiroPercent.toFixed(1)} ciro (% {shiftAnalytics.sabahCountPercent.toFixed(1)} kayıt)</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between border-b pb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="h-3.5 w-3.5 rounded-full bg-indigo-600" />
+                          <span className="text-sm font-semibold">Akşam Vardiyası</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="block text-sm font-bold text-foreground">{formatMoney(shiftAnalytics.aksamCiro)} TL</span>
+                          <span className="block text-xs text-muted-foreground">% {shiftAnalytics.aksamCiroPercent.toFixed(1)} ciro (% {shiftAnalytics.aksamCountPercent.toFixed(1)} kayıt)</span>
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg bg-muted/40 p-4 text-xs font-medium text-foreground leading-relaxed">
+                        {shiftAnalytics.sabahCiro > shiftAnalytics.aksamCiro ? (
+                          <p>☀️ Seçilen dönemde <strong>Sabah Vardiyası</strong> Akşam Vardiyasından <strong>%{(shiftAnalytics.sabahCiroPercent - shiftAnalytics.aksamCiroPercent).toFixed(1)}</strong> daha fazla ciro üretmiştir.</p>
+                        ) : shiftAnalytics.aksamCiro > shiftAnalytics.sabahCiro ? (
+                          <p>🌙 Seçilen dönemde <strong>Akşam Vardiyası</strong> Sabah Vardiyasından <strong>%{(shiftAnalytics.aksamCiroPercent - shiftAnalytics.sabahCiroPercent).toFixed(1)}</strong> daha fazla ciro üretmiştir.</p>
+                        ) : (
+                          <p>⚖️ Seçilen dönemde her iki vardiya da eşit ciro üretmiştir.</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </CardContent>

@@ -143,6 +143,7 @@ function getPdfHeaderStyle(header: string): { bg: string; text: string } | null 
   if (norm === "DİĞER KOMİSYONLAR" || norm === "DİĞER KOMİSYON" || norm === "KASA-GELEN") return { bg: "#7030A0", text: "#ffffff" }
   if (norm === "TOPLAM" || norm === "GİDERLER" || norm === "KALAN") return { bg: "#FF0000", text: "#ffffff" }
   if (norm === "14 NO FİRMALAR") return { bg: "#838383", text: "#ffffff" }
+  if (norm === "5A KESİLEN") return { bg: "#70AD47", text: "#ffffff" }
 
   // Gider colors
   if (norm === "ULUS ÖDEME") return { bg: "#548235", text: "#ffffff" }

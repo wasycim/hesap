@@ -124,11 +124,12 @@ export const ON_DORT_NO_HESAP_DEFAULT_COLUMNS: TableColumnSetting[] = [
   { table_type: "on_dort_no_hesap", column_key: "gelir_toplam", label: "TOPLAM", color: "bg-green-600", sort_order: 5, aktif: true, builtin: true },
   { table_type: "on_dort_no_hesap", column_key: "kredi_karti_14_no", label: "14 NO KREDİ KARTI", color: "bg-blue-500", sort_order: 6, aktif: true, builtin: true },
   { table_type: "on_dort_no_hesap", column_key: "teslim", label: "TESLİM", color: "bg-blue-500", sort_order: 7, aktif: true, builtin: true },
-  { table_type: "on_dort_no_hesap", column_key: "diger", label: "DİĞER", color: "bg-gray-500", sort_order: 8, aktif: true, builtin: true },
-  { table_type: "on_dort_no_hesap", column_key: "gider_toplam", label: "TOPLAM", color: "bg-red-600", sort_order: 9, aktif: true, builtin: true },
-  { table_type: "on_dort_no_hesap", column_key: "bankaya_gonderilen", label: "BANKAYA GÖNDERİLEN", color: "bg-blue-700", sort_order: 10, aktif: true, builtin: true },
-  { table_type: "on_dort_no_hesap", column_key: "kontur_yukleme", label: "KONTÜR YÜKLEME", color: "bg-orange-500", sort_order: 11, aktif: true, builtin: true },
-  { table_type: "on_dort_no_hesap", column_key: "kalan", label: "KALAN", color: "bg-gray-700", sort_order: 12, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "bes_a_kesilen", label: "5A KESİLEN", color: "bg-lime-600", sort_order: 8, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "diger", label: "DİĞER", color: "bg-gray-500", sort_order: 9, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "gider_toplam", label: "TOPLAM", color: "bg-red-600", sort_order: 10, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "bankaya_gonderilen", label: "BANKAYA GÖNDERİLEN", color: "bg-blue-700", sort_order: 11, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "kontur_yukleme", label: "KONTÜR YÜKLEME", color: "bg-orange-500", sort_order: 12, aktif: true, builtin: true },
+  { table_type: "on_dort_no_hesap", column_key: "kalan", label: "KALAN", color: "bg-gray-700", sort_order: 13, aktif: true, builtin: true },
 ]
 
 export function getDefaultColumns(tableType: TableType): TableColumnSetting[] {
