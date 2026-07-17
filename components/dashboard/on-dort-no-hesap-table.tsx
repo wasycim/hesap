@@ -1228,6 +1228,13 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                     sourceSube?.ad || "14",
                     (autoTransfer || autoDelivery) ? (transferSourceSube?.ad || "5A") : undefined,
                   )
+                  const besAControlWarningItems = autoBesAKesilen && autoDetail
+                    ? [
+                        (autoDetail.sabahKayitVar && !autoDetail.sabahKontrolEdildi) ? "5A sabah vardiyası kontrol edilmedi" : null,
+                        (autoDetail.aksamKayitVar && !autoDetail.aksamKontrolEdildi) ? "5A akşam vardiyası kontrol edilmedi" : null,
+                      ].filter(Boolean) as string[]
+                    : []
+                  const activeWarnings = autoBesAKesilen ? besAControlWarningItems : controlWarningItems
                   return (
                     <td key={key} className="border p-0">
                       {autoIncome || autoExpense || autoTransfer || autoDelivery || autoBesAKesilen ? (
@@ -1273,10 +1280,10 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
                                           : `${formatDate(row.tarih)} tarihindeki ${sourceSube?.ad || "14"} şubesi gelir tablosu sabah ve akşam vardiyası toplamı.`}
                                 </DialogDescription>
                               </DialogHeader>
-                              {controlWarningItems.length > 0 && (
+                              {activeWarnings.length > 0 && (
                                 <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-200">
                                   <div className="mb-1">Kontrol edilmemiş vardiyalar</div>
-                                  {controlWarningItems.map(item => (
+                                  {activeWarnings.map(item => (
                                     <div key={item}>{item}</div>
                                   ))}
                                 </div>
