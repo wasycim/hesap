@@ -277,6 +277,7 @@ function calculate(values: Values, previousKalan = 0): Values {
   const giderToplam =
     (Number(values.kredi_karti_14_no) || 0) +
     (Number(values.teslim) || 0) +
+    (Number(values.bes_a_kesilen) || 0) +
     (Number(values.diger) || 0)
   const bankaToplam =
     (Number(values.bankaya_gonderilen) || 0) +
