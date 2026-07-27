@@ -216,7 +216,8 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         .eq("sube_id", currentSube.id)
         .eq("firma_id", firma.id)
         .eq("ay_yil", ayYil)
-        .order("tarih", { ascending: false }),
+        .order("tarih", { ascending: false })
+        .order("fis_no", { ascending: false }),
       supabase
         .from("kargo_cari_notlari")
         .select("id, tarih, not_metni, created_at")
@@ -720,7 +721,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     if (odemeError) throw odemeError
     if (hareketError) throw hareketError
 
-    const currentKayitlar = (kayitlar || []).filter(item => isCurrentAyYil(item.ay_yil))
+    const currentKayitlar = (kayitlar || []).filter(item => isCurrentAyYil(item.ay_yil)).sort(compareDateDescending)
     const priorKayitlar = (kayitlar || []).filter(item => isAyYilBefore(item.ay_yil))
     const paymentTotals = buildPaymentTotals(odemeler, hareketler)
     const ayBorcu = sumField(currentKayitlar, "alinan_tutar")

@@ -148,8 +148,25 @@ export function getLastMissingDateWithinMonth(existingDates: string[], month: st
   return null
 }
 
-export function compareDateDescending<T extends { tarih: string }>(a: T, b: T) {
-  return b.tarih.localeCompare(a.tarih)
+export function compareDateDescending<T extends { tarih: string; fis_no?: string }>(a: T, b: T) {
+  const dateComp = b.tarih.localeCompare(a.tarih)
+  if (dateComp !== 0) return dateComp
+
+  const fisA = (a.fis_no || "").trim()
+  const fisB = (b.fis_no || "").trim()
+
+  if (!fisA && !fisB) return 0
+  if (!fisA) return 1
+  if (!fisB) return -1
+
+  const numA = parseInt(fisA, 10)
+  const numB = parseInt(fisB, 10)
+
+  if (!isNaN(numA) && !isNaN(numB)) {
+    return numB - numA
+  }
+
+  return fisB.localeCompare(fisA, undefined, { numeric: true, sensitivity: "base" })
 }
 
 export function getMonthYearFromDate(dateStr: string) {
