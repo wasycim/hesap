@@ -217,7 +217,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
         .eq("firma_id", firma.id)
         .eq("ay_yil", ayYil)
         .order("tarih", { ascending: false })
-        .order("fis_no", { ascending: false }),
+        .order("fis_no", { ascending: true }),
       supabase
         .from("kargo_cari_notlari")
         .select("id, tarih, not_metni, created_at")

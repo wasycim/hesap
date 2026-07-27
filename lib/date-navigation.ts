@@ -163,10 +163,10 @@ export function compareDateDescending<T extends { tarih: string; fis_no?: string
   const numB = parseInt(fisB, 10)
 
   if (!isNaN(numA) && !isNaN(numB)) {
-    return numB - numA
+    return numA - numB
   }
 
-  return fisB.localeCompare(fisA, undefined, { numeric: true, sensitivity: "base" })
+  return fisA.localeCompare(fisB, undefined, { numeric: true, sensitivity: "base" })
 }
 
 export function getMonthYearFromDate(dateStr: string) {
