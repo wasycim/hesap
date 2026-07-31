@@ -36,6 +36,7 @@ interface Personel {
   banka_maas?: number
   nakit_maas?: number
   saatlik_mesai_ucreti?: number
+  isten_cikis_tarihi?: string | null
 }
 
 interface KargoFirma {
@@ -66,14 +67,18 @@ export default function AyarlarPage() {
   const [gelirFirmalar, setGelirFirmalar] = useState<GelirFirma[]>([])
   const [yeniOrtak, setYeniOrtak] = useState("")
   const [yeniPersonel, setYeniPersonel] = useState("")
+  const [yeniPersonelNetMaas, setYeniPersonelNetMaas] = useState("")
   const [yeniPersonelBankaMaas, setYeniPersonelBankaMaas] = useState("")
   const [yeniPersonelNakitMaas, setYeniPersonelNakitMaas] = useState("")
+  const [yeniPersonelIstenCikisTarihi, setYeniPersonelIstenCikisTarihi] = useState("")
   const [yeniKargoFirma, setYeniKargoFirma] = useState("")
   const [yeniGelirFirma, setYeniGelirFirma] = useState("")
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [netDrafts, setNetDrafts] = useState<Record<string, string>>({})
   const [bankaDrafts, setBankaDrafts] = useState<Record<string, string>>({})
   const [nakitDrafts, setNakitDrafts] = useState<Record<string, string>>({})
+  const [exitDateDrafts, setExitDateDrafts] = useState<Record<string, string>>({})
   const [savingSalaries, setSavingSalaries] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
   const [savingOrtaklar, setSavingOrtaklar] = useState(false)
@@ -119,6 +124,10 @@ export default function AyarlarPage() {
     if (ortakRes.data) setOrtaklar(ortakRes.data)
     if (personelRes.data) {
       setPersoneller(personelRes.data)
+      setNetDrafts(Object.fromEntries(personelRes.data.map(personel => [
+        personel.id,
+        String(Number(personel.aylik_maas || 0)),
+      ])))
       setBankaDrafts(Object.fromEntries(personelRes.data.map(personel => [
         personel.id,
         String(Number(personel.banka_maas || 0)),
@@ -126,6 +135,10 @@ export default function AyarlarPage() {
       setNakitDrafts(Object.fromEntries(personelRes.data.map(personel => [
         personel.id,
         String(Number(personel.nakit_maas !== undefined && personel.nakit_maas !== null ? personel.nakit_maas : (personel.aylik_maas || 0))),
+      ])))
+      setExitDateDrafts(Object.fromEntries(personelRes.data.map(personel => [
+        personel.id,
+        personel.isten_cikis_tarihi || "",
       ])))
     }
     if (kargoRes.data) setKargoFirmalar(kargoRes.data)
@@ -153,10 +166,12 @@ export default function AyarlarPage() {
     if (!yeniPersonel.trim()) return
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || !currentSube) return
+    const netMaas = Number(yeniPersonelNetMaas) || (Number(yeniPersonelBankaMaas) + Number(yeniPersonelNakitMaas)) || 0
     const bankaMaas = Number(yeniPersonelBankaMaas) || 0
-    const nakitMaas = Number(yeniPersonelNakitMaas) || 0
-    const aylikMaas = bankaMaas + nakitMaas
+    const nakitMaas = Number(yeniPersonelNakitMaas) || Math.max(0, netMaas - bankaMaas)
+    const aylikMaas = netMaas || (bankaMaas + nakitMaas)
     const saatlikMesaiUcreti = aylikMaas > 0 ? aylikMaas / 30 / 8 : 0
+    const istenCikisTarihi = yeniPersonelIstenCikisTarihi || null
 
     await supabase.from("personeller").insert({
       user_id: user.id,
@@ -166,12 +181,15 @@ export default function AyarlarPage() {
       nakit_maas: nakitMaas,
       aylik_maas: aylikMaas,
       saatlik_mesai_ucreti: saatlikMesaiUcreti,
+      isten_cikis_tarihi: istenCikisTarihi,
       sira: personeller.length,
       aktif: true,
     })
     setYeniPersonel("")
+    setYeniPersonelNetMaas("")
     setYeniPersonelBankaMaas("")
     setYeniPersonelNakitMaas("")
+    setYeniPersonelIstenCikisTarihi("")
     loadData()
   }
 
@@ -225,9 +243,11 @@ export default function AyarlarPage() {
   async function savePersonelSalaries() {
     setSavingSalaries(true)
     for (const personel of personeller) {
+      const netMaas = Number(netDrafts[personel.id]) || 0
       const bankaMaas = Number(bankaDrafts[personel.id]) || 0
       const nakitMaas = Number(nakitDrafts[personel.id]) || 0
-      const aylikMaas = bankaMaas + nakitMaas
+      const aylikMaas = netMaas || (bankaMaas + nakitMaas)
+      const istenCikisTarihi = exitDateDrafts[personel.id] ? exitDateDrafts[personel.id] : null
       await supabase
         .from("personeller")
         .update({
@@ -235,10 +255,11 @@ export default function AyarlarPage() {
           nakit_maas: nakitMaas,
           aylik_maas: aylikMaas,
           saatlik_mesai_ucreti: aylikMaas > 0 ? aylikMaas / 30 / 8 : 0,
+          isten_cikis_tarihi: istenCikisTarihi,
         })
         .eq("id", personel.id)
     }
-    toast.success("Maaşlar kaydedildi.")
+    toast.success("Personel maaş ve çıkış tarihleri kaydedildi.")
     setSavingSalaries(false)
     loadData()
   }
@@ -538,46 +559,91 @@ export default function AyarlarPage() {
             </div>
           </div>
           
-          <div className="p-5">
-            <div className="grid gap-2 mb-5 sm:grid-cols-[1fr_7rem_7rem_auto]">
-              <Input
-                value={yeniPersonel}
-                onChange={(e) => setYeniPersonel(e.target.value)}
-                placeholder="Yeni personel adı..."
-                className="flex-1 h-11"
-                onKeyDown={(e) => e.key === "Enter" && addPersonel()}
-              />
-              <Input
-                value={yeniPersonelBankaMaas}
-                onChange={(e) => setYeniPersonelBankaMaas(e.target.value)}
-                placeholder="Banka Maaş"
-                className="h-11 text-xs"
-                type="number"
-                min="0"
-              />
-              <Input
-                value={yeniPersonelNakitMaas}
-                onChange={(e) => setYeniPersonelNakitMaas(e.target.value)}
-                placeholder="Nakit Maaş"
-                className="h-11 text-xs"
-                type="number"
-                min="0"
-              />
-              <Button 
-                onClick={addPersonel} 
-                className="bg-blue-500 hover:bg-blue-600 text-white h-11 w-11 p-0"
-              >
-                <Plus className="w-5 h-5" />
-              </Button>
+          <div className="p-5 space-y-6">
+            {/* Yeni Personel Ekle Formu */}
+            <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+              <h3 className="font-semibold text-sm flex items-center gap-2 text-foreground">
+                <Plus className="w-4 h-4 text-blue-500" /> Yeni Personel Ekle
+              </h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Personel Adı Soyadı</label>
+                  <Input
+                    value={yeniPersonel}
+                    onChange={(e) => setYeniPersonel(e.target.value)}
+                    placeholder="Örn: AHMET YILMAZ"
+                    className="h-10 text-sm"
+                    onKeyDown={(e) => e.key === "Enter" && addPersonel()}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Net (Toplam) Maaş</label>
+                  <Input
+                    value={yeniPersonelNetMaas}
+                    onChange={(e) => {
+                      const netVal = e.target.value
+                      setYeniPersonelNetMaas(netVal)
+                      const net = Number(netVal) || 0
+                      const banka = Number(yeniPersonelBankaMaas) || 0
+                      setYeniPersonelNakitMaas(String(Math.max(0, net - banka)))
+                    }}
+                    placeholder="29000"
+                    className="h-10 text-sm font-semibold"
+                    type="number"
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Bankaya Gönderilen</label>
+                  <Input
+                    value={yeniPersonelBankaMaas}
+                    onChange={(e) => {
+                      const bankaVal = e.target.value
+                      setYeniPersonelBankaMaas(bankaVal)
+                      const net = Number(yeniPersonelNetMaas) || 0
+                      const banka = Number(bankaVal) || 0
+                      if (net > 0) {
+                        setYeniPersonelNakitMaas(String(Math.max(0, net - banka)))
+                      }
+                    }}
+                    placeholder="14000"
+                    className="h-10 text-sm"
+                    type="number"
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Nakit Verilen (Otomatik)</label>
+                  <Input
+                    value={yeniPersonelNakitMaas}
+                    onChange={(e) => setYeniPersonelNakitMaas(e.target.value)}
+                    placeholder="15000"
+                    className="h-10 text-sm font-semibold text-emerald-600 dark:text-emerald-400"
+                    type="number"
+                    min="0"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end pt-1">
+                <Button onClick={addPersonel} className="bg-blue-600 hover:bg-blue-700 text-white gap-2 h-10 px-5">
+                  <Plus className="w-4 h-4" /> Personeli Kaydet
+                </Button>
+              </div>
             </div>
-            <div className="mb-4 flex justify-end">
-              <Button onClick={savePersonelSalaries} disabled={savingSalaries} className="gap-2 bg-blue-600 hover:bg-blue-700">
+
+            {/* Mevcut Personeller Listesi & Kaydet */}
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="font-bold text-base">Mevcut Personel Maaş Ayarları</h3>
+                <p className="text-xs text-muted-foreground">Maaş değişikliklerini yaptıktan sonra Kaydet butonuna tıklayın.</p>
+              </div>
+              <Button onClick={savePersonelSalaries} disabled={savingSalaries} className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-sm">
                 <Save className="h-4 w-4" />
-                {savingSalaries ? "Kaydediliyor..." : "Maaşları Kaydet"}
+                {savingSalaries ? "Kaydediliyor..." : "Tüm Maaşları Kaydet"}
               </Button>
             </div>
             
-            <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+            <div className="space-y-4 max-h-[520px] overflow-y-auto pr-1">
               {personeller.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   Henüz personel eklenmemiş
@@ -586,59 +652,92 @@ export default function AyarlarPage() {
                 personeller.map((personel) => (
                   <div 
                     key={personel.id} 
-                    className={`flex items-center justify-between p-3.5 rounded-lg transition-all ${
+                    className={`p-4 rounded-xl border transition-all ${
                       personel.aktif 
-                        ? "bg-blue-50 border-l-4 border-blue-400 dark:bg-blue-500/15 dark:text-blue-100" 
-                        : "bg-muted/50 border-l-4 border-muted-foreground/30 opacity-60"
+                        ? "bg-card border-border shadow-sm" 
+                        : "bg-muted/40 border-muted opacity-65"
                     }`}
                   >
-                    <div className="min-w-0 flex-1 pr-3">
-                      <span className={`block font-semibold ${personel.aktif ? "text-foreground" : "text-muted-foreground line-through"}`}>
-                        {personel.ad}
-                      </span>
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                        <div className="flex items-center gap-1">
-                          <span className="text-muted-foreground">Banka:</span>
-                          <Input
-                            className="h-8 w-24"
-                            type="number"
-                            min="0"
-                            value={bankaDrafts[personel.id] ?? String(Number(personel.banka_maas || 0))}
-                            onChange={(event) => setBankaDrafts(prev => ({ ...prev, [personel.id]: event.target.value }))}
-                          />
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-muted-foreground">Nakit:</span>
-                          <Input
-                            className="h-8 w-24"
-                            type="number"
-                            min="0"
-                            value={nakitDrafts[personel.id] ?? String(Number(personel.nakit_maas !== undefined && personel.nakit_maas !== null ? personel.nakit_maas : (personel.aylik_maas || 0)))}
-                            onChange={(event) => setNakitDrafts(prev => ({ ...prev, [personel.id]: event.target.value }))}
-                          />
-                        </div>
-                        <div className="font-semibold text-blue-600 dark:text-blue-300">
-                          Toplam: {((Number(bankaDrafts[personel.id]) || 0) + (Number(nakitDrafts[personel.id]) || 0)).toLocaleString("tr-TR")} ₺
-                        </div>
+                    <div className="flex items-center justify-between border-b pb-2 mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`font-bold text-base ${personel.aktif ? "text-foreground" : "text-muted-foreground line-through"}`}>
+                          {personel.ad}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => togglePersonel(personel.id, personel.aktif)}
+                          className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                            personel.aktif 
+                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-100" 
+                              : "bg-muted text-muted-foreground hover:bg-muted/80"
+                          }`}
+                        >
+                          {personel.aktif ? "Aktif" : "Pasif"}
+                        </button>
+                        <button
+                          onClick={() => deletePersonel(personel.id)}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors dark:hover:bg-red-500/20"
+                          title="Personeli Sil"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => togglePersonel(personel.id, personel.aktif)}
-                        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-                          personel.aktif 
-                            ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-100" 
-                            : "bg-muted text-muted-foreground hover:bg-muted/80"
-                        }`}
-                      >
-                        {personel.aktif ? "Aktif" : "Pasif"}
-                      </button>
-                      <button
-                        onClick={() => deletePersonel(personel.id)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors dark:hover:bg-red-500/20"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div>
+                        <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Net (Toplam) Maaş</label>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            min="0"
+                            className="h-9 font-bold text-sm pr-7"
+                            value={netDrafts[personel.id] ?? String(Number(personel.aylik_maas || 0))}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              const net = Number(val) || 0
+                              const banka = Number(bankaDrafts[personel.id] ?? (personel.banka_maas || 0))
+                              setNetDrafts(prev => ({ ...prev, [personel.id]: val }))
+                              setNakitDrafts(prev => ({ ...prev, [personel.id]: String(Math.max(0, net - banka)) }))
+                            }}
+                          />
+                          <span className="absolute right-2.5 top-2 text-xs font-bold text-muted-foreground">₺</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Bankaya Gönderilen</label>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            min="0"
+                            className="h-9 text-sm pr-7"
+                            value={bankaDrafts[personel.id] ?? String(Number(personel.banka_maas || 0))}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              const banka = Number(val) || 0
+                              const net = Number(netDrafts[personel.id] ?? (personel.aylik_maas || 0))
+                              setBankaDrafts(prev => ({ ...prev, [personel.id]: val }))
+                              if (net > 0) {
+                                setNakitDrafts(prev => ({ ...prev, [personel.id]: String(Math.max(0, net - banka)) }))
+                              }
+                            }}
+                          />
+                          <span className="absolute right-2.5 top-2 text-xs font-bold text-muted-foreground">₺</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Nakit Verilen (Otomatik)</label>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            min="0"
+                            className="h-9 text-sm pr-7 font-semibold text-emerald-600 dark:text-emerald-400"
+                            value={nakitDrafts[personel.id] ?? String(Number(personel.nakit_maas !== undefined && personel.nakit_maas !== null ? personel.nakit_maas : (personel.aylik_maas || 0)))}
+                            onChange={(e) => setNakitDrafts(prev => ({ ...prev, [personel.id]: e.target.value }))}
+                          />
+                          <span className="absolute right-2.5 top-2 text-xs font-bold text-muted-foreground">₺</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))

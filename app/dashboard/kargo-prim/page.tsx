@@ -15,6 +15,7 @@ interface Personel {
   id: string
   ad: string
   aktif: boolean
+  isten_cikis_tarihi?: string | null
 }
 
 function formatMoney(value: number) {

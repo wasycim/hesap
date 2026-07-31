@@ -26,6 +26,7 @@ interface Personel {
   banka_maas?: number
   nakit_maas?: number
   saatlik_mesai_ucreti?: number
+  isten_cikis_tarihi?: string | null
 }
 
 interface Ortak {
@@ -97,6 +98,7 @@ export default function MaaslarPage() {
   const [attendanceOvertime, setAttendanceOvertime] = useState<AttendanceDetail[]>([])
   const [overtimeApprovals, setOvertimeApprovals] = useState<OvertimeApproval[]>([])
   const [kargoPrimAmount, setKargoPrimAmount] = useState<number>(0)
+  const [corbaData, setCorbaData] = useState<{ tarih: string; personel_id: string; miktar: number }[]>([])
   const [selectedPersonelId, setSelectedPersonelId] = useState<string | null>(null)
   const [selectedOrtakId, setSelectedOrtakId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -117,7 +119,7 @@ export default function MaaslarPage() {
     const from = getMonthStartDate(month, year)
     const to = getMonthEndDate(month, year)
 
-    const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes] = await Promise.all([
+    const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes, corbaRes] = await Promise.all([
       supabase
         .from("personeller")
         .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti")
@@ -144,6 +146,12 @@ export default function MaaslarPage() {
         .eq("sube_id", currentSube.id)
         .eq("ay_yil", ayYil)
         .maybeSingle(),
+      supabase
+        .from("corbalar")
+        .select("tarih, personel_id, miktar")
+        .eq("sube_id", currentSube.id)
+        .eq("ay_yil", ayYil)
+        .order("tarih", { ascending: true }),
     ])
 
     const attendancePayload = await attendanceRes.json().catch(() => null) as AttendancePayload | null
@@ -154,6 +162,7 @@ export default function MaaslarPage() {
     setAttendanceOvertime(attendanceRes.ok ? (attendancePayload?.details || []) : [])
     setOvertimeApprovals(approvalsRes.ok ? (approvalsPayload?.items || []) : [])
     setKargoPrimAmount(kargoPrimRes.data ? Number(kargoPrimRes.data.personel_hakedis || 0) : 0)
+    setCorbaData(corbaRes.data || [])
     setLoading(false)
   }
 
@@ -171,10 +180,21 @@ export default function MaaslarPage() {
         .map((item) => [Number(item.attendance_log_id), item]),
     )
 
-    if (kargoPrimAmount > 0) {
+    const corbaDetails: Detail[] = corbaData
+      .filter(c => c.personel_id === personel.id && Number(c.miktar) > 0)
+      .map(c => ({
+        tarih: c.tarih,
+        amount: Number(c.miktar),
+        description: `Çorba kazanılan kaydı (${formatMoney(Number(c.miktar))} TL)`,
+      }))
+      .sort((a, b) => a.tarih.localeCompare(b.tarih))
+
+    const corbaTotal = corbaDetails.reduce((sum, item) => sum + item.amount, 0)
+
+    if (kargoHakedisAmount > 0) {
       overtime.push({
         tarih: getMonthStartDate(month, year),
-        amount: kargoPrimAmount,
+        amount: kargoHakedisAmount,
         description: `${month} Ayı Kargo Hakediş`,
         hours: 0,
         rate: 0,
@@ -242,7 +262,7 @@ export default function MaaslarPage() {
     const advanceTotal = advances.reduce((sum, item) => sum + item.amount, 0)
     const overtimeTotal = overtime.reduce((sum, item) => sum + item.amount, 0)
 
-    // Nakit Maaştan Avans Düşüş kuralı:
+    // Nakit Maaştan Avans Düşüşü:
     const nakitAlinacak = Math.max(0, nakitMaas - advanceTotal)
     const remaining = bankaMaas + nakitAlinacak + overtimeTotal
 
@@ -253,6 +273,8 @@ export default function MaaslarPage() {
       nakitMaas,
       nakitAlinacak,
       kargoHakedisAmount,
+      corbaTotal,
+      corbaDetails,
       hourlyRate,
       advances,
       overtime,
@@ -260,7 +282,7 @@ export default function MaaslarPage() {
       overtimeTotal,
       remaining,
     }
-  }), [attendanceOvertime, kargoPrimAmount, month, overtimeApprovals, personeller, rows, year])
+  }), [attendanceOvertime, corbaData, kargoPrimAmount, month, overtimeApprovals, personeller, rows, year])
 
   const ortakSummaries = useMemo(() => ortaklar.map(ortak => {
     const advances: Detail[] = []
@@ -327,6 +349,7 @@ export default function MaaslarPage() {
         { label: "Banka Gönderilen", value: `${formatMoney(item.bankaMaas)} TL` },
         { label: "Nakit Maaş (Taban)", value: `${formatMoney(item.nakitMaas)} TL` },
         { label: "Alınan Avans", value: `-${formatMoney(item.advanceTotal)} TL` },
+        ...(item.corbaTotal > 0 ? [{ label: "Çorba Kazanılan", value: `+${formatMoney(item.corbaTotal)} TL` }] : []),
         { label: "Nakit Alınacak", value: `${formatMoney(item.nakitAlinacak)} TL` },
         { label: "Ekstra / Kargo Prim / Mesai", value: `+${formatMoney(item.overtimeTotal)} TL` },
         { label: "Net Toplam Kalan", value: `${formatMoney(item.remaining)} TL` },
@@ -343,10 +366,11 @@ export default function MaaslarPage() {
           headers: ["Tarih", "Kaynak", "Mesai", "Saatlik Ücret", "Tutar"],
           firstColumnWidth: "28%",
           rows: item.overtime.map(detail => {
+            const isKargo = detail.description.includes("Kargo Hakediş")
             const isDirectAmount = detail.source === "manual" && detail.minutes === 0 && detail.rate === 0
             return [
-              formatDate(detail.tarih),
-              detail.source === "attendance" ? "Mesai takip" : isDirectAmount ? "Hakediş / Manuel" : "Manuel",
+              isKargo ? month : formatDate(detail.tarih),
+              isKargo ? "Kargo Prim" : detail.source === "attendance" ? "Mesai takip" : isDirectAmount ? "Hakediş / Manuel" : "Manuel",
               isDirectAmount ? "Doğrudan tutar" : formatDurationFromMinutes(detail.minutes),
               isDirectAmount ? "-" : `${formatMoney(detail.rate)} TL`,
               `+${formatMoney(detail.amount)} TL`,
@@ -380,7 +404,7 @@ export default function MaaslarPage() {
         setMonth(MONTHS[11])
         setYear(year - 1)
       }
-    } else if (year !== START_YEAR || currentIndex > START_MONTH_INDEX) {
+    } else {
       setMonth(MONTHS[currentIndex - 1])
     }
   }
@@ -395,7 +419,7 @@ export default function MaaslarPage() {
     }
   }
 
-  if (subeLoading) {
+  if (subeLoading || loading) {
     return <div className="flex h-64 items-center justify-center text-muted-foreground">Yükleniyor...</div>
   }
 
@@ -408,10 +432,6 @@ export default function MaaslarPage() {
         </div>
       </div>
     )
-  }
-
-  if (loading) {
-    return <div className="flex h-64 items-center justify-center text-muted-foreground">Yükleniyor...</div>
   }
 
   return (
@@ -469,7 +489,9 @@ export default function MaaslarPage() {
               onClick={() => setSelectedPersonelId(item.personel.id)}
             >
               <CardContent className="p-4">
-                <p className={`truncate text-xs font-semibold uppercase ${item.remaining < 0 ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"}`}>{item.personel.ad}</p>
+                <div className="flex items-center justify-between gap-1">
+                  <p className={`truncate text-xs font-semibold uppercase ${item.remaining < 0 ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"}`}>{item.personel.ad}</p>
+                </div>
                 <p className={`mt-1 text-xl font-bold ${item.remaining < 0 ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"}`}>{formatMoney(item.remaining)} TL</p>
                 <div className="mt-2 space-y-1 text-xs border-t pt-2 border-emerald-200/60 dark:border-emerald-500/20">
                   <div className="flex justify-between text-muted-foreground">
@@ -480,6 +502,12 @@ export default function MaaslarPage() {
                     <div className="flex justify-between text-muted-foreground">
                       <span>Kargo Hakediş:</span>
                       <span className="font-bold text-emerald-600 dark:text-emerald-400">+{formatMoney(item.kargoHakedisAmount)} TL</span>
+                    </div>
+                  )}
+                  {item.corbaTotal > 0 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Çorba Kazanılan:</span>
+                      <span className="font-bold text-amber-600 dark:text-amber-400">+{formatMoney(item.corbaTotal)} TL</span>
                     </div>
                   )}
                   <div className="flex justify-between text-muted-foreground">
@@ -498,11 +526,16 @@ export default function MaaslarPage() {
             <CardHeader className="pb-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <CardTitle>{selectedPersonel.personel.ad} Maaş Detayı</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <span>{selectedPersonel.personel.ad} Maaş Detayı</span>
+                  </CardTitle>
                   <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span>Bankaya Gönderilen: <strong className="text-foreground">{formatMoney(selectedPersonel.bankaMaas)} TL</strong></span>
                     <span>Nakit Verilen (Taban): <strong className="text-foreground">{formatMoney(selectedPersonel.nakitMaas)} TL</strong></span>
                     <span>Alınan Avans: <strong className="text-red-600">-{formatMoney(selectedPersonel.advanceTotal)} TL</strong></span>
+                    {selectedPersonel.corbaTotal > 0 && (
+                      <span>Çorba Kazanılan: <strong className="text-amber-600 dark:text-amber-400 font-bold">+{formatMoney(selectedPersonel.corbaTotal)} TL</strong></span>
+                    )}
                     <span>Nakit Alınacak: <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{formatMoney(selectedPersonel.nakitAlinacak)} TL</strong></span>
                   </div>
                 </div>
@@ -512,7 +545,7 @@ export default function MaaslarPage() {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="grid gap-4 lg:grid-cols-2">
+            <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <DetailList
                 title="Alınan Avanslar"
                 items={selectedPersonel.advances}
@@ -526,6 +559,13 @@ export default function MaaslarPage() {
                 empty="Mesai veya prim hakedişi yok."
                 totalLabel="Toplam Ekstra / Hakediş"
                 variant="income"
+              />
+              <DetailList
+                title="Çorba Kazanılan Detayı"
+                items={selectedPersonel.corbaDetails}
+                empty="Bu ay çorba kaydı bulunmuyor."
+                totalLabel="Toplam Çorba Kazanılan"
+                variant="info"
               />
             </CardContent>
           </Card>
@@ -584,25 +624,25 @@ function DetailList({
   items: Detail[]
   empty: string
   totalLabel: string
-  variant: "expense" | "income"
+  variant: "expense" | "income" | "info"
 }) {
   const [expanded, setExpanded] = useState(variant === "income")
   const total = items.reduce((sum, item) => sum + item.amount, 0)
-  const amountClass = variant === "expense" ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"
+  const amountClass = variant === "expense" ? "text-red-700 dark:text-red-100" : variant === "info" ? "text-amber-600 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-100"
   const prefix = variant === "expense" ? "-" : "+"
 
   return (
     <div className="rounded-lg border overflow-hidden">
       <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-3 font-semibold text-sm">
         <span>{title}</span>
-        {variant === "expense" && items.length > 0 && (
+        {items.length > 0 && (
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setExpanded(!expanded)}
             className="h-7 gap-1 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
           >
-            {expanded ? "Gizle" : `Detay Göster (${items.length} Kayıt)`}
+            {expanded ? "Detay Gizle" : `Detay Göster (${items.length} Kayıt)`}
             <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} />
           </Button>
         )}
