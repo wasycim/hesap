@@ -33,6 +33,8 @@ interface Personel {
   ad: string
   aktif: boolean
   aylik_maas?: number
+  banka_maas?: number
+  nakit_maas?: number
   saatlik_mesai_ucreti?: number
 }
 
@@ -64,12 +66,14 @@ export default function AyarlarPage() {
   const [gelirFirmalar, setGelirFirmalar] = useState<GelirFirma[]>([])
   const [yeniOrtak, setYeniOrtak] = useState("")
   const [yeniPersonel, setYeniPersonel] = useState("")
-  const [yeniPersonelMaas, setYeniPersonelMaas] = useState("")
+  const [yeniPersonelBankaMaas, setYeniPersonelBankaMaas] = useState("")
+  const [yeniPersonelNakitMaas, setYeniPersonelNakitMaas] = useState("")
   const [yeniKargoFirma, setYeniKargoFirma] = useState("")
   const [yeniGelirFirma, setYeniGelirFirma] = useState("")
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [salaryDrafts, setSalaryDrafts] = useState<Record<string, string>>({})
+  const [bankaDrafts, setBankaDrafts] = useState<Record<string, string>>({})
+  const [nakitDrafts, setNakitDrafts] = useState<Record<string, string>>({})
   const [savingSalaries, setSavingSalaries] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
   const [savingOrtaklar, setSavingOrtaklar] = useState(false)
@@ -86,7 +90,8 @@ export default function AyarlarPage() {
   }, [currentSube?.id])
 
   async function loadData() {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: authData } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
+    const user = authData?.user ?? null
     if (!user || !currentSube) return
 
     // Admin kontrolü
@@ -114,9 +119,13 @@ export default function AyarlarPage() {
     if (ortakRes.data) setOrtaklar(ortakRes.data)
     if (personelRes.data) {
       setPersoneller(personelRes.data)
-      setSalaryDrafts(Object.fromEntries(personelRes.data.map(personel => [
+      setBankaDrafts(Object.fromEntries(personelRes.data.map(personel => [
         personel.id,
-        String(Number(personel.aylik_maas || 0)),
+        String(Number(personel.banka_maas || 0)),
+      ])))
+      setNakitDrafts(Object.fromEntries(personelRes.data.map(personel => [
+        personel.id,
+        String(Number(personel.nakit_maas !== undefined && personel.nakit_maas !== null ? personel.nakit_maas : (personel.aylik_maas || 0))),
       ])))
     }
     if (kargoRes.data) setKargoFirmalar(kargoRes.data)
@@ -144,20 +153,25 @@ export default function AyarlarPage() {
     if (!yeniPersonel.trim()) return
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || !currentSube) return
-    const aylikMaas = Number(yeniPersonelMaas) || 0
+    const bankaMaas = Number(yeniPersonelBankaMaas) || 0
+    const nakitMaas = Number(yeniPersonelNakitMaas) || 0
+    const aylikMaas = bankaMaas + nakitMaas
     const saatlikMesaiUcreti = aylikMaas > 0 ? aylikMaas / 30 / 8 : 0
 
     await supabase.from("personeller").insert({
       user_id: user.id,
       sube_id: currentSube.id,
       ad: yeniPersonel.toLocaleUpperCase("tr-TR"),
+      banka_maas: bankaMaas,
+      nakit_maas: nakitMaas,
       aylik_maas: aylikMaas,
       saatlik_mesai_ucreti: saatlikMesaiUcreti,
       sira: personeller.length,
       aktif: true,
     })
     setYeniPersonel("")
-    setYeniPersonelMaas("")
+    setYeniPersonelBankaMaas("")
+    setYeniPersonelNakitMaas("")
     loadData()
   }
 
@@ -211,10 +225,14 @@ export default function AyarlarPage() {
   async function savePersonelSalaries() {
     setSavingSalaries(true)
     for (const personel of personeller) {
-      const aylikMaas = Number(salaryDrafts[personel.id]) || 0
+      const bankaMaas = Number(bankaDrafts[personel.id]) || 0
+      const nakitMaas = Number(nakitDrafts[personel.id]) || 0
+      const aylikMaas = bankaMaas + nakitMaas
       await supabase
         .from("personeller")
         .update({
+          banka_maas: bankaMaas,
+          nakit_maas: nakitMaas,
           aylik_maas: aylikMaas,
           saatlik_mesai_ucreti: aylikMaas > 0 ? aylikMaas / 30 / 8 : 0,
         })
@@ -521,7 +539,7 @@ export default function AyarlarPage() {
           </div>
           
           <div className="p-5">
-            <div className="grid gap-3 mb-5 sm:grid-cols-[1fr_9rem_auto]">
+            <div className="grid gap-2 mb-5 sm:grid-cols-[1fr_7rem_7rem_auto]">
               <Input
                 value={yeniPersonel}
                 onChange={(e) => setYeniPersonel(e.target.value)}
@@ -530,10 +548,18 @@ export default function AyarlarPage() {
                 onKeyDown={(e) => e.key === "Enter" && addPersonel()}
               />
               <Input
-                value={yeniPersonelMaas}
-                onChange={(e) => setYeniPersonelMaas(e.target.value)}
-                placeholder="Maaş"
-                className="h-11"
+                value={yeniPersonelBankaMaas}
+                onChange={(e) => setYeniPersonelBankaMaas(e.target.value)}
+                placeholder="Banka Maaş"
+                className="h-11 text-xs"
+                type="number"
+                min="0"
+              />
+              <Input
+                value={yeniPersonelNakitMaas}
+                onChange={(e) => setYeniPersonelNakitMaas(e.target.value)}
+                placeholder="Nakit Maaş"
+                className="h-11 text-xs"
                 type="number"
                 min="0"
               />
@@ -551,7 +577,7 @@ export default function AyarlarPage() {
               </Button>
             </div>
             
-            <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
               {personeller.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   Henüz personel eklenmemiş
@@ -566,17 +592,35 @@ export default function AyarlarPage() {
                         : "bg-muted/50 border-l-4 border-muted-foreground/30 opacity-60"
                     }`}
                   >
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1 pr-3">
                       <span className={`block font-semibold ${personel.aktif ? "text-foreground" : "text-muted-foreground line-through"}`}>
                         {personel.ad}
                       </span>
-                      <Input
-                        className="mt-2 h-8 w-32"
-                        type="number"
-                        min="0"
-                        value={salaryDrafts[personel.id] ?? String(Number(personel.aylik_maas || 0))}
-                        onChange={(event) => setSalaryDrafts(prev => ({ ...prev, [personel.id]: event.target.value }))}
-                      />
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                        <div className="flex items-center gap-1">
+                          <span className="text-muted-foreground">Banka:</span>
+                          <Input
+                            className="h-8 w-24"
+                            type="number"
+                            min="0"
+                            value={bankaDrafts[personel.id] ?? String(Number(personel.banka_maas || 0))}
+                            onChange={(event) => setBankaDrafts(prev => ({ ...prev, [personel.id]: event.target.value }))}
+                          />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-muted-foreground">Nakit:</span>
+                          <Input
+                            className="h-8 w-24"
+                            type="number"
+                            min="0"
+                            value={nakitDrafts[personel.id] ?? String(Number(personel.nakit_maas !== undefined && personel.nakit_maas !== null ? personel.nakit_maas : (personel.aylik_maas || 0)))}
+                            onChange={(event) => setNakitDrafts(prev => ({ ...prev, [personel.id]: event.target.value }))}
+                          />
+                        </div>
+                        <div className="font-semibold text-blue-600 dark:text-blue-300">
+                          Toplam: {((Number(bankaDrafts[personel.id]) || 0) + (Number(nakitDrafts[personel.id]) || 0)).toLocaleString("tr-TR")} ₺
+                        </div>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button

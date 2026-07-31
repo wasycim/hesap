@@ -15,6 +15,7 @@ const routePermissions: Array<{ prefix: string; key: string }> = [
   { prefix: "/dashboard/mesai", key: "mesai" },
   { prefix: "/dashboard/corbalar", key: "corbalar" },
   { prefix: "/dashboard/kargo-cari", key: "kargo_cari" },
+  { prefix: "/dashboard/kargo-prim", key: "kargo_cari" },
   { prefix: "/dashboard/14-no-hesap", key: "on_dort_no" },
   { prefix: "/dashboard/maaslar", key: "maaslar" },
   { prefix: "/dashboard/bildirim-gonder", key: "bildirim_gonder" },

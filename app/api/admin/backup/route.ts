@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
     tables[table] = rows
   }
 
-  const ipAddress = request.headers.get("x-forwarded-for") || request.ip || "Bilinmiyor"
+  const ipAddress = request.headers.get("x-forwarded-for") || "Bilinmiyor"
   const userAgent = request.headers.get("user-agent") || "Bilinmiyor"
   const filterRange = startDate || endDate
     ? `${startDate || "Başlangıç"} ile ${endDate || "Bugün"} arası`
@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
 
   try {
     await sendBackupDownloadedEmail({
-      userEmail: adminGuard.user.email,
+      userEmail: adminGuard.user.email || "system@pamukkaleturizm.tr",
       ipAddress,
       userAgent,
       filterRange,
@@ -181,11 +181,11 @@ export async function POST(request: NextRequest) {
     restored.push(table)
   }
 
-  const ipAddress = request.headers.get("x-forwarded-for") || request.ip || "Bilinmiyor"
+  const ipAddress = request.headers.get("x-forwarded-for") || "Bilinmiyor"
   const userAgent = request.headers.get("user-agent") || "Bilinmiyor"
 
   await sendBackupRestoredEmail({
-    userEmail: adminGuard.user.email,
+    userEmail: adminGuard.user.email || "system@pamukkaleturizm.tr",
     ipAddress,
     userAgent,
     backupType: "full",

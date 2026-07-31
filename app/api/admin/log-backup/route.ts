@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     restored.push(table)
   }
 
-  const ipAddress = request.headers.get("x-forwarded-for") || request.ip || "Bilinmiyor"
+  const ipAddress = request.headers.get("x-forwarded-for") || "Bilinmiyor"
   const userAgent = request.headers.get("user-agent") || "Bilinmiyor"
   const userEmail = guard.profile?.email || guard.user.email || "Bilinmiyor"
 

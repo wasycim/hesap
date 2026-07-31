@@ -11,6 +11,7 @@ import {
   Building2,
   CalendarDays,
   Camera,
+  Coins,
   DatabaseBackup,
   ChevronDown,
   ChevronRight,
@@ -332,7 +333,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   }, [currentSube?.id])
 
   useEffect(() => {
-    if (pathname.startsWith("/dashboard/kargo-cari")) {
+    if (pathname.startsWith("/dashboard/kargo-cari") || pathname.startsWith("/dashboard/kargo-prim")) {
       setKargoOpen(true)
     }
   }, [pathname])
@@ -598,6 +599,24 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
               </li>
             )
           })()}
+
+          {canSeeMenu("kargo_cari") && (
+            <li key="/dashboard/kargo-prim">
+              <Link
+                href="/dashboard/kargo-prim"
+                onClick={() => setMobileOpen(false)}
+                className={cn(
+                  "sidebar-menu-item group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                  pathname === "/dashboard/kargo-prim"
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                )}
+              >
+                <Coins className="sidebar-menu-icon h-5 w-5 text-emerald-500" />
+                <span>Kargo Prim</span>
+              </Link>
+            </li>
+          )}
 
           {adminMenuItems.filter((item) => canSeeMenu(permissionKeyByHref[item.href] || (item as any).key || item.href) && (isDeveloper || !developerOnlyHrefs.has(item.href))).map((item) => {
             const isActive = pathname === item.href

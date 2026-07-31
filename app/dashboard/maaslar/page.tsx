@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { ChevronLeft, ChevronRight, FileText, Wallet } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, FileText, Wallet } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,6 +23,8 @@ interface Personel {
   id: string
   ad: string
   aylik_maas?: number
+  banka_maas?: number
+  nakit_maas?: number
   saatlik_mesai_ucreti?: number
 }
 
@@ -94,9 +96,11 @@ export default function MaaslarPage() {
   const [rows, setRows] = useState<GiderRow[]>([])
   const [attendanceOvertime, setAttendanceOvertime] = useState<AttendanceDetail[]>([])
   const [overtimeApprovals, setOvertimeApprovals] = useState<OvertimeApproval[]>([])
+  const [kargoPrimAmount, setKargoPrimAmount] = useState<number>(0)
   const [selectedPersonelId, setSelectedPersonelId] = useState<string | null>(null)
   const [selectedOrtakId, setSelectedOrtakId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+
   const supabase = createClient()
   const { currentSube, isAdmin, loading: subeLoading } = useSube()
   const years = makeYearWindow(year)
@@ -113,10 +117,10 @@ export default function MaaslarPage() {
     const from = getMonthStartDate(month, year)
     const to = getMonthEndDate(month, year)
 
-    const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes] = await Promise.all([
+    const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes] = await Promise.all([
       supabase
         .from("personeller")
-        .select("id, ad, aylik_maas, saatlik_mesai_ucreti")
+        .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti")
         .eq("sube_id", currentSube.id)
         .eq("aktif", true)
         .order("sira", { ascending: true }),
@@ -134,6 +138,12 @@ export default function MaaslarPage() {
         .order("tarih", { ascending: true }),
       fetch(`/api/dashboard/mesai-takip?${new URLSearchParams({ from, to, subeId: currentSube.id }).toString()}`),
       fetch("/api/admin/operations?table=overtime_approvals", { cache: "no-store" }),
+      supabase
+        .from("kargo_prim_kayitlari")
+        .select("personel_hakedis")
+        .eq("sube_id", currentSube.id)
+        .eq("ay_yil", ayYil)
+        .maybeSingle(),
     ])
 
     const attendancePayload = await attendanceRes.json().catch(() => null) as AttendancePayload | null
@@ -143,11 +153,15 @@ export default function MaaslarPage() {
     setRows(giderRes.data || [])
     setAttendanceOvertime(attendanceRes.ok ? (attendancePayload?.details || []) : [])
     setOvertimeApprovals(approvalsRes.ok ? (approvalsPayload?.items || []) : [])
+    setKargoPrimAmount(kargoPrimRes.data ? Number(kargoPrimRes.data.personel_hakedis || 0) : 0)
     setLoading(false)
   }
 
   const personelSummaries = useMemo(() => personeller.map(personel => {
-    const baseSalary = Number(personel.aylik_maas) || 0
+    const bankaMaas = Number(personel.banka_maas || 0)
+    const nakitMaas = Number(personel.nakit_maas !== undefined && personel.nakit_maas !== null ? personel.nakit_maas : (personel.aylik_maas || 0))
+    const baseSalary = bankaMaas + nakitMaas
+    const kargoHakedisAmount = kargoPrimAmount
     const hourlyRate = Number(personel.saatlik_mesai_ucreti) || (baseSalary > 0 ? baseSalary / 30 / 8 : 0)
     const advances: Detail[] = []
     const overtime: OvertimeDetail[] = []
@@ -157,10 +171,22 @@ export default function MaaslarPage() {
         .map((item) => [Number(item.attendance_log_id), item]),
     )
 
+    if (kargoPrimAmount > 0) {
+      overtime.push({
+        tarih: getMonthStartDate(month, year),
+        amount: kargoPrimAmount,
+        description: `${month} Ayı Kargo Hakediş`,
+        hours: 0,
+        rate: 0,
+        minutes: 0,
+        source: "manual",
+      })
+    }
+
     rows.forEach(row => {
       const advanceAmount = Number(row.personel_paylari?.[personel.id]) || 0
       if (advanceAmount > 0) {
-        advances.push({ tarih: row.tarih, amount: advanceAmount, description: "Alinan avans" })
+        advances.push({ tarih: row.tarih, amount: advanceAmount, description: "Alınan avans" })
       }
 
       const manualAmount = Number(row.personel_mesai_detaylari?.[personel.id]) || 0
@@ -216,17 +242,25 @@ export default function MaaslarPage() {
     const advanceTotal = advances.reduce((sum, item) => sum + item.amount, 0)
     const overtimeTotal = overtime.reduce((sum, item) => sum + item.amount, 0)
 
+    // Nakit Maaştan Avans Düşüş kuralı:
+    const nakitAlinacak = Math.max(0, nakitMaas - advanceTotal)
+    const remaining = bankaMaas + nakitAlinacak + overtimeTotal
+
     return {
       personel,
       baseSalary,
+      bankaMaas,
+      nakitMaas,
+      nakitAlinacak,
+      kargoHakedisAmount,
       hourlyRate,
       advances,
       overtime,
       advanceTotal,
       overtimeTotal,
-      remaining: baseSalary + overtimeTotal - advanceTotal,
+      remaining,
     }
-  }), [attendanceOvertime, month, overtimeApprovals, personeller, rows, year])
+  }), [attendanceOvertime, kargoPrimAmount, month, overtimeApprovals, personeller, rows, year])
 
   const ortakSummaries = useMemo(() => ortaklar.map(ortak => {
     const advances: Detail[] = []
@@ -256,17 +290,18 @@ export default function MaaslarPage() {
       metrics: [
         { label: "Toplam Maaş", value: `${formatMoney(salaryTotals.baseSalary)} TL` },
         { label: "Toplam Avans", value: `-${formatMoney(salaryTotals.advances)} TL` },
-        { label: "Toplam Mesai", value: `+${formatMoney(salaryTotals.overtime)} TL` },
+        { label: "Toplam Mesai / Hakediş", value: `+${formatMoney(salaryTotals.overtime)} TL` },
         { label: "Ortak Avans", value: `-${formatMoney(ortakTotal)} TL` },
       ],
       tables: [
         {
           title: "Personel Maaşları",
-          headers: ["Personel", "Maaş", "Avans", "Mesai", "Net Kalan"],
-          firstColumnWidth: "32%",
+          headers: ["Personel", "Banka", "Nakit Alınacak", "Avans", "Ekstra/Prim", "Net Toplam"],
+          firstColumnWidth: "25%",
           rows: personelSummaries.map(item => [
             item.personel.ad,
-            `${formatMoney(item.baseSalary)} TL`,
+            `${formatMoney(item.bankaMaas)} TL`,
+            `${formatMoney(item.nakitAlinacak)} TL`,
             `-${formatMoney(item.advanceTotal)} TL`,
             `+${formatMoney(item.overtimeTotal)} TL`,
             `${formatMoney(item.remaining)} TL`,
@@ -289,11 +324,12 @@ export default function MaaslarPage() {
       subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
       orientation: "portrait",
       metrics: [
-        { label: "Aylık Maaş", value: `${formatMoney(item.baseSalary)} TL` },
-        { label: "Saatlik Mesai", value: `${formatMoney(item.hourlyRate)} TL` },
-        { label: "Toplam Mesai", value: `+${formatMoney(item.overtimeTotal)} TL` },
-        { label: "Toplam Avans", value: `-${formatMoney(item.advanceTotal)} TL` },
-        { label: "Net Kalan", value: `${formatMoney(item.remaining)} TL` },
+        { label: "Banka Gönderilen", value: `${formatMoney(item.bankaMaas)} TL` },
+        { label: "Nakit Maaş (Taban)", value: `${formatMoney(item.nakitMaas)} TL` },
+        { label: "Alınan Avans", value: `-${formatMoney(item.advanceTotal)} TL` },
+        { label: "Nakit Alınacak", value: `${formatMoney(item.nakitAlinacak)} TL` },
+        { label: "Ekstra / Kargo Prim / Mesai", value: `+${formatMoney(item.overtimeTotal)} TL` },
+        { label: "Net Toplam Kalan", value: `${formatMoney(item.remaining)} TL` },
       ],
       tables: [
         {
@@ -303,14 +339,14 @@ export default function MaaslarPage() {
           rows: item.advances.map(detail => [formatDate(detail.tarih), detail.description, `-${formatMoney(detail.amount)} TL`]),
         },
         {
-          title: "Mesailer",
+          title: "Ekstra / Mesai / Prim Hakedişleri",
           headers: ["Tarih", "Kaynak", "Mesai", "Saatlik Ücret", "Tutar"],
           firstColumnWidth: "28%",
           rows: item.overtime.map(detail => {
             const isDirectAmount = detail.source === "manual" && detail.minutes === 0 && detail.rate === 0
             return [
               formatDate(detail.tarih),
-              detail.source === "attendance" ? "Mesai takip" : isDirectAmount ? "Gider manuel" : "Manuel",
+              detail.source === "attendance" ? "Mesai takip" : isDirectAmount ? "Hakediş / Manuel" : "Manuel",
               isDirectAmount ? "Doğrudan tutar" : formatDurationFromMinutes(detail.minutes),
               isDirectAmount ? "-" : `${formatMoney(detail.rate)} TL`,
               `+${formatMoney(detail.amount)} TL`,
@@ -360,7 +396,7 @@ export default function MaaslarPage() {
   }
 
   if (subeLoading) {
-    return <div className="flex h-64 items-center justify-center text-muted-foreground">Yukleniyor...</div>
+    return <div className="flex h-64 items-center justify-center text-muted-foreground">Yükleniyor...</div>
   }
 
   if (!isAdmin) {
@@ -375,7 +411,7 @@ export default function MaaslarPage() {
   }
 
   if (loading) {
-    return <div className="flex h-64 items-center justify-center text-muted-foreground">Yukleniyor...</div>
+    return <div className="flex h-64 items-center justify-center text-muted-foreground">Yükleniyor...</div>
   }
 
   return (
@@ -420,11 +456,12 @@ export default function MaaslarPage() {
       </div>
 
       <div className="flex-1 overflow-auto p-3 sm:p-4">
+        {/* Personnel Summary Cards */}
         <div className="mb-6 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
           {personelSummaries.map(item => (
             <Card
               key={item.personel.id}
-              className={`cursor-pointer shadow-sm transition ${
+              className={`cursor-pointer shadow-sm transition hover:shadow ${
                 item.remaining < 0
                   ? "border-red-200 bg-red-50 hover:border-red-400 dark:border-red-500/30 dark:bg-red-500/15"
                   : "border-emerald-200 bg-emerald-50 hover:border-emerald-400 dark:border-emerald-500/30 dark:bg-emerald-500/15"
@@ -434,17 +471,41 @@ export default function MaaslarPage() {
               <CardContent className="p-4">
                 <p className={`truncate text-xs font-semibold uppercase ${item.remaining < 0 ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"}`}>{item.personel.ad}</p>
                 <p className={`mt-1 text-xl font-bold ${item.remaining < 0 ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"}`}>{formatMoney(item.remaining)} TL</p>
-                <p className="mt-1 text-xs text-muted-foreground">Maaş {formatMoney(item.baseSalary)} - Avans {formatMoney(item.advanceTotal)}</p>
+                <div className="mt-2 space-y-1 text-xs border-t pt-2 border-emerald-200/60 dark:border-emerald-500/20">
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Bankaya Gönderilen:</span>
+                    <span className="font-semibold text-foreground">{formatMoney(item.bankaMaas)} TL</span>
+                  </div>
+                  {item.kargoHakedisAmount > 0 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Kargo Hakediş:</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">+{formatMoney(item.kargoHakedisAmount)} TL</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Nakit Alınacak:</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatMoney(item.nakitAlinacak)} TL</span>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
+        {/* Selected Personnel Detail */}
         {selectedPersonel && (
           <Card className="mb-6">
-            <CardHeader>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle>{selectedPersonel.personel.ad} maaş detayı</CardTitle>
+            <CardHeader className="pb-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <CardTitle>{selectedPersonel.personel.ad} Maaş Detayı</CardTitle>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    <span>Bankaya Gönderilen: <strong className="text-foreground">{formatMoney(selectedPersonel.bankaMaas)} TL</strong></span>
+                    <span>Nakit Verilen (Taban): <strong className="text-foreground">{formatMoney(selectedPersonel.nakitMaas)} TL</strong></span>
+                    <span>Alınan Avans: <strong className="text-red-600">-{formatMoney(selectedPersonel.advanceTotal)} TL</strong></span>
+                    <span>Nakit Alınacak: <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{formatMoney(selectedPersonel.nakitAlinacak)} TL</strong></span>
+                  </div>
+                </div>
                 <Button variant="outline" size="sm" onClick={() => exportPersonelPdf(selectedPersonel)} className="gap-2">
                   <FileText className="h-4 w-4" />
                   Personel PDF
@@ -452,12 +513,25 @@ export default function MaaslarPage() {
               </div>
             </CardHeader>
             <CardContent className="grid gap-4 lg:grid-cols-2">
-              <DetailList title="Alınan avanslar" items={selectedPersonel.advances} empty="Avans yok." totalLabel="Toplam alınan avanslar" variant="expense" />
-              <DetailList title={`Mesailer ve manuel tutarlar (${formatMoney(selectedPersonel.hourlyRate)} TL/saat)`} items={selectedPersonel.overtime} empty="Mesai yok." totalLabel="Toplam mesailer" variant="income" />
+              <DetailList
+                title="Alınan Avanslar"
+                items={selectedPersonel.advances}
+                empty="Bu ay alınan avans yok."
+                totalLabel="Toplam Alınan Avans"
+                variant="expense"
+              />
+              <DetailList
+                title={`Mesailer ve Hakedişler (${formatMoney(selectedPersonel.hourlyRate)} TL/saat)`}
+                items={selectedPersonel.overtime}
+                empty="Mesai veya prim hakedişi yok."
+                totalLabel="Toplam Ekstra / Hakediş"
+                variant="income"
+              />
             </CardContent>
           </Card>
         )}
 
+        {/* Partners Section */}
         <Card>
           <CardHeader>
             <CardTitle>Ortaklar Pay</CardTitle>
@@ -483,7 +557,13 @@ export default function MaaslarPage() {
                     Ortak PDF
                   </Button>
                 </div>
-                <DetailList title={`${selectedOrtak.ortak.ad} ortak avansları`} items={selectedOrtak.advances} empty="Ortak avansı yok." totalLabel="Toplam ortak avansı" variant="expense" />
+                <DetailList
+                  title={`${selectedOrtak.ortak.ad} Ortak Avansları`}
+                  items={selectedOrtak.advances}
+                  empty="Ortak avansı yok."
+                  totalLabel="Toplam Ortak Avansı"
+                  variant="expense"
+                />
               </div>
             )}
           </CardContent>
@@ -506,28 +586,47 @@ function DetailList({
   totalLabel: string
   variant: "expense" | "income"
 }) {
+  const [expanded, setExpanded] = useState(variant === "income")
   const total = items.reduce((sum, item) => sum + item.amount, 0)
   const amountClass = variant === "expense" ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"
   const prefix = variant === "expense" ? "-" : "+"
 
   return (
-    <div className="rounded-lg border">
-      <div className="border-b bg-muted/40 px-4 py-3 font-semibold">{title}</div>
-      <div className="divide-y">
-        {items.length === 0 ? (
-          <p className="p-4 text-sm text-muted-foreground">{empty}</p>
-        ) : (
-          items.map((item, index) => (
-            <div key={`${item.tarih}-${index}`} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-              <div>
-                <p className="font-medium">{formatDate(item.tarih)}</p>
-                <p className="text-xs text-muted-foreground">{item.description}</p>
-              </div>
-              <p className={`font-semibold ${amountClass}`}>{prefix}{formatMoney(item.amount)} TL</p>
-            </div>
-          ))
+    <div className="rounded-lg border overflow-hidden">
+      <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-3 font-semibold text-sm">
+        <span>{title}</span>
+        {variant === "expense" && items.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setExpanded(!expanded)}
+            className="h-7 gap-1 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            {expanded ? "Gizle" : `Detay Göster (${items.length} Kayıt)`}
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} />
+          </Button>
         )}
       </div>
+      {expanded && (
+        <div className="divide-y max-h-[300px] overflow-y-auto">
+          {items.length === 0 ? (
+            <p className="p-4 text-sm text-muted-foreground">{empty}</p>
+          ) : (
+            items.map((item, index) => {
+              const isKargoHakedis = item.description.includes("Kargo Hakediş")
+              return (
+                <div key={`${item.tarih}-${index}`} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                  <div>
+                    {!isKargoHakedis && <p className="font-medium">{formatDate(item.tarih)}</p>}
+                    <p className={`text-xs ${isKargoHakedis ? "font-semibold text-foreground text-sm" : "text-muted-foreground"}`}>{item.description}</p>
+                  </div>
+                  <p className={`font-semibold ${amountClass}`}>{prefix}{formatMoney(item.amount)} TL</p>
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
       <div className="flex items-center justify-between border-t bg-muted/30 px-4 py-3 text-sm font-semibold">
         <span>{totalLabel}</span>
         <span className={amountClass}>{prefix}{formatMoney(total)} TL</span>
