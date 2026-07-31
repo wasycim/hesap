@@ -98,6 +98,7 @@ export default function MaaslarPage() {
   const [attendanceOvertime, setAttendanceOvertime] = useState<AttendanceDetail[]>([])
   const [overtimeApprovals, setOvertimeApprovals] = useState<OvertimeApproval[]>([])
   const [kargoPrimAmount, setKargoPrimAmount] = useState<number>(0)
+  const [kargoSeciliPersoneller, setKargoSeciliPersoneller] = useState<string[] | null>(null)
   const [corbaData, setCorbaData] = useState<{ tarih: string; personel_id: string; miktar: number }[]>([])
   const [selectedPersonelId, setSelectedPersonelId] = useState<string | null>(null)
   const [selectedOrtakId, setSelectedOrtakId] = useState<string | null>(null)
@@ -142,7 +143,7 @@ export default function MaaslarPage() {
       fetch("/api/admin/operations?table=overtime_approvals", { cache: "no-store" }),
       supabase
         .from("kargo_prim_kayitlari")
-        .select("personel_hakedis")
+        .select("personel_hakedis, secili_personeller")
         .eq("sube_id", currentSube.id)
         .eq("ay_yil", ayYil)
         .maybeSingle(),
@@ -162,6 +163,7 @@ export default function MaaslarPage() {
     setAttendanceOvertime(attendanceRes.ok ? (attendancePayload?.details || []) : [])
     setOvertimeApprovals(approvalsRes.ok ? (approvalsPayload?.items || []) : [])
     setKargoPrimAmount(kargoPrimRes.data ? Number(kargoPrimRes.data.personel_hakedis || 0) : 0)
+    setKargoSeciliPersoneller(kargoPrimRes.data?.secili_personeller ? (kargoPrimRes.data.secili_personeller as string[]) : null)
     setCorbaData(corbaRes.data || [])
     setLoading(false)
   }
@@ -170,7 +172,8 @@ export default function MaaslarPage() {
     const bankaMaas = Number(personel.banka_maas || 0)
     const nakitMaas = Number(personel.nakit_maas !== undefined && personel.nakit_maas !== null ? personel.nakit_maas : (personel.aylik_maas || 0))
     const baseSalary = bankaMaas + nakitMaas
-    const kargoHakedisAmount = kargoPrimAmount
+    const isSelectedForKargo = !kargoSeciliPersoneller || kargoSeciliPersoneller.includes(personel.id)
+    const kargoHakedisAmount = isSelectedForKargo ? kargoPrimAmount : 0
     const hourlyRate = Number(personel.saatlik_mesai_ucreti) || (baseSalary > 0 ? baseSalary / 30 / 8 : 0)
     const advances: Detail[] = []
     const overtime: OvertimeDetail[] = []
@@ -282,7 +285,7 @@ export default function MaaslarPage() {
       overtimeTotal,
       remaining,
     }
-  }), [attendanceOvertime, corbaData, kargoPrimAmount, month, overtimeApprovals, personeller, rows, year])
+  }), [attendanceOvertime, corbaData, kargoPrimAmount, kargoSeciliPersoneller, month, overtimeApprovals, personeller, rows, year])
 
   const ortakSummaries = useMemo(() => ortaklar.map(ortak => {
     const advances: Detail[] = []
