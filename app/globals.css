@@ -1473,21 +1473,21 @@ input[type="number"] {
     transform: rotate(0deg);
   }
   20% {
-    transform: rotate(-10deg);
+    transform: rotate(-16deg);
   }
   40% {
-    transform: rotate(8deg);
+    transform: rotate(14deg);
   }
   60% {
-    transform: rotate(-5deg);
+    transform: rotate(-9deg);
   }
   80% {
-    transform: rotate(3deg);
+    transform: rotate(6deg);
   }
 }
 
 .animate-gentle-sway {
-  animation: gentle-sway 3.2s ease-in-out infinite;
-  transform-origin: center bottom;
-  display: inline-block;
+  animation: gentle-sway 2.4s ease-in-out infinite !important;
+  transform-origin: center bottom !important;
+  display: inline-block !important;
 }
