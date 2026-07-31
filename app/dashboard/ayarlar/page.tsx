@@ -397,8 +397,9 @@ export default function AyarlarPage() {
 
   async function performDeletePersonel(id: string) {
     const personel = personeller.find(item => item.id === id)
-    await supabase.from("personeller").delete().eq("id", id)
+    await supabase.from("personeller").update({ aktif: false }).eq("id", id)
     await logSecurityEvent("person_delete", { id, label: personel?.ad, sube_id: currentSube?.id })
+    toast.success(`${personel?.ad || "Personel"} silindi / pasife alındı. Geçmiş gider verileri korundu.`)
     loadData()
   }
 
@@ -644,43 +645,27 @@ export default function AyarlarPage() {
             </div>
             
             <div className="space-y-4 max-h-[520px] overflow-y-auto pr-1">
-              {personeller.length === 0 ? (
+              {personeller.filter(p => p.aktif).length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  Henüz personel eklenmemiş
+                  Henüz aktif personel bulunmuyor
                 </div>
               ) : (
-                personeller.map((personel) => (
+                personeller.filter(p => p.aktif).map((personel) => (
                   <div 
                     key={personel.id} 
-                    className={`p-4 rounded-xl border transition-all ${
-                      personel.aktif 
-                        ? "bg-card border-border shadow-sm" 
-                        : "bg-muted/40 border-muted opacity-65"
-                    }`}
+                    className="p-4 rounded-xl border bg-card border-border shadow-sm transition-all"
                   >
                     <div className="flex items-center justify-between border-b pb-2 mb-3">
+                      <span className="font-bold text-base text-foreground">
+                        {personel.ad}
+                      </span>
                       <div className="flex items-center gap-2">
-                        <span className={`font-bold text-base ${personel.aktif ? "text-foreground" : "text-muted-foreground line-through"}`}>
-                          {personel.ad}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => togglePersonel(personel.id, personel.aktif)}
-                          className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
-                            personel.aktif 
-                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-100" 
-                              : "bg-muted text-muted-foreground hover:bg-muted/80"
-                          }`}
-                        >
-                          {personel.aktif ? "Aktif" : "Pasif"}
-                        </button>
                         <button
                           onClick={() => deletePersonel(personel.id)}
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors dark:hover:bg-red-500/20"
-                          title="Personeli Sil"
+                          className="px-3 py-1.5 rounded-md text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-500/20 dark:text-red-300 transition-colors flex items-center gap-1"
+                          title="Personeli Sil / Pasife Al"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" /> Sil
                         </button>
                       </div>
                     </div>
@@ -741,6 +726,36 @@ export default function AyarlarPage() {
                     </div>
                   </div>
                 ))
+              )}
+
+              {/* Silinen / Pasif Personeller Bölümü */}
+              {personeller.filter(p => !p.aktif).length > 0 && (
+                <div className="pt-4 border-t space-y-3">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">
+                    Silinen / Pasif Personeller ({personeller.filter(p => !p.aktif).length})
+                  </h4>
+                  <div className="space-y-2">
+                    {personeller.filter(p => !p.aktif).map((personel) => (
+                      <div
+                        key={personel.id}
+                        className="flex items-center justify-between p-3 rounded-lg border bg-muted/40 opacity-75 text-sm"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium line-through text-muted-foreground">{personel.ad}</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-muted text-muted-foreground">Silindi / Pasif</span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => togglePersonel(personel.id, false)}
+                          className="h-8 text-xs gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                        >
+                          Geri Yükle / Aktif Et
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           </div>

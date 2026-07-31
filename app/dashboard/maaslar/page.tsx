@@ -123,9 +123,8 @@ export default function MaaslarPage() {
     const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes, corbaRes] = await Promise.all([
       supabase
         .from("personeller")
-        .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti")
+        .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif")
         .eq("sube_id", currentSube.id)
-        .eq("aktif", true)
         .order("sira", { ascending: true }),
       supabase
         .from("ortaklar")
@@ -157,7 +156,24 @@ export default function MaaslarPage() {
 
     const attendancePayload = await attendanceRes.json().catch(() => null) as AttendancePayload | null
     const approvalsPayload = await approvalsRes.json().catch(() => null)
-    setPersoneller(personelRes.data || [])
+    
+    const allPersoneller = personelRes.data || []
+    const usedPersonelIds = new Set<string>()
+
+    ;(giderRes.data || []).forEach(row => {
+      if (row.personel_paylari) {
+        Object.entries(row.personel_paylari).forEach(([k, v]) => { if (Number(v) > 0) usedPersonelIds.add(k) })
+      }
+      if (row.personel_mesai_detaylari) {
+        Object.entries(row.personel_mesai_detaylari).forEach(([k, v]) => { if (Number(v) > 0) usedPersonelIds.add(k) })
+      }
+    })
+
+    ;(corbaRes.data || []).forEach(c => {
+      if (Number(c.miktar) > 0) usedPersonelIds.add(c.personel_id)
+    })
+
+    setPersoneller(allPersoneller.filter(p => p.aktif || usedPersonelIds.has(p.id)))
     setOrtaklar(ortakRes.data || [])
     setRows(giderRes.data || [])
     setAttendanceOvertime(attendanceRes.ok ? (attendancePayload?.details || []) : [])

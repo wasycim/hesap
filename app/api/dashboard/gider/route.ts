@@ -98,9 +98,8 @@ export async function GET(request: NextRequest) {
       .order("sira", { ascending: true }),
     admin
       .from("personeller")
-      .select("id, ad")
+      .select("id, ad, aktif")
       .eq("sube_id", sube.id)
-      .eq("aktif", true)
       .order("sira", { ascending: true }),
     admin
       .from("gider_kayitlari")
@@ -116,9 +115,23 @@ export async function GET(request: NextRequest) {
     if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 })
   }
 
+  const allPersoneller = personelRes.data || []
+  const usedPersonelIds = new Set<string>()
+
   const rows = (giderRes.data || [])
     .filter((row: any) => dateInRange(row.tarih, monthStart, monthEnd))
     .map((row: any) => {
+      if (row.personel_paylari) {
+        Object.entries(row.personel_paylari).forEach(([id, val]) => {
+          if (Number(val) > 0) usedPersonelIds.add(id)
+        })
+      }
+      if (row.personel_mesai_detaylari) {
+        Object.entries(row.personel_mesai_detaylari).forEach(([id, val]) => {
+          if (Number(val) > 0) usedPersonelIds.add(id)
+        })
+      }
+
       const mesaiDetails = (row.personel_mesai_detaylari || {}) as Record<string, unknown>
       const mesaiTotal = Object.values(mesaiDetails).reduce<number>((sum, amount) => sum + (Number(amount) || 0), 0)
 
@@ -155,6 +168,8 @@ export async function GET(request: NextRequest) {
       }
     })
 
+  const personeller = allPersoneller.filter(p => p.aktif || usedPersonelIds.has(p.id))
+
   return NextResponse.json({
     userId: user.id,
     sube,
@@ -163,7 +178,7 @@ export async function GET(request: NextRequest) {
     isTekVardiya,
     columnSettings: settingsRes.data || [],
     ortaklar: ortakRes.data || [],
-    personeller: personelRes.data || [],
+    personeller,
     rows,
   })
 }
