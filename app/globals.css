@@ -1246,17 +1246,18 @@
 .sidebar-submenu-enter {
   animation: sidebar-submenu-enter 520ms cubic-bezier(.16, 1, .3, 1) both;
 }
-
-.sidebar-submenu-row-in {
-  animation: sidebar-submenu-row-in 420ms cubic-bezier(.16, 1, .3, 1) both;
+.sidebar-menu-item:hover .menu-icon-bank > :nth-child(3) {
+  animation-delay: 180ms;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .icon-action:hover svg,
-  .icon-action:active svg,
-  .sidebar-menu-item:hover .sidebar-menu-icon,
-  .sidebar-menu-item:active .sidebar-menu-icon,
-  .sidebar-submenu-enter,
+.sidebar-menu-item:hover .menu-icon-bank > :nth-child(4) {
+  animation-delay: 270ms;
+}
+
+.sidebar-menu-item:hover .menu-icon-bank > :nth-child(5) {
+  animation-delay: 360ms;
+}
+
 .sidebar-menu-item:hover .menu-icon-soup > :nth-child(-n+3) {
   animation: soup-steam-wiggle 900ms ease both;
 }
