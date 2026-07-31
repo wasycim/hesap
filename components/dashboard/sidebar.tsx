@@ -43,6 +43,7 @@ import { useSube } from "@/contexts/sube-context"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { AnimatedKargoPrimIcon } from "@/components/icons/animated-kargo-prim-icon"
 import { getSubeHesapInfo } from "@/lib/sube-utils"
 import {
   readCachedDashboardPermissions,
@@ -612,7 +613,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 )}
               >
-                <Coins className="sidebar-menu-icon h-5 w-5 text-emerald-500" />
+                <AnimatedKargoPrimIcon size={22} className="sidebar-menu-icon" />
                 <span>Kargo Prim</span>
               </Link>
             </li>

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner"
 import { useSube } from "@/contexts/sube-context"
 import { MONTHS } from "@/lib/date-navigation"
+import { AnimatedKargoPrimIcon } from "@/components/icons/animated-kargo-prim-icon"
 
 interface Personel {
   id: string
@@ -146,8 +147,8 @@ export default function KargoPrimPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
-            <Coins className="h-6 w-6" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100/80 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+            <AnimatedKargoPrimIcon size={32} />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Kargo Prim Hesaplama</h1>
