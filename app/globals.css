@@ -1486,8 +1486,10 @@ input[type="number"] {
   }
 }
 
-.animate-gentle-sway {
-  animation: gentle-sway 2.4s ease-in-out infinite !important;
+.sidebar-menu-item:hover .menu-icon-sway,
+.icon-sway-container:hover .icon-sway,
+.icon-sway:hover {
+  animation: gentle-sway 0.85s ease-in-out infinite !important;
   transform-origin: center bottom !important;
   display: inline-block !important;
 }

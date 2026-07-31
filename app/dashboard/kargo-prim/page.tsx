@@ -146,11 +146,8 @@ export default function KargoPrimPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
-            <Coins
-              className="h-6 w-6 animate-gentle-sway"
-              style={{ animation: "gentle-sway 2.4s ease-in-out infinite", transformOrigin: "center bottom" }}
-            />
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 icon-sway-container cursor-pointer">
+            <Coins className="h-6 w-6 icon-sway" />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Kargo Prim Hesaplama</h1>
