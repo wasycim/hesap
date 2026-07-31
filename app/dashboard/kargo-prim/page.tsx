@@ -147,7 +147,7 @@ export default function KargoPrimPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
-            <Coins className="h-6 w-6" />
+            <Coins className="h-6 w-6 animate-gentle-sway" />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Kargo Prim Hesaplama</h1>

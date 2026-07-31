@@ -612,7 +612,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 )}
               >
-                <Coins className="sidebar-menu-icon h-5 w-5 text-emerald-500" />
+                <Coins className="sidebar-menu-icon h-5 w-5 text-emerald-500 animate-gentle-sway" />
                 <span>Kargo Prim</span>
               </Link>
             </li>

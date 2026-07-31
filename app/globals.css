@@ -1264,6 +1264,201 @@
 
 /* Remove spin buttons from number inputs globally */
 input[type="number"]::-webkit-outer-spin-button,
+}
+
+.sidebar-menu-item:hover .menu-icon-soup > :nth-child(3) {
+  animation-delay: 200ms;
+}
+
+@keyframes report-bar-rise {
+  0% { transform: translateY(0) scaleY(1); }
+  35% { transform: translateY(-4px) scaleY(1.2); }
+  70% { transform: translateY(2px) scaleY(0.86); }
+  100% { transform: translateY(-1px) scaleY(1.05); }
+}
+
+@keyframes icon-stroke-redraw {
+  0% { stroke-dasharray: 1 90; stroke-dashoffset: 90; opacity: 0.25; }
+  65% { stroke-dasharray: 90 90; stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dasharray: 90 90; stroke-dashoffset: 0; opacity: 1; }
+}
+
+@keyframes salary-file-search {
+  0%, 100% { transform: translateY(0); }
+  35% { transform: translateY(-4px); }
+  70% { transform: translateY(2px); }
+}
+
+@keyframes package-wrap-line {
+  0% { stroke-dasharray: 1 80; stroke-dashoffset: 80; transform: scale(0.96); }
+  60% { stroke-dasharray: 80 80; stroke-dashoffset: 0; transform: scale(1.08); }
+  100% { stroke-dasharray: 80 80; stroke-dashoffset: 0; transform: scale(1.02); }
+}
+
+@keyframes wallet-body-open {
+  0% { transform: scaleX(1) rotate(0deg); }
+  45% { transform: scaleX(1.14) rotate(-5deg); }
+  75% { transform: scaleX(0.96) rotate(3deg); }
+  100% { transform: scaleX(1.04) rotate(0deg); }
+}
+
+@keyframes soup-steam-wiggle {
+  0% { transform: translateY(0) translateX(0); opacity: 0.75; }
+  35% { transform: translateY(-4px) translateX(1px); opacity: 1; }
+  70% { transform: translateY(-1px) translateX(-1px); opacity: 0.85; }
+  100% { transform: translateY(-3px) translateX(0); opacity: 1; }
+}
+
+@keyframes dashboard-tile-swap-a {
+  0% { transform: translate(0, 0) scale(1); }
+  38% { transform: translate(8px, 0) scale(.92); }
+  72% { transform: translate(8px, 8px) scale(1.06); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes dashboard-tile-swap-b {
+  0% { transform: translate(0, 0) scale(1); }
+  38% { transform: translate(0, 8px) scale(1.06); }
+  72% { transform: translate(-8px, 8px) scale(.92); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes dashboard-tile-swap-c {
+  0% { transform: translate(0, 0) scale(1); }
+  38% { transform: translate(0, -8px) scale(.92); }
+  72% { transform: translate(8px, -8px) scale(1.06); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes dashboard-tile-swap-d {
+  0% { transform: translate(0, 0) scale(1); }
+  38% { transform: translate(-8px, 0) scale(1.06); }
+  72% { transform: translate(-8px, -8px) scale(.92); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+.dashboard-stats-grid > * {
+  animation: dashboard-card-enter 620ms ease both;
+}
+
+.dashboard-stats-grid > :nth-child(2) {
+  animation-delay: 90ms;
+}
+
+.dashboard-stats-grid > :nth-child(3) {
+  animation-delay: 180ms;
+}
+
+.dashboard-stat-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.dashboard-stat-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 18%, rgba(255,255,255,.24) 45%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 650ms ease;
+}
+
+.dashboard-stat-card:hover::after {
+  transform: translateX(120%);
+}
+
+.dashboard-stat-card:hover .dashboard-stat-icon,
+.dashboard-stat-card:hover .dashboard-stat-inline-icon {
+  animation: icon-hover-pop 420ms ease both;
+}
+
+.dashboard-stat-income:hover .dashboard-stat-icon,
+.dashboard-stat-income:hover .dashboard-stat-inline-icon {
+  animation: menu-income-climb 520ms ease both;
+}
+
+.dashboard-stat-expense:hover .dashboard-stat-icon,
+.dashboard-stat-expense:hover .dashboard-stat-inline-icon {
+  animation: menu-expense-dive 520ms ease both;
+}
+
+.dashboard-stat-balance:hover .dashboard-stat-icon {
+  animation: wallet-body-open 650ms ease both;
+}
+
+.dashboard-stat-soup:hover .dashboard-stat-inline-icon {
+  animation: soup-steam-wiggle 650ms ease both;
+}
+
+@keyframes dashboard-card-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(.96);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.sidebar-menu-item:hover .menu-icon-pop {
+  animation: icon-hover-pop 420ms ease both;
+}
+
+.sidebar-menu-item:active .sidebar-menu-icon {
+  animation: icon-click-tap 240ms cubic-bezier(.2, 1.4, .4, 1) both;
+}
+
+@keyframes sidebar-submenu-enter {
+  from {
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    max-height: 26rem;
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sidebar-submenu-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sidebar-submenu-enter {
+  animation: sidebar-submenu-enter 520ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.sidebar-submenu-row-in {
+  animation: sidebar-submenu-row-in 420ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-action:hover svg,
+  .icon-action:active svg,
+  .sidebar-menu-item:hover .sidebar-menu-icon,
+  .sidebar-menu-item:active .sidebar-menu-icon,
+  .sidebar-submenu-enter,
+  .sidebar-submenu-row-in {
+    animation: none;
+  }
+}
+
+/* Remove spin buttons from number inputs globally */
+input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
@@ -1271,4 +1466,28 @@ input[type="number"]::-webkit-inner-spin-button {
 
 input[type="number"] {
   -moz-appearance: textfield;
+}
+
+@keyframes gentle-sway {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  20% {
+    transform: rotate(-10deg);
+  }
+  40% {
+    transform: rotate(8deg);
+  }
+  60% {
+    transform: rotate(-5deg);
+  }
+  80% {
+    transform: rotate(3deg);
+  }
+}
+
+.animate-gentle-sway {
+  animation: gentle-sway 3.2s ease-in-out infinite;
+  transform-origin: center bottom;
+  display: inline-block;
 }
