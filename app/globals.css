@@ -1257,13 +1257,12 @@
   .sidebar-menu-item:hover .sidebar-menu-icon,
   .sidebar-menu-item:active .sidebar-menu-icon,
   .sidebar-submenu-enter,
-  .sidebar-submenu-row-in {
-    animation: none;
-  }
+.sidebar-menu-item:hover .menu-icon-soup > :nth-child(-n+3) {
+  animation: soup-steam-wiggle 900ms ease both;
 }
 
-/* Remove spin buttons from number inputs globally */
-input[type="number"]::-webkit-outer-spin-button,
+.sidebar-menu-item:hover .menu-icon-soup > :nth-child(2) {
+  animation-delay: 100ms;
 }
 
 .sidebar-menu-item:hover .menu-icon-soup > :nth-child(3) {
