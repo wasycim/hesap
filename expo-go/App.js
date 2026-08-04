@@ -669,6 +669,14 @@ export default function App() {
     )
   }
 
+  const isAdmin = Boolean(
+    session?.profile?.isAdmin ||
+    session?.profile?.is_admin ||
+    session?.profile?.isDeveloper ||
+    session?.profile?.is_developer ||
+    overview?.isAdmin
+  )
+
   return (
     <SafeAreaView style={styles.app}>
       <StatusBar style="light" backgroundColor="#0f172a" />
@@ -676,7 +684,7 @@ export default function App() {
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
           <Image source={LOGO_IMG} style={{ width: 38, height: 38, borderRadius: 10 }} resizeMode="contain" />
           <View>
-            <Text style={styles.topEyebrow}>Hesap Mobil v4.0</Text>
+            <Text style={styles.topEyebrow}>Hesap Mobil v4.1</Text>
             <Text style={styles.topTitle}>{session.user?.displayName || "Kullanıcı"}</Text>
           </View>
         </View>
@@ -693,7 +701,7 @@ export default function App() {
           <TabButton label="Vardiyam" active={screen === "shifts"} onPress={() => setScreen("shifts")} />
           <TabButton label="Raporlar" active={screen === "reports"} onPress={() => setScreen("reports")} />
           <TabButton label="Mesai Takip" active={screen === "tracking"} onPress={() => setScreen("tracking")} />
-          {session?.profile?.is_admin || session?.profile?.is_developer ? (
+          {isAdmin ? (
             <>
               <TabButton label="Borç Özeti" active={screen === "debts"} onPress={() => setScreen("debts")} />
               <TabButton label="Yedek & Log" active={screen === "backups"} onPress={() => setScreen("backups")} />
@@ -809,18 +817,13 @@ function OverviewScreen({ data }) {
       <View style={styles.heroCard}>
         <Text style={styles.heroEyebrow}>BUGÜN</Text>
         <Text style={styles.heroTitle}>{formatDate(data.date)}</Text>
-        <Text style={styles.heroSub}>{data.branch?.ad || "Şube"} · Salt okunur özet</Text>
+        <Text style={styles.heroSub}>{data.branch?.ad || "Şube"} · Anlık Finansal Özet</Text>
       </View>
 
       <View style={styles.statsGrid}>
         <StatCard label="Gelir" value={data.toplamGelir} tone="green" />
         <StatCard label="Gider" value={data.toplamGider} tone="red" />
         <StatCard label="Kalan" value={data.kalan} tone={Number(data.kalan) >= 0 ? "blue" : "red"} wide />
-      </View>
-
-      <View style={styles.infoCard}>
-        <Text style={styles.infoTitle}>Telefon modu</Text>
-        <Text style={styles.infoText}>Bu ekrandaki kartlar işlem sayfalarına yönlendirmez. Mobil uygulama sadece genel özet ve kişisel maaş detayını gösterir.</Text>
       </View>
     </View>
   )

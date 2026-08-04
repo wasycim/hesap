@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient()
   const { data: profile, error: profileError } = await admin
     .from("user_profiles")
-    .select("user_id, email, display_name, sube_id, dashboard_access, tc_kimlik")
+    .select("user_id, email, display_name, sube_id, dashboard_access, tc_kimlik, is_admin, is_developer")
     .eq("tc_kimlik", tcKimlik)
     .maybeSingle()
 
@@ -65,6 +65,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "TC veya şifre hatalı." }, { status: 401 })
   }
 
+  const isAdmin = Boolean(profile.is_admin || profile.is_developer)
+  const isDeveloper = Boolean(profile.is_developer)
+
   return NextResponse.json({
     user: {
       id: data.user.id,
@@ -75,6 +78,10 @@ export async function POST(request: NextRequest) {
       subeId: profile.sube_id,
       dashboardAccess: profile.dashboard_access !== false,
       tcKimlik: profile.tc_kimlik,
+      isAdmin,
+      isDeveloper,
+      is_admin: isAdmin,
+      is_developer: isDeveloper,
     },
     session: {
       accessToken: data.session.access_token,

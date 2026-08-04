@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient()
   const { data: profile, error: profileError } = await admin
     .from("user_profiles")
-    .select("sube_id, display_name, dashboard_access")
+    .select("sube_id, display_name, dashboard_access, is_admin, is_developer")
     .eq("user_id", user.id)
     .maybeSingle()
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
@@ -36,10 +36,15 @@ export async function GET(request: NextRequest) {
 
   const toplamGelir = (gelir || []).reduce((sum, row) => sum + Number(row.toplam || 0), 0)
   const toplamGider = (gider || []).reduce((sum, row) => sum + Number(row.genel_toplam || 0), 0)
+  const isAdmin = Boolean(profile.is_admin || profile.is_developer)
+  const isDeveloper = Boolean(profile.is_developer)
+
   return NextResponse.json({
     date: today,
     branch,
     displayName: profile.display_name || user.email || "Kullanıcı",
+    isAdmin,
+    isDeveloper,
     toplamGelir,
     toplamGider,
     kalan: toplamGelir - toplamGider,

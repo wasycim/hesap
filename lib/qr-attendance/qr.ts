@@ -56,36 +56,47 @@ export function parseQrPayload(value: unknown): QrPayload | null {
 }
 
 export function parseTerminalQrPayload(value: unknown): TerminalQrPayload | null {
-  if (typeof value !== "string") return null
+  if (typeof value !== "string" || !value.trim()) return null
+  const str = value.trim()
 
-  const fromUrl = parseTerminalQrUrl(value)
+  // 1. Check if URL or Deep Link
+  const fromUrl = parseTerminalQrUrl(str)
   if (fromUrl) return fromUrl
 
-  try {
-    const payload = JSON.parse(value) as Partial<TerminalQrPayload>
-    if (payload.terminalId !== "fixed-terminal" || typeof payload.token !== "string") {
-      return null
-    }
-
-    if (payload.token.length < 32 || payload.token.length > 2048) {
-      return null
-    }
-
+  // 2. Check if raw JWT token string (e.g. "eyJhbGciOiJIUzI1Ni...")
+  if (!str.startsWith("{") && str.length >= 32 && str.length <= 2048) {
     return {
-      terminalId: payload.terminalId,
-      token: payload.token,
+      terminalId: "fixed-terminal",
+      token: str,
+    }
+  }
+
+  // 3. Check if JSON payload string (e.g. '{"terminalId":"fixed-terminal","token":"..."}')
+  try {
+    const payload = JSON.parse(str) as Partial<TerminalQrPayload>
+    if (payload.token && typeof payload.token === "string" && payload.token.length >= 32 && payload.token.length <= 2048) {
+      return {
+        terminalId: payload.terminalId || "fixed-terminal",
+        token: payload.token,
+      }
     }
   } catch {
-    return null
+    // fallback
   }
+
+  return null
 }
 
 function parseTerminalQrUrl(value: string): TerminalQrPayload | null {
   try {
-    const url = new URL(value)
-    const token = url.searchParams.get("t") || url.searchParams.get("token")
+    let cleanUrl = value
+    if (cleanUrl.startsWith("hesapgo://")) {
+      cleanUrl = cleanUrl.replace("hesapgo://", "https://app/")
+    }
+
+    const url = new URL(cleanUrl)
+    const token = url.searchParams.get("t") || url.searchParams.get("token") || url.searchParams.get("qr")
     if (!token) return null
-    if (!url.pathname.startsWith("/mesai-qr/okut")) return null
     if (token.length < 32 || token.length > 2048) return null
     return {
       terminalId: "fixed-terminal",
