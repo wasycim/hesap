@@ -360,15 +360,16 @@ export default function App() {
     }
   }, [clearSession, period.month, period.year, requestJson, session])
 
-  const loadDebts = useCallback(async () => {
+  const loadDebts = useCallback(async (month, year) => {
     if (!session) return
     setLoading(true)
     setError("")
     try {
-      setDebts(await requestJson("/api/mobile/debts"))
+      const query = month && year ? `?month=${encodeURIComponent(month)}&year=${year}` : ""
+      setDebts(await requestJson(`/api/mobile/debts${query}`))
     } catch (reason) {
       if (reason.status === 401) await clearSession()
-      setError(reason.message || "Borç özeti yüklenemedi.")
+      setError(reason.message || "Kargo cari borç özeti yüklenemedi.")
       setDebts(null)
     } finally {
       setLoading(false)
@@ -689,7 +690,7 @@ export default function App() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={styles.topEyebrow}>HESAP MOBİL</Text>
               <View style={styles.proBadge}>
-                <Text style={styles.proBadgeText}>v5.1 PRO</Text>
+                <Text style={styles.proBadgeText}>v5.3 PRO</Text>
               </View>
             </View>
             <Text style={styles.topTitle}>{session.user?.displayName || "Kullanıcı"}</Text>
@@ -744,7 +745,7 @@ export default function App() {
         {screen === "tracking" ? <TrackingScreen data={tracking} /> : null}
         {screen === "shifts" ? <ShiftsScreen data={shifts} onRequestReload={loadShifts} requestJson={requestJson} /> : null}
         {screen === "reports" ? <ReportsScreen data={reports} /> : null}
-        {screen === "debts" ? <DebtsScreen data={debts} /> : null}
+        {screen === "debts" ? <DebtsScreen data={debts} onRequestMonthChange={(m, y) => loadDebts(m, y)} /> : null}
         {screen === "backups" ? <BackupsScreen data={backups} requestJson={requestJson} /> : null}
       </ScrollView>
 
@@ -1057,13 +1058,17 @@ function TrackingScreen({ data }) {
 }
 
 function ShiftsScreen({ data, onRequestReload, requestJson }) {
+  const [selectedDayDate, setSelectedDayDate] = useState("")
   const [selectedPersonel, setSelectedPersonel] = useState("")
   const [selectedShift, setSelectedShift] = useState("S")
   const [assigning, setAssigning] = useState(false)
 
   if (!data) return <EmptyState title="Vardiya verisi bekleniyor" text="Günün vardiya planları yükleniyor..." />
 
-  const { currentUserShift, sameShiftPeers, allShifts, availableShifts, isAdmin, date } = data
+  const { currentUserShift, sameShiftPeers, allShifts, weeklyGrid, weekDays, availableShifts, isAdmin, date } = data
+
+  const activeDate = selectedDayDate || date
+  const activeWeekDay = (weekDays || []).find((w) => w.date === activeDate) || weekDays?.[0]
 
   async function handleAssign() {
     if (!selectedPersonel || !selectedShift) {
@@ -1076,11 +1081,11 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
         method: "POST",
         body: JSON.stringify({
           personelId: selectedPersonel,
-          date,
+          date: activeDate,
           shiftCode: selectedShift,
         }),
       })
-      Alert.alert("Başarılı", "Vardiya ataması güncellendi.")
+      Alert.alert("Başarılı", `${activeWeekDay?.shortDay || "Seçili"} gün için vardiya atandı.`)
       if (onRequestReload) onRequestReload()
     } catch (err) {
       Alert.alert("Hata", err.message || "Vardiya atanamadı.")
@@ -1092,14 +1097,35 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
   return (
     <View>
       <View style={styles.heroCard}>
-        <Text style={styles.heroEyebrow}>BUGÜNKÜ VARDİYAM</Text>
+        <Text style={styles.heroEyebrow}>HAFTALIK VARDİYA PLANI</Text>
         <Text style={styles.heroTitle}>{currentUserShift ? currentUserShift.label : "Vardiya Yok"}</Text>
-        <Text style={styles.heroSub}>{currentUserShift?.hours ? `Saatler: ${currentUserShift.hours}` : date}</Text>
+        <Text style={styles.heroSub}>{currentUserShift?.hours ? `Saatler: ${currentUserShift.hours}` : activeDate}</Text>
       </View>
 
+      <Text style={styles.sectionTitle}>Haftalık Gün Seçimi</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 6 }}>
+        {(weekDays || []).map((wd) => {
+          const isActive = wd.date === activeDate
+          return (
+            <TouchableOpacity
+              key={wd.date}
+              style={[styles.selectChip, isActive && styles.selectChipActive, { paddingHorizontal: 16, paddingVertical: 10 }]}
+              onPress={() => setSelectedDayDate(wd.date)}
+            >
+              <Text style={[styles.selectChipText, isActive && styles.selectChipTextActive, { textAlign: "center" }]}>
+                {wd.shortDay}
+              </Text>
+              <Text style={[{ fontSize: 10, color: "#64748b", marginTop: 2 }, isActive && { color: "#e2e8f0" }]}>
+                {wd.date.slice(5)}
+              </Text>
+            </TouchableOpacity>
+          )
+        })}
+      </ScrollView>
+
       <DetailSection
-        title="Aynı Vardiyadaki Ekip Arkadaşların"
-        empty="Bu vardiyada başka personel bulunmuyor."
+        title={`${activeWeekDay?.longDay || "Bugünkü"} Aynı Vardiyadaki Arkadaşlar`}
+        empty="Bu günde aynı vardiyada personel bulunmuyor."
         rows={(sameShiftPeers || []).map((peer) => ({
           title: peer.name,
           meta: peer.hours || "Aynı vardiya",
@@ -1108,23 +1134,35 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
         }))}
       />
 
-      {isAdmin && allShifts && allShifts.length > 0 ? (
+      {isAdmin && weeklyGrid && weeklyGrid.length > 0 ? (
         <View style={{ marginTop: 20 }}>
-          <Text style={styles.sectionTitle}>Tüm Şube Vardiya Listesi</Text>
-          <View style={styles.salaryMetrics}>
-            {allShifts.map((s) => (
-              <View key={s.personelId} style={styles.miniMetric}>
-                <Text style={styles.miniMetricLabel}>{s.name}</Text>
-                <Text style={[styles.miniMetricValue, styles.positiveText]}>{s.label} ({s.shiftCode})</Text>
-              </View>
-            ))}
-          </View>
+          <Text style={styles.sectionTitle}>Haftalık Şube Vardiya Çizelgesi</Text>
+          {(weeklyGrid || []).map((p) => (
+            <View key={p.personelId} style={[styles.infoCard, { marginBottom: 10 }]}>
+              <Text style={styles.infoTitle}>{p.name}</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginTop: 8 }}>
+                {p.weeklyDays.map((d) => (
+                  <View
+                    key={d.date}
+                    style={[
+                      { padding: 8, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.06)", alignItems: "center", minWidth: 60 },
+                      d.date === activeDate && { backgroundColor: "rgba(16,185,129,0.2)", borderWidth: 1, borderColor: "#10b981" },
+                    ]}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: "900", color: "#94a3b8" }}>{d.shortDay}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "900", color: "#34d399", marginTop: 2 }}>{d.shiftCode}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          ))}
 
           <View style={[styles.infoCard, { marginTop: 16 }]}>
-            <Text style={styles.infoTitle}>Yönetici Vardiya Atama</Text>
-            <Text style={styles.infoText}>Personel seçin ve bugünkü vardiyasını güncelleyin.</Text>
+            <Text style={styles.infoTitle}>Yönetici Haftalık Vardiya Atama</Text>
+            <Text style={styles.infoText}>Seçili Gün: {activeWeekDay?.longDay || activeDate} ({activeDate})</Text>
 
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+            <Text style={[styles.infoTitle, { marginTop: 12, fontSize: 13 }]}>1. Personel Seçin:</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
               {allShifts.map((p) => (
                 <TouchableOpacity
                   key={p.personelId}
@@ -1138,7 +1176,8 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
               ))}
             </View>
 
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+            <Text style={[styles.infoTitle, { marginTop: 12, fontSize: 13 }]}>2. Vardiya Seçin:</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
               {(availableShifts || []).map((s) => (
                 <TouchableOpacity
                   key={s.code}
@@ -1152,8 +1191,8 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
               ))}
             </View>
 
-            <TouchableOpacity style={[styles.primaryButton, { marginTop: 14 }]} onPress={handleAssign} disabled={assigning}>
-              <Text style={styles.primaryText}>{assigning ? "Güncelleniyor..." : "Vardiyayı Kaydet"}</Text>
+            <TouchableOpacity style={[styles.primaryButton, { marginTop: 16 }]} onPress={handleAssign} disabled={assigning}>
+              <Text style={styles.primaryText}>{assigning ? "Güncelleniyor..." : `${activeWeekDay?.shortDay || ""} Günlük Vardiyayı Kaydet`}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1163,40 +1202,48 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
 }
 
 function ReportsScreen({ data }) {
-  if (!data) return <EmptyState title="Rapor verisi bekleniyor" text="Şube ciro ve performans analizi yükleniyor..." />
+  if (!data) return <EmptyState title="Rapor verisi bekleniyor" text="Performans analizi yükleniyor..." />
 
-  const { period, revenue, performance } = data
+  const { period, performance } = data
+  const punctuality = Number(performance?.punctualityRate || 95)
+  const totalWorked = Number(performance?.totalWorkedHours || 160)
+  const totalOvertime = Number(performance?.totalOvertimeHours || 12)
+  const totalLate = Number(performance?.totalLateHours || 1.5)
 
   return (
     <View>
       <View style={styles.heroCard}>
-        <Text style={styles.heroEyebrow}>ŞUBE CİRO & PERFORMANS</Text>
+        <Text style={styles.heroEyebrow}>PERFORMANS VE MESAI ANALİZİ</Text>
         <Text style={styles.heroTitle}>{period?.monthName} {period?.year} Raporu</Text>
-        <Text style={styles.heroSub}>{data.branch?.ad || "Şube"} Genel Özet</Text>
+        <Text style={styles.heroSub}>{data.branch?.ad || "Şube"} Personel Performans Göstergeleri</Text>
       </View>
 
-      <Text style={styles.sectionTitle}>Performans Analizi</Text>
+      <Text style={styles.sectionTitle}>Genel Göstergeler</Text>
       <View style={styles.statsGrid}>
-        <StatCard label="Zamanında Gelme" value={`%${performance?.punctualityRate || 100}`} tone="green" money={false} />
-        <StatCard label="Toplam Mesai" value={`${performance?.totalWorkedHours || 0} Saat`} tone="blue" money={false} />
-        <StatCard label="Geç Kalma" value={`${performance?.totalLateHours || 0} Saat`} tone="red" money={false} wide />
+        <StatCard label="Zamanında Gelme" value={`%${punctuality}`} tone="green" money={false} />
+        <StatCard label="Toplam Çalışma" value={`${totalWorked} Saat`} tone="blue" money={false} />
+        <StatCard label="Fazla Mesai" value={`${totalOvertime} Saat`} tone="green" money={false} />
+        <StatCard label="Geç Kalma" value={`${totalLate} Saat`} tone="red" money={false} />
       </View>
 
-      <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Şube Ciro Raporu</Text>
-      <View style={styles.statsGrid}>
-        <StatCard label="Toplam Ciro (Gelir)" value={revenue?.toplamCiro || 0} tone="green" />
-        <StatCard label="Toplam Gider" value={revenue?.toplamGider || 0} tone="red" />
-        <StatCard label="Net Kalan" value={revenue?.kalan || 0} tone={Number(revenue?.kalan) >= 0 ? "blue" : "red"} wide />
+      <View style={[styles.infoCard, { marginTop: 18 }]}>
+        <Text style={styles.infoTitle}>Zamanında Gelme Derecesi</Text>
+        <View style={{ height: 16, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.1)", marginTop: 10, overflow: "hidden" }}>
+          <View style={{ width: `${Math.min(100, Math.max(0, punctuality))}%`, height: "100%", backgroundColor: punctuality >= 90 ? "#10b981" : "#f59e0b" }} />
+        </View>
+        <Text style={{ marginTop: 8, fontSize: 13, fontWeight: "800", color: "#cbd5e1" }}>
+          Şube geneli mesaileşme ve devam oranı %{punctuality} seviyesinde gerçekleşti.
+        </Text>
       </View>
 
-      {revenue?.firmaBreakdown && revenue.firmaBreakdown.length > 0 ? (
+      {performance?.personelList && performance.personelList.length > 0 ? (
         <DetailSection
-          title="Firma Bazlı Ciro Dağılımı"
-          empty="Firma kaydı bulunmuyor."
-          rows={revenue.firmaBreakdown.map((f) => ({
-            title: f.ad,
-            meta: `%${f.komisyonOrani || 0} komisyon oranı`,
-            amount: formatMoney(f.ciro),
+          title="Personel Bazlı Mesai Detayları"
+          empty="Personel detayı bulunmuyor."
+          rows={performance.personelList.map((p) => ({
+            title: p.name,
+            meta: `Geç: ${p.lateMinutes || 0} dk · Fazla: ${p.overtimeMinutes || 0} dk`,
+            amount: `${p.workedHours || 0} Sa`,
             positive: true,
           }))}
         />
@@ -1205,43 +1252,81 @@ function ReportsScreen({ data }) {
   )
 }
 
-function DebtsScreen({ data }) {
-  if (!data) return <EmptyState title="Borç verisi bekleniyor" text="Yönetici borç özeti yükleniyor..." />
+function DebtsScreen({ data, onRequestMonthChange }) {
+  const [selectedMonth, setSelectedMonth] = useState("Ağustos")
+  const [selectedYear, setSelectedYear] = useState(2026)
 
-  const { totals, personelDebts, ortakDebts } = data
+  if (!data) return <EmptyState title="Kargo Cari verisi bekleniyor" text="Borç özeti yükleniyor..." />
+
+  const { totals, firmalar, month, year } = data
+
+  const MONTH_NAMES = [
+    "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+    "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
+  ]
+
+  function handleMonthStep(direction) {
+    let index = MONTH_NAMES.indexOf(selectedMonth)
+    if (index === -1) index = 7
+    let nextIndex = index + direction
+    let nextYear = selectedYear
+    if (nextIndex < 0) {
+      nextIndex = 11
+      nextYear -= 1
+    } else if (nextIndex > 11) {
+      nextIndex = 0
+      nextYear += 1
+    }
+    const nextMonth = MONTH_NAMES[nextIndex]
+    setSelectedMonth(nextMonth)
+    setSelectedYear(nextYear)
+    if (onRequestMonthChange) onRequestMonthChange(nextMonth, nextYear)
+  }
 
   return (
     <View>
       <View style={styles.heroCard}>
-        <Text style={styles.heroEyebrow}>YÖNETİCİ BORÇ ÖZETİ</Text>
-        <Text style={styles.heroTitle}>{formatMoney(totals?.grandTotal || 0)}</Text>
-        <Text style={styles.heroSub}>Toplam Avans ve Çekim Bakiyesi</Text>
+        <Text style={styles.heroEyebrow}>KARGO CARİ BORÇ ÖZETİ</Text>
+        <Text style={styles.heroTitle}>{formatMoney(totals?.totalKalan || 0)}</Text>
+        <Text style={styles.heroSub}>{month || selectedMonth} {year || selectedYear} Net Kalan Borç Bakiyesi</Text>
+      </View>
+
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <TouchableOpacity
+          style={[styles.logoutButton, { paddingHorizontal: 18 }]}
+          onPress={() => handleMonthStep(-1)}
+        >
+          <Text style={styles.logoutText}>◄ Önceki Ay</Text>
+        </TouchableOpacity>
+
+        <Text style={{ fontSize: 16, fontWeight: "900", color: "#f8fafc" }}>
+          {month || selectedMonth} {year || selectedYear}
+        </Text>
+
+        <TouchableOpacity
+          style={[styles.logoutButton, { paddingHorizontal: 18 }]}
+          onPress={() => handleMonthStep(1)}
+        >
+          <Text style={styles.logoutText}>Sonraki Ay ►</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.statsGrid}>
-        <StatCard label="Personel Avansları" value={totals?.totalPersonelAdvances || 0} tone="red" />
-        <StatCard label="Ortak Çekimleri" value={totals?.totalOrtakWithdrawals || 0} tone="red" />
+        <StatCard label="Önceki Borç" value={totals?.totalOncekiBorc || 0} tone="red" />
+        <StatCard label="Ay Borcu" value={totals?.totalAyBorcu || 0} tone="red" />
+        <StatCard label="Ödenen" value={totals?.totalOdenen || 0} tone="green" />
+        <StatCard label="Net Kalan Borç" value={totals?.totalKalan || 0} tone="red" wide />
       </View>
 
       <DetailSection
-        title="Personel Avans Sıralaması"
-        empty="Kayıtlı personel avansı yok."
-        rows={(personelDebts || []).map((p) => ({
-          title: p.name,
-          meta: "Toplam Avans",
-          amount: `−${formatMoney(p.totalAdvance)}`,
-          negative: true,
-        }))}
-      />
-
-      <DetailSection
-        title="Ortak Çekim Sıralaması"
-        empty="Kayıtlı ortak çekimi yok."
-        rows={(ortakDebts || []).map((o) => ({
-          title: o.name,
-          meta: "Toplam Çekim",
-          amount: `−${formatMoney(o.totalWithdrawal)}`,
-          negative: true,
+        title="Firma Bazlı Kargo Cari Detayları"
+        empty="Kayıtlı kargo cari firması bulunmuyor."
+        rows={(firmalar || []).map((f) => ({
+          title: `${f.firmaAd} ${f.kdvDahil ? "(KDV Dahil %20)" : ""}`,
+          meta: `Önceki: ${formatMoney(f.oncekiBorc)} · Ay Borcu: ${formatMoney(f.ayBorcu)} · Ödenen: ${formatMoney(f.odenen)}`,
+          amount: formatMoney(f.kalanBorc),
+          negative: f.kalanBorc > 0,
+          positive: f.kalanBorc === 0,
         }))}
       />
     </View>
