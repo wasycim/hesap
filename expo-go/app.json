@@ -16,7 +16,6 @@
       "supportsTablet": true,
       "bundleIdentifier": "wasy.system.hesap",
       "icon": "./assets/icon.png",
-      "associatedDomains": ["applinks:pamukkaleturizm.info"],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Mesai QR kodunu okutmak için kameraya erişim gerekiyor."
