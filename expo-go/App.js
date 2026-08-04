@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -19,6 +20,8 @@ import { StatusBar } from "expo-status-bar"
 import * as Print from "expo-print"
 import * as SecureStore from "expo-secure-store"
 import * as Sharing from "expo-sharing"
+
+const LOGO_IMG = require("./assets/logo.png")
 
 const API_BASE_URL = "https://pamukkaleturizm.info"
 const SESSION_KEY = "hesap.native.session"
@@ -132,6 +135,7 @@ export default function App() {
   const [scanLocked, setScanLocked] = useState(false)
   const [scanMessage, setScanMessage] = useState("")
   const [period, setPeriod] = useState({ month: now.getMonth() + 1, year: now.getFullYear() })
+  const isScanningRef = useRef(false)
 
   const persistSession = useCallback(async (nextSession) => {
     await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(nextSession))
@@ -150,6 +154,7 @@ export default function App() {
     setScannerOpen(false)
     setScanLocked(false)
     setScanMessage("")
+    isScanningRef.current = false
     setScreen("overview")
   }, [])
 
@@ -409,18 +414,32 @@ export default function App() {
       return
     }
 
+    isScanningRef.current = false
     setScanLocked(false)
     setScanMessage("")
     setScannerOpen(true)
   }
 
   async function handleBarcodeScanned(event) {
-    if (scanLocked) return
-    const qr = String(event?.data || "").trim()
+    if (isScanningRef.current) return
+    let qr = String(event?.data || "").trim()
     if (!qr) return
 
+    // Lock synchronously with useRef to prevent multi-triggering (3-5 times)
+    isScanningRef.current = true
     setScanLocked(true)
     setScanMessage("QR kontrol ediliyor…")
+
+    // In-app QR handling: Extract qr parameter if full web URL was scanned
+    if (qr.includes("?qr=") || qr.includes("&qr=")) {
+      try {
+        const match = qr.match(/[?&]qr=([^&]+)/)
+        if (match) qr = decodeURIComponent(match[1])
+      } catch (e) {
+        // fallback
+      }
+    }
+
     try {
       const identity = await getDeviceIdentity()
       const result = await requestJson("/api/personel/scan-terminal", {
@@ -429,11 +448,13 @@ export default function App() {
       })
       const actionText = result.action === "CHECK_OUT" ? "Çıkış alındı" : "Giriş alındı"
       setScannerOpen(false)
+      isScanningRef.current = false
       Alert.alert(actionText, `${result.user?.name || "Personel"} · ${result.shift?.label || "Vardiya yok"}`)
       await loadAttendance()
     } catch (reason) {
       setScanMessage(reason.message || "QR işlemi başarısız.")
       setTimeout(() => {
+        isScanningRef.current = false
         setScanLocked(false)
         setScanMessage("")
       }, 2200)
@@ -501,9 +522,9 @@ export default function App() {
   if (!session) {
     return (
       <AuthFrame>
-        <Text style={styles.authEyebrow}>HESAP MOBİL</Text>
-        <Text style={styles.authTitle}>Native iOS giriş</Text>
-        <Text style={styles.authText}>TestFlight uygulaması artık web sayfası açmaz; verileri güvenli API üzerinden çeker.</Text>
+        <Text style={styles.authEyebrow}>HESAP MOBİL v3.0</Text>
+        <Text style={styles.authTitle}>iOS & Android Giriş</Text>
+        <Text style={styles.authText}>Personel maaş ve mesai takip sistemine güvenli giriş yapın.</Text>
         <TextInput
           style={styles.input}
           value={loginForm.tcKimlik}
@@ -531,9 +552,12 @@ export default function App() {
     <SafeAreaView style={styles.app}>
       <StatusBar style="light" backgroundColor="#0f172a" />
       <View style={styles.topBar}>
-        <View>
-          <Text style={styles.topEyebrow}>Hesap Mobil</Text>
-          <Text style={styles.topTitle}>{session.user?.displayName || "Kullanıcı"}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <Image source={LOGO_IMG} style={{ width: 38, height: 38, borderRadius: 10 }} resizeMode="contain" />
+          <View>
+            <Text style={styles.topEyebrow}>Hesap Mobil v3.0</Text>
+            <Text style={styles.topTitle}>{session.user?.displayName || "Kullanıcı"}</Text>
+          </View>
         </View>
         <TouchableOpacity style={styles.logoutButton} onPress={clearSession}>
           <Text style={styles.logoutText}>Çıkış</Text>
@@ -568,7 +592,7 @@ export default function App() {
         {screen === "tracking" ? <TrackingScreen data={tracking} /> : null}
       </ScrollView>
 
-      <Modal visible={scannerOpen} animationType="slide" onRequestClose={() => setScannerOpen(false)}>
+      <Modal visible={scannerOpen} animationType="slide" onRequestClose={() => { isScanningRef.current = false; setScannerOpen(false); }}>
         <SafeAreaView style={styles.scannerRoot}>
           <StatusBar style="light" backgroundColor="#020617" />
           <View style={styles.scannerHeader}>
@@ -576,7 +600,7 @@ export default function App() {
               <Text style={styles.topEyebrow}>MESAI QR</Text>
               <Text style={styles.scannerTitle}>Terminal kodunu okut</Text>
             </View>
-            <TouchableOpacity style={styles.logoutButton} onPress={() => setScannerOpen(false)}>
+            <TouchableOpacity style={styles.logoutButton} onPress={() => { isScanningRef.current = false; setScannerOpen(false); }}>
               <Text style={styles.logoutText}>Kapat</Text>
             </TouchableOpacity>
           </View>
@@ -608,7 +632,7 @@ function AuthFrame({ children }) {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.authKeyboard}>
         <View style={styles.authCard}>
           <View style={styles.logoCircle}>
-            <Text style={styles.logoText}>H</Text>
+            <Image source={LOGO_IMG} style={{ width: 44, height: 44, borderRadius: 10 }} resizeMode="contain" />
           </View>
           {children}
         </View>
@@ -688,7 +712,7 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare }) {
       {!data ? <EmptyState title="Maaş detayı bekleniyor" text="Bu ay için maaş verisi geldiğinde burada görünecek." /> : (
         <>
           <View style={styles.salaryHero}>
-            <Text style={styles.salaryHeroLabel}>Net kalan</Text>
+            <Text style={styles.salaryHeroLabel}>Nakit Alınacak Net</Text>
             <Text style={styles.salaryHeroValue}>{formatMoney(data.remaining)}</Text>
             <Text style={styles.salaryHeroSub}>{data.personel?.name || "Personel"} · {data.branch?.ad || "Şube"}</Text>
             <TouchableOpacity style={styles.pdfButton} onPress={onShare}>
@@ -697,9 +721,14 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare }) {
           </View>
 
           <View style={styles.salaryMetrics}>
-            <MiniMetric label="Aylık maaş" value={data.baseSalary} />
-            <MiniMetric label="Onaylı mesai" value={data.overtimeTotal} positive />
+            <MiniMetric label="Net Maaş" value={data.baseSalary} />
+            <MiniMetric label="Banka Maaş" value={data.bankaMaas || 0} />
+            <MiniMetric label="Nakit Maaş" value={data.nakitMaas || 0} />
+            <MiniMetric label="Hakediş / Mesai" value={data.overtimeTotal} positive />
             <MiniMetric label="Avans" value={data.advanceTotal} negative />
+            {Number(data.corbaTotal) > 0 ? (
+              <MiniMetric label="Çorba Kazanılan" value={data.corbaTotal} positive />
+            ) : null}
           </View>
 
           <DetailSection title="Avanslar" empty="Bu ay avans kaydı yok." rows={(data.advances || []).map((item) => ({
@@ -708,12 +737,20 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare }) {
             amount: `−${formatMoney(item.amount)}`,
             negative: true,
           }))} />
-          <DetailSection title="Mesailer" empty="Bu ay onaylı mesai kaydı yok." rows={(data.overtime || []).map((item) => ({
+          <DetailSection title="Mesailer ve Hakedişler" empty="Bu ay onaylı mesai/hakediş kaydı yok." rows={(data.overtime || []).map((item) => ({
             title: formatDate(item.date),
             meta: `${item.description}${item.minutes ? ` · ${formatMinutes(item.minutes)}` : ""}`,
             amount: `+${formatMoney(item.amount)}`,
             positive: true,
           }))} />
+          {data.corbaDetails && data.corbaDetails.length > 0 ? (
+            <DetailSection title="Çorba Kazanılan Detayları" empty="Bu ay çorba kaydı yok." rows={(data.corbaDetails || []).map((item) => ({
+              title: formatDate(item.date),
+              meta: item.description,
+              amount: `+${formatMoney(item.amount)}`,
+              positive: true,
+            }))} />
+          ) : null}
         </>
       )}
     </View>
@@ -911,6 +948,8 @@ function salaryPdfHtml(data) {
     <tr><td>${formatDate(item.date)}</td><td>${escapeHtml(item.description)} ${item.minutes ? `· ${formatMinutes(item.minutes)}` : ""}</td><td class="positive">+${formatMoney(item.amount)}</td></tr>
   `).join("") || `<tr><td colspan="3">Mesai kaydı yok.</td></tr>`
 
+  const corbaLine = Number(data.corbaTotal) > 0 ? `<div class="metric"><span>Çorba Kazanılan</span><strong class="positive">+${formatMoney(data.corbaTotal)}</strong></div>` : ""
+
   return `
     <!doctype html>
     <html lang="tr">
@@ -932,17 +971,19 @@ function salaryPdfHtml(data) {
         </style>
       </head>
       <body>
-        <h1>${escapeHtml(data.personel?.name || "Personel")} Maaş Detayı</h1>
-        <div class="sub">${escapeHtml(data.branch?.ad || "Şube")} · ${monthLabel(data.period.month, data.period.year)}</div>
+        <h1>${escapeHtml(data.personel?.name || "Personel")} Maaş Hakediş Raporu</h1>
+        <div class="sub">${escapeHtml(data.branch?.ad || "Şube")} · ${data.period?.monthName || ""} ${data.period?.year || ""}</div>
         <div class="metrics">
-          <div class="metric"><span>Aylık Maaş</span><strong>${formatMoney(data.baseSalary)}</strong></div>
-          <div class="metric"><span>Onaylı Mesai</span><strong class="positive">+${formatMoney(data.overtimeTotal)}</strong></div>
+          <div class="metric"><span>Net Maaş</span><strong>${formatMoney(data.baseSalary)}</strong></div>
+          <div class="metric"><span>Banka Maaş / Nakit</span><strong>${formatMoney(data.bankaMaas || 0)} / ${formatMoney(data.nakitMaas || 0)}</strong></div>
+          <div class="metric"><span>Hakediş / Mesai</span><strong class="positive">+${formatMoney(data.overtimeTotal)}</strong></div>
           <div class="metric"><span>Avans</span><strong class="negative">-${formatMoney(data.advanceTotal)}</strong></div>
-          <div class="metric"><span>Net Kalan</span><strong>${formatMoney(data.remaining)}</strong></div>
+          ${corbaLine}
+          <div class="metric"><span>Nakit Alınacak Net</span><strong>${formatMoney(data.remaining)}</strong></div>
         </div>
         <h2>Avanslar</h2>
         <table><thead><tr><th>Tarih</th><th>Açıklama</th><th>Tutar</th></tr></thead><tbody>${advances}</tbody></table>
-        <h2>Mesailer</h2>
+        <h2>Mesailer ve Hakedişler</h2>
         <table><thead><tr><th>Tarih</th><th>Açıklama</th><th>Tutar</th></tr></thead><tbody>${overtime}</tbody></table>
       </body>
     </html>

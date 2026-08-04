@@ -29,9 +29,8 @@ export async function GET(request: NextRequest) {
   const { data: branch } = await admin.from("subeler").select("id, ad, kod").eq("id", profile.sube_id).maybeSingle()
   const { data: candidates, error: personelError } = await admin
     .from("personeller")
-    .select("id, ad, aylik_maas, saatlik_mesai_ucreti")
+    .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif")
     .eq("sube_id", profile.sube_id)
-    .eq("aktif", true)
   if (personelError) return NextResponse.json({ error: personelError.message }, { status: 500 })
 
   const personel = (candidates || []).find((item) => normalizeName(item.ad) === normalizeName(profile.display_name))
@@ -41,7 +40,16 @@ export async function GET(request: NextRequest) {
     }, { status: 404 })
   }
 
-  const [{ data: rows, error: rowsError }, { data: approvals, error: approvalsError }] = await Promise.all([
+  const MONTHS_TR = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
+  const monthName = MONTHS_TR[month - 1] || ""
+  const ayYil = `${monthName}-${year}`
+
+  const [
+    { data: rows, error: rowsError },
+    { data: approvals, error: approvalsError },
+    { data: kargoPrimData },
+    { data: corbaData }
+  ] = await Promise.all([
     admin
       .from("gider_kayitlari")
       .select("tarih, personel_paylari, personel_mesai_detaylari")
@@ -57,13 +65,55 @@ export async function GET(request: NextRequest) {
       .lte("work_date", end)
       .or(`personel_id.eq.${personel.id},user_profile_id.eq.${user.id}`)
       .order("work_date"),
+    admin
+      .from("kargo_prim_kayitlari")
+      .select("personel_hakedis, secili_personeller")
+      .eq("sube_id", profile.sube_id)
+      .eq("ay_yil", ayYil)
+      .maybeSingle(),
+    admin
+      .from("corbalar")
+      .select("tarih, miktar")
+      .eq("sube_id", profile.sube_id)
+      .eq("ay_yil", ayYil)
+      .eq("personel_id", personel.id)
+      .order("tarih"),
   ])
   if (rowsError || approvalsError) return NextResponse.json({ error: rowsError?.message || approvalsError?.message }, { status: 500 })
 
-  const baseSalary = Number(personel.aylik_maas || 0)
+  const bankaMaas = Number(personel.banka_maas || 0)
+  const nakitMaas = Number(personel.nakit_maas !== undefined && personel.nakit_maas !== null ? personel.nakit_maas : (personel.aylik_maas || 0))
+  const baseSalary = bankaMaas + nakitMaas
   const hourlyRate = Number(personel.saatlik_mesai_ucreti || 0) || (baseSalary > 0 ? baseSalary / 30 / 8 : 0)
   const advances: Detail[] = []
   const overtime: OvertimeDetail[] = []
+
+  // Check Kargo Prim for personnel
+  if (kargoPrimData) {
+    const secili = kargoPrimData.secili_personeller as string[] | null
+    const isSelected = !secili || secili.includes(personel.id)
+    const kargoAmount = isSelected ? Number(kargoPrimData.personel_hakedis || 0) : 0
+    if (kargoAmount > 0) {
+      overtime.push({
+        date: start,
+        amount: kargoAmount,
+        description: `${monthName} Ayı Kargo Hakediş`,
+        minutes: 0,
+        rate: 0,
+        source: "manual",
+      })
+    }
+  }
+
+  // Corba details
+  const corbaDetails = (corbaData || [])
+    .filter(c => Number(c.miktar) > 0)
+    .map(c => ({
+      date: c.tarih,
+      amount: Number(c.miktar),
+      description: `Çorba kazanılan kaydı (${Number(c.miktar).toLocaleString("tr-TR")} TL)`,
+    }))
+  const corbaTotal = corbaDetails.reduce((sum, item) => sum + item.amount, 0)
 
   for (const row of rows || []) {
     const payments = (row.personel_paylari || {}) as Record<string, unknown>
@@ -98,11 +148,15 @@ export async function GET(request: NextRequest) {
   const advanceTotal = advances.reduce((sum, item) => sum + item.amount, 0)
   const overtimeTotal = overtime.reduce((sum, item) => sum + item.amount, 0)
   return NextResponse.json({
-    period: { month, year, start, end },
+    period: { month, year, monthName, start, end },
     branch,
     personel: { id: personel.id, name: personel.ad },
     baseSalary,
+    bankaMaas,
+    nakitMaas,
     hourlyRate,
+    corbaTotal,
+    corbaDetails,
     advanceTotal,
     overtimeTotal,
     remaining: baseSalary + overtimeTotal - advanceTotal,

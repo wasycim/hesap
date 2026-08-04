@@ -2,20 +2,29 @@
   "expo": {
     "name": "Hesap",
     "slug": "hesap",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "scheme": "hesapgo",
     "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f172a"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "wasy.system.hesap",
+      "icon": "./assets/icon.png",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Mesai QR kodunu okutmak için kameraya erişim gerekiyor."
       }
     },
     "android": {
       "package": "wasy.system.hesap.expo",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f172a"
       }
     },
