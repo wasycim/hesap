@@ -10,6 +10,7 @@ import {
   RefreshControl,
   SafeAreaView,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -132,6 +133,10 @@ export default function App() {
   const [salary, setSalary] = useState(null)
   const [attendance, setAttendance] = useState(null)
   const [tracking, setTracking] = useState(null)
+  const [shifts, setShifts] = useState(null)
+  const [reports, setReports] = useState(null)
+  const [debts, setDebts] = useState(null)
+  const [backups, setBackups] = useState(null)
   const [scannerOpen, setScannerOpen] = useState(false)
   const [scanLocked, setScanLocked] = useState(false)
   const [scanMessage, setScanMessage] = useState("")
@@ -152,6 +157,10 @@ export default function App() {
     setSalary(null)
     setAttendance(null)
     setTracking(null)
+    setShifts(null)
+    setReports(null)
+    setDebts(null)
+    setBackups(null)
     setScannerOpen(false)
     setScanLocked(false)
     setScanMessage("")
@@ -321,6 +330,66 @@ export default function App() {
     }
   }, [clearSession, requestJson, session])
 
+  const loadShifts = useCallback(async () => {
+    if (!session) return
+    setLoading(true)
+    setError("")
+    try {
+      setShifts(await requestJson("/api/mobile/shifts"))
+    } catch (reason) {
+      if (reason.status === 401) await clearSession()
+      setError(reason.message || "Vardiya bilgisi yüklenemedi.")
+      setShifts(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [clearSession, requestJson, session])
+
+  const loadReports = useCallback(async () => {
+    if (!session) return
+    setLoading(true)
+    setError("")
+    try {
+      setReports(await requestJson(`/api/mobile/reports?month=${period.month}&year=${period.year}`))
+    } catch (reason) {
+      if (reason.status === 401) await clearSession()
+      setError(reason.message || "Raporlar yüklenemedi.")
+      setReports(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [clearSession, period.month, period.year, requestJson, session])
+
+  const loadDebts = useCallback(async () => {
+    if (!session) return
+    setLoading(true)
+    setError("")
+    try {
+      setDebts(await requestJson("/api/mobile/debts"))
+    } catch (reason) {
+      if (reason.status === 401) await clearSession()
+      setError(reason.message || "Borç özeti yüklenemedi.")
+      setDebts(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [clearSession, requestJson, session])
+
+  const loadBackups = useCallback(async () => {
+    if (!session) return
+    setLoading(true)
+    setError("")
+    try {
+      setBackups(await requestJson("/api/mobile/backups"))
+    } catch (reason) {
+      if (reason.status === 401) await clearSession()
+      setError(reason.message || "Yedekler yüklenemedi.")
+      setBackups(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [clearSession, requestJson, session])
+
   const processQrUrl = useCallback(async (url) => {
     if (!url) return
     let qr = url
@@ -370,7 +439,11 @@ export default function App() {
     if (screen === "salary") loadSalary()
     if (screen === "attendance") loadAttendance()
     if (screen === "tracking") loadTracking()
-  }, [loadAttendance, loadOverview, loadSalary, loadTracking, screen, session])
+    if (screen === "shifts") loadShifts()
+    if (screen === "reports") loadReports()
+    if (screen === "debts") loadDebts()
+    if (screen === "backups") loadBackups()
+  }, [loadAttendance, loadBackups, loadDebts, loadOverview, loadReports, loadSalary, loadShifts, loadTracking, screen, session])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -379,10 +452,14 @@ export default function App() {
       if (screen === "salary") await loadSalary()
       if (screen === "attendance") await loadAttendance()
       if (screen === "tracking") await loadTracking()
+      if (screen === "shifts") await loadShifts()
+      if (screen === "reports") await loadReports()
+      if (screen === "debts") await loadDebts()
+      if (screen === "backups") await loadBackups()
     } finally {
       setRefreshing(false)
     }
-  }, [loadAttendance, loadOverview, loadSalary, loadTracking, screen])
+  }, [loadAttendance, loadBackups, loadDebts, loadOverview, loadReports, loadSalary, loadShifts, loadTracking, screen])
 
   async function handleLogin() {
     const tcKimlik = normalizeTc(loginForm.tcKimlik)
@@ -599,7 +676,7 @@ export default function App() {
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
           <Image source={LOGO_IMG} style={{ width: 38, height: 38, borderRadius: 10 }} resizeMode="contain" />
           <View>
-            <Text style={styles.topEyebrow}>Hesap Mobil v3.0</Text>
+            <Text style={styles.topEyebrow}>Hesap Mobil v4.0</Text>
             <Text style={styles.topTitle}>{session.user?.displayName || "Kullanıcı"}</Text>
           </View>
         </View>
@@ -608,11 +685,21 @@ export default function App() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.tabs}>
-        <TabButton label="Genel Bakış" active={screen === "overview"} onPress={() => setScreen("overview")} />
-        <TabButton label="Maaşım" active={screen === "salary"} onPress={() => setScreen("salary")} />
-        <TabButton label="Mesai" active={screen === "attendance"} onPress={() => setScreen("attendance")} />
-        <TabButton label="Mesai Takip" active={screen === "tracking"} onPress={() => setScreen("tracking")} />
+      <View style={{ height: 48, backgroundColor: "#0f172a", borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)" }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 8, alignItems: "center" }}>
+          <TabButton label="Genel Bakış" active={screen === "overview"} onPress={() => setScreen("overview")} />
+          <TabButton label="Maaşım" active={screen === "salary"} onPress={() => setScreen("salary")} />
+          <TabButton label="Mesai" active={screen === "attendance"} onPress={() => setScreen("attendance")} />
+          <TabButton label="Vardiyam" active={screen === "shifts"} onPress={() => setScreen("shifts")} />
+          <TabButton label="Raporlar" active={screen === "reports"} onPress={() => setScreen("reports")} />
+          <TabButton label="Mesai Takip" active={screen === "tracking"} onPress={() => setScreen("tracking")} />
+          {session?.profile?.is_admin || session?.profile?.is_developer ? (
+            <>
+              <TabButton label="Borç Özeti" active={screen === "debts"} onPress={() => setScreen("debts")} />
+              <TabButton label="Yedek & Log" active={screen === "backups"} onPress={() => setScreen("backups")} />
+            </>
+          ) : null}
+        </ScrollView>
       </View>
 
       <ScrollView
@@ -634,6 +721,10 @@ export default function App() {
         ) : null}
         {screen === "attendance" ? <AttendanceScreen data={attendance} onOpenScanner={openScanner} /> : null}
         {screen === "tracking" ? <TrackingScreen data={tracking} /> : null}
+        {screen === "shifts" ? <ShiftsScreen data={shifts} onRequestReload={loadShifts} requestJson={requestJson} /> : null}
+        {screen === "reports" ? <ReportsScreen data={reports} /> : null}
+        {screen === "debts" ? <DebtsScreen data={debts} /> : null}
+        {screen === "backups" ? <BackupsScreen data={backups} requestJson={requestJson} /> : null}
       </ScrollView>
 
       <Modal visible={scannerOpen} animationType="slide" onRequestClose={() => { isScanningRef.current = false; setScannerOpen(false); }}>
@@ -745,6 +836,8 @@ function StatCard({ label, value, tone, wide, money = true }) {
 }
 
 function SalaryScreen({ data, period, onPrev, onNext, onShare }) {
+  const [showCorbaDetail, setShowCorbaDetail] = useState(false)
+
   return (
     <View>
       <View style={styles.periodRow}>
@@ -788,12 +881,24 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare }) {
             positive: true,
           }))} />
           {data.corbaDetails && data.corbaDetails.length > 0 ? (
-            <DetailSection title="Çorba Kazanılan Detayları" empty="Bu ay çorba kaydı yok." rows={(data.corbaDetails || []).map((item) => ({
-              title: formatDate(item.date),
-              meta: item.description,
-              amount: `+${formatMoney(item.amount)}`,
-              positive: true,
-            }))} />
+            <View style={{ marginTop: 12 }}>
+              <TouchableOpacity
+                style={styles.toggleDetailButton}
+                onPress={() => setShowCorbaDetail(!showCorbaDetail)}
+              >
+                <Text style={styles.toggleDetailButtonText}>
+                  {showCorbaDetail ? "Çorba Detaylarını Gizle ▲" : `Çorba Detaylarını Göster (${data.corbaDetails.length} Kayıt) ▼`}
+                </Text>
+              </TouchableOpacity>
+              {showCorbaDetail ? (
+                <DetailSection title="Çorba Kazanılan Detayları" empty="Bu ay çorba kaydı yok." rows={(data.corbaDetails || []).map((item) => ({
+                  title: formatDate(item.date),
+                  meta: item.description,
+                  amount: `+${formatMoney(item.amount)}`,
+                  positive: true,
+                }))} />
+              ) : null}
+            </View>
           ) : null}
         </>
       )}
@@ -931,6 +1036,247 @@ function TrackingScreen({ data }) {
           </View>
         )) : <Text style={styles.emptyText}>Detay kaydı bulunamadı.</Text>}
       </View>
+}
+
+function ShiftsScreen({ data, onRequestReload, requestJson }) {
+  const [selectedPersonel, setSelectedPersonel] = useState("")
+  const [selectedShift, setSelectedShift] = useState("S")
+  const [assigning, setAssigning] = useState(false)
+
+  if (!data) return <EmptyState title="Vardiya verisi bekleniyor" text="Günün vardiya planları yükleniyor..." />
+
+  const { currentUserShift, sameShiftPeers, allShifts, availableShifts, isAdmin, date } = data
+
+  async function handleAssign() {
+    if (!selectedPersonel || !selectedShift) {
+      Alert.alert("Eksik Seçim", "Lütfen bir personel ve vardiya seçin.")
+      return
+    }
+    setAssigning(true)
+    try {
+      await requestJson("/api/mobile/shifts", {
+        method: "POST",
+        body: JSON.stringify({
+          personelId: selectedPersonel,
+          date,
+          shiftCode: selectedShift,
+        }),
+      })
+      Alert.alert("Başarılı", "Vardiya ataması güncellendi.")
+      if (onRequestReload) onRequestReload()
+    } catch (err) {
+      Alert.alert("Hata", err.message || "Vardiya atanamadı.")
+    } finally {
+      setAssigning(false)
+    }
+  }
+
+  return (
+    <View>
+      <View style={styles.heroCard}>
+        <Text style={styles.heroEyebrow}>BUGÜNKÜ VARDİYAM</Text>
+        <Text style={styles.heroTitle}>{currentUserShift ? currentUserShift.label : "Vardiya Yok"}</Text>
+        <Text style={styles.heroSub}>{currentUserShift?.hours ? `Saatler: ${currentUserShift.hours}` : date}</Text>
+      </View>
+
+      <DetailSection
+        title="Aynı Vardiyadaki Ekip Arkadaşların"
+        empty="Bu vardiyada başka personel bulunmuyor."
+        rows={(sameShiftPeers || []).map((peer) => ({
+          title: peer.name,
+          meta: peer.hours || "Aynı vardiya",
+          amount: peer.shiftCode,
+          positive: true,
+        }))}
+      />
+
+      {isAdmin && allShifts && allShifts.length > 0 ? (
+        <View style={{ marginTop: 20 }}>
+          <Text style={styles.sectionTitle}>Tüm Şube Vardiya Listesi</Text>
+          <View style={styles.salaryMetrics}>
+            {allShifts.map((s) => (
+              <View key={s.personelId} style={styles.miniMetric}>
+                <Text style={styles.miniMetricLabel}>{s.name}</Text>
+                <Text style={[styles.miniMetricValue, styles.positiveText]}>{s.label} ({s.shiftCode})</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={[styles.infoCard, { marginTop: 16 }]}>
+            <Text style={styles.infoTitle}>Yönetici Vardiya Atama</Text>
+            <Text style={styles.infoText}>Personel seçin ve bugünkü vardiyasını güncelleyin.</Text>
+
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+              {allShifts.map((p) => (
+                <TouchableOpacity
+                  key={p.personelId}
+                  style={[styles.selectChip, selectedPersonel === p.personelId && styles.selectChipActive]}
+                  onPress={() => setSelectedPersonel(p.personelId)}
+                >
+                  <Text style={[styles.selectChipText, selectedPersonel === p.personelId && styles.selectChipTextActive]}>
+                    {p.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+              {(availableShifts || []).map((s) => (
+                <TouchableOpacity
+                  key={s.code}
+                  style={[styles.selectChip, selectedShift === s.code && styles.selectChipActive]}
+                  onPress={() => setSelectedShift(s.code)}
+                >
+                  <Text style={[styles.selectChipText, selectedShift === s.code && styles.selectChipTextActive]}>
+                    {s.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity style={[styles.primaryButton, { marginTop: 14 }]} onPress={handleAssign} disabled={assigning}>
+              <Text style={styles.primaryText}>{assigning ? "Güncelleniyor..." : "Vardiyayı Kaydet"}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
+    </View>
+  )
+}
+
+function ReportsScreen({ data }) {
+  if (!data) return <EmptyState title="Rapor verisi bekleniyor" text="Şube ciro ve performans analizi yükleniyor..." />
+
+  const { period, revenue, performance } = data
+
+  return (
+    <View>
+      <View style={styles.heroCard}>
+        <Text style={styles.heroEyebrow}>ŞUBE CİRO & PERFORMANS</Text>
+        <Text style={styles.heroTitle}>{period?.monthName} {period?.year} Raporu</Text>
+        <Text style={styles.heroSub}>{data.branch?.ad || "Şube"} Genel Özet</Text>
+      </View>
+
+      <Text style={styles.sectionTitle}>Performans Analizi</Text>
+      <View style={styles.statsGrid}>
+        <StatCard label="Zamanında Gelme" value={`%${performance?.punctualityRate || 100}`} tone="green" money={false} />
+        <StatCard label="Toplam Mesai" value={`${performance?.totalWorkedHours || 0} Saat`} tone="blue" money={false} />
+        <StatCard label="Geç Kalma" value={`${performance?.totalLateHours || 0} Saat`} tone="red" money={false} wide />
+      </View>
+
+      <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Şube Ciro Raporu</Text>
+      <View style={styles.statsGrid}>
+        <StatCard label="Toplam Ciro (Gelir)" value={revenue?.toplamCiro || 0} tone="green" />
+        <StatCard label="Toplam Gider" value={revenue?.toplamGider || 0} tone="red" />
+        <StatCard label="Net Kalan" value={revenue?.kalan || 0} tone={Number(revenue?.kalan) >= 0 ? "blue" : "red"} wide />
+      </View>
+
+      {revenue?.firmaBreakdown && revenue.firmaBreakdown.length > 0 ? (
+        <DetailSection
+          title="Firma Bazlı Ciro Dağılımı"
+          empty="Firma kaydı bulunmuyor."
+          rows={revenue.firmaBreakdown.map((f) => ({
+            title: f.ad,
+            meta: `%${f.komisyonOrani || 0} komisyon oranı`,
+            amount: formatMoney(f.ciro),
+            positive: true,
+          }))}
+        />
+      ) : null}
+    </View>
+  )
+}
+
+function DebtsScreen({ data }) {
+  if (!data) return <EmptyState title="Borç verisi bekleniyor" text="Yönetici borç özeti yükleniyor..." />
+
+  const { totals, personelDebts, ortakDebts } = data
+
+  return (
+    <View>
+      <View style={styles.heroCard}>
+        <Text style={styles.heroEyebrow}>YÖNETİCİ BORÇ ÖZETİ</Text>
+        <Text style={styles.heroTitle}>{formatMoney(totals?.grandTotal || 0)}</Text>
+        <Text style={styles.heroSub}>Toplam Avans ve Çekim Bakiyesi</Text>
+      </View>
+
+      <View style={styles.statsGrid}>
+        <StatCard label="Personel Avansları" value={totals?.totalPersonelAdvances || 0} tone="red" />
+        <StatCard label="Ortak Çekimleri" value={totals?.totalOrtakWithdrawals || 0} tone="red" />
+      </View>
+
+      <DetailSection
+        title="Personel Avans Sıralaması"
+        empty="Kayıtlı personel avansı yok."
+        rows={(personelDebts || []).map((p) => ({
+          title: p.name,
+          meta: "Toplam Avans",
+          amount: `−${formatMoney(p.totalAdvance)}`,
+          negative: true,
+        }))}
+      />
+
+      <DetailSection
+        title="Ortak Çekim Sıralaması"
+        empty="Kayıtlı ortak çekimi yok."
+        rows={(ortakDebts || []).map((o) => ({
+          title: o.name,
+          meta: "Toplam Çekim",
+          amount: `−${formatMoney(o.totalWithdrawal)}`,
+          negative: true,
+        }))}
+      />
+    </View>
+  )
+}
+
+function BackupsScreen({ data, requestJson }) {
+  const [downloading, setDownloading] = useState(false)
+
+  if (!data) return <EmptyState title="Yedek verisi bekleniyor" text="Yedekler ve sistem logları yükleniyor..." />
+
+  const { logs } = data
+
+  async function handleBackupDownload() {
+    setDownloading(true)
+    try {
+      const res = await requestJson("/api/mobile/backups", { method: "POST" })
+      const jsonStr = JSON.stringify(res.backup, null, 2)
+
+      await Share.share({
+        message: jsonStr,
+        title: res.filename || "hesap_backup.json",
+      })
+      Alert.alert("Yedek Oluşturuldu", `${res.filename} başarıyla hazırlandı ve paylaşıldı.`)
+    } catch (err) {
+      Alert.alert("Hata", err.message || "Yedek oluşturulamadı.")
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <View>
+      <View style={styles.heroCard}>
+        <Text style={styles.heroEyebrow}>YEDEKLEME & LOG İŞLEMLERİ</Text>
+        <Text style={styles.heroTitle}>Sistem Güvenliği</Text>
+        <Text style={styles.heroSub}>Veritabanı anlık yedek alma ve log takibi</Text>
+
+        <TouchableOpacity style={[styles.pdfButton, { marginTop: 14, backgroundColor: "#10b981" }]} onPress={handleBackupDownload} disabled={downloading}>
+          <Text style={[styles.pdfButtonText, { color: "#022c22" }]}>{downloading ? "Yedek Alınıyor..." : "📥 Anlık Yedek Al & İndir"}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <DetailSection
+        title="Son Güvenlik & İşlem Logları"
+        empty="Henüz işlem kaydı bulunmuyor."
+        rows={(logs || []).slice(0, 15).map((l) => ({
+          title: l.action || "Sistem İşlemi",
+          meta: formatDate(l.created_at || new Date()),
+          amount: "LOG",
+          positive: true,
+        }))}
+      />
     </View>
   )
 }
@@ -1538,5 +1884,41 @@ const styles = StyleSheet.create({
     color: "#cbd5e1",
     textAlign: "center",
     fontWeight: "800",
+  },
+  toggleDetailButton: {
+    backgroundColor: "rgba(16,185,129,0.12)",
+    borderWidth: 1,
+    borderColor: "#10b981",
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  toggleDetailButtonText: {
+    color: "#059669",
+    fontWeight: "900",
+    fontSize: 14,
+  },
+  selectChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "#f1f5f9",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+  },
+  selectChipActive: {
+    backgroundColor: "#0284c7",
+    borderColor: "#0284c7",
+  },
+  selectChipText: {
+    color: "#334155",
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  selectChipTextActive: {
+    color: "#ffffff",
+    fontWeight: "900",
   },
 })

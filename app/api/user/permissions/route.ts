@@ -44,7 +44,7 @@ function defaultsForRole(role: "developer" | "admin" | "user") {
     permissions.sistem_sagligi = false
     permissions.lisanslar = false
     permissions.operasyon = false
-    permissions.log_backup = false
+    permissions.log_backup = true
     return permissions
   }
 
