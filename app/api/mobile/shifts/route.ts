@@ -10,11 +10,63 @@ function dateKey(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul" }).format(date)
 }
 
+function getShiftDetails(shiftCode: string, customShifts: any[], fixedShifts: any[]) {
+  const code = String(shiftCode || "S").trim().toLocaleUpperCase("tr-TR")
+  const custom = (customShifts || []).find((s) => s.id === shiftCode || String(s.simge).toLocaleUpperCase("tr-TR") === code)
+  const fixed = (fixedShifts || []).find((s) => s.kod === code || String(s.simge).toLocaleUpperCase("tr-TR") === code)
+
+  let shortCode = "SAB"
+  let label = "Sabah"
+  let color = "#f59e0b" // Amber Gold
+
+  if (code === "S" || code === "SAB" || (fixed && fixed.ad === "Sabah")) {
+    shortCode = "SAB"
+    label = "Sabah (06:00-16:00)"
+    color = "#f59e0b"
+  } else if (code === "A" || code === "AKS" || code === "AKŞ" || (fixed && fixed.ad === "Akşam")) {
+    shortCode = "AKŞ"
+    label = "Akşam (16:00-02:00)"
+    color = "#6366f1" // Indigo
+  } else if (code === "R" || code === "ARA" || (fixed && fixed.ad === "Ara")) {
+    shortCode = "ARA"
+    label = "Ara Vardiya (11:00-21:00)"
+    color = "#06b6d4" // Cyan
+  } else if (code === "I" || code === "İ" || code === "IZN" || code === "İZİN" || (fixed && fixed.ad === "İzin")) {
+    shortCode = "İZN"
+    label = "İzinli"
+    color = "#64748b" // Slate Gray
+  } else if (code === "OFF" || code === "TATİL") {
+    shortCode = "OFF"
+    label = "Haftalık Off"
+    color = "#10b981" // Emerald Green
+  } else if (code === "G" || code === "GEC" || code === "GECE") {
+    shortCode = "GEC"
+    label = "Gece Vardiyası"
+    color = "#8b5cf6" // Purple
+  } else if (custom) {
+    shortCode = String(custom.simge || custom.ad || code).slice(0, 3).toLocaleUpperCase("tr-TR")
+    label = `${custom.ad} (${custom.baslangic || ""}-${custom.bitis || ""})`
+    color = "#3b82f6" // Blue
+  } else {
+    shortCode = code.slice(0, 3)
+    label = fixed ? fixed.ad : code
+    color = "#0284c7"
+  }
+
+  const hours = custom
+    ? `${custom.baslangic || ""}-${custom.bitis || ""}`
+    : fixed && fixed.baslangic
+    ? `${fixed.baslangic}-${fixed.bitis}`
+    : ""
+
+  return { shortCode, label, hours, color }
+}
+
 function getWeekDates(centerDateStr: string) {
   const date = new Date(centerDateStr)
   if (Number.isNaN(date.getTime())) return getWeekDates(dateKey())
 
-  const day = date.getDay() // 0 is Sunday, 1 is Monday...
+  const day = date.getDay()
   const diffToMonday = day === 0 ? -6 : 1 - day
 
   const monday = new Date(date)
@@ -77,21 +129,7 @@ export async function GET(request: NextRequest) {
   ])
 
   const currentPersonel = (personeller || []).find((p) => normalizeName(p.ad) === normalizeName(profile.display_name))
-
-  // Build Map: `personel_id:tarih` -> plan
   const planMap = new Map((plans || []).map((p) => [`${p.personel_id}:${p.tarih}`, p]))
-
-  function getShiftInfo(shiftCode: string) {
-    const custom = (customShifts || []).find((s) => s.id === shiftCode || s.simge === shiftCode)
-    const fixed = (fixedShifts || []).find((s) => s.kod === shiftCode || s.simge === shiftCode)
-    const label = custom ? custom.ad : fixed ? fixed.ad : shiftCode
-    const hours = custom
-      ? `${custom.baslangic || ""}-${custom.bitis || ""}`
-      : fixed && fixed.baslangic
-      ? `${fixed.baslangic}-${fixed.bitis}`
-      : ""
-    return { label, hours }
-  }
 
   // Build Weekly Shift Grid per personnel
   const weeklyShiftGrid = (personeller || []).map((p) => {
@@ -99,14 +137,16 @@ export async function GET(request: NextRequest) {
     const days = weekDays.map((wd) => {
       const plan = planMap.get(`${p.id}:${wd.date}`)
       const shiftCode = plan?.vardiya || p.sabit_vardiya || "S"
-      const { label, hours } = getShiftInfo(shiftCode)
+      const { shortCode, label, hours, color } = getShiftDetails(shiftCode, customShifts || [], fixedShifts || [])
       return {
         date: wd.date,
         shortDay: wd.shortDay,
         longDay: wd.longDay,
         shiftCode,
+        shortCode,
         label,
         hours,
+        color,
         notes: plan?.notlar || null,
       }
     })
@@ -126,8 +166,10 @@ export async function GET(request: NextRequest) {
     personelId: p.personelId,
     name: p.name,
     shiftCode: p.currentDayShift.shiftCode,
+    shortCode: p.currentDayShift.shortCode,
     label: p.currentDayShift.label,
     hours: p.currentDayShift.hours,
+    color: p.currentDayShift.color,
     notes: p.currentDayShift.notes,
     isCurrentUser: p.isCurrentUser,
   }))
@@ -138,8 +180,18 @@ export async function GET(request: NextRequest) {
     : []
 
   const availableShifts = [
-    ...(fixedShifts || []).map((s) => ({ code: s.kod, label: `${s.ad} (${s.baslangic || ""}-${s.bitis || ""})` })),
-    ...(customShifts || []).map((s) => ({ code: s.id, label: `${s.ad} (${s.baslangic || ""}-${s.bitis || ""})` })),
+    { code: "S", shortCode: "SAB", label: "Sabah (06:00-16:00)", color: "#f59e0b" },
+    { code: "A", shortCode: "AKŞ", label: "Akşam (16:00-02:00)", color: "#6366f1" },
+    { code: "R", shortCode: "ARA", label: "Ara (11:00-21:00)", color: "#06b6d4" },
+    { code: "I", shortCode: "İZN", label: "İzinli", color: "#64748b" },
+    { code: "OFF", shortCode: "OFF", label: "Haftalık Off", color: "#10b981" },
+    { code: "G", shortCode: "GEC", label: "Gece Vardiyası", color: "#8b5cf6" },
+    ...(customShifts || []).map((s) => ({
+      code: s.id,
+      shortCode: String(s.simge || s.ad || "ÖZL").slice(0, 3).toLocaleUpperCase("tr-TR"),
+      label: `${s.ad} (${s.baslangic || ""}-${s.bitis || ""})`,
+      color: "#3b82f6",
+    })),
   ]
 
   return NextResponse.json({

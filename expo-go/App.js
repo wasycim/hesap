@@ -360,12 +360,16 @@ export default function App() {
     }
   }, [clearSession, period.month, period.year, requestJson, session])
 
-  const loadDebts = useCallback(async (month, year) => {
+  const loadDebts = useCallback(async (scope, month, year) => {
     if (!session) return
     setLoading(true)
     setError("")
     try {
-      const query = month && year ? `?month=${encodeURIComponent(month)}&year=${year}` : ""
+      const scopeParam = scope ? `scope=${scope}` : ""
+      const monthParam = month ? `month=${encodeURIComponent(month)}` : ""
+      const yearParam = year ? `year=${year}` : ""
+      const params = [scopeParam, monthParam, yearParam].filter(Boolean).join("&")
+      const query = params ? `?${params}` : ""
       setDebts(await requestJson(`/api/mobile/debts${query}`))
     } catch (reason) {
       if (reason.status === 401) await clearSession()
@@ -690,7 +694,7 @@ export default function App() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={styles.topEyebrow}>HESAP MOBİL</Text>
               <View style={styles.proBadge}>
-                <Text style={styles.proBadgeText}>v5.3 PRO</Text>
+                <Text style={styles.proBadgeText}>v5.5 PRO</Text>
               </View>
             </View>
             <Text style={styles.topTitle}>{session.user?.displayName || "Kullanıcı"}</Text>
@@ -745,7 +749,7 @@ export default function App() {
         {screen === "tracking" ? <TrackingScreen data={tracking} /> : null}
         {screen === "shifts" ? <ShiftsScreen data={shifts} onRequestReload={loadShifts} requestJson={requestJson} /> : null}
         {screen === "reports" ? <ReportsScreen data={reports} /> : null}
-        {screen === "debts" ? <DebtsScreen data={debts} onRequestMonthChange={(m, y) => loadDebts(m, y)} /> : null}
+        {screen === "debts" ? <DebtsScreen data={debts} onRequestScopeOrMonthChange={(s, m, y) => loadDebts(s, m, y)} /> : null}
         {screen === "backups" ? <BackupsScreen data={backups} requestJson={requestJson} /> : null}
       </ScrollView>
 
@@ -1098,7 +1102,12 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
     <View>
       <View style={styles.heroCard}>
         <Text style={styles.heroEyebrow}>HAFTALIK VARDİYA PLANI</Text>
-        <Text style={styles.heroTitle}>{currentUserShift ? currentUserShift.label : "Vardiya Yok"}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 }}>
+          <View style={{ backgroundColor: currentUserShift?.color || "#f59e0b", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
+            <Text style={{ color: "#ffffff", fontWeight: "900", fontSize: 16 }}>{currentUserShift?.shortCode || "SAB"}</Text>
+          </View>
+          <Text style={[styles.heroTitle, { marginTop: 0 }]}>{currentUserShift ? currentUserShift.label : "Vardiya Yok"}</Text>
+        </View>
         <Text style={styles.heroSub}>{currentUserShift?.hours ? `Saatler: ${currentUserShift.hours}` : activeDate}</Text>
       </View>
 
@@ -1129,7 +1138,7 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
         rows={(sameShiftPeers || []).map((peer) => ({
           title: peer.name,
           meta: peer.hours || "Aynı vardiya",
-          amount: peer.shiftCode,
+          amount: peer.shortCode || peer.shiftCode,
           positive: true,
         }))}
       />
@@ -1145,12 +1154,14 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
                   <View
                     key={d.date}
                     style={[
-                      { padding: 8, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.06)", alignItems: "center", minWidth: 60 },
+                      { padding: 8, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.06)", alignItems: "center", minWidth: 64 },
                       d.date === activeDate && { backgroundColor: "rgba(16,185,129,0.2)", borderWidth: 1, borderColor: "#10b981" },
                     ]}
                   >
                     <Text style={{ fontSize: 11, fontWeight: "900", color: "#94a3b8" }}>{d.shortDay}</Text>
-                    <Text style={{ fontSize: 13, fontWeight: "900", color: "#34d399", marginTop: 2 }}>{d.shiftCode}</Text>
+                    <View style={{ backgroundColor: d.color || "#0284c7", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginTop: 4 }}>
+                      <Text style={{ fontSize: 12, fontWeight: "900", color: "#ffffff" }}>{d.shortCode || d.shiftCode}</Text>
+                    </View>
                   </View>
                 ))}
               </ScrollView>
@@ -1176,14 +1187,21 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
               ))}
             </View>
 
-            <Text style={[styles.infoTitle, { marginTop: 12, fontSize: 13 }]}>2. Vardiya Seçin:</Text>
+            <Text style={[styles.infoTitle, { marginTop: 12, fontSize: 13 }]}>2. Vardiya Seçin (3 Harf Kodlu):</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
               {(availableShifts || []).map((s) => (
                 <TouchableOpacity
                   key={s.code}
-                  style={[styles.selectChip, selectedShift === s.code && styles.selectChipActive]}
+                  style={[
+                    styles.selectChip,
+                    selectedShift === s.code && styles.selectChipActive,
+                    { flexDirection: "row", alignItems: "center", gap: 6 },
+                  ]}
                   onPress={() => setSelectedShift(s.code)}
                 >
+                  <View style={{ backgroundColor: s.color || "#0284c7", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                    <Text style={{ fontSize: 10, fontWeight: "900", color: "#ffffff" }}>{s.shortCode}</Text>
+                  </View>
                   <Text style={[styles.selectChipText, selectedShift === s.code && styles.selectChipTextActive]}>
                     {s.label}
                   </Text>
@@ -1202,9 +1220,9 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
 }
 
 function ReportsScreen({ data }) {
-  if (!data) return <EmptyState title="Rapor verisi bekleniyor" text="Performans analizi yükleniyor..." />
+  if (!data) return <EmptyState title="Rapor verisi bekleniyor" text="Performans ve şube ciro analizi yükleniyor..." />
 
-  const { period, performance } = data
+  const { period, revenue, performance } = data
   const punctuality = Number(performance?.punctualityRate || 95)
   const totalWorked = Number(performance?.totalWorkedHours || 160)
   const totalOvertime = Number(performance?.totalOvertimeHours || 12)
@@ -1213,12 +1231,12 @@ function ReportsScreen({ data }) {
   return (
     <View>
       <View style={styles.heroCard}>
-        <Text style={styles.heroEyebrow}>PERFORMANS VE MESAI ANALİZİ</Text>
+        <Text style={styles.heroEyebrow}>PERFORMANS VE ŞUBE CİRO RAPORU</Text>
         <Text style={styles.heroTitle}>{period?.monthName} {period?.year} Raporu</Text>
-        <Text style={styles.heroSub}>{data.branch?.ad || "Şube"} Personel Performans Göstergeleri</Text>
+        <Text style={styles.heroSub}>{data.branch?.ad || "Şube"} Performans & Finans Analizi</Text>
       </View>
 
-      <Text style={styles.sectionTitle}>Genel Göstergeler</Text>
+      <Text style={styles.sectionTitle}>Performans Analizi</Text>
       <View style={styles.statsGrid}>
         <StatCard label="Zamanında Gelme" value={`%${punctuality}`} tone="green" money={false} />
         <StatCard label="Toplam Çalışma" value={`${totalWorked} Saat`} tone="blue" money={false} />
@@ -1226,24 +1244,31 @@ function ReportsScreen({ data }) {
         <StatCard label="Geç Kalma" value={`${totalLate} Saat`} tone="red" money={false} />
       </View>
 
-      <View style={[styles.infoCard, { marginTop: 18 }]}>
-        <Text style={styles.infoTitle}>Zamanında Gelme Derecesi</Text>
+      <View style={[styles.infoCard, { marginTop: 14 }]}>
+        <Text style={styles.infoTitle}>Zamanında Devam Oranı</Text>
         <View style={{ height: 16, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.1)", marginTop: 10, overflow: "hidden" }}>
           <View style={{ width: `${Math.min(100, Math.max(0, punctuality))}%`, height: "100%", backgroundColor: punctuality >= 90 ? "#10b981" : "#f59e0b" }} />
         </View>
         <Text style={{ marginTop: 8, fontSize: 13, fontWeight: "800", color: "#cbd5e1" }}>
-          Şube geneli mesaileşme ve devam oranı %{punctuality} seviyesinde gerçekleşti.
+          Şube geneli zamanında gelme oranı %{punctuality} seviyesinde gerçekleşmiştir.
         </Text>
       </View>
 
-      {performance?.personelList && performance.personelList.length > 0 ? (
+      <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Şube Ciro ve Gider Raporu</Text>
+      <View style={styles.statsGrid}>
+        <StatCard label="Toplam Ciro (Gelir)" value={revenue?.toplamCiro || 0} tone="green" />
+        <StatCard label="Toplam Gider" value={revenue?.toplamGider || 0} tone="red" />
+        <StatCard label="Net Kalan" value={revenue?.kalan || 0} tone={Number(revenue?.kalan) >= 0 ? "blue" : "red"} wide />
+      </View>
+
+      {revenue?.firmaBreakdown && revenue.firmaBreakdown.length > 0 ? (
         <DetailSection
-          title="Personel Bazlı Mesai Detayları"
-          empty="Personel detayı bulunmuyor."
-          rows={performance.personelList.map((p) => ({
-            title: p.name,
-            meta: `Geç: ${p.lateMinutes || 0} dk · Fazla: ${p.overtimeMinutes || 0} dk`,
-            amount: `${p.workedHours || 0} Sa`,
+          title="Firma Bazlı Ciro Dağılımı"
+          empty="Firma ciro kaydı bulunmuyor."
+          rows={revenue.firmaBreakdown.map((f) => ({
+            title: f.ad,
+            meta: `%${f.komisyonOrani || 0} komisyon oranı`,
+            amount: formatMoney(f.ciro),
             positive: true,
           }))}
         />
@@ -1252,7 +1277,8 @@ function ReportsScreen({ data }) {
   )
 }
 
-function DebtsScreen({ data, onRequestMonthChange }) {
+function DebtsScreen({ data, onRequestScopeOrMonthChange }) {
+  const [scope, setScope] = useState("monthly")
   const [selectedMonth, setSelectedMonth] = useState("Ağustos")
   const [selectedYear, setSelectedYear] = useState(2026)
 
@@ -1264,6 +1290,13 @@ function DebtsScreen({ data, onRequestMonthChange }) {
     "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
     "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
   ]
+
+  function handleScopeChange(newScope) {
+    setScope(newScope)
+    if (onRequestScopeOrMonthChange) {
+      onRequestScopeOrMonthChange(newScope, selectedMonth, selectedYear)
+    }
+  }
 
   function handleMonthStep(direction) {
     let index = MONTH_NAMES.indexOf(selectedMonth)
@@ -1280,7 +1313,9 @@ function DebtsScreen({ data, onRequestMonthChange }) {
     const nextMonth = MONTH_NAMES[nextIndex]
     setSelectedMonth(nextMonth)
     setSelectedYear(nextYear)
-    if (onRequestMonthChange) onRequestMonthChange(nextMonth, nextYear)
+    if (onRequestScopeOrMonthChange) {
+      onRequestScopeOrMonthChange(scope, nextMonth, nextYear)
+    }
   }
 
   return (
@@ -1288,28 +1323,52 @@ function DebtsScreen({ data, onRequestMonthChange }) {
       <View style={styles.heroCard}>
         <Text style={styles.heroEyebrow}>KARGO CARİ BORÇ ÖZETİ</Text>
         <Text style={styles.heroTitle}>{formatMoney(totals?.totalKalan || 0)}</Text>
-        <Text style={styles.heroSub}>{month || selectedMonth} {year || selectedYear} Net Kalan Borç Bakiyesi</Text>
-      </View>
-
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <TouchableOpacity
-          style={[styles.logoutButton, { paddingHorizontal: 18 }]}
-          onPress={() => handleMonthStep(-1)}
-        >
-          <Text style={styles.logoutText}>◄ Önceki Ay</Text>
-        </TouchableOpacity>
-
-        <Text style={{ fontSize: 16, fontWeight: "900", color: "#f8fafc" }}>
-          {month || selectedMonth} {year || selectedYear}
+        <Text style={styles.heroSub}>
+          {scope === "all" ? "Tüm Zamanlar Net Kalan Borç Bakiyesi" : `${month || selectedMonth} ${year || selectedYear} Net Kalan Borç Bakiyesi`}
         </Text>
+      </View>
 
+      <Text style={styles.sectionTitle}>Filtreleme Seçeneği</Text>
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
         <TouchableOpacity
-          style={[styles.logoutButton, { paddingHorizontal: 18 }]}
-          onPress={() => handleMonthStep(1)}
+          style={[styles.selectChip, scope === "monthly" && styles.selectChipActive, { flex: 1, paddingVertical: 12 }]}
+          onPress={() => handleScopeChange("monthly")}
         >
-          <Text style={styles.logoutText}>Sonraki Ay ►</Text>
+          <Text style={[styles.selectChipText, scope === "monthly" && styles.selectChipTextActive, { textAlign: "center" }]}>
+            📅 Aylık Filtre
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.selectChip, scope === "all" && styles.selectChipActive, { flex: 1, paddingVertical: 12 }]}
+          onPress={() => handleScopeChange("all")}
+        >
+          <Text style={[styles.selectChipText, scope === "all" && styles.selectChipTextActive, { textAlign: "center" }]}>
+            ♾️ Tüm Zamanlar
+          </Text>
         </TouchableOpacity>
       </View>
+
+      {scope === "monthly" ? (
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <TouchableOpacity
+            style={[styles.logoutButton, { paddingHorizontal: 18 }]}
+            onPress={() => handleMonthStep(-1)}
+          >
+            <Text style={styles.logoutText}>◄ Önceki Ay</Text>
+          </TouchableOpacity>
+
+          <Text style={{ fontSize: 16, fontWeight: "900", color: "#f8fafc" }}>
+            {month || selectedMonth} {year || selectedYear}
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.logoutButton, { paddingHorizontal: 18 }]}
+            onPress={() => handleMonthStep(1)}
+          >
+            <Text style={styles.logoutText}>Sonraki Ay ►</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <View style={styles.statsGrid}>
         <StatCard label="Önceki Borç" value={totals?.totalOncekiBorc || 0} tone="red" />

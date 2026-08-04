@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url)
+  const scope = searchParams.get("scope") === "all" ? "all" : "monthly"
   const month = searchParams.get("month") || getInitialMonth()
   const year = Number(searchParams.get("year")) || getInitialYear()
   const selectedMonthIndex = MONTHS.findIndex((m) => m.toLocaleLowerCase("tr-TR") === month.toLocaleLowerCase("tr-TR"))
@@ -78,22 +79,32 @@ export async function GET(request: NextRequest) {
     let ayBorcu = 0
     let ayOdenen = 0
 
-    for (const row of kayitlar || []) {
-      const tutar = Number(row.alinan_tutar) || 0
-      if (isAyYilBefore(row.ay_yil, targetMonthIndex, targetYear)) {
-        oncekiAlinan += tutar
-      } else if (isCurrentAyYil(row.ay_yil, targetMonthIndex, targetYear)) {
-        ayBorcu += tutar
-      }
-    }
-
     const allPayments = [...(odemeler || []), ...(odemeHareketleri || [])]
-    for (const row of allPayments) {
-      const odenenTutar = Number(row.odenen) || 0
-      if (isAyYilBefore(row.ay_yil, targetMonthIndex, targetYear)) {
-        oncekiOdenen += odenenTutar
-      } else if (isCurrentAyYil(row.ay_yil, targetMonthIndex, targetYear)) {
-        ayOdenen += odenenTutar
+
+    if (scope === "all") {
+      for (const row of kayitlar || []) {
+        ayBorcu += Number(row.alinan_tutar) || 0
+      }
+      for (const row of allPayments) {
+        ayOdenen += Number(row.odenen) || 0
+      }
+    } else {
+      for (const row of kayitlar || []) {
+        const tutar = Number(row.alinan_tutar) || 0
+        if (isAyYilBefore(row.ay_yil, targetMonthIndex, targetYear)) {
+          oncekiAlinan += tutar
+        } else if (isCurrentAyYil(row.ay_yil, targetMonthIndex, targetYear)) {
+          ayBorcu += tutar
+        }
+      }
+
+      for (const row of allPayments) {
+        const odenenTutar = Number(row.odenen) || 0
+        if (isAyYilBefore(row.ay_yil, targetMonthIndex, targetYear)) {
+          oncekiOdenen += odenenTutar
+        } else if (isCurrentAyYil(row.ay_yil, targetMonthIndex, targetYear)) {
+          ayOdenen += odenenTutar
+        }
       }
     }
 
@@ -126,6 +137,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     branch,
+    scope,
     month: targetMonth,
     year: targetYear,
     ayYil: ayYilKey,
