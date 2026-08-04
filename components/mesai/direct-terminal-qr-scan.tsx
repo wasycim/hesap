@@ -39,6 +39,15 @@ export function DirectTerminalQrScan() {
   useEffect(() => {
     let active = true
 
+    if (typeof window !== "undefined") {
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+      if (isMobile) {
+        const tokenParam = new URLSearchParams(window.location.search).get("t") || ""
+        const nativeUrl = `hesapgo://mesai-qr/okut?t=${encodeURIComponent(tokenParam)}&url=${encodeURIComponent(window.location.href)}`
+        window.location.href = nativeUrl
+      }
+    }
+
     async function scan() {
       if (typeof window === "undefined") return
 
@@ -111,6 +120,8 @@ export function DirectTerminalQrScan() {
 
   const success = state === "success" || state === "queued"
   const Icon = state === "loading" ? Loader2 : success ? CheckCircle2 : XCircle
+  const tokenParam = typeof window !== "undefined" ? (new URLSearchParams(window.location.search).get("t") || "") : ""
+  const nativeAppUrl = `hesapgo://mesai-qr/okut?t=${encodeURIComponent(tokenParam)}&url=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : "")}`
 
   return (
     <main className="grid min-h-dvh place-items-center bg-slate-950 px-4 py-8 text-white">
@@ -129,17 +140,26 @@ export function DirectTerminalQrScan() {
             <h1 className="mt-3 text-3xl font-black tracking-normal">{message}</h1>
             <p className="mt-3 text-sm leading-6 text-white/65">{detail}</p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
+
+          <div className="pt-2">
+            <Button asChild className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2 text-sm shadow-lg">
+              <a href={nativeAppUrl}>
+                📲 Hesap Uygulamasında Aç
+              </a>
+            </Button>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 pt-1">
             <Button asChild variant="secondary" className="gap-2">
               <Link href="/mesai-qr">
                 <ArrowLeft className="h-4 w-4" />
-                Kameraya don
+                Kameraya dön
               </Link>
             </Button>
             <Button asChild className="gap-2">
               <Link href="/dashboard/mesai">
                 <LogIn className="h-4 w-4" />
-                Mesai sayfasi
+                Mesai sayfası
               </Link>
             </Button>
           </div>

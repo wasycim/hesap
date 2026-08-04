@@ -4,6 +4,7 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   RefreshControl,
@@ -319,6 +320,49 @@ export default function App() {
       setLoading(false)
     }
   }, [clearSession, requestJson, session])
+
+  const processQrUrl = useCallback(async (url) => {
+    if (!url) return
+    let qr = url
+    if (qr.includes("?t=") || qr.includes("&t=") || qr.includes("?qr=") || qr.includes("&qr=")) {
+      try {
+        const match = qr.match(/[?&](?:t|qr)=([^&]+)/)
+        if (match) qr = decodeURIComponent(match[1])
+      } catch (e) {
+        // fallback
+      }
+    }
+
+    try {
+      const identity = await getDeviceIdentity()
+      const result = await requestJson("/api/personel/scan-terminal", {
+        method: "POST",
+        body: JSON.stringify({ qr, deviceId: identity.deviceId }),
+      })
+      const actionText = result.action === "CHECK_OUT" ? "Çıkış alındı" : "Giriş alındı"
+      Alert.alert(actionText, `${result.user?.name || "Personel"} · ${result.shift?.label || "Vardiya yok"}`)
+      await loadAttendance()
+    } catch (reason) {
+      Alert.alert("QR Okutma Başarısız", reason.message || "Geçersiz veya süresi dolmuş QR koda ulaşıldı.")
+    }
+  }, [loadAttendance, requestJson])
+
+  useEffect(() => {
+    if (!session) return
+
+    const handleUrl = (event) => {
+      if (event?.url) processQrUrl(event.url)
+    }
+
+    Linking.getInitialURL().then((url) => {
+      if (url) processQrUrl(url)
+    }).catch(() => undefined)
+
+    const subscription = Linking.addEventListener("url", handleUrl)
+    return () => {
+      subscription.remove()
+    }
+  }, [processQrUrl, session])
 
   useEffect(() => {
     if (!session) return
