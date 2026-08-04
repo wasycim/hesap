@@ -1036,6 +1036,8 @@ function TrackingScreen({ data }) {
           </View>
         )) : <Text style={styles.emptyText}>Detay kaydı bulunamadı.</Text>}
       </View>
+    </View>
+  )
 }
 
 function ShiftsScreen({ data, onRequestReload, requestJson }) {
