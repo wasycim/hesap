@@ -679,12 +679,19 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.app}>
-      <StatusBar style="light" backgroundColor="#0f172a" />
+      <StatusBar style="light" backgroundColor="#090d16" />
       <View style={styles.topBar}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <Image source={LOGO_IMG} style={{ width: 38, height: 38, borderRadius: 10 }} resizeMode="contain" />
+          <View style={{ borderRadius: 12, padding: 2, backgroundColor: "rgba(52,211,153,0.25)" }}>
+            <Image source={LOGO_IMG} style={{ width: 38, height: 38, borderRadius: 10 }} resizeMode="contain" />
+          </View>
           <View>
-            <Text style={styles.topEyebrow}>Hesap Mobil v4.1</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={styles.topEyebrow}>HESAP MOBİL</Text>
+              <View style={styles.proBadge}>
+                <Text style={styles.proBadgeText}>v5.0 PRO</Text>
+              </View>
+            </View>
             <Text style={styles.topTitle}>{session.user?.displayName || "Kullanıcı"}</Text>
           </View>
         </View>
@@ -693,18 +700,18 @@ export default function App() {
         </TouchableOpacity>
       </View>
 
-      <View style={{ height: 48, backgroundColor: "#0f172a", borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)" }}>
+      <View style={{ height: 52, backgroundColor: "#090d16", borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)" }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 8, alignItems: "center" }}>
-          <TabButton label="Genel Bakış" active={screen === "overview"} onPress={() => setScreen("overview")} />
-          <TabButton label="Maaşım" active={screen === "salary"} onPress={() => setScreen("salary")} />
-          <TabButton label="Mesai" active={screen === "attendance"} onPress={() => setScreen("attendance")} />
-          <TabButton label="Vardiyam" active={screen === "shifts"} onPress={() => setScreen("shifts")} />
-          <TabButton label="Raporlar" active={screen === "reports"} onPress={() => setScreen("reports")} />
-          <TabButton label="Mesai Takip" active={screen === "tracking"} onPress={() => setScreen("tracking")} />
+          <TabButton label="📊 Genel Bakış" active={screen === "overview"} onPress={() => setScreen("overview")} />
+          <TabButton label="💵 Maaşım" active={screen === "salary"} onPress={() => setScreen("salary")} />
+          <TabButton label="⏰ Mesai" active={screen === "attendance"} onPress={() => setScreen("attendance")} />
+          <TabButton label="📅 Vardiyam" active={screen === "shifts"} onPress={() => setScreen("shifts")} />
+          <TabButton label="📈 Raporlar" active={screen === "reports"} onPress={() => setScreen("reports")} />
+          <TabButton label="⏱️ Mesai Takip" active={screen === "tracking"} onPress={() => setScreen("tracking")} />
           {isAdmin ? (
             <>
-              <TabButton label="Borç Özeti" active={screen === "debts"} onPress={() => setScreen("debts")} />
-              <TabButton label="Yedek & Log" active={screen === "backups"} onPress={() => setScreen("backups")} />
+              <TabButton label="💳 Borç Özeti" active={screen === "debts"} onPress={() => setScreen("debts")} />
+              <TabButton label="🛡️ Yedek & Log" active={screen === "backups"} onPress={() => setScreen("backups")} />
             </>
           ) : null}
         </ScrollView>
@@ -1925,5 +1932,19 @@ const styles = StyleSheet.create({
   selectChipTextActive: {
     color: "#ffffff",
     fontWeight: "900",
+  },
+  proBadge: {
+    backgroundColor: "rgba(16,185,129,0.2)",
+    borderWidth: 1,
+    borderColor: "#10b981",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  proBadgeText: {
+    color: "#34d399",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.5,
   },
 })
