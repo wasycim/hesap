@@ -689,7 +689,7 @@ export default function App() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={styles.topEyebrow}>HESAP MOBİL</Text>
               <View style={styles.proBadge}>
-                <Text style={styles.proBadgeText}>v5.0 PRO</Text>
+                <Text style={styles.proBadgeText}>v5.1 PRO</Text>
               </View>
             </View>
             <Text style={styles.topTitle}>{session.user?.displayName || "Kullanıcı"}</Text>
@@ -700,8 +700,14 @@ export default function App() {
         </TouchableOpacity>
       </View>
 
-      <View style={{ height: 52, backgroundColor: "#090d16", borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)" }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 8, alignItems: "center" }}>
+      <View style={{ height: 54, backgroundColor: "#090d16", borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)" }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          bounces={true}
+          alwaysBounceHorizontal={true}
+          contentContainerStyle={{ paddingHorizontal: 14, gap: 8, alignItems: "center", flexDirection: "row" }}
+        >
           <TabButton label="📊 Genel Bakış" active={screen === "overview"} onPress={() => setScreen("overview")} />
           <TabButton label="💵 Maaşım" active={screen === "salary"} onPress={() => setScreen("salary")} />
           <TabButton label="⏰ Mesai" active={screen === "attendance"} onPress={() => setScreen("attendance")} />
@@ -1546,21 +1552,27 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
   },
   tabButton: {
-    width: "48%",
-    borderRadius: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.08)",
+    justifyContent: "center",
   },
   tabButtonActive: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "#10b981",
+    borderColor: "#10b981",
   },
   tabText: {
-    color: "#cbd5e1",
-    fontWeight: "900",
+    color: "#94a3b8",
+    fontWeight: "800",
+    fontSize: 13,
   },
   tabTextActive: {
-    color: "#0f172a",
+    color: "#022c22",
+    fontWeight: "900",
   },
   content: {
     flex: 1,
