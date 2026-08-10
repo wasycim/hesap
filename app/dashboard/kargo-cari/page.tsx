@@ -245,7 +245,7 @@ export default function KargoCariOzetPage() {
       const priorDebtKdvli = kdvDahil ? priorDebt * (1 + KDV_RATE) : priorDebt
       const oncekiBorcKdvli = Math.max(0, priorDebtKdvli - priorPaid)
       const ayBorcuKdvli = kdvDahil ? ayBorcu * (1 + KDV_RATE) : ayBorcu
-      const kdvTutari = kdvDahil ? ayBorcu * KDV_RATE : 0
+      const kdvTutari = kdvDahil ? (priorDebt + ayBorcu) * KDV_RATE : 0
       const toplamBorc = oncekiBorcKdvli + ayBorcuKdvli
       const kalanBorc = Math.max(0, toplamBorc - odenen)
 
