@@ -68,37 +68,62 @@ export async function GET(request: NextRequest) {
   let totalKalan = 0
 
   for (const firma of firmalar || []) {
-    const [{ data: kayitlar }, { data: odemeler }, { data: odemeHareketleri }] = await Promise.all([
+    const [{ data: kayitlar }, { data: odemeler }] = await Promise.all([
       admin.from("kargo_cari_kayitlar").select("alinan_tutar, ay_yil").eq("sube_id", profile.sube_id).eq("firma_id", firma.id),
       admin.from("kargo_cari_odemeler").select("odenen, ay_yil").eq("sube_id", profile.sube_id).eq("firma_id", firma.id),
-      admin.from("kargo_cari_odeme_hareketleri").select("odenen, ay_yil").eq("sube_id", profile.sube_id).eq("firma_id", firma.id),
     ])
 
-    let oncekiAlinan = 0
-    let oncekiOdenen = 0
-    let ayBorcu = 0
-    let ayOdenen = 0
-
-    const allPayments = [...(odemeler || []), ...(odemeHareketleri || [])]
+    const kdvDahil = Boolean(firma.kdv_dahil)
 
     if (scope === "all") {
+      let hamAlinan = 0
+      let hamOdenen = 0
+
       for (const row of kayitlar || []) {
-        ayBorcu += Number(row.alinan_tutar) || 0
+        hamAlinan += Number(row.alinan_tutar) || 0
       }
-      for (const row of allPayments) {
-        ayOdenen += Number(row.odenen) || 0
+      for (const row of odemeler || []) {
+        hamOdenen += Number(row.odenen) || 0
       }
+
+      const kdvTutari = kdvDahil ? hamAlinan * KDV_RATE : 0
+      const toplamBorc = hamAlinan + kdvTutari
+      const kalanBorc = Math.max(0, toplamBorc - hamOdenen)
+
+      totalOncekiBorc += 0
+      totalAyBorcu += hamAlinan
+      totalKdv += kdvTutari
+      totalBorc += toplamBorc
+      totalOdenen += hamOdenen
+      totalKalan += kalanBorc
+
+      firmaSummaries.push({
+        firmaId: firma.id,
+        firmaAd: firma.ad,
+        kdvDahil,
+        oncekiBorc: 0,
+        ayBorcu: hamAlinan,
+        kdvTutari,
+        toplamBorc,
+        odenen: hamOdenen,
+        kalanBorc,
+      })
     } else {
+      let oncekiAlinan = 0
+      let oncekiOdenen = 0
+      let ayAlinan = 0
+      let ayOdenen = 0
+
       for (const row of kayitlar || []) {
         const tutar = Number(row.alinan_tutar) || 0
         if (isAyYilBefore(row.ay_yil, targetMonthIndex, targetYear)) {
           oncekiAlinan += tutar
         } else if (isCurrentAyYil(row.ay_yil, targetMonthIndex, targetYear)) {
-          ayBorcu += tutar
+          ayAlinan += tutar
         }
       }
 
-      for (const row of allPayments) {
+      for (const row of odemeler || []) {
         const odenenTutar = Number(row.odenen) || 0
         if (isAyYilBefore(row.ay_yil, targetMonthIndex, targetYear)) {
           oncekiOdenen += odenenTutar
@@ -106,33 +131,32 @@ export async function GET(request: NextRequest) {
           ayOdenen += odenenTutar
         }
       }
+
+      const oncekiBorcKdvli = Math.max(0, (kdvDahil ? oncekiAlinan * (1 + KDV_RATE) : oncekiAlinan) - oncekiOdenen)
+      const ayBorcuKdvli = kdvDahil ? ayAlinan * (1 + KDV_RATE) : ayAlinan
+      const kdvTutari = kdvDahil ? (ayAlinan * KDV_RATE) : 0
+      const toplamBorc = oncekiBorcKdvli + ayBorcuKdvli
+      const kalanBorc = Math.max(0, toplamBorc - ayOdenen)
+
+      totalOncekiBorc += oncekiBorcKdvli
+      totalAyBorcu += ayAlinan
+      totalKdv += kdvTutari
+      totalBorc += toplamBorc
+      totalOdenen += ayOdenen
+      totalKalan += kalanBorc
+
+      firmaSummaries.push({
+        firmaId: firma.id,
+        firmaAd: firma.ad,
+        kdvDahil,
+        oncekiBorc: oncekiBorcKdvli,
+        ayBorcu: ayAlinan,
+        kdvTutari,
+        toplamBorc,
+        odenen: ayOdenen,
+        kalanBorc,
+      })
     }
-
-    const oncekiBorc = Math.max(0, oncekiAlinan - oncekiOdenen)
-    const kdvDahil = Boolean(firma.kdv_dahil)
-    const hamBorc = oncekiBorc + ayBorcu
-    const kdvTutari = kdvDahil ? hamBorc * KDV_RATE : 0
-    const toplamBorc = hamBorc + kdvTutari
-    const kalanBorc = Math.max(0, toplamBorc - ayOdenen)
-
-    totalOncekiBorc += oncekiBorc
-    totalAyBorcu += ayBorcu
-    totalKdv += kdvTutari
-    totalBorc += toplamBorc
-    totalOdenen += ayOdenen
-    totalKalan += kalanBorc
-
-    firmaSummaries.push({
-      firmaId: firma.id,
-      firmaAd: firma.ad,
-      kdvDahil,
-      oncekiBorc,
-      ayBorcu,
-      kdvTutari,
-      toplamBorc,
-      odenen: ayOdenen,
-      kalanBorc,
-    })
   }
 
   return NextResponse.json({
