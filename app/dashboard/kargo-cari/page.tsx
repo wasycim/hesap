@@ -1019,34 +1019,32 @@ export default function KargoCariOzetPage() {
                         {ozet.kalan_borc > 0 ? "Borç var" : "Kapandı"}
                       </div>
                     </div>
-                    <div className={`mt-4 grid gap-2 text-sm ${scope === "monthly" ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-3"}`}>
+                    <div className={`mt-4 grid gap-2 text-sm ${scope === "monthly" ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-2"}`}>
                       {detailItems.map(item => (
                         <div key={item.label} className={`rounded-md p-2 ${item.className}`}>
                           <p className="text-[11px] font-semibold text-muted-foreground">{item.label}</p>
                           <p className="mt-1 break-words font-bold">{formatNumber(item.value)} TL</p>
                         </div>
                       ))}
-                      {scope === "monthly" ? (
-                        <Button
-                          type="button"
-                          variant={ozet.kdv_dahil ? "default" : "outline"}
-                          onClick={() => toggleFirmaKdv(ozet.firma_id, !ozet.kdv_dahil)}
-                          disabled={updatingKdvFirmaId === ozet.firma_id}
-                          className="h-auto min-h-[58px] flex-col items-start justify-center gap-1 rounded-md px-2 py-2 text-left"
-                        >
-                          <span className="flex items-center gap-1 text-[11px] font-semibold">
-                            {updatingKdvFirmaId === ozet.firma_id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Percent className="h-3.5 w-3.5" />
-                            )}
-                            {ozet.kdv_dahil ? "%20 KDV Aktif" : "%20 KDV Ekle"}
-                          </span>
-                          <span className="text-xs font-bold">
-                            {ozet.kdv_dahil ? `+${formatNumber(ozet.kdv_tutari)} TL` : "Kalıcı uygula"}
-                          </span>
-                        </Button>
-                      ) : null}
+                      <Button
+                        type="button"
+                        variant={ozet.kdv_dahil ? "default" : "outline"}
+                        onClick={() => toggleFirmaKdv(ozet.firma_id, !ozet.kdv_dahil)}
+                        disabled={updatingKdvFirmaId === ozet.firma_id}
+                        className="h-auto min-h-[58px] flex-col items-start justify-center gap-1 rounded-md px-2 py-2 text-left"
+                      >
+                        <span className="flex items-center gap-1 text-[11px] font-semibold">
+                          {updatingKdvFirmaId === ozet.firma_id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Percent className="h-3.5 w-3.5" />
+                          )}
+                          {ozet.kdv_dahil ? "%20 KDV Aktif" : "%20 KDV Ekle"}
+                        </span>
+                        <span className="text-xs font-bold">
+                          {ozet.kdv_dahil ? `+${formatNumber(ozet.kdv_tutari)} TL` : "Kalıcı uygula"}
+                        </span>
+                      </Button>
                     </div>
                     <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
                       <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${percent}%` }} />
