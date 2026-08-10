@@ -693,17 +693,19 @@ export default function KargoCariOzetPage() {
     const extraKdv = withKdv && !ozet.kdv_dahil ? Math.max(0, ozet.toplam_borc) * KDV_RATE : 0
     const kdvTutari = ozet.kdv_tutari + extraKdv
     const toplamBorc = ozet.toplam_borc + extraKdv
+    const kalanBorc = ozet.kalan_borc + extraKdv
 
     return {
-      matrah: toplamBorc - kdvTutari,
+      matrah: Math.max(0, toplamBorc - kdvTutari),
       kdvTutari,
       toplamBorc,
-      kalanBorc: toplamBorc - ozet.odenen,
+      kalanBorc,
     }
   }
 
   function exportBorcPdf() {
-    const hasMovements = odemeHareketleri.length > 0
+    const activeMovements = filteredOdemeHareketleri
+    const hasMovements = activeMovements.length > 0
     const pdfAnyKdv = withKdv || borcOzetleri.some(ozet => ozet.kdv_dahil)
     const pdfOzetleri = borcOzetleri.map(ozet => ({ ...ozet, pdf: getPdfDebtValues(ozet) }))
     const pdfGenelToplam = pdfOzetleri.reduce((acc, ozet) => ({
@@ -825,7 +827,7 @@ export default function KargoCariOzetPage() {
               title: "Ödeme Hareketleri",
               headers: ["Tarih", "Firma", "Güncel Borç", "Ödenen", "Kalan Borç", "Not"],
               firstColumnWidth: "18%",
-              rows: odemeHareketleri.map(hareket => [
+              rows: activeMovements.map(hareket => [
                 formatDate(hareket.tarih),
                 hareket.firma_ad,
                 `${formatNumber(hareket.toplam_borc)} TL`,
