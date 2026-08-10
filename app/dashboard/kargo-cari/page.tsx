@@ -241,24 +241,30 @@ export default function KargoCariOzetPage() {
       const currentKayitlar = (kayitlar || []).filter(kayit => isCurrentAyYil(kayit.ay_yil))
       const priorKayitlar = (kayitlar || []).filter(kayit => isAyYilBefore(kayit.ay_yil))
       const paymentTotals = buildPaymentTotals(odemeler, odemeHareketleriData)
-      const ayBorcu = sumField(currentKayitlar, "alinan_tutar")
-      const priorDebt = sumField(priorKayitlar, "alinan_tutar")
+      const ayBorcuHam = sumField(currentKayitlar, "alinan_tutar")
+      const priorDebtHam = sumField(priorKayitlar, "alinan_tutar")
       const priorPaid = Array.from(paymentTotals.entries())
         .filter(([period]) => isAyYilBefore(period))
         .reduce((sum, [, paid]) => sum + paid, 0)
       const odenen = Array.from(paymentTotals.entries())
         .filter(([period]) => isCurrentAyYil(period))
         .reduce((sum, [, paid]) => sum + paid, 0)
-      const oncekiBorc = priorDebt - priorPaid
-      const toplamBorc = oncekiBorc + ayBorcu
 
-      return applyFirmKdv({
+      const priorDebt = kdvDahil ? priorDebtHam * (1 + KDV_RATE) : priorDebtHam
+      const oncekiBorc = Math.max(0, priorDebt - priorPaid)
+      const ayBorcu = kdvDahil ? ayBorcuHam * (1 + KDV_RATE) : ayBorcuHam
+      const kdvTutari = kdvDahil ? (priorDebtHam + ayBorcuHam) * KDV_RATE : 0
+      const toplamBorc = oncekiBorc + ayBorcu
+      const kalanBorc = Math.max(0, toplamBorc - odenen)
+
+      return {
         oncekiBorc,
-        ayBorcu,
+        ayBorcu: ayBorcuHam,
         toplamBorc,
+        kdvTutari,
         odenen,
-        kalanBorc: toplamBorc - odenen,
-      }, kdvDahil)
+        kalanBorc,
+      }
     }
 
     const [
