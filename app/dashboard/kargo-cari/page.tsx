@@ -1,9 +1,5 @@
 "use client"
 
-// Force fresh Vercel build v5.6.1 - Firma Filtresi & Borç Düzeltmesi
-export const dynamic = "force-dynamic"
-export const revalidate = 0
-
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
