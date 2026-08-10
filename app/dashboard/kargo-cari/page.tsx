@@ -87,6 +87,7 @@ export default function KargoCariOzetPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [correcting, setCorrecting] = useState(false)
+  const [selectedFirmaFilter, setSelectedFirmaFilter] = useState<string>("all")
   const [updatingKdvFirmaId, setUpdatingKdvFirmaId] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const supabase = createClient()
@@ -95,6 +96,11 @@ export default function KargoCariOzetPage() {
   const years = makeYearWindow(year)
   const ayYil = `${month}-${year}`
   const selectedMonthIndex = MONTHS.findIndex(item => item === month)
+
+  const filteredOdemeHareketleri = useMemo(() => {
+    if (selectedFirmaFilter === "all") return odemeHareketleri
+    return odemeHareketleri.filter(item => item.firma_id === selectedFirmaFilter)
+  }, [odemeHareketleri, selectedFirmaFilter])
 
   const selectedOzet = useMemo(
     () => borcOzetleri.find(ozet => ozet.firma_id === odemeFormu.firmaId) || null,
@@ -1249,14 +1255,32 @@ export default function KargoCariOzetPage() {
 
       <Card className="overflow-hidden border-slate-200 shadow-sm dark:border-slate-700">
         <CardHeader className="border-b bg-muted/30">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <History className="h-5 w-5 text-slate-500" />
-            Ödeme Hareketleri
-          </CardTitle>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <History className="h-5 w-5 text-slate-500" />
+              Ödeme Hareketleri
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-muted-foreground">Firma Filtresi:</span>
+              <Select value={selectedFirmaFilter} onValueChange={setSelectedFirmaFilter}>
+                <SelectTrigger className="h-9 w-52 text-xs font-medium">
+                  <SelectValue placeholder="Tüm firmalar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">🔍 Tüm Firmalar</SelectItem>
+                  {firmalar.map(firma => (
+                    <SelectItem key={firma.id} value={firma.id}>
+                      {firma.ad}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
-          {odemeHareketleri.length === 0 ? (
-            <div className="px-4 py-8 text-center text-muted-foreground">Bu dönem için kayıtlı ödeme hareketi yok.</div>
+          {filteredOdemeHareketleri.length === 0 ? (
+            <div className="px-4 py-8 text-center text-muted-foreground">Bu dönem/firma için kayıtlı ödeme hareketi bulunmuyor.</div>
           ) : (
             <div className="sticky-table-scroll">
               <table className="sticky-table w-full min-w-[980px] text-sm">
@@ -1271,7 +1295,7 @@ export default function KargoCariOzetPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {odemeHareketleri.map(hareket => {
+                  {filteredOdemeHareketleri.map(hareket => {
                     const isCorrection = hareket.odenen < 0
                     return (
                       <tr key={hareket.id} className="border-b transition-colors hover:bg-slate-50/70 dark:hover:bg-slate-500/10">
