@@ -132,11 +132,12 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      const oncekiBorc = oncekiAlinan - oncekiOdenen
-      const hamBorc = oncekiBorc + ayAlinan
-      const kdvTutari = kdvDahil ? Math.max(0, hamBorc) * KDV_RATE : 0
-      const toplamBorc = hamBorc + kdvTutari
-      const kalanBorc = toplamBorc - ayOdenen
+      const priorDebtKdv = kdvDahil ? oncekiAlinan * (1 + KDV_RATE) : oncekiAlinan
+      const oncekiBorc = Math.max(0, priorDebtKdv - oncekiOdenen)
+      const ayBorcuKdv = kdvDahil ? ayAlinan * (1 + KDV_RATE) : ayAlinan
+      const kdvTutari = kdvDahil ? (oncekiAlinan + ayAlinan) * KDV_RATE : 0
+      const toplamBorc = oncekiBorc + ayBorcuKdv
+      const kalanBorc = Math.max(0, toplamBorc - ayOdenen)
 
       totalOncekiBorc += oncekiBorc
       totalAyBorcu += ayAlinan

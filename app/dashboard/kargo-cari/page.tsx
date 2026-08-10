@@ -250,11 +250,12 @@ export default function KargoCariOzetPage() {
         .filter(([period]) => isCurrentAyYil(period))
         .reduce((sum, [, paid]) => sum + paid, 0)
 
-      const oncekiBorc = priorDebtHam - priorPaid
-      const hamBorc = oncekiBorc + ayBorcuHam
-      const kdvTutari = kdvDahil ? Math.max(0, hamBorc) * KDV_RATE : 0
-      const toplamBorc = hamBorc + kdvTutari
-      const kalanBorc = toplamBorc - odenen
+      const priorDebtKdv = kdvDahil ? priorDebtHam * (1 + KDV_RATE) : priorDebtHam
+      const oncekiBorc = Math.max(0, priorDebtKdv - priorPaid)
+      const ayBorcuKdv = kdvDahil ? ayBorcuHam * (1 + KDV_RATE) : ayBorcuHam
+      const kdvTutari = kdvDahil ? (priorDebtHam + ayBorcuHam) * KDV_RATE : 0
+      const toplamBorc = oncekiBorc + ayBorcuKdv
+      const kalanBorc = Math.max(0, toplamBorc - odenen)
 
       return {
         oncekiBorc,
