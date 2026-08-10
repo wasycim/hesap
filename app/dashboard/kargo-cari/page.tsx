@@ -285,18 +285,20 @@ export default function KargoCariOzetPage() {
     if (odemeError) throw odemeError
     if (odemeHareketleriError) throw odemeHareketleriError
 
-    const toplamBorc = sumField(kayitlar, "alinan_tutar")
-    const aggregatePaid = sumField(odemeler, "odenen")
-    const movementPaid = sumField(odemeHareketleriData, "odenen")
-    const odenen = Math.max(aggregatePaid, movementPaid)
+    const hamBorc = sumField(kayitlar, "alinan_tutar")
+    const odenen = sumField(odemeler, "odenen")
+    const kdvTutari = kdvDahil ? hamBorc * KDV_RATE : 0
+    const toplamBorc = hamBorc + kdvTutari
+    const kalanBorc = Math.max(0, toplamBorc - odenen)
 
-    return applyFirmKdv({
+    return {
       oncekiBorc: 0,
-      ayBorcu: toplamBorc,
+      ayBorcu: hamBorc,
       toplamBorc,
+      kdvTutari,
       odenen,
-      kalanBorc: toplamBorc - odenen,
-    }, kdvDahil)
+      kalanBorc,
+    }
   }
 
   async function checkAdminAndLoadData() {

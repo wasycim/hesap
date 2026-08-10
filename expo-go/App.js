@@ -694,7 +694,7 @@ export default function App() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={styles.topEyebrow}>HESAP MOBİL</Text>
               <View style={styles.proBadge}>
-                <Text style={styles.proBadgeText}>v5.5 PRO</Text>
+                <Text style={styles.proBadgeText}>v5.6 PRO</Text>
               </View>
             </View>
             <Text style={styles.topTitle}>{session.user?.displayName || "Kullanıcı"}</Text>
