@@ -724,23 +724,31 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     const currentKayitlar = (kayitlar || []).filter(item => isCurrentAyYil(item.ay_yil)).sort(compareDateDescending)
     const priorKayitlar = (kayitlar || []).filter(item => isAyYilBefore(item.ay_yil))
     const paymentTotals = buildPaymentTotals(odemeler, hareketler)
-    const ayBorcu = sumField(currentKayitlar, "alinan_tutar")
-    const priorDebt = sumField(priorKayitlar, "alinan_tutar")
+    const ayBorcuHam = sumField(currentKayitlar, "alinan_tutar")
+    const priorDebtHam = sumField(priorKayitlar, "alinan_tutar")
     const priorPaid = Array.from(paymentTotals.entries())
       .filter(([period]) => isAyYilBefore(period))
       .reduce((sum, [, paid]) => sum + paid, 0)
     const odenen = Array.from(paymentTotals.entries())
       .filter(([period]) => isCurrentAyYil(period))
       .reduce((sum, [, paid]) => sum + paid, 0)
-    const oncekiBorc = priorDebt - priorPaid
-    const toplamBorc = oncekiBorc + ayBorcu
+
+    const effectiveWithKdv = withKdv || Boolean(firma.kdv_dahil)
+    const priorDebt = effectiveWithKdv ? priorDebtHam * (1 + KDV_RATE) : priorDebtHam
+    const oncekiBorc = Math.max(0, priorDebt - priorPaid)
+    const ayBorcuKdv = effectiveWithKdv ? ayBorcuHam * (1 + KDV_RATE) : ayBorcuHam
+    const kdvTutar = effectiveWithKdv ? (priorDebtHam + ayBorcuHam) * KDV_RATE : 0
+    const toplamBorc = oncekiBorc + ayBorcuKdv
+    const kalanBorc = Math.max(0, toplamBorc - odenen)
 
     return {
       oncekiBorc,
-      ayBorcu,
+      ayBorcu: ayBorcuHam,
+      ayBorcuKdv,
       toplamBorc,
+      kdvTutar,
       odenen,
-      kalanBorc: toplamBorc - odenen,
+      kalanBorc,
       currentKayitlar,
       hareketler: ((hareketler || []) as any[]).filter(item => isCurrentAyYil(item.ay_yil)).map(item => ({
         id: item.id,
@@ -837,9 +845,9 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
       const previousRows = includePreviousMonthDebtDetails
         ? await loadRowsForPeriod(previousPeriod.month, previousPeriod.year)
         : []
-      const kdvTutar = effectiveWithKdv ? Math.max(0, snapshot.toplamBorc) * KDV_RATE : 0
-      const kdvDahilToplam = snapshot.toplamBorc + kdvTutar
-      const kdvDahilKalan = kdvDahilToplam - snapshot.odenen
+      const kdvTutar = snapshot.kdvTutar
+      const kdvDahilToplam = snapshot.toplamBorc
+      const kdvDahilKalan = snapshot.kalanBorc
 
       const hareketRows = snapshot.hareketler.map(hareket => [
         formatDate(hareket.tarih),
