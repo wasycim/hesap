@@ -242,16 +242,21 @@ export default function KargoCariOzetPage() {
       const odenen = Array.from(paymentTotals.entries())
         .filter(([period]) => isCurrentAyYil(period))
         .reduce((sum, [, paid]) => sum + paid, 0)
-      const oncekiBorc = priorDebt - priorPaid
-      const toplamBorc = oncekiBorc + ayBorcu
+      const priorDebtKdvli = kdvDahil ? priorDebt * (1 + KDV_RATE) : priorDebt
+      const oncekiBorcKdvli = Math.max(0, priorDebtKdvli - priorPaid)
+      const ayBorcuKdvli = kdvDahil ? ayBorcu * (1 + KDV_RATE) : ayBorcu
+      const kdvTutari = kdvDahil ? ayBorcu * KDV_RATE : 0
+      const toplamBorc = oncekiBorcKdvli + ayBorcuKdvli
+      const kalanBorc = Math.max(0, toplamBorc - odenen)
 
-      return applyFirmKdv({
-        oncekiBorc,
+      return {
+        oncekiBorc: oncekiBorcKdvli,
         ayBorcu,
         toplamBorc,
+        kdvTutari,
         odenen,
-        kalanBorc: toplamBorc - odenen,
-      }, kdvDahil)
+        kalanBorc,
+      }
     }
 
     const [
