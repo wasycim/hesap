@@ -739,7 +739,7 @@ export default function KargoCariPage({ params }: { params: Promise<{ firmaId: s
     const ayBorcuKdv = effectiveWithKdv ? ayBorcuHam * (1 + KDV_RATE) : ayBorcuHam
     const kdvTutar = effectiveWithKdv ? (priorDebtHam + ayBorcuHam) * KDV_RATE : 0
     const toplamBorc = oncekiBorc + ayBorcuKdv
-    const kalanBorc = Math.max(0, toplamBorc - odenen)
+    const kalanBorc = toplamBorc - odenen
 
     return {
       oncekiBorc,

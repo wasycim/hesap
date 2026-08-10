@@ -137,7 +137,7 @@ export async function GET(request: NextRequest) {
       const ayBorcuKdv = kdvDahil ? ayAlinan * (1 + KDV_RATE) : ayAlinan
       const kdvTutari = kdvDahil ? (oncekiAlinan + ayAlinan) * KDV_RATE : 0
       const toplamBorc = oncekiBorc + ayBorcuKdv
-      const kalanBorc = Math.max(0, toplamBorc - ayOdenen)
+      const kalanBorc = toplamBorc - ayOdenen
 
       totalOncekiBorc += oncekiBorc
       totalAyBorcu += ayAlinan

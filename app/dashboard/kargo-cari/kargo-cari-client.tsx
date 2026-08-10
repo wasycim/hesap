@@ -255,7 +255,7 @@ export default function KargoCariOzetPage() {
       const ayBorcuKdv = kdvDahil ? ayBorcuHam * (1 + KDV_RATE) : ayBorcuHam
       const kdvTutari = kdvDahil ? (priorDebtHam + ayBorcuHam) * KDV_RATE : 0
       const toplamBorc = oncekiBorc + ayBorcuKdv
-      const kalanBorc = Math.max(0, toplamBorc - odenen)
+      const kalanBorc = toplamBorc - odenen
 
       return {
         oncekiBorc,
@@ -297,7 +297,7 @@ export default function KargoCariOzetPage() {
     const odenen = sumField(odemeler, "odenen")
     const kdvTutari = kdvDahil ? hamBorc * KDV_RATE : 0
     const toplamBorc = hamBorc + kdvTutari
-    const kalanBorc = Math.max(0, toplamBorc - odenen)
+    const kalanBorc = toplamBorc - odenen
 
     return {
       oncekiBorc: 0,
