@@ -132,13 +132,13 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      const oncekiBorcKdvli = Math.max(0, (kdvDahil ? oncekiAlinan * (1 + KDV_RATE) : oncekiAlinan) - oncekiOdenen)
-      const ayBorcuKdvli = kdvDahil ? ayAlinan * (1 + KDV_RATE) : ayAlinan
-      const kdvTutari = kdvDahil ? (ayAlinan * KDV_RATE) : 0
-      const toplamBorc = oncekiBorcKdvli + ayBorcuKdvli
-      const kalanBorc = Math.max(0, toplamBorc - ayOdenen)
+      const oncekiBorc = oncekiAlinan - oncekiOdenen
+      const hamBorc = oncekiBorc + ayAlinan
+      const kdvTutari = kdvDahil ? Math.max(0, hamBorc) * KDV_RATE : 0
+      const toplamBorc = hamBorc + kdvTutari
+      const kalanBorc = toplamBorc - ayOdenen
 
-      totalOncekiBorc += oncekiBorcKdvli
+      totalOncekiBorc += oncekiBorc
       totalAyBorcu += ayAlinan
       totalKdv += kdvTutari
       totalBorc += toplamBorc
@@ -149,7 +149,7 @@ export async function GET(request: NextRequest) {
         firmaId: firma.id,
         firmaAd: firma.ad,
         kdvDahil,
-        oncekiBorc: oncekiBorcKdvli,
+        oncekiBorc,
         ayBorcu: ayAlinan,
         kdvTutari,
         toplamBorc,
