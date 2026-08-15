@@ -280,13 +280,15 @@ export default function App() {
     }
   }, [clearSession, requestJson, session])
 
-  const loadSalary = useCallback(async () => {
+  const loadSalary = useCallback(async (targetMonth, targetYear) => {
     if (!session) return
+    const m = targetMonth || period.month
+    const y = targetYear || period.year
     setLoading(true)
     setError("")
     try {
       const [salaryData, avansData] = await Promise.all([
-        requestJson(`/api/mobile/salary?month=${period.month}&year=${period.year}`),
+        requestJson(`/api/mobile/salary?month=${m}&year=${y}`),
         requestJson("/api/mobile/avans").catch(() => ({ requests: [] })),
       ])
       setSalary({
@@ -300,7 +302,7 @@ export default function App() {
     } finally {
       setLoading(false)
     }
-  }, [clearSession, period.month, period.year, requestJson, session])
+  }, [session])
 
   const loadAttendance = useCallback(async () => {
     if (!session) return
@@ -448,14 +450,14 @@ export default function App() {
   useEffect(() => {
     if (!session) return
     if (screen === "overview") loadOverview()
-    if (screen === "salary") loadSalary()
+    if (screen === "salary") loadSalary(period.month, period.year)
     if (screen === "attendance") loadAttendance()
     if (screen === "tracking") loadTracking()
     if (screen === "shifts") loadShifts()
     if (screen === "reports") loadReports()
     if (screen === "debts") loadDebts()
     if (screen === "backups") loadBackups()
-  }, [loadAttendance, loadBackups, loadDebts, loadOverview, loadReports, loadSalary, loadShifts, loadTracking, screen, session])
+  }, [screen, session])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -537,7 +539,10 @@ export default function App() {
 
   function moveMonth(delta) {
     const date = new Date(period.year, period.month - 1 + delta, 1)
-    setPeriod({ month: date.getMonth() + 1, year: date.getFullYear() })
+    const newMonth = date.getMonth() + 1
+    const newYear = date.getFullYear()
+    setPeriod({ month: newMonth, year: newYear })
+    loadSalary(newMonth, newYear)
   }
 
   async function openScanner() {
@@ -701,7 +706,7 @@ export default function App() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={styles.topEyebrow}>HESAP MOBİL</Text>
               <View style={styles.proBadge}>
-                <Text style={styles.proBadgeText}>v5.6 PRO</Text>
+                <Text style={styles.proBadgeText}>v6.0 PRO</Text>
               </View>
             </View>
             <Text style={styles.topTitle}>{session.user?.displayName || "Kullanıcı"}</Text>
