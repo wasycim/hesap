@@ -594,7 +594,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                   )}
                 >
                   <Icon className={cn("sidebar-menu-icon menu-icon-salary h-5 w-5", maasMenuItem.color)} />
-                  <span>{maasMenuItem.title}</span>
+                  <span>{isAdmin ? "Maaşlar" : "Maaşım"}</span>
                 </Link>
               </li>
             )

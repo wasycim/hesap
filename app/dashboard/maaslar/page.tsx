@@ -371,8 +371,27 @@ export default function MaaslarPage() {
 
   const visiblePersonelSummaries = useMemo(() => {
     if (isManager) return personelSummaries
-    const myName = normalizeName(currentUserProfile?.displayName)
-    const matched = personelSummaries.filter(item => normalizeName(item.personel.ad) === myName)
+    const rawDisplayName = currentUserProfile?.displayName || ""
+    const myName = normalizeName(rawDisplayName)
+    if (!myName) return personelSummaries.slice(0, 1)
+
+    let matched = personelSummaries.filter(item => normalizeName(item.personel.ad) === myName)
+
+    if (matched.length === 0) {
+      matched = personelSummaries.filter(item => {
+        const pName = normalizeName(item.personel.ad)
+        return pName.includes(myName) || myName.includes(pName)
+      })
+    }
+
+    if (matched.length === 0 && myName.includes(" ")) {
+      const parts = myName.split(" ").filter(Boolean)
+      matched = personelSummaries.filter(item => {
+        const pName = normalizeName(item.personel.ad)
+        return parts.every(part => pName.includes(part))
+      })
+    }
+
     return matched.length > 0 ? matched : (personelSummaries[0] ? [personelSummaries[0]] : [])
   }, [isManager, currentUserProfile?.displayName, personelSummaries])
 

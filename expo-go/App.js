@@ -187,7 +187,9 @@ export default function App() {
       refreshToken: payload.session.refreshToken || activeSession.refreshToken,
       expiresAt: payload.session.expiresAt,
     }
-    await persistSession(nextSession)
+    if (nextSession.accessToken !== activeSession.accessToken) {
+      await persistSession(nextSession)
+    }
     return nextSession
   }, [persistSession])
 
@@ -447,17 +449,15 @@ export default function App() {
     }
   }, [processQrUrl, session])
 
+  const sessionToken = session?.accessToken
+
   useEffect(() => {
-    if (!session) return
-    if (screen === "overview") loadOverview()
+    if (!sessionToken) return
     if (screen === "salary") loadSalary(period.month, period.year)
     if (screen === "attendance") loadAttendance()
     if (screen === "tracking") loadTracking()
     if (screen === "shifts") loadShifts()
-    if (screen === "reports") loadReports()
-    if (screen === "debts") loadDebts()
-    if (screen === "backups") loadBackups()
-  }, [screen, session])
+  }, [screen, sessionToken, period.month, period.year])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
