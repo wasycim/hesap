@@ -58,6 +58,7 @@ function dateRange(from: string | null, to: string | null) {
 export async function GET(request: NextRequest) {
   const { user, isAdmin, profile } = await requireDashboardAdmin()
 
+
   if (!user) {
     return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
   }
@@ -80,7 +81,6 @@ export async function GET(request: NextRequest) {
       .from("personeller")
       .select("*")
       .eq("sube_id", subeId)
-      .eq("aktif", true)
       .order("sira", { ascending: true }),
     admin
       .from("vardiya_planlari")
@@ -117,11 +117,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: fixedShiftRes.error.message }, { status: 500 })
   }
 
+  const allPersoneller = personelRes.data || []
+  const monthFrom = range.from
+  const filteredPersoneller = allPersoneller.filter((p) => {
+    if (p.isten_cikis_tarihi && p.isten_cikis_tarihi < monthFrom) return false
+    return p.aktif || Boolean(p.isten_cikis_tarihi && p.isten_cikis_tarihi >= monthFrom)
+  })
+
   const fixedByCode = new Map((fixedShiftRes.data || []).map((row) => [row.kod, row]))
   const fixedShiftDefinitions = defaultFixedShifts
     .map((row) => ({ ...row, ...(fixedByCode.get(row.kod) || {}) }))
     .filter((row) => row.aktif)
-  const personelById = new Map((personelRes.data || []).map((personel) => [personel.id, personel]))
+  const personelById = new Map(filteredPersoneller.map((personel) => [personel.id, personel]))
   const planGroups = new Map<string, any[]>()
   for (const assignment of planRes.data || []) {
     const key = `${assignment.personel_id}__${assignment.tarih}`
@@ -143,12 +150,13 @@ export async function GET(request: NextRequest) {
     })
 
   return NextResponse.json({
-    personeller: (personelRes.data || []).map((personel) => ({
+    personeller: filteredPersoneller.map((personel) => ({
       id: personel.id,
       ad: personel.ad,
       aktif: personel.aktif,
       sira: personel.sira,
       sabit_vardiya: personel.sabit_vardiya || null,
+      isten_cikis_tarihi: personel.isten_cikis_tarihi || null,
     })),
     assignments: planRes.data || [],
     conflicts,

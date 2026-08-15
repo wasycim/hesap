@@ -669,7 +669,7 @@ export default function AyarlarPage() {
                         </button>
                       </div>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       <div>
                         <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Net (Toplam) Maaş</label>
                         <div className="relative">
@@ -722,6 +722,15 @@ export default function AyarlarPage() {
                           />
                           <span className="absolute right-2.5 top-2 text-xs font-bold text-muted-foreground">₺</span>
                         </div>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 block mb-1">İşten Çıkış Tarihi (İşten Ayrıldıysa)</label>
+                        <Input
+                          type="date"
+                          value={exitDateDrafts[personel.id] || ""}
+                          onChange={(e) => setExitDateDrafts(prev => ({ ...prev, [personel.id]: e.target.value }))}
+                          className="h-9 text-xs"
+                        />
                       </div>
                     </div>
                   </div>
