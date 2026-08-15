@@ -122,7 +122,7 @@ export default function App() {
   const [session, setSession] = useState(null)
   const [pendingSession, setPendingSession] = useState(null)
   const [challenge, setChallenge] = useState(null)
-  const [screen, setScreen] = useState("overview")
+  const [screen, setScreen] = useState("salary")
   const [loginForm, setLoginForm] = useState({ tcKimlik: "", password: "" })
   const [verifyCode, setVerifyCode] = useState("")
   const [authLoading, setAuthLoading] = useState(false)
@@ -165,7 +165,7 @@ export default function App() {
     setScanLocked(false)
     setScanMessage("")
     isScanningRef.current = false
-    setScreen("overview")
+    setScreen("salary")
   }, [])
 
   const refreshNativeSession = useCallback(async (activeSession, force = false) => {
@@ -706,7 +706,7 @@ export default function App() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={styles.topEyebrow}>HESAP MOBİL</Text>
               <View style={styles.proBadge}>
-                <Text style={styles.proBadgeText}>v6.0 PRO</Text>
+                <Text style={styles.proBadgeText}>v6.1 PRO</Text>
               </View>
             </View>
             <Text style={styles.topTitle}>{session.user?.displayName || "Kullanıcı"}</Text>
@@ -725,18 +725,10 @@ export default function App() {
           alwaysBounceHorizontal={true}
           contentContainerStyle={{ paddingHorizontal: 14, gap: 8, alignItems: "center", flexDirection: "row" }}
         >
-          <TabButton label="📊 Genel Bakış" active={screen === "overview"} onPress={() => setScreen("overview")} />
           <TabButton label="💵 Maaşım" active={screen === "salary"} onPress={() => setScreen("salary")} />
-          <TabButton label="⏰ Mesai" active={screen === "attendance"} onPress={() => setScreen("attendance")} />
+          <TabButton label="⏰ Mesai QR" active={screen === "attendance"} onPress={() => setScreen("attendance")} />
           <TabButton label="📅 Vardiyam" active={screen === "shifts"} onPress={() => setScreen("shifts")} />
-          <TabButton label="📈 Raporlar" active={screen === "reports"} onPress={() => setScreen("reports")} />
           <TabButton label="⏱️ Mesai Takip" active={screen === "tracking"} onPress={() => setScreen("tracking")} />
-          {isAdmin ? (
-            <>
-              <TabButton label="💳 Borç Özeti" active={screen === "debts"} onPress={() => setScreen("debts")} />
-              <TabButton label="🛡️ Yedek & Log" active={screen === "backups"} onPress={() => setScreen("backups")} />
-            </>
-          ) : null}
         </ScrollView>
       </View>
 
@@ -747,7 +739,6 @@ export default function App() {
       >
         {error ? <View style={styles.errorBox}><Text style={styles.errorBoxText}>{error}</Text></View> : null}
         {loading ? <InlineLoader /> : null}
-        {screen === "overview" ? <OverviewScreen data={overview} /> : null}
         {screen === "salary" ? (
           <SalaryScreen
             data={salary}
@@ -760,11 +751,8 @@ export default function App() {
           />
         ) : null}
         {screen === "attendance" ? <AttendanceScreen data={attendance} onOpenScanner={openScanner} /> : null}
-        {screen === "tracking" ? <TrackingScreen data={tracking} /> : null}
         {screen === "shifts" ? <ShiftsScreen data={shifts} onRequestReload={loadShifts} requestJson={requestJson} /> : null}
-        {screen === "reports" ? <ReportsScreen data={reports} /> : null}
-        {screen === "debts" ? <DebtsScreen data={debts} onRequestScopeOrMonthChange={(s, m, y) => loadDebts(s, m, y)} /> : null}
-        {screen === "backups" ? <BackupsScreen data={backups} requestJson={requestJson} /> : null}
+        {screen === "tracking" ? <TrackingScreen data={tracking} /> : null}
       </ScrollView>
 
       <Modal visible={scannerOpen} animationType="slide" onRequestClose={() => { isScanningRef.current = false; setScannerOpen(false); }}>

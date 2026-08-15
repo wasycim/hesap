@@ -122,6 +122,7 @@ export default function MaaslarPage() {
   const [selectedPersonelId, setSelectedPersonelId] = useState<string | null>(null)
   const [selectedOrtakId, setSelectedOrtakId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [currentUserProfile, setCurrentUserProfile] = useState<{ displayName: string; isManager: boolean } | null>(null)
   const [actionModal, setActionModal] = useState<{ open: boolean; request: AvansTalebi | null; type: "approve" | "reject" }>({ open: false, request: null, type: "approve" })
   const [modalInput, setModalInput] = useState("")
   const [actionLoading, setActionLoading] = useState(false)
@@ -132,12 +133,29 @@ export default function MaaslarPage() {
   const ayYil = `${month}-${year}`
 
   useEffect(() => {
-    if (isAdmin && currentSube) loadData()
-  }, [isAdmin, currentSube?.id, ayYil])
+    if (currentSube) loadData()
+  }, [currentSube?.id, ayYil])
 
   async function loadData() {
     if (!currentSube) return
     setLoading(true)
+
+    const userRes = await supabase.auth.getUser()
+    const authUser = userRes?.data?.user
+    let isManager = isAdmin
+    let displayName = ""
+    if (authUser) {
+      const { data: prof } = await supabase
+        .from("user_profiles")
+        .select("is_admin, is_developer, display_name")
+        .eq("user_id", authUser.id)
+        .maybeSingle()
+      if (prof) {
+        isManager = Boolean(prof.is_admin || prof.is_developer)
+        displayName = prof.display_name || ""
+      }
+    }
+    setCurrentUserProfile({ displayName, isManager })
 
     const from = getMonthStartDate(month, year)
     const to = getMonthEndDate(month, year)
@@ -349,15 +367,29 @@ export default function MaaslarPage() {
     return { ortak, advances, total }
   }), [ortaklar, rows])
 
-  const selectedPersonel = personelSummaries.find(item => item.personel.id === selectedPersonelId) || null
-  const selectedOrtak = ortakSummaries.find(item => item.ortak.id === selectedOrtakId) || null
-  const salaryTotals = useMemo(() => personelSummaries.reduce((acc, item) => ({
+  const isManager = currentUserProfile?.isManager ?? isAdmin
+
+  const visiblePersonelSummaries = useMemo(() => {
+    if (isManager) return personelSummaries
+    const myName = normalizeName(currentUserProfile?.displayName)
+    const matched = personelSummaries.filter(item => normalizeName(item.personel.ad) === myName)
+    return matched.length > 0 ? matched : (personelSummaries[0] ? [personelSummaries[0]] : [])
+  }, [isManager, currentUserProfile?.displayName, personelSummaries])
+
+  const visibleOrtakSummaries = useMemo(() => {
+    if (!isManager) return []
+    return ortakSummaries
+  }, [isManager, ortakSummaries])
+
+  const selectedPersonel = visiblePersonelSummaries.find(item => item.personel.id === selectedPersonelId) || visiblePersonelSummaries[0] || null
+  const selectedOrtak = visibleOrtakSummaries.find(item => item.ortak.id === selectedOrtakId) || null
+  const salaryTotals = useMemo(() => visiblePersonelSummaries.reduce((acc, item) => ({
     baseSalary: acc.baseSalary + item.baseSalary,
     advances: acc.advances + item.advanceTotal,
     overtime: acc.overtime + item.overtimeTotal,
     remaining: acc.remaining + item.remaining,
-  }), { baseSalary: 0, advances: 0, overtime: 0, remaining: 0 }), [personelSummaries])
-  const ortakTotal = useMemo(() => ortakSummaries.reduce((sum, item) => sum + item.total, 0), [ortakSummaries])
+  }), { baseSalary: 0, advances: 0, overtime: 0, remaining: 0 }), [visiblePersonelSummaries])
+  const ortakTotal = useMemo(() => visibleOrtakSummaries.reduce((sum, item) => sum + item.total, 0), [visibleOrtakSummaries])
 
   function exportGeneralPdf() {
     openPdfReport({
@@ -537,8 +569,8 @@ export default function MaaslarPage() {
       <div className="flex flex-col gap-3 bg-emerald-700 p-4 text-white sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Wallet className="h-6 w-6" />
-          <h1 className="text-xl font-bold">Maaşlar</h1>
-          {pendingAvansList.length > 0 && (
+          <h1 className="text-xl font-bold">{isManager ? "Maaşlar" : "Maaşım"}</h1>
+          {isManager && pendingAvansList.length > 0 && (
             <Badge className="bg-amber-400 text-amber-950 font-bold px-2.5 py-1 text-xs animate-pulse">
               <HandCoins className="h-3.5 w-3.5 mr-1" />
               {pendingAvansList.length} Avans Talebi
@@ -546,9 +578,13 @@ export default function MaaslarPage() {
           )}
         </div>
         <div className="grid grid-cols-[auto_1fr_0.8fr_auto] items-center gap-2 sm:flex">
-          <Button variant="outline" onClick={exportGeneralPdf} className="col-span-full gap-2 border-emerald-500 bg-white/10 text-white hover:bg-emerald-800 sm:col-span-1">
+          <Button
+            variant="outline"
+            onClick={isManager ? exportGeneralPdf : () => visiblePersonelSummaries[0] && exportPersonelPdf(visiblePersonelSummaries[0])}
+            className="col-span-full gap-2 border-emerald-500 bg-white/10 text-white hover:bg-emerald-800 sm:col-span-1"
+          >
             <FileText className="h-4 w-4" />
-            Genel PDF
+            {isManager ? "Genel PDF" : "Maaşım PDF"}
           </Button>
           <Button variant="ghost" size="icon" onClick={prevMonth} className="text-white hover:bg-emerald-800">
             <ChevronLeft className="h-5 w-5" />
@@ -581,7 +617,7 @@ export default function MaaslarPage() {
 
       <div className="flex-1 overflow-auto p-3 sm:p-4">
         {/* Avans Talepleri Management Card */}
-        {avansTalepleri.length > 0 && (
+        {isManager && avansTalepleri.length > 0 && (
           <Card className="mb-6 border-amber-300/60 bg-amber-50/40 dark:border-amber-500/30 dark:bg-amber-500/10">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -683,7 +719,7 @@ export default function MaaslarPage() {
         )}
         {/* Personnel Summary Cards */}
         <div className="mb-6 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
-          {personelSummaries.map(item => (
+          {visiblePersonelSummaries.map(item => (
             <Card
               key={item.personel.id}
               className={`cursor-pointer shadow-sm transition hover:shadow ${
@@ -777,42 +813,44 @@ export default function MaaslarPage() {
         )}
 
         {/* Partners Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Ortaklar Pay</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-4 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-4">
-              {ortakSummaries.map(item => (
-                <button
-                  key={item.ortak.id}
-                  onClick={() => setSelectedOrtakId(item.ortak.id)}
-                  className="rounded-lg border border-red-200 bg-red-50 p-4 text-left transition hover:border-red-400 dark:border-red-500/30 dark:bg-red-500/15"
-                >
-                  <p className="truncate text-xs font-semibold uppercase text-red-700 dark:text-red-100">{item.ortak.ad}</p>
-                  <p className="mt-1 text-xl font-bold text-red-700 dark:text-red-100">-{formatMoney(item.total)} TL</p>
-                </button>
-              ))}
-            </div>
-            {selectedOrtak && (
-              <div className="space-y-3">
-                <div className="flex justify-end">
-                  <Button variant="outline" size="sm" onClick={() => exportOrtakPdf(selectedOrtak)} className="gap-2">
-                    <FileText className="h-4 w-4" />
-                    Ortak PDF
-                  </Button>
-                </div>
-                <DetailList
-                  title={`${selectedOrtak.ortak.ad} Ortak Avansları`}
-                  items={selectedOrtak.advances}
-                  empty="Ortak avansı yok."
-                  totalLabel="Toplam Ortak Avansı"
-                  variant="expense"
-                />
+        {isManager && visibleOrtakSummaries.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Ortaklar Pay</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-4">
+                {visibleOrtakSummaries.map(item => (
+                  <button
+                    key={item.ortak.id}
+                    onClick={() => setSelectedOrtakId(item.ortak.id)}
+                    className="rounded-lg border border-red-200 bg-red-50 p-4 text-left transition hover:border-red-400 dark:border-red-500/30 dark:bg-red-500/15"
+                  >
+                    <p className="truncate text-xs font-semibold uppercase text-red-700 dark:text-red-100">{item.ortak.ad}</p>
+                    <p className="mt-1 text-xl font-bold text-red-700 dark:text-red-100">-{formatMoney(item.total)} TL</p>
+                  </button>
+                ))}
               </div>
-            )}
-          </CardContent>
-        </Card>
+              {selectedOrtak && (
+                <div className="space-y-3">
+                  <div className="flex justify-end">
+                    <Button variant="outline" size="sm" onClick={() => exportOrtakPdf(selectedOrtak)} className="gap-2">
+                      <FileText className="h-4 w-4" />
+                      Ortak PDF
+                    </Button>
+                  </div>
+                  <DetailList
+                    title={`${selectedOrtak.ortak.ad} Ortak Avansları`}
+                    items={selectedOrtak.advances}
+                    empty="Ortak avansı yok."
+                    totalLabel="Toplam Ortak Avansı"
+                    variant="expense"
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Action Dialog for Avans Approval / Rejection */}
         <Dialog open={actionModal.open} onOpenChange={(open) => setActionModal(prev => ({ ...prev, open }))}>
