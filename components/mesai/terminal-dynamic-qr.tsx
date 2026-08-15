@@ -69,7 +69,7 @@ export function TerminalDynamicQr() {
     const tick = () => setRemaining(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)))
     tick()
     countdownTimer.current = setInterval(tick, 250)
-    refreshTimer.current = setTimeout(() => loadQr(key), Math.max(4000, data.ttlSeconds * 1000))
+    refreshTimer.current = setTimeout(() => loadQr(key), Math.max(1000, data.ttlSeconds * 1000))
   }, [clearTimers, deviceKey])
 
   useEffect(() => {
@@ -131,7 +131,7 @@ export function TerminalDynamicQr() {
               </div>
             ) : null}
             <div>
-              <p className="text-3xl font-black">QR 30 saniyede bir yenilenir</p>
+              <p className="text-3xl font-black">QR her 3 saniyede bir yenilenir (Güvenli)</p>
               <p className="mt-2 text-white/55">Personel TC ve sifre ile giris yapar, kamerasi ile bu kodu okutup giris/cikis yapar.</p>
               {deviceKey ? (
                 <p className="mt-3 text-xs text-white/35">Terminal cihaz kodu: {deviceKey.slice(0, 8)}...{deviceKey.slice(-6)}</p>

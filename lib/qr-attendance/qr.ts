@@ -24,7 +24,7 @@ type DynamicQrClaims = {
 const qrIssuer = "hesap-mesai"
 const qrAudience = "hesap-mesai-terminal"
 export const dynamicQrTtlSeconds = 25
-export const terminalQrTtlSeconds = 30
+export const terminalQrTtlSeconds = 3
 
 export function createQrToken() {
   return crypto.randomBytes(32).toString("base64url")
@@ -197,7 +197,7 @@ export function verifyTerminalQrPayloadAt(payload: TerminalQrPayload, scannedAt:
     const scannedAtMs = scannedAt.getTime()
     const issuedAtMs = claims.iat * 1000
     const expiresAtMs = claims.exp * 1000
-    const scanGraceMs = 30_000
+    const scanGraceMs = 7_000
     const replayWindowMs = 14 * 24 * 60 * 60 * 1000
     const nowMs = Date.now()
 

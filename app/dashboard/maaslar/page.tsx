@@ -1,10 +1,15 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { ChevronDown, ChevronLeft, ChevronRight, FileText, Wallet } from "lucide-react"
+import { Calendar, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, FileText, HandCoins, Wallet, XCircle } from "lucide-react"
+import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSube } from "@/contexts/sube-context"
 import {
@@ -89,6 +94,19 @@ function normalizeName(value: string | null | undefined) {
   return String(value || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("tr-TR")
 }
 
+interface AvansTalebi {
+  id: string
+  user_id: string
+  user_name: string
+  tc_kimlik?: string
+  tutar: number
+  aciklama?: string
+  durum: "beklemede" | "onaylandi" | "reddedildi"
+  red_sebebi?: string
+  odeme_tarihi?: string
+  created_at: string
+}
+
 export default function MaaslarPage() {
   const [month, setMonth] = useState(getInitialMonth())
   const [year, setYear] = useState(getInitialYear())
@@ -97,12 +115,16 @@ export default function MaaslarPage() {
   const [rows, setRows] = useState<GiderRow[]>([])
   const [attendanceOvertime, setAttendanceOvertime] = useState<AttendanceDetail[]>([])
   const [overtimeApprovals, setOvertimeApprovals] = useState<OvertimeApproval[]>([])
+  const [avansTalepleri, setAvansTalepleri] = useState<AvansTalebi[]>([])
   const [kargoPrimAmount, setKargoPrimAmount] = useState<number>(0)
   const [kargoSeciliPersoneller, setKargoSeciliPersoneller] = useState<string[] | null>(null)
   const [corbaData, setCorbaData] = useState<{ tarih: string; personel_id: string; miktar: number }[]>([])
   const [selectedPersonelId, setSelectedPersonelId] = useState<string | null>(null)
   const [selectedOrtakId, setSelectedOrtakId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [actionModal, setActionModal] = useState<{ open: boolean; request: AvansTalebi | null; type: "approve" | "reject" }>({ open: false, request: null, type: "approve" })
+  const [modalInput, setModalInput] = useState("")
+  const [actionLoading, setActionLoading] = useState(false)
 
   const supabase = createClient()
   const { currentSube, isAdmin, loading: subeLoading } = useSube()
@@ -120,7 +142,7 @@ export default function MaaslarPage() {
     const from = getMonthStartDate(month, year)
     const to = getMonthEndDate(month, year)
 
-    const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes, corbaRes] = await Promise.all([
+    const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes, corbaRes, avansRes] = await Promise.all([
       supabase
         .from("personeller")
         .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif")
@@ -152,10 +174,15 @@ export default function MaaslarPage() {
         .eq("sube_id", currentSube.id)
         .eq("ay_yil", ayYil)
         .order("tarih", { ascending: true }),
+      fetch("/api/admin/avans", { cache: "no-store" }),
     ])
 
     const attendancePayload = await attendanceRes.json().catch(() => null) as AttendancePayload | null
     const approvalsPayload = await approvalsRes.json().catch(() => null)
+    const avansPayload = await avansRes.json().catch(() => null)
+    if (avansPayload?.requests) {
+      setAvansTalepleri(avansPayload.requests)
+    }
     
     const allPersoneller = personelRes.data || []
     const usedPersonelIds = new Set<string>()
@@ -438,6 +465,49 @@ export default function MaaslarPage() {
     }
   }
 
+  async function handleAvansAction() {
+    if (!actionModal.request) return
+    if (actionModal.type === "approve" && !modalInput) {
+      toast.error("Ödeme tarihi seçilmesi zorunludur.")
+      return
+    }
+    if (actionModal.type === "reject" && !modalInput.trim()) {
+      toast.error("Red sebebi yazılması zorunludur.")
+      return
+    }
+
+    setActionLoading(true)
+    try {
+      const res = await fetch("/api/admin/avans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: actionModal.type,
+          id: actionModal.request.id,
+          odeme_tarihi: actionModal.type === "approve" ? modalInput : undefined,
+          red_sebebi: actionModal.type === "reject" ? modalInput : undefined,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || "İşlem gerçekleştirilemedi.")
+        return
+      }
+
+      toast.success(actionModal.type === "approve" ? "Avans talebi onaylandı ve personele bildirim gönderildi." : "Avans talebi reddedildi.")
+      setActionModal({ open: false, request: null, type: "approve" })
+      setModalInput("")
+      loadData()
+    } catch {
+      toast.error("Bir hata oluştu.")
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const pendingAvansList = useMemo(() => avansTalepleri.filter(item => item.durum === "beklemede"), [avansTalepleri])
+
   if (subeLoading || loading) {
     return <div className="flex h-64 items-center justify-center text-muted-foreground">Yükleniyor...</div>
   }
@@ -459,6 +529,12 @@ export default function MaaslarPage() {
         <div className="flex items-center gap-3">
           <Wallet className="h-6 w-6" />
           <h1 className="text-xl font-bold">Maaşlar</h1>
+          {pendingAvansList.length > 0 && (
+            <Badge className="bg-amber-400 text-amber-950 font-bold px-2.5 py-1 text-xs animate-pulse">
+              <HandCoins className="h-3.5 w-3.5 mr-1" />
+              {pendingAvansList.length} Avans Talebi
+            </Badge>
+          )}
         </div>
         <div className="grid grid-cols-[auto_1fr_0.8fr_auto] items-center gap-2 sm:flex">
           <Button variant="outline" onClick={exportGeneralPdf} className="col-span-full gap-2 border-emerald-500 bg-white/10 text-white hover:bg-emerald-800 sm:col-span-1">
@@ -495,6 +571,107 @@ export default function MaaslarPage() {
       </div>
 
       <div className="flex-1 overflow-auto p-3 sm:p-4">
+        {/* Avans Talepleri Management Card */}
+        {avansTalepleri.length > 0 && (
+          <Card className="mb-6 border-amber-300/60 bg-amber-50/40 dark:border-amber-500/30 dark:bg-amber-500/10">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base font-bold text-amber-900 dark:text-amber-200">
+                  <HandCoins className="h-5 w-5 text-amber-600" />
+                  Personel Avans Talepleri ({avansTalepleri.length})
+                </CardTitle>
+                <Badge variant="outline" className="border-amber-400 bg-amber-100 text-amber-900 font-semibold dark:bg-amber-900/40 dark:text-amber-200">
+                  {pendingAvansList.length} Bekleyen
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {avansTalepleri.map(req => {
+                  const isPending = req.durum === "beklemede"
+                  const isApproved = req.durum === "onaylandi"
+                  return (
+                    <div
+                      key={req.id}
+                      className={`rounded-xl border p-4 shadow-sm transition ${
+                        isPending
+                          ? "border-amber-300 bg-white dark:border-amber-500/40 dark:bg-slate-900"
+                          : isApproved
+                          ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-500/30 dark:bg-emerald-950/20"
+                          : "border-red-200 bg-red-50/50 dark:border-red-500/30 dark:bg-red-950/20"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-sm truncate">{req.user_name}</span>
+                        <Badge
+                          className={
+                            isPending
+                              ? "bg-amber-500 text-white"
+                              : isApproved
+                              ? "bg-emerald-600 text-white"
+                              : "bg-red-600 text-white"
+                          }
+                        >
+                          {isPending ? "Beklemede" : isApproved ? "Onaylandı" : "Reddedildi"}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 flex items-baseline justify-between">
+                        <span className="text-2xl font-extrabold text-slate-900 dark:text-white">
+                          {Number(req.tutar).toLocaleString("tr-TR")} ₺
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(req.created_at).toLocaleDateString("tr-TR")}
+                        </span>
+                      </div>
+                      {req.aciklama ? (
+                        <p className="mt-2 text-xs italic text-muted-foreground bg-muted/50 p-2 rounded">
+                          "{req.aciklama}"
+                        </p>
+                      ) : null}
+                      {isApproved && req.odeme_tarihi ? (
+                        <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                          📅 Ödeme Tarihi: {new Date(req.odeme_tarihi).toLocaleDateString("tr-TR")}
+                        </p>
+                      ) : null}
+                      {!isPending && req.red_sebebi ? (
+                        <p className="mt-2 text-xs font-semibold text-red-700 dark:text-red-300">
+                          ⚠️ Red Sebebi: {req.red_sebebi}
+                        </p>
+                      ) : null}
+                      {isPending && (
+                        <div className="mt-3 flex items-center gap-2 pt-2 border-t border-dashed">
+                          <Button
+                            size="sm"
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1"
+                            onClick={() => {
+                              setActionModal({ open: true, request: req, type: "approve" })
+                              setModalInput(new Date().toISOString().split("T")[0])
+                            }}
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Onayla
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="flex-1 text-xs gap-1"
+                            onClick={() => {
+                              setActionModal({ open: true, request: req, type: "reject" })
+                              setModalInput("")
+                            }}
+                          >
+                            <XCircle className="h-3.5 w-3.5" />
+                            Reddet
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
         {/* Personnel Summary Cards */}
         <div className="mb-6 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
           {personelSummaries.map(item => (
@@ -627,6 +804,86 @@ export default function MaaslarPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Action Dialog for Avans Approval / Rejection */}
+        <Dialog open={actionModal.open} onOpenChange={(open) => setActionModal(prev => ({ ...prev, open }))}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+                {actionModal.type === "approve" ? (
+                  <>
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                    Avans Talebini Onayla
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-5 w-5 text-red-600" />
+                    Avans Talebini Reddet
+                  </>
+                )}
+              </DialogTitle>
+            </DialogHeader>
+
+            {actionModal.request && (
+              <div className="space-y-4 py-2">
+                <div className="rounded-lg bg-muted p-3 text-sm">
+                  <p className="font-semibold text-foreground">{actionModal.request.user_name}</p>
+                  <p className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">
+                    {Number(actionModal.request.tutar).toLocaleString("tr-TR")} ₺
+                  </p>
+                  {actionModal.request.aciklama && (
+                    <p className="mt-1 text-xs text-muted-foreground italic">"{actionModal.request.aciklama}"</p>
+                  )}
+                </div>
+
+                {actionModal.type === "approve" ? (
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3.5 w-3.5" />
+                      Ödeme Yapılacak Tarih *
+                    </label>
+                    <Input
+                      type="date"
+                      value={modalInput}
+                      onChange={(e) => setModalInput(e.target.value)}
+                      className="w-full"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Seçilen tarih personele bildirim olarak gönderilecektir.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-muted-foreground">Red Sebebi *</label>
+                    <Textarea
+                      placeholder="Örn: Bu ay avans limitiniz dolmuştur."
+                      value={modalInput}
+                      onChange={(e) => setModalInput(e.target.value)}
+                      rows={3}
+                      className="w-full"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Bu açıklama personele bildirim olarak iletilecektir.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setActionModal({ open: false, request: null, type: "approve" })}>
+                Vazgeç
+              </Button>
+              <Button
+                className={actionModal.type === "approve" ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"}
+                onClick={handleAvansAction}
+                disabled={actionLoading}
+              >
+                {actionLoading ? "İşleniyor..." : actionModal.type === "approve" ? "Onayla & Bildirim Gönder" : "Reddet & Bildirim Gönder"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )

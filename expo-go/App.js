@@ -285,7 +285,14 @@ export default function App() {
     setLoading(true)
     setError("")
     try {
-      setSalary(await requestJson(`/api/mobile/salary?month=${period.month}&year=${period.year}`))
+      const [salaryData, avansData] = await Promise.all([
+        requestJson(`/api/mobile/salary?month=${period.month}&year=${period.year}`),
+        requestJson("/api/mobile/avans").catch(() => ({ requests: [] })),
+      ])
+      setSalary({
+        ...salaryData,
+        avansRequests: avansData.requests || [],
+      })
     } catch (reason) {
       if (reason.status === 401) await clearSession()
       setError(reason.message || "Maaş bilgisi yüklenemedi.")
@@ -743,6 +750,8 @@ export default function App() {
             onPrev={() => moveMonth(-1)}
             onNext={() => moveMonth(1)}
             onShare={shareSalaryPdf}
+            onRequestReload={loadSalary}
+            requestJson={requestJson}
           />
         ) : null}
         {screen === "attendance" ? <AttendanceScreen data={attendance} onOpenScanner={openScanner} /> : null}
@@ -856,8 +865,41 @@ function StatCard({ label, value, tone, wide, money = true }) {
   )
 }
 
-function SalaryScreen({ data, period, onPrev, onNext, onShare }) {
+function SalaryScreen({ data, period, onPrev, onNext, onShare, onRequestReload, requestJson }) {
   const [showCorbaDetail, setShowCorbaDetail] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [tutar, setTutar] = useState("")
+  const [aciklama, setAciklama] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+  const [modalError, setModalError] = useState("")
+
+  async function handleSendAvansRequest() {
+    const numTutar = Number(tutar)
+    if (!numTutar || isNaN(numTutar) || numTutar <= 0) {
+      setModalError("Geçerli bir tutar girin.")
+      return
+    }
+
+    setSubmitting(true)
+    setModalError("")
+    try {
+      await requestJson("/api/mobile/avans", {
+        method: "POST",
+        body: JSON.stringify({ tutar: numTutar, aciklama }),
+      })
+      setModalOpen(false)
+      setTutar("")
+      setAciklama("")
+      Alert.alert("Başarılı ✅", "Avans talebiniz yöneticilere bildirim olarak iletildi.")
+      if (onRequestReload) onRequestReload()
+    } catch (err) {
+      setModalError(err.message || "Talep iletilemedi.")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const avansRequests = data?.avansRequests || []
 
   return (
     <View>
@@ -873,9 +915,18 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare }) {
             <Text style={styles.salaryHeroLabel}>Nakit Alınacak Net</Text>
             <Text style={styles.salaryHeroValue}>{formatMoney(data.remaining)}</Text>
             <Text style={styles.salaryHeroSub}>{data.personel?.name || "Personel"} · {data.branch?.ad || "Şube"}</Text>
-            <TouchableOpacity style={styles.pdfButton} onPress={onShare}>
-              <Text style={styles.pdfButtonText}>PDF paylaş</Text>
-            </TouchableOpacity>
+            
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+              <TouchableOpacity style={styles.pdfButton} onPress={onShare}>
+                <Text style={styles.pdfButtonText}>📄 PDF İndir</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.pdfButton, { backgroundColor: "#f59e0b", borderOutlined: false }]}
+                onPress={() => { setModalError(""); setModalOpen(true); }}
+              >
+                <Text style={[styles.pdfButtonText, { color: "#ffffff" }]}>💰 Avans İste</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.salaryMetrics}>
@@ -888,6 +939,63 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare }) {
               <MiniMetric label="Çorba Kazanılan" value={data.corbaTotal} positive />
             ) : null}
           </View>
+
+          {/* Avans Taleplerim Section */}
+          {avansRequests.length > 0 ? (
+            <View style={{ marginTop: 16, backgroundColor: "#ffffff", borderRadius: 18, padding: 14, borderWidth: 1, borderColor: "#e2e8f0" }}>
+              <Text style={{ fontSize: 15, fontWeight: "900", color: "#0f172a", marginBottom: 10 }}>
+                📋 Avans Taleplerim ({avansRequests.length})
+              </Text>
+              {avansRequests.map((req, idx) => {
+                const isPending = req.durum === "beklemede"
+                const isApproved = req.durum === "onaylandi"
+                return (
+                  <View
+                    key={req.id || idx}
+                    style={{
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: isPending ? "#fef3c7" : isApproved ? "#ecfdf5" : "#fef2f2",
+                      marginBottom: 8,
+                      borderWidth: 1,
+                      borderColor: isPending ? "#fcd34d" : isApproved ? "#a7f3d0" : "#fecaca",
+                    }}
+                  >
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                      <Text style={{ fontSize: 16, fontWeight: "900", color: "#0f172a" }}>
+                        {Number(req.tutar).toLocaleString("tr-TR")} ₺
+                      </Text>
+                      <View style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 8,
+                        backgroundColor: isPending ? "#d97706" : isApproved ? "#059669" : "#dc2626",
+                      }}>
+                        <Text style={{ color: "#ffffff", fontSize: 11, fontWeight: "900" }}>
+                          {isPending ? "⏳ Beklemede" : isApproved ? "✅ Onaylandı" : "❌ Reddedildi"}
+                        </Text>
+                      </View>
+                    </View>
+                    {req.aciklama ? (
+                      <Text style={{ fontSize: 12, color: "#475569", marginTop: 4, fontStyle: "italic" }}>
+                        "{req.aciklama}"
+                      </Text>
+                    ) : null}
+                    {isApproved && req.odeme_tarihi ? (
+                      <Text style={{ fontSize: 12, fontWeight: "800", color: "#047857", marginTop: 4 }}>
+                        📅 Ödeme Tarihi: {formatDate(req.odeme_tarihi)}
+                      </Text>
+                    ) : null}
+                    {!isPending && req.red_sebebi ? (
+                      <Text style={{ fontSize: 12, fontWeight: "800", color: "#b91c1c", marginTop: 4 }}>
+                        ⚠️ Red Sebebi: {req.red_sebebi}
+                      </Text>
+                    ) : null}
+                  </View>
+                )
+              })}
+            </View>
+          ) : null}
 
           <DetailSection title="Avanslar" empty="Bu ay avans kaydı yok." rows={(data.advances || []).map((item) => ({
             title: formatDate(item.date),
@@ -923,6 +1031,59 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare }) {
           ) : null}
         </>
       )}
+
+      {/* Avans İste Modal */}
+      <Modal visible={modalOpen} transparent animationType="fade" onRequestClose={() => setModalOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", padding: 20 }}>
+          <View style={{ backgroundColor: "#ffffff", borderRadius: 24, padding: 22, shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 16 }}>
+            <Text style={{ fontSize: 20, fontWeight: "900", color: "#0f172a", marginBottom: 6 }}>
+              💰 Avans Talebi Oluştur
+            </Text>
+            <Text style={{ fontSize: 13, color: "#64748b", marginBottom: 16 }}>
+              Talep ettiğiniz avans tutarını girin. Yöneticilere anlık bildirim iletilecektir.
+            </Text>
+
+            <Text style={{ fontSize: 12, fontWeight: "800", color: "#334155", marginBottom: 4 }}>Avans Tutarı (₺) *</Text>
+            <TextInput
+              style={styles.input}
+              value={tutar}
+              onChangeText={setTutar}
+              placeholder="Örn: 1000"
+              keyboardType="number-pad"
+              placeholderTextColor="#94a3b8"
+            />
+
+            <Text style={{ fontSize: 12, fontWeight: "800", color: "#334155", marginTop: 12, marginBottom: 4 }}>Açıklama / Not (Opsiyonel)</Text>
+            <TextInput
+              style={[styles.input, { height: 80, textAlignVertical: "top", paddingTop: 10 }]}
+              value={aciklama}
+              onChangeText={setAciklama}
+              placeholder="Örn: Acil ihtiyaç avansı"
+              multiline
+              placeholderTextColor="#94a3b8"
+            />
+
+            {modalError ? <Text style={styles.errorText}>{modalError}</Text> : null}
+
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 18 }}>
+              <TouchableOpacity
+                style={[styles.primaryButton, { flex: 1, backgroundColor: "#e2e8f0" }]}
+                onPress={() => setModalOpen(false)}
+                disabled={submitting}
+              >
+                <Text style={[styles.primaryText, { color: "#334155" }]}>Vazgeç</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.primaryButton, { flex: 1, backgroundColor: "#f59e0b" }]}
+                onPress={handleSendAvansRequest}
+                disabled={submitting}
+              >
+                {submitting ? <ActivityIndicator color="#ffffff" /> : <Text style={[styles.primaryText, { color: "#ffffff" }]}>Talebi Gönder</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   )
 }
@@ -1564,30 +1725,35 @@ const styles = StyleSheet.create({
   },
   authRoot: {
     flex: 1,
-    backgroundColor: "#0f172a",
+    backgroundColor: "#030712",
   },
   authKeyboard: {
     flex: 1,
     justifyContent: "center",
-    padding: 18,
+    padding: 20,
   },
   authCard: {
     borderRadius: 32,
-    backgroundColor: "#ffffff",
-    padding: 22,
-    shadowColor: "#000",
-    shadowOpacity: 0.22,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 16 },
+    backgroundColor: "#0f172a",
+    padding: 26,
+    borderWidth: 1.5,
+    borderColor: "rgba(16, 185, 129, 0.25)",
+    shadowColor: "#10b981",
+    shadowOpacity: 0.15,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
   },
   logoCircle: {
-    width: 58,
-    height: 58,
-    borderRadius: 20,
+    width: 64,
+    height: 64,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#10b981",
-    marginBottom: 18,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderWidth: 1.5,
+    borderColor: "#10b981",
+    marginBottom: 20,
   },
   logoText: {
     color: "#042f2e",
@@ -1595,51 +1761,57 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   authEyebrow: {
-    color: "#10b981",
+    color: "#34d399",
     fontSize: 12,
     fontWeight: "900",
-    letterSpacing: 1.1,
+    letterSpacing: 1.5,
   },
   authTitle: {
     marginTop: 6,
-    color: "#0f172a",
+    color: "#f8fafc",
     fontSize: 28,
     fontWeight: "900",
   },
   authText: {
-    marginTop: 10,
-    marginBottom: 16,
-    color: "#64748b",
-    lineHeight: 21,
+    marginTop: 8,
+    marginBottom: 20,
+    color: "#94a3b8",
+    lineHeight: 22,
     fontWeight: "600",
+    fontSize: 14,
   },
   input: {
-    height: 52,
+    height: 54,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#dbe3ed",
-    backgroundColor: "#f8fafc",
-    paddingHorizontal: 15,
-    marginTop: 10,
-    color: "#0f172a",
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    paddingHorizontal: 16,
+    marginTop: 12,
+    color: "#f8fafc",
     fontSize: 16,
     fontWeight: "700",
   },
   primaryButton: {
-    height: 52,
+    height: 54,
     borderRadius: 16,
-    backgroundColor: "#34d399",
+    backgroundColor: "#10b981",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 16,
+    marginTop: 20,
+    shadowColor: "#10b981",
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
   },
   disabledButton: {
     opacity: 0.7,
   },
   primaryText: {
-    color: "#042f2e",
+    color: "#022c22",
     fontWeight: "900",
     fontSize: 16,
+    letterSpacing: 0.3,
   },
   secondaryLink: {
     alignItems: "center",
