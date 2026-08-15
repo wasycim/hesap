@@ -15,7 +15,12 @@ const routePermissions: Array<{ prefix: string; key: string }> = [
   { prefix: "/dashboard/mesai", key: "mesai" },
   { prefix: "/dashboard/corbalar", key: "corbalar" },
   { prefix: "/dashboard/kargo-cari", key: "kargo_cari" },
-  { prefix: "/dashboard/kargo-prim", key: "kargo_cari" },
+  { prefix: "/dashboard/kargo-prim", key: "kargo_prim" },
+  { prefix: "/dashboard/personel-mesai", key: "personel_mesai" },
+  { prefix: "/dashboard/carsi-hesap", key: "carsi_hesap" },
+  { prefix: "/dashboard/darica-hesap", key: "darica_hesap" },
+  { prefix: "/dashboard/14-hesap", key: "on_dort_hesap" },
+  { prefix: "/dashboard/5a-hesap", key: "bes_a_hesap" },
   { prefix: "/dashboard/14-no-hesap", key: "on_dort_no" },
   { prefix: "/dashboard/maaslar", key: "maaslar" },
   { prefix: "/dashboard/bildirim-gonder", key: "bildirim_gonder" },
@@ -30,7 +35,7 @@ const routePermissions: Array<{ prefix: string; key: string }> = [
   { prefix: "/dashboard/admin-ayarlar", key: "admin_ayarlar" },
   { prefix: "/dashboard/lisanslar", key: "lisanslar" },
   { prefix: "/dashboard/operasyon", key: "operasyon" },
-  { prefix: "/dashboard/backup-islemleri", key: "log_backup" },
+  { prefix: "/dashboard/backup-islemleri", key: "backup_islemleri" },
   { prefix: "/dashboard/cay", key: "cay" },
   { prefix: "/dashboard/bildirimler", key: "bildirimler" },
   { prefix: "/dashboard/hesap", key: "hesap" },
@@ -38,10 +43,6 @@ const routePermissions: Array<{ prefix: string; key: string }> = [
 
 function permissionKeysForPath(pathname: string) {
   if (pathname === "/dashboard") return ["dashboard"]
-  if (pathname.startsWith("/dashboard/carsi-hesap")) return ["gelir", "gider"]
-  if (pathname.startsWith("/dashboard/darica-hesap")) return ["gelir", "gider"]
-  if (pathname.startsWith("/dashboard/14-hesap")) return ["gelir", "gider"]
-  if (pathname.startsWith("/dashboard/5a-hesap")) return ["gelir", "gider"]
   return [routePermissions.find((item) => pathname.startsWith(item.prefix))?.key || "dashboard"]
 }
 

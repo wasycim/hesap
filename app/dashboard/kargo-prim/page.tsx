@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Check, ChevronLeft, ChevronRight, Coins, Save, Users, Wallet } from "lucide-react"
+import { Check, ChevronLeft, ChevronRight, Coins, Save, ShieldAlert, Users, Wallet } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,6 +42,18 @@ export default function KargoPrimPage() {
   useEffect(() => {
     if (currentSube) loadData()
   }, [currentSube?.id, ayYil])
+
+  if (!isAdmin && !loading) {
+    return (
+      <div className="flex h-96 flex-col items-center justify-center gap-3 text-center p-6">
+        <ShieldAlert className="h-14 w-14 text-destructive animate-pulse" />
+        <h2 className="text-2xl font-black">Erişim Engellendi 🔒</h2>
+        <p className="max-w-md text-sm text-muted-foreground font-medium">
+          Kargo Prim Hakediş sayfası <strong>sadece Yöneticiler (Admin) ve Developer</strong> hesaplarına özeldir.
+        </p>
+      </div>
+    )
+  }
 
   async function loadData() {
     if (!currentSube) return

@@ -11,6 +11,12 @@ const allPermissionKeys = [
   "mesai_takip",
   "corbalar",
   "kargo_cari",
+  "kargo_prim",
+  "personel_mesai",
+  "carsi_hesap",
+  "darica_hesap",
+  "bes_a_hesap",
+  "on_dort_hesap",
   "on_dort_no",
   "maaslar",
   "bildirim_gonder",
@@ -27,6 +33,7 @@ const allPermissionKeys = [
   "lisanslar",
   "operasyon",
   "log_backup",
+  "backup_islemleri",
   "cay",
   "bildirimler",
   "hesap",
@@ -45,6 +52,7 @@ function defaultsForRole(role: "developer" | "admin" | "user") {
     permissions.lisanslar = false
     permissions.operasyon = false
     permissions.log_backup = true
+    permissions.backup_islemleri = true
     return permissions
   }
 
@@ -53,6 +61,12 @@ function defaultsForRole(role: "developer" | "admin" | "user") {
   permissions.gider = true
   permissions.corbalar = true
   permissions.kargo_cari = true
+  permissions.kargo_prim = false // Sadece yonetici ve developer!
+  permissions.personel_mesai = true
+  permissions.carsi_hesap = true
+  permissions.darica_hesap = true
+  permissions.bes_a_hesap = true
+  permissions.on_dort_hesap = true
   permissions.vardiya = true
   permissions.mesai = true
   permissions.mesai_takip = true

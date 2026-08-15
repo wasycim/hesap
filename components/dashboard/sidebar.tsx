@@ -600,7 +600,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
             )
           })()}
 
-          {canSeeMenu("kargo_cari") && (
+          {canSeeMenu("kargo_prim") && (
             <li key="/dashboard/kargo-prim">
               <Link
                 href="/dashboard/kargo-prim"
