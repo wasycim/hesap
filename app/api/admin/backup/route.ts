@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const startDate = searchParams.get("startDate")
   const endDate = searchParams.get("endDate")
+  const isPreview = searchParams.get("preview") === "true"
 
   const admin = createAdminClient()
   const tables: Record<string, unknown[]> = {}
@@ -111,38 +112,40 @@ export async function GET(request: NextRequest) {
     ? `${startDate || "Başlangıç"} ile ${endDate || "Bugün"} arası`
     : "Tüm Zamanlar"
 
-  let emailStatus = "success"
-  let emailError: string | null = null
+  if (!isPreview) {
+    let emailStatus = "success"
+    let emailError: string | null = null
 
-  try {
-    await sendBackupDownloadedEmail({
-      userEmail: adminGuard.user.email || "system@pamukkaleturizm.tr",
-      ipAddress,
-      userAgent,
-      filterRange,
+    try {
+      await sendBackupDownloadedEmail({
+        userEmail: adminGuard.user.email || "system@pamukkaleturizm.tr",
+        ipAddress,
+        userAgent,
+        filterRange,
+      })
+    } catch (err: any) {
+      emailStatus = "failed"
+      emailError = err.message || String(err)
+    }
+
+    await admin.from("security_events").insert({
+      user_id: adminGuard.user.id,
+      user_email: adminGuard.user.email,
+      event_type: "backup_export",
+      details: { 
+        tables: backupTables, 
+        exported_at: new Date().toISOString(), 
+        filter: { startDate, endDate },
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        email_delivery: {
+          status: emailStatus,
+          error: emailError,
+          recipient: adminGuard.user.email
+        }
+      },
     })
-  } catch (err: any) {
-    emailStatus = "failed"
-    emailError = err.message || String(err)
   }
-
-  await admin.from("security_events").insert({
-    user_id: adminGuard.user.id,
-    user_email: adminGuard.user.email,
-    event_type: "backup_export",
-    details: { 
-      tables: backupTables, 
-      exported_at: new Date().toISOString(), 
-      filter: { startDate, endDate },
-      ip_address: ipAddress,
-      user_agent: userAgent,
-      email_delivery: {
-        status: emailStatus,
-        error: emailError,
-        recipient: adminGuard.user.email
-      }
-    },
-  })
 
   return NextResponse.json({
     version: 2,
