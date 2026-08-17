@@ -127,6 +127,10 @@ export default function MaaslarPage() {
   const [requestTutar, setRequestTutar] = useState("")
   const [requestAciklama, setRequestAciklama] = useState("")
   const [submittingRequest, setSubmittingRequest] = useState(false)
+  const [avansSearchName, setAvansSearchName] = useState("")
+  const [avansFilterStatus, setAvansFilterStatus] = useState<"all" | "beklemede" | "onaylandi" | "reddedildi">("all")
+  const [avansStartDate, setAvansStartDate] = useState("")
+  const [avansEndDate, setAvansEndDate] = useState("")
   const [actionModal, setActionModal] = useState<{ open: boolean; request: AvansTalebi | null; type: "approve" | "reject" }>({ open: false, request: null, type: "approve" })
   const [modalInput, setModalInput] = useState("")
   const [actionLoading, setActionLoading] = useState(false)
@@ -634,6 +638,24 @@ export default function MaaslarPage() {
     })
   }, [avansTalepleri, currentUserProfile?.displayName])
 
+  const filteredAvansTalepleri = useMemo(() => {
+    return avansTalepleri.filter(item => {
+      if (avansFilterStatus !== "all" && item.durum !== avansFilterStatus) return false
+      
+      if (avansSearchName.trim()) {
+        const search = normalizeName(avansSearchName)
+        const name = normalizeName(item.user_name)
+        if (!name.includes(search)) return false
+      }
+
+      const reqDate = item.created_at ? item.created_at.split("T")[0] : ""
+      if (avansStartDate && reqDate < avansStartDate) return false
+      if (avansEndDate && reqDate > avansEndDate) return false
+
+      return true
+    })
+  }, [avansTalepleri, avansFilterStatus, avansSearchName, avansStartDate, avansEndDate])
+
   if (subeLoading || loading) {
     return <div className="flex h-64 items-center justify-center text-muted-foreground">Yükleniyor...</div>
   }
@@ -697,103 +719,71 @@ export default function MaaslarPage() {
       </div>
 
       <div className="flex-1 overflow-auto p-3 sm:p-4">
-        {/* Avans Talepleri Management Card */}
-        {isManager && avansTalepleri.length > 0 && (
-          <Card className="mb-6 border-amber-300/60 bg-amber-50/40 dark:border-amber-500/30 dark:bg-amber-500/10">
+        {/* Urgent Top Pending Avans Requests Banner (Only when pending requests exist) */}
+        {isManager && pendingAvansList.length > 0 && (
+          <Card className="mb-6 border-amber-300 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-500/10 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-base font-bold text-amber-900 dark:text-amber-200">
-                  <HandCoins className="h-5 w-5 text-amber-600" />
-                  Personel Avans Talepleri ({avansTalepleri.length})
+                  <HandCoins className="h-5 w-5 text-amber-600 animate-bounce" />
+                  ⚠️ Bekleyen Avans Talepleri ({pendingAvansList.length})
                 </CardTitle>
-                <Badge variant="outline" className="border-amber-400 bg-amber-100 text-amber-900 font-semibold dark:bg-amber-900/40 dark:text-amber-200">
-                  {pendingAvansList.length} Bekleyen
+                <Badge className="bg-amber-500 text-white font-bold">
+                  Onay Bekliyor
                 </Badge>
               </div>
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {avansTalepleri.map(req => {
-                  const isPending = req.durum === "beklemede"
-                  const isApproved = req.durum === "onaylandi"
-                  return (
-                    <div
-                      key={req.id}
-                      className={`rounded-xl border p-4 shadow-sm transition ${
-                        isPending
-                          ? "border-amber-300 bg-white dark:border-amber-500/40 dark:bg-slate-900"
-                          : isApproved
-                          ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-500/30 dark:bg-emerald-950/20"
-                          : "border-red-200 bg-red-50/50 dark:border-red-500/30 dark:bg-red-950/20"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-sm truncate">{req.user_name}</span>
-                        <Badge
-                          className={
-                            isPending
-                              ? "bg-amber-500 text-white"
-                              : isApproved
-                              ? "bg-emerald-600 text-white"
-                              : "bg-red-600 text-white"
-                          }
-                        >
-                          {isPending ? "Beklemede" : isApproved ? "Onaylandı" : "Reddedildi"}
-                        </Badge>
-                      </div>
-                      <div className="mt-2 flex items-baseline justify-between">
-                        <span className="text-2xl font-extrabold text-slate-900 dark:text-white">
-                          {Number(req.tutar).toLocaleString("tr-TR")} ₺
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(req.created_at).toLocaleDateString("tr-TR")}
-                        </span>
-                      </div>
-                      {req.aciklama ? (
-                        <p className="mt-2 text-xs italic text-muted-foreground bg-muted/50 p-2 rounded">
-                          "{req.aciklama}"
-                        </p>
-                      ) : null}
-                      {isApproved && req.odeme_tarihi ? (
-                        <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                          📅 Ödeme Tarihi: {new Date(req.odeme_tarihi).toLocaleDateString("tr-TR")}
-                        </p>
-                      ) : null}
-                      {!isPending && req.red_sebebi ? (
-                        <p className="mt-2 text-xs font-semibold text-red-700 dark:text-red-300">
-                          ⚠️ Red Sebebi: {req.red_sebebi}
-                        </p>
-                      ) : null}
-                      {isPending && (
-                        <div className="mt-3 flex items-center gap-2 pt-2 border-t border-dashed">
-                          <Button
-                            size="sm"
-                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1"
-                            onClick={() => {
-                              setActionModal({ open: true, request: req, type: "approve" })
-                              setModalInput(new Date().toISOString().split("T")[0])
-                            }}
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            Onayla
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="flex-1 text-xs gap-1"
-                            onClick={() => {
-                              setActionModal({ open: true, request: req, type: "reject" })
-                              setModalInput("")
-                            }}
-                          >
-                            <XCircle className="h-3.5 w-3.5" />
-                            Reddet
-                          </Button>
-                        </div>
-                      )}
+                {pendingAvansList.map(req => (
+                  <div
+                    key={req.id}
+                    className="rounded-xl border border-amber-300 bg-white dark:border-amber-500/40 dark:bg-slate-900 p-4 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-sm truncate">{req.user_name}</span>
+                      <Badge className="bg-amber-500 text-white">Beklemede</Badge>
                     </div>
-                  )
-                })}
+                    <div className="mt-2 flex items-baseline justify-between">
+                      <span className="text-2xl font-extrabold text-slate-900 dark:text-white">
+                        {Number(req.tutar).toLocaleString("tr-TR")} ₺
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(req.created_at).toLocaleDateString("tr-TR")}
+                      </span>
+                    </div>
+                    {req.aciklama ? (
+                      <p className="mt-2 text-xs italic text-muted-foreground bg-muted/50 p-2 rounded">
+                        "{req.aciklama}"
+                      </p>
+                    ) : null}
+                    <div className="mt-3 flex items-center gap-2 pt-2 border-t border-dashed">
+                      <Button
+                        size="sm"
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1"
+                        onClick={() => {
+                          setActionModal({ open: true, request: req, type: "approve" })
+                          setModalInput(new Date().toISOString().split("T")[0])
+                        }}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Onayla
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="flex-1 text-xs gap-1"
+                        onClick={() => {
+                          setActionModal({ open: true, request: req, type: "reject" })
+                          setModalInput("")
+                        }}
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                        Reddet
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -984,6 +974,160 @@ export default function MaaslarPage() {
                   />
                 </div>
               )}
+            </CardContent>
+          </Card>
+        )}
+        {/* Avans Talepleri Geçmişi ve Yönetimi Tablosu */}
+        {isManager && (
+          <Card className="mt-8 border-border shadow-sm">
+            <CardHeader className="pb-3 border-b">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-lg font-bold">
+                    <HandCoins className="h-5 w-5 text-emerald-600" />
+                    Avans Talepleri Geçmişi ve Yönetimi
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Tüm personel avans taleplerini tarihe, duruma ve isme göre filtreleyip inceleyebilirsiniz.
+                  </p>
+                </div>
+                <Badge variant="outline" className="w-fit text-xs font-bold">
+                  Toplam {avansTalepleri.length} Kayıt
+                </Badge>
+              </div>
+
+              {/* Filtreleme Barları */}
+              <div className="mt-4 grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 pt-2">
+                <div>
+                  <label className="text-[11px] font-bold text-muted-foreground block mb-1">Personel Ara</label>
+                  <Input
+                    placeholder="Örn: Ahmet Yılmaz"
+                    value={avansSearchName}
+                    onChange={(e) => setAvansSearchName(e.target.value)}
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-muted-foreground block mb-1">Durum Filtresi</label>
+                  <Select value={avansFilterStatus} onValueChange={(val: any) => setAvansFilterStatus(val)}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tüm Durumlar</SelectItem>
+                      <SelectItem value="beklemede">⏳ Bekleyenler</SelectItem>
+                      <SelectItem value="onaylandi">✅ Onaylananlar</SelectItem>
+                      <SelectItem value="reddedildi">❌ Reddedilenler</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-muted-foreground block mb-1">Başlangıç Tarihi</label>
+                  <Input
+                    type="date"
+                    value={avansStartDate}
+                    onChange={(e) => setAvansStartDate(e.target.value)}
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-muted-foreground block mb-1">Bitiş Tarihi</label>
+                  <Input
+                    type="date"
+                    value={avansEndDate}
+                    onChange={(e) => setAvansEndDate(e.target.value)}
+                    className="h-9 text-xs"
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-muted/50 border-b font-bold text-muted-foreground uppercase">
+                    <tr>
+                      <th className="px-4 py-3">Personel</th>
+                      <th className="px-4 py-3">Talep Tarihi</th>
+                      <th className="px-4 py-3">Tutar</th>
+                      <th className="px-4 py-3">Durum</th>
+                      <th className="px-4 py-3">Açıklama / Not</th>
+                      <th className="px-4 py-3">Sonuç / Ödeme Tarihi</th>
+                      <th className="px-4 py-3 text-right">İşlem</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {filteredAvansTalepleri.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                          Filtrelere uygun avans talebi bulunamadı.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredAvansTalepleri.map((req) => {
+                        const isPending = req.durum === "beklemede"
+                        const isApproved = req.durum === "onaylandi"
+                        return (
+                          <tr key={req.id} className="hover:bg-muted/20 transition">
+                            <td className="px-4 py-3 font-bold text-foreground">{req.user_name}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{new Date(req.created_at).toLocaleDateString("tr-TR")}</td>
+                            <td className="px-4 py-3 font-extrabold text-slate-900 dark:text-white text-sm">{formatMoney(Number(req.tutar))} TL</td>
+                            <td className="px-4 py-3">
+                              <Badge className={isPending ? "bg-amber-500" : isApproved ? "bg-emerald-600" : "bg-red-600"}>
+                                {isPending ? "⏳ Beklemede" : isApproved ? "✅ Onaylandı" : "❌ Reddedildi"}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 max-w-[200px] truncate text-muted-foreground" title={req.aciklama || ""}>
+                              {req.aciklama || "—"}
+                            </td>
+                            <td className="px-4 py-3">
+                              {isApproved && req.odeme_tarihi ? (
+                                <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                                  📅 {new Date(req.odeme_tarihi).toLocaleDateString("tr-TR")}
+                                </span>
+                              ) : !isPending && req.red_sebebi ? (
+                                <span className="font-semibold text-red-700 dark:text-red-300">
+                                  ⚠️ {req.red_sebebi}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {isPending ? (
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <Button
+                                    size="sm"
+                                    className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1"
+                                    onClick={() => {
+                                      setActionModal({ open: true, request: req, type: "approve" })
+                                      setModalInput(new Date().toISOString().split("T")[0])
+                                    }}
+                                  >
+                                    <CheckCircle2 className="h-3.5 w-3.5" /> Onayla
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    className="h-7 px-2.5 text-xs gap-1"
+                                    onClick={() => {
+                                      setActionModal({ open: true, request: req, type: "reject" })
+                                      setModalInput("")
+                                    }}
+                                  >
+                                    <XCircle className="h-3.5 w-3.5" /> Reddet
+                                  </Button>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground italic">Tamamlandı</span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </CardContent>
           </Card>
         )}
