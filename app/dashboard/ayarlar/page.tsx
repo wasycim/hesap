@@ -237,8 +237,19 @@ export default function AyarlarPage() {
     )))
   }
 
-  async function togglePersonel(id: string, aktif: boolean) {
-    await supabase.from("personeller").update({ aktif: !aktif }).eq("id", id)
+  async function togglePersonel(id: string, currentAktif: boolean) {
+    const nextAktif = !currentAktif
+    const updatePayload: { aktif: boolean; isten_cikis_tarihi?: string | null } = { aktif: nextAktif }
+    if (nextAktif) {
+      updatePayload.isten_cikis_tarihi = null
+      setExitDateDrafts(prev => ({ ...prev, [id]: "" }))
+    }
+    const { error } = await supabase.from("personeller").update(updatePayload).eq("id", id)
+    if (error) {
+      toast.error(`Personel durumu güncellenirken hata: ${error.message}`)
+      return
+    }
+    toast.success(nextAktif ? "Personel tekrar aktif edildi ve çıkış tarihi kaldırıldı." : "Personel pasife alındı.")
     loadData()
   }
 
@@ -833,7 +844,7 @@ export default function AyarlarPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => togglePersonel(personel.id, false)}
+                              onClick={() => togglePersonel(personel.id, personel.aktif)}
                               className="h-8 text-xs gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
                             >
                               Geri Yükle / Aktif Et
