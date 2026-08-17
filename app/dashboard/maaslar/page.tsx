@@ -280,6 +280,27 @@ export default function MaaslarPage() {
       })
     }
 
+    const monthIndex = MONTHS.indexOf(month) + 1
+    const monthPrefix = `${year}-${String(monthIndex).padStart(2, "0")}`
+
+    avansTalepleri
+      .filter(req => req.durum === "onaylandi" && req.odeme_tarihi && req.odeme_tarihi.startsWith(monthPrefix))
+      .forEach(req => {
+        const reqName = normalizeName(req.user_name)
+        const pName = normalizeName(personel.ad)
+        const isMatch = reqName === pName || reqName.includes(pName) || pName.includes(reqName)
+        if (isMatch) {
+          const tutar = Number(req.tutar || 0)
+          if (tutar > 0) {
+            advances.push({
+              tarih: req.odeme_tarihi || getMonthStartDate(month, year),
+              amount: tutar,
+              description: "Özel Avans (Onaylı Avans Talebi)",
+            })
+          }
+        }
+      })
+
     rows.forEach(row => {
       const advanceAmount = Number(row.personel_paylari?.[personel.id]) || 0
       if (advanceAmount > 0) {
@@ -604,6 +625,15 @@ export default function MaaslarPage() {
 
   const pendingAvansList = useMemo(() => avansTalepleri.filter(item => item.durum === "beklemede"), [avansTalepleri])
 
+  const myAvansTalepleri = useMemo(() => {
+    const myName = normalizeName(currentUserProfile?.displayName)
+    if (!myName) return avansTalepleri
+    return avansTalepleri.filter(req => {
+      const rName = normalizeName(req.user_name)
+      return rName === myName || rName.includes(myName) || myName.includes(rName)
+    })
+  }, [avansTalepleri, currentUserProfile?.displayName])
+
   if (subeLoading || loading) {
     return <div className="flex h-64 items-center justify-center text-muted-foreground">Yükleniyor...</div>
   }
@@ -769,17 +799,17 @@ export default function MaaslarPage() {
           </Card>
         )}
         {/* Personel Kendi Avans Talepleri Takibi */}
-        {!isManager && avansTalepleri.length > 0 && (
+        {myAvansTalepleri.length > 0 && (
           <Card className="mb-6 border-amber-300/60 bg-amber-50/40 dark:border-amber-500/30 dark:bg-amber-500/10">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base font-bold text-amber-900 dark:text-amber-200">
                 <HandCoins className="h-5 w-5 text-amber-600" />
-                Avans Taleplerim ({avansTalepleri.length})
+                Avans Taleplerim ({myAvansTalepleri.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {avansTalepleri.map(req => {
+                {myAvansTalepleri.map(req => {
                   const isPending = req.durum === "beklemede"
                   const isApproved = req.durum === "onaylandi"
                   return (

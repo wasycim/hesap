@@ -48,7 +48,8 @@ export async function GET(request: NextRequest) {
     { data: rows, error: rowsError },
     { data: approvals, error: approvalsError },
     { data: kargoPrimData },
-    { data: corbaData }
+    { data: corbaData },
+    { data: approvedAvansData }
   ] = await Promise.all([
     admin
       .from("gider_kayitlari")
@@ -78,6 +79,13 @@ export async function GET(request: NextRequest) {
       .eq("ay_yil", ayYil)
       .eq("personel_id", personel.id)
       .order("tarih"),
+    admin
+      .from("avans_talepleri")
+      .select("id, tutar, odeme_tarihi, created_at, durum")
+      .eq("user_id", user.id)
+      .eq("durum", "onaylandi")
+      .gte("odeme_tarihi", start)
+      .lte("odeme_tarihi", end),
   ])
   if (rowsError || approvalsError) return NextResponse.json({ error: rowsError?.message || approvalsError?.message }, { status: 500 })
 
@@ -87,6 +95,18 @@ export async function GET(request: NextRequest) {
   const hourlyRate = Number(personel.saatlik_mesai_ucreti || 0) || (baseSalary > 0 ? baseSalary / 30 / 8 : 0)
   const advances: Detail[] = []
   const overtime: OvertimeDetail[] = []
+
+  // Check approved advance requests for "Özel Avans"
+  for (const req of approvedAvansData || []) {
+    const tutar = Number(req.tutar || 0)
+    if (tutar > 0) {
+      advances.push({
+        date: req.odeme_tarihi || start,
+        amount: tutar,
+        description: "Özel Avans (Onaylı Avans Talebi)",
+      })
+    }
+  }
 
   // Check Kargo Prim for personnel
   if (kargoPrimData) {
