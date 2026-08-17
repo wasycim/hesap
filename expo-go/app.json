@@ -26,10 +26,17 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f172a"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "extra": {
-      "baseUrl": "https://pamukkaleturizm.info"
+      "baseUrl": "https://pamukkaleturizm.info",
+      "eas": {
+        "projectId": "518e55a1-7994-43a7-bf10-2f4736beee04"
+      }
     },
     "owner": "wasysystem",
     "plugins": [
