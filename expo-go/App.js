@@ -128,6 +128,8 @@ export default function App() {
   const [verifyCode, setVerifyCode] = useState("")
   const [authLoading, setAuthLoading] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState("")
   const [selectedPersonelId, setSelectedPersonelId] = useState("")
   const lastLoadedRef = useRef("")
   const [overview, setOverview] = useState(null)
