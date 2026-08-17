@@ -29,12 +29,9 @@
       }
     },
     "extra": {
-      "baseUrl": "https://pamukkaleturizm.info",
-      "eas": {
-        "projectId": "efc72129-3fef-468b-a646-c0b8ce98bb36"
-      }
+      "baseUrl": "https://pamukkaleturizm.info"
     },
-    "owner": "wasycimm",
+    "owner": "wasysystem",
     "plugins": [
       [
         "expo-camera",
