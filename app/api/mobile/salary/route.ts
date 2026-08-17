@@ -83,9 +83,7 @@ export async function GET(request: NextRequest) {
       .from("avans_talepleri")
       .select("id, tutar, odeme_tarihi, created_at, durum")
       .eq("user_id", user.id)
-      .eq("durum", "onaylandi")
-      .gte("odeme_tarihi", start)
-      .lte("odeme_tarihi", end),
+      .eq("durum", "onaylandi"),
   ])
   if (rowsError || approvalsError) return NextResponse.json({ error: rowsError?.message || approvalsError?.message }, { status: 500 })
 
@@ -99,9 +97,10 @@ export async function GET(request: NextRequest) {
   // Check approved advance requests for "Özel Avans"
   for (const req of approvedAvansData || []) {
     const tutar = Number(req.tutar || 0)
-    if (tutar > 0) {
+    const targetDate = req.odeme_tarihi || (req.created_at ? req.created_at.slice(0, 10) : "")
+    if (tutar > 0 && targetDate && targetDate >= start && targetDate <= end) {
       advances.push({
-        date: req.odeme_tarihi || start,
+        date: targetDate,
         amount: tutar,
         description: "Özel Avans (Onaylı Avans Talebi)",
       })

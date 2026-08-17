@@ -22,6 +22,7 @@ import {
   getMonthStartDate,
   makeYearWindow,
 } from "@/lib/date-navigation"
+import { ModernDatePicker } from "@/components/ui/modern-date-picker"
 import { openPdfReport } from "@/lib/pdf-report"
 
 interface Personel {
@@ -288,19 +289,27 @@ export default function MaaslarPage() {
     const monthPrefix = `${year}-${String(monthIndex).padStart(2, "0")}`
 
     avansTalepleri
-      .filter(req => req.durum === "onaylandi" && req.odeme_tarihi && req.odeme_tarihi.startsWith(monthPrefix))
+      .filter(req => req.durum === "onaylandi")
       .forEach(req => {
-        const reqName = normalizeName(req.user_name)
-        const pName = normalizeName(personel.ad)
-        const isMatch = reqName === pName || reqName.includes(pName) || pName.includes(reqName)
-        if (isMatch) {
-          const tutar = Number(req.tutar || 0)
-          if (tutar > 0) {
-            advances.push({
-              tarih: req.odeme_tarihi || getMonthStartDate(month, year),
-              amount: tutar,
-              description: "Özel Avans (Onaylı Avans Talebi)",
-            })
+        const targetDate = req.odeme_tarihi || (req.created_at ? req.created_at.split("T")[0] : "")
+        if (targetDate && targetDate.startsWith(monthPrefix)) {
+          const reqName = normalizeName(req.user_name || "")
+          const pName = normalizeName(personel.ad || "")
+          
+          const isMatch =
+            (req.tc_kimlik && req.tc_kimlik === personel.id) ||
+            (reqName && pName && (reqName === pName || reqName.includes(pName) || pName.includes(reqName))) ||
+            (reqName && pName && reqName.split(" ").every(part => pName.includes(part)))
+
+          if (isMatch) {
+            const tutar = Number(req.tutar || 0)
+            if (tutar > 0) {
+              advances.push({
+                tarih: targetDate,
+                amount: tutar,
+                description: "Özel Avans (Onaylı Avans Talebi)",
+              })
+            }
           }
         }
       })
@@ -707,7 +716,7 @@ export default function MaaslarPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {years.map(item => (
+              {years.map((item: number) => (
                 <SelectItem key={item} value={item.toString()}>{item}</SelectItem>
               ))}
             </SelectContent>
@@ -1022,21 +1031,19 @@ export default function MaaslarPage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold text-muted-foreground block mb-1">Başlangıç Tarihi</label>
-                  <Input
-                    type="date"
+                  <ModernDatePicker
+                    label="Başlangıç Tarihi"
                     value={avansStartDate}
-                    onChange={(e) => setAvansStartDate(e.target.value)}
-                    className="h-9 text-xs"
+                    onChange={setAvansStartDate}
+                    buttonClassName="h-9 text-xs"
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold text-muted-foreground block mb-1">Bitiş Tarihi</label>
-                  <Input
-                    type="date"
+                  <ModernDatePicker
+                    label="Bitiş Tarihi"
                     value={avansEndDate}
-                    onChange={(e) => setAvansEndDate(e.target.value)}
-                    className="h-9 text-xs"
+                    onChange={setAvansEndDate}
+                    buttonClassName="h-9 text-xs"
                   />
                 </div>
               </div>
@@ -1165,15 +1172,10 @@ export default function MaaslarPage() {
 
                 {actionModal.type === "approve" ? (
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
-                      <Calendar className="h-3.5 w-3.5" />
-                      Ödeme Yapılacak Tarih *
-                    </label>
-                    <Input
-                      type="date"
+                    <ModernDatePicker
+                      label="Ödeme Yapılacak Tarih"
                       value={modalInput}
-                      onChange={(e) => setModalInput(e.target.value)}
-                      className="w-full"
+                      onChange={setModalInput}
                     />
                     <p className="text-[11px] text-muted-foreground">
                       Seçilen tarih personele bildirim olarak gönderilecektir.
