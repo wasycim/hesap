@@ -16,9 +16,13 @@
       "supportsTablet": true,
       "bundleIdentifier": "wasy.system.hesap",
       "icon": "./assets/icon.png",
+      "entitlements": {
+        "aps-environment": "production"
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "Mesai QR kodunu okutmak için kameraya erişim gerekiyor."
+        "NSCameraUsageDescription": "Mesai QR kodunu okutmak için kameraya erişim gerekiyor.",
+        "UIBackgroundModes": ["remote-notification"]
       }
     },
     "android": {
@@ -42,6 +46,7 @@
           "cameraPermission": "Mesai QR kodunu okutmak için kameraya erişim gerekiyor."
         }
       ],
+      "expo-notifications",
       "expo-secure-store",
       "expo-sharing"
     ]

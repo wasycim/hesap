@@ -16,7 +16,7 @@
     "eas:credentials:ios": "npx --yes eas-cli@20.5.0 credentials -p ios",
     "eas:build:ios": "npx --yes eas-cli@20.5.0 build --platform ios --profile production",
     "eas:submit:ios": "npx --yes eas-cli@20.5.0 submit --platform ios --latest --profile production",
-    "eas:testflight": "npx --yes eas-cli@20.5.0 build --platform ios --profile production --auto-submit"
+    "eas:testflight": "npx --yes eas-cli@20.5.0 build --platform ios --profile production --clear-provisioning-profile --auto-submit"
   },
   "dependencies": {
     "expo": "~57.0.2",
