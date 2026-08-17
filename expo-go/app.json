@@ -42,7 +42,6 @@
           "cameraPermission": "Mesai QR kodunu okutmak için kameraya erişim gerekiyor."
         }
       ],
-      "expo-notifications",
       "expo-secure-store",
       "expo-sharing"
     ]
