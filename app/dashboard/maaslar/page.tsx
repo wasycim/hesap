@@ -123,6 +123,10 @@ export default function MaaslarPage() {
   const [selectedOrtakId, setSelectedOrtakId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentUserProfile, setCurrentUserProfile] = useState<{ displayName: string; isManager: boolean } | null>(null)
+  const [requestModalOpen, setRequestModalOpen] = useState(false)
+  const [requestTutar, setRequestTutar] = useState("")
+  const [requestAciklama, setRequestAciklama] = useState("")
+  const [submittingRequest, setSubmittingRequest] = useState(false)
   const [actionModal, setActionModal] = useState<{ open: boolean; request: AvansTalebi | null; type: "approve" | "reject" }>({ open: false, request: null, type: "approve" })
   const [modalInput, setModalInput] = useState("")
   const [actionLoading, setActionLoading] = useState(false)
@@ -566,6 +570,38 @@ export default function MaaslarPage() {
     }
   }
 
+  async function handleSendAvansRequest() {
+    const tutar = Number(requestTutar)
+    if (!tutar || isNaN(tutar) || tutar <= 0) {
+      toast.error("Lütfen geçerli bir avans tutarı girin.")
+      return
+    }
+
+    setSubmittingRequest(true)
+    try {
+      const res = await fetch("/api/mobile/avans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tutar, aciklama: requestAciklama }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || "Avans talebi iletilemedi.")
+        return
+      }
+
+      toast.success("Avans talebiniz yöneticilere iletildi.")
+      setRequestModalOpen(false)
+      setRequestTutar("")
+      setRequestAciklama("")
+      loadData()
+    } catch {
+      toast.error("Bir hata oluştu.")
+    } finally {
+      setSubmittingRequest(false)
+    }
+  }
+
   const pendingAvansList = useMemo(() => avansTalepleri.filter(item => item.durum === "beklemede"), [avansTalepleri])
 
   if (subeLoading || loading) {
@@ -586,6 +622,13 @@ export default function MaaslarPage() {
           )}
         </div>
         <div className="grid grid-cols-[auto_1fr_0.8fr_auto] items-center gap-2 sm:flex">
+          <Button
+            onClick={() => setRequestModalOpen(true)}
+            className="col-span-full gap-2 border-amber-400 bg-amber-400 text-amber-950 hover:bg-amber-300 font-bold shadow-sm sm:col-span-1"
+          >
+            <HandCoins className="h-4 w-4" />
+            Avans İste
+          </Button>
           <Button
             variant="outline"
             onClick={isManager ? exportGeneralPdf : () => visiblePersonelSummaries[0] && exportPersonelPdf(visiblePersonelSummaries[0])}
@@ -718,6 +761,61 @@ export default function MaaslarPage() {
                           </Button>
                         </div>
                       )}
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        {/* Personel Kendi Avans Talepleri Takibi */}
+        {!isManager && avansTalepleri.length > 0 && (
+          <Card className="mb-6 border-amber-300/60 bg-amber-50/40 dark:border-amber-500/30 dark:bg-amber-500/10">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base font-bold text-amber-900 dark:text-amber-200">
+                <HandCoins className="h-5 w-5 text-amber-600" />
+                Avans Taleplerim ({avansTalepleri.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {avansTalepleri.map(req => {
+                  const isPending = req.durum === "beklemede"
+                  const isApproved = req.durum === "onaylandi"
+                  return (
+                    <div
+                      key={req.id}
+                      className={`rounded-xl border p-4 shadow-sm bg-white dark:bg-slate-900 ${
+                        isPending
+                          ? "border-amber-300 dark:border-amber-500/40"
+                          : isApproved
+                          ? "border-emerald-300 dark:border-emerald-500/40"
+                          : "border-red-300 dark:border-red-500/40"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-extrabold text-lg text-foreground">
+                          {Number(req.tutar).toLocaleString("tr-TR")} ₺
+                        </span>
+                        <Badge className={isPending ? "bg-amber-500" : isApproved ? "bg-emerald-600" : "bg-red-600"}>
+                          {isPending ? "⏳ Beklemede" : isApproved ? "✅ Onaylandı" : "❌ Reddedildi"}
+                        </Badge>
+                      </div>
+                      {req.aciklama ? (
+                        <p className="mt-2 text-xs italic text-muted-foreground bg-muted/50 p-2 rounded">
+                          "{req.aciklama}"
+                        </p>
+                      ) : null}
+                      {isApproved && req.odeme_tarihi ? (
+                        <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                          📅 Ödeme Tarihi: {new Date(req.odeme_tarihi).toLocaleDateString("tr-TR")}
+                        </p>
+                      ) : null}
+                      {!isPending && req.red_sebebi ? (
+                        <p className="mt-2 text-xs font-semibold text-red-700 dark:text-red-300">
+                          ⚠️ Red Sebebi: {req.red_sebebi}
+                        </p>
+                      ) : null}
                     </div>
                   )
                 })}
@@ -935,6 +1033,60 @@ export default function MaaslarPage() {
                 disabled={actionLoading}
               >
                 {actionLoading ? "İşleniyor..." : actionModal.type === "approve" ? "Onayla & Bildirim Gönder" : "Reddet & Bildirim Gönder"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Personel Avans İste Modal (Web & Masaüstü) */}
+        <Dialog open={requestModalOpen} onOpenChange={setRequestModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+                <HandCoins className="h-5 w-5 text-amber-600" />
+                Avans Talebi Oluştur
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <p className="text-xs text-muted-foreground">
+                Talep etmek istediğiniz avans tutarını ve opsiyonel açıklamanızı girin. Talebiniz anında yöneticilere bildirilecektir.
+              </p>
+              <div>
+                <label className="text-xs font-bold text-foreground mb-1 block">Avans Tutarı (₺) *</label>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="Örn: 1000"
+                    value={requestTutar}
+                    onChange={(e) => setRequestTutar(e.target.value)}
+                    className="h-10 text-base font-bold pr-8"
+                  />
+                  <span className="absolute right-3 top-2.5 text-sm font-bold text-muted-foreground">₺</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-foreground mb-1 block">Açıklama / Not (Opsiyonel)</label>
+                <Textarea
+                  placeholder="Örn: Acil yol masrafı için avans talep ediyorum."
+                  value={requestAciklama}
+                  onChange={(e) => setRequestAciklama(e.target.value)}
+                  rows={3}
+                  className="text-xs"
+                />
+              </div>
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setRequestModalOpen(false)}>
+                Vazgeç
+              </Button>
+              <Button
+                onClick={handleSendAvansRequest}
+                disabled={submittingRequest}
+                className="bg-amber-500 hover:bg-amber-600 text-white font-bold gap-2"
+              >
+                <HandCoins className="h-4 w-4" />
+                {submittingRequest ? "Gönderiliyor..." : "Avans Talebi Gönder"}
               </Button>
             </DialogFooter>
           </DialogContent>
