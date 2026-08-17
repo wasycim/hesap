@@ -35,7 +35,11 @@ import {
   TrendingDown,
   DollarSign,
   Briefcase,
-  Store,
+  PlusCircle,
+  RotateCcw,
+  Wallet,
+  ArrowUpRight,
+  ArrowDownRight,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -49,6 +53,17 @@ type BackupPayload = {
   tables?: Record<string, unknown[]>
 }
 
+type SimulatedEntry = {
+  id: string
+  tarih: string
+  aciklama: string
+  kategori: string
+  tur: "gelir" | "gider"
+  tutar: number
+  odeme_turu: string
+  source: "simulated" | "backup" | "live"
+}
+
 function tableCount(payload: BackupPayload | null) {
   if (!payload?.tables) return []
   return Object.entries(payload.tables).map(([table, rows]) => ({
@@ -58,7 +73,7 @@ function tableCount(payload: BackupPayload | null) {
 }
 
 function formatMoney(amount?: number) {
-  if (!amount || isNaN(amount)) return "0 ₺"
+  if (!amount || isNaN(amount)) return "0,00 ₺"
   return `${amount.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺`
 }
 
@@ -91,11 +106,150 @@ export function BackupIslemleriPanel() {
   const [customStart, setCustomStart] = useState<string>("")
   const [customEnd, setCustomEnd] = useState<string>("")
 
-  // Live Table Preview States
-  const [selectedPreviewTable, setSelectedPreviewTable] = useState<string>("gider_kayitlari")
-  const [previewSearch, setPreviewSearch] = useState<string>("")
-  const [previewViewMode, setPreviewViewMode] = useState<"ui" | "raw">("ui")
+  // Live Preview Data & Raw Table States
   const [livePreviewData, setLivePreviewData] = useState<BackupPayload | null>(null)
+  const [selectedRawTable, setSelectedRawTable] = useState<string>("gider_kayitlari")
+  const [rawTableSearch, setRawTableSearch] = useState<string>("")
+  const [previewTab, setPreviewTab] = useState<"gelir-gider-ui" | "raw-table">("gelir-gider-ui")
+
+  // Interactive Live Gelir-Gider Entry Simulation Form States
+  const [simFormTarih, setSimFormTarih] = useState<string>(new Date().toISOString().slice(0, 10))
+  const [simFormTur, setSimFormTur] = useState<"gelir" | "gider">("gider")
+  const [simFormAciklama, setSimFormAciklama] = useState<string>("")
+  const [simFormKategori, setSimFormKategori] = useState<string>("Petrol / Mazot")
+  const [simFormTutar, setSimFormTutar] = useState<string>("")
+  const [simFormOdemeTuru, setSimFormOdemeTuru] = useState<string>("Nakit")
+  const [tableSearchQuery, setTableSearchQuery] = useState<string>("")
+
+  // Sample Simulated Gelir-Gider Table Rows
+  const [simulatedEntries, setSimulatedEntries] = useState<SimulatedEntry[]>([
+    {
+      id: "sim-1",
+      tarih: new Date().toISOString().slice(0, 10),
+      aciklama: "Otobüs Akaryakıt Ödemesi (Örnek Kayıt)",
+      kategori: "Petrol / Mazot",
+      tur: "gider",
+      tutar: 4500,
+      odeme_turu: "Kredi Kartı",
+      source: "simulated",
+    },
+    {
+      id: "sim-2",
+      tarih: new Date().toISOString().slice(0, 10),
+      aciklama: "Kargo Cari Tahsilat Geliri (Örnek Kayıt)",
+      kategori: "Kargo Geliri",
+      tur: "gelir",
+      tutar: 12800,
+      odeme_turu: "Banka Havalesi",
+      source: "simulated",
+    },
+    {
+      id: "sim-3",
+      tarih: new Date().toISOString().slice(0, 10),
+      aciklama: "Şube Personel Avans Ödemesi",
+      kategori: "Personel Avansı",
+      tur: "gider",
+      tutar: 2000,
+      odeme_turu: "Nakit",
+      source: "simulated",
+    },
+  ])
+
+  // Add new simulated entry
+  function handleAddSimulatedEntry(e: React.FormEvent) {
+    e.preventDefault()
+    const numTutar = Number(simFormTutar)
+    if (!simFormAciklama.trim()) {
+      toast.error("Lütfen işlem açıklaması girin.")
+      return
+    }
+    if (isNaN(numTutar) || numTutar <= 0) {
+      toast.error("Lütfen geçerli bir tutar girin.")
+      return
+    }
+
+    const newEntry: SimulatedEntry = {
+      id: `sim-${Date.now()}`,
+      tarih: simFormTarih || new Date().toISOString().slice(0, 10),
+      aciklama: simFormAciklama.trim(),
+      kategori: simFormKategori,
+      tur: simFormTur,
+      tutar: numTutar,
+      odeme_turu: simFormOdemeTuru,
+      source: "simulated",
+    }
+
+    setSimulatedEntries((prev) => [newEntry, ...prev])
+    setSimFormAciklama("")
+    setSimFormTutar("")
+    toast.success("✨ Yeni hesap kaydı canlı Gelir-Gider tablosuna simüle edildi!")
+  }
+
+  // Import Backup Rows into Live Gelir-Gider Table UI
+  function handleImportBackupIntoGelirGiderTable() {
+    const dataSource = pendingBackup?.payload || livePreviewData || lastBackup
+    if (!dataSource?.tables) {
+      toast.error("Önizlenecek yedek verisi bulunamadı.")
+      return
+    }
+
+    const giderRows = (dataSource.tables["gider_kayitlari"] || []) as any[]
+    const gelirRows = (dataSource.tables["gelir_kayitlari"] || []) as any[]
+    const recordRows = (dataSource.tables["records"] || []) as any[]
+
+    const imported: SimulatedEntry[] = []
+
+    giderRows.forEach((r, idx) => {
+      imported.push({
+        id: `backup-gider-${idx}`,
+        tarih: r.tarih || r.created_at?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+        aciklama: r.aciklama || r.kategori || "Yedekten Gelen Gider",
+        kategori: r.kategori || "Gider Kaydı",
+        tur: "gider",
+        tutar: Math.abs(Number(r.tutar || r.miktar || 0)),
+        odeme_turu: r.odeme_turu || "Nakit",
+        source: "backup",
+      })
+    })
+
+    gelirRows.forEach((r, idx) => {
+      imported.push({
+        id: `backup-gelir-${idx}`,
+        tarih: r.tarih || r.created_at?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+        aciklama: r.aciklama || r.kategori || "Yedekten Gelen Gelir",
+        kategori: r.kategori || "Gelir Kaydı",
+        tur: "gelir",
+        tutar: Math.abs(Number(r.tutar || r.miktar || 0)),
+        odeme_turu: r.odeme_turu || "Banka",
+        source: "backup",
+      })
+    })
+
+    if (imported.length === 0 && recordRows.length > 0) {
+      recordRows.forEach((r, idx) => {
+        const amount = Number(r.amount || r.tutar || 0)
+        imported.push({
+          id: `backup-rec-${idx}`,
+          tarih: r.record_date || r.tarih || new Date().toISOString().slice(0, 10),
+          aciklama: r.title || r.aciklama || "Yedek İşlem Kaydı",
+          kategori: r.type || "Yedek Kayıt",
+          tur: amount >= 0 ? "gelir" : "gider",
+          tutar: Math.abs(amount),
+          odeme_turu: "Sistem Kaydı",
+          source: "backup",
+        })
+      })
+    }
+
+    if (imported.length === 0) {
+      toast.info("Yedek içerisinde aktarılacak gelir/gider kaydı bulunamadı.")
+      return
+    }
+
+    setSimulatedEntries(imported)
+    setPreviewTab("gelir-gider-ui")
+    toast.success(`Yedekten ${imported.length} adet kayıt canlı Gelir-Gider tablosuna yüklendi!`)
+  }
 
   // Calculate Date range values for query params
   function getDateRange() {
@@ -230,7 +384,7 @@ export function BackupIslemleriPanel() {
     }
 
     setLivePreviewData(data)
-    toast.success("Canlı UI arayüz önizlemesi güncellendi!")
+    toast.success("Canlı veritabanı önizlemesi yüklendi!")
   }
 
   // Handle local file parsing and load preview
@@ -262,7 +416,7 @@ export function BackupIslemleriPanel() {
     if (fullFileRef.current) fullFileRef.current.value = ""
     if (logFileRef.current) logFileRef.current.value = ""
 
-    toast.info("Yedek dosyası Canlı UI Arayüz Önizlemesine yüklendi!")
+    toast.info("Yedek dosyası yüklendi. Canlı önizleme tablosunda inceleyebilirsiniz!")
   }
 
   // Execute restore after user confirmation
@@ -322,23 +476,45 @@ export function BackupIslemleriPanel() {
     toast.success(data?.message || "Temizleme işlemi başarıyla tamamlandı.")
   }
 
-  // Compute active preview rows based on selected table & search
+  // Compute Simulated Gelir-Gider Metrics
+  const filteredSimEntries = useMemo(() => {
+    if (!tableSearchQuery.trim()) return simulatedEntries
+    const q = tableSearchQuery.toLowerCase()
+    return simulatedEntries.filter(
+      (item) =>
+        item.aciklama.toLowerCase().includes(q) ||
+        item.kategori.toLowerCase().includes(q) ||
+        item.odeme_turu.toLowerCase().includes(q) ||
+        item.tarih.includes(q)
+    )
+  }, [simulatedEntries, tableSearchQuery])
+
+  const totalGelir = useMemo(
+    () => filteredSimEntries.filter((e) => e.tur === "gelir").reduce((sum, e) => sum + e.tutar, 0),
+    [filteredSimEntries]
+  )
+  const totalGider = useMemo(
+    () => filteredSimEntries.filter((e) => e.tur === "gider").reduce((sum, e) => sum + e.tutar, 0),
+    [filteredSimEntries]
+  )
+  const netBakiye = totalGelir - totalGider
+
+  // Raw Table Preview Compute
   const currentPreviewSource = pendingBackup?.payload || livePreviewData || lastBackup
   const availableTables = useMemo(() => {
     if (!currentPreviewSource?.tables) return ["gider_kayitlari", "personeller", "avans_talepleri", "subeler", "user_profiles"]
     return Object.keys(currentPreviewSource.tables)
   }, [currentPreviewSource])
 
-  const tableRows = useMemo(() => {
-    if (!currentPreviewSource?.tables?.[selectedPreviewTable]) return []
-    const rawRows = currentPreviewSource.tables[selectedPreviewTable]
+  const rawTableRows = useMemo(() => {
+    if (!currentPreviewSource?.tables?.[selectedRawTable]) return []
+    const rawRows = currentPreviewSource.tables[selectedRawTable]
     if (!Array.isArray(rawRows)) return []
 
-    if (!previewSearch.trim()) return rawRows
-
-    const query = previewSearch.toLowerCase()
+    if (!rawTableSearch.trim()) return rawRows
+    const query = rawTableSearch.toLowerCase()
     return rawRows.filter((row) => JSON.stringify(row).toLowerCase().includes(query))
-  }, [currentPreviewSource, selectedPreviewTable, previewSearch])
+  }, [currentPreviewSource, selectedRawTable, rawTableSearch])
 
   return (
     <main className="space-y-6">
@@ -349,9 +525,9 @@ export function BackupIslemleriPanel() {
             <DatabaseBackup className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">Veritabanı Yedekleme & Canlı UI Önizleme Merkezi</h1>
+            <h1 className="text-xl font-bold text-white tracking-tight">Veritabanı Yedekleme & Canlı Ekran Simülasyonu</h1>
             <p className="text-xs text-cyan-200/70">
-              Sistem verilerini dışa aktarın, geri yükleyin ve kullanıcının gerçekte gördüğü canlı UI ekranları ile önizleyin.
+              Sistem verilerini dışa aktarın, yedekleri geri yükleyin ve canlı Gelir-Gider tablosunda sanki yeni hesap giriliyormuş gibi test edin.
             </p>
           </div>
         </div>
@@ -373,7 +549,7 @@ export function BackupIslemleriPanel() {
               </Button>
             </div>
             <CardDescription className="text-amber-800/90 dark:text-amber-300/90 font-medium text-xs">
-              Dosya incelendi. Aşağıdaki 'Canlı UI Ekran Ön İzlemesi' bölümünden kullanıcının ekranında nasıl duracağını görebilirsiniz.
+              Dosya incelendi. Aşağıdaki 'Canlı Gelir-Gider Tablosu' bölümüne yedek verilerini aktarabilir ve önizleyebilirsiniz.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -550,20 +726,20 @@ export function BackupIslemleriPanel() {
         </Card>
       </section>
 
-      {/* ✨ LIVE UI SCREEN PREVIEW FEATURE: Canlı Ekran & Arayüz Ön İzleme (User Visual View) */}
-      <Card className="border-cyan-500/30 bg-gradient-to-b from-card via-card to-cyan-950/5 shadow-md">
+      {/* ✨ LIVE INTERACTIVE GELİR-GİDER TABLOSU & HESAP GİRİŞİ SİMÜLATÖRÜ */}
+      <Card className="border-cyan-500/40 bg-card shadow-lg">
         <CardHeader className="pb-3 border-b">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="grid h-9 w-9 place-items-center rounded-xl bg-cyan-500/15 text-cyan-500 border border-cyan-500/30">
-                <Sparkles className="h-5 w-5" />
+              <div className="grid h-10 w-10 place-items-center rounded-2xl bg-cyan-500/15 text-cyan-500 border border-cyan-500/30">
+                <Receipt className="h-5 w-5" />
               </div>
               <div>
                 <CardTitle className="text-lg font-bold flex items-center gap-2">
-                  🎨 Canlı Arayüz & UI Ekran Ön İzlemesi
+                  ✨ Örnek Canlı Gelir-Gider Tablosu & Veri Giriş Simülasyonu
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Sanki o tabloya o veri eklenmiş gibi kullanıcının gerçekte göreceği canlı UI kartları ve ekran simülasyonu.
+                  Sanki canlı sistemde yeni hesap veya işlem giriliyormuş gibi UI tablosuna veri işleyin ve bakiyeyi izleyin.
                 </CardDescription>
               </div>
             </div>
@@ -572,285 +748,317 @@ export function BackupIslemleriPanel() {
               <div className="flex items-center rounded-xl border bg-muted/60 p-1">
                 <Button
                   size="sm"
-                  variant={previewViewMode === "ui" ? "default" : "ghost"}
-                  onClick={() => setPreviewViewMode("ui")}
-                  className={`h-7 px-3 text-xs gap-1 font-bold ${
-                    previewViewMode === "ui" ? "bg-cyan-600 text-white shadow-sm" : ""
+                  variant={previewTab === "gelir-gider-ui" ? "default" : "ghost"}
+                  onClick={() => setPreviewTab("gelir-gider-ui")}
+                  className={`h-8 px-3 text-xs gap-1.5 font-bold ${
+                    previewTab === "gelir-gider-ui" ? "bg-cyan-600 text-white shadow-sm" : ""
                   }`}
                 >
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                  🎨 Canlı UI Görünümü
+                  <Receipt className="h-3.5 w-3.5" />
+                  Canlı Gelir-Gider Tablosu UI
                 </Button>
                 <Button
                   size="sm"
-                  variant={previewViewMode === "raw" ? "default" : "ghost"}
-                  onClick={() => setPreviewViewMode("raw")}
-                  className={`h-7 px-3 text-xs gap-1 font-bold ${
-                    previewViewMode === "raw" ? "bg-cyan-600 text-white shadow-sm" : ""
+                  variant={previewTab === "raw-table" ? "default" : "ghost"}
+                  onClick={() => setPreviewTab("raw-table")}
+                  className={`h-8 px-3 text-xs gap-1.5 font-bold ${
+                    previewTab === "raw-table" ? "bg-cyan-600 text-white shadow-sm" : ""
                   }`}
                 >
                   <TableIcon className="h-3.5 w-3.5" />
-                  📊 Ham Veri Tablosu
+                  Ham Veritabanı Tablosu
                 </Button>
-              </div>
-
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={fetchLivePreviewData}
-                disabled={busy === "fetch-preview"}
-                className="gap-1.5 border-cyan-500/40 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/10 text-xs font-semibold"
-              >
-                {busy === "fetch-preview" ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
-                Önizlemeyi Yenile
-              </Button>
-            </div>
-          </div>
-
-          {/* Table & Filter Controls */}
-          <div className="mt-4 grid gap-3 grid-cols-1 sm:grid-cols-3 pt-2">
-            <div>
-              <label className="text-[11px] font-bold text-muted-foreground block mb-1">Önizlenecek Modül / Tablo Seçin:</label>
-              <Select value={selectedPreviewTable} onValueChange={setSelectedPreviewTable}>
-                <SelectTrigger className="h-10 text-xs font-bold">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  {availableTables.map((tbl) => (
-                    <SelectItem key={tbl} value={tbl} className="font-semibold text-xs cursor-pointer">
-                      {tbl === "gider_kayitlari"
-                        ? "📊 Gelir & Gider Kayıtları UI"
-                        : tbl === "personeller"
-                        ? "👥 Personeller & Maaşlar UI"
-                        : tbl === "avans_talepleri"
-                        ? "💰 Avans Talepleri UI"
-                        : tbl === "subeler"
-                        ? "🏪 Şubeler Yönetimi UI"
-                        : tbl === "user_profiles"
-                        ? "⚙️ Kullanıcı Profilleri & Yetkiler UI"
-                        : `📊 Tablo: ${tbl}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="text-[11px] font-bold text-muted-foreground block mb-1">Arayüz İçinde Canlı Ara:</label>
-              <div className="relative">
-                <Input
-                  placeholder="İsim, tarih, tutar veya açıklama arayın..."
-                  value={previewSearch}
-                  onChange={(e) => setPreviewSearch(e.target.value)}
-                  className="h-10 text-xs pl-9"
-                />
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               </div>
             </div>
           </div>
         </CardHeader>
 
-        <CardContent className="p-4 space-y-4">
-          <div className="flex items-center justify-between text-xs font-semibold text-cyan-900 dark:text-cyan-200 bg-cyan-500/10 p-3 rounded-xl border border-cyan-500/20">
-            <span className="flex items-center gap-2">
-              <LayoutGrid className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
-              Ekran Modülü: <strong className="font-extrabold text-foreground">{selectedPreviewTable}</strong>
-            </span>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-cyan-600 text-white font-bold">{tableRows.length} Kayıt Gösteriliyor</Badge>
-              {pendingBackup && <Badge className="bg-amber-500 text-white font-bold">📂 Yüklenen Dosya Simülasyonu</Badge>}
-            </div>
-          </div>
-
-          {/* RENDER LIVE UI VISUAL COMPONENTS AS THE USER SEES THEM IN APP */}
-          {previewViewMode === "ui" ? (
-            <div className="space-y-4">
-              {tableRows.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-                  <LayoutGrid className="h-10 w-10 text-muted-foreground/40 mb-2" />
-                  <p className="text-sm font-semibold">Bu modülde önizlenecek veri kaydı bulunamadı.</p>
-                  <p className="text-xs opacity-75 mt-1">Lütfen baska bir tablo seçin veya arama filtresini değiştirin.</p>
-                </div>
-              ) : selectedPreviewTable === "gider_kayitlari" || selectedPreviewTable === "gelir_kayitlari" ? (
-                /* Gelir & Gider Kayıtları UI Component Preview */
-                <div className="space-y-3">
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {tableRows.slice(0, 12).map((row: any, idx: number) => {
-                      const isIncome = row.tur === "gelir" || Number(row.tutar || 0) > 0
-                      const tutar = Math.abs(Number(row.tutar || row.miktar || 0))
-                      return (
-                        <div
-                          key={idx}
-                          className="rounded-2xl border bg-card p-4 shadow-xs hover:shadow-sm transition-all border-border/80"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-bold text-xs text-muted-foreground flex items-center gap-1.5">
-                              <Receipt className="h-3.5 w-3.5 text-cyan-500" />
-                              {row.kategori || row.tur || "İşlem Kaydı"}
-                            </span>
-                            <Badge className={isIncome ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}>
-                              {isIncome ? "🟢 Gelir" : "🔴 Gider"}
-                            </Badge>
-                          </div>
-                          <div className="mt-2 flex items-baseline justify-between">
-                            <span className={`text-xl font-extrabold ${isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                              {isIncome ? "+" : "-"}{formatMoney(tutar)}
-                            </span>
-                            <span className="text-[11px] text-muted-foreground font-semibold">
-                              {row.tarih || (row.created_at ? row.created_at.slice(0, 10) : "")}
-                            </span>
-                          </div>
-                          {row.aciklama ? (
-                            <p className="mt-2 text-xs text-muted-foreground italic bg-muted/40 p-2 rounded-xl truncate">
-                              "{row.aciklama}"
-                            </p>
-                          ) : null}
-                          <div className="mt-3 pt-2 border-t border-dashed flex items-center justify-between text-[11px] text-muted-foreground">
-                            <span>Kasa/Ödeme: <strong className="text-foreground">{row.odeme_turu || "Nakit"}</strong></span>
-                            <Badge variant="outline" className="text-[10px]">✨ UI Simülasyonu</Badge>
-                          </div>
-                        </div>
-                      )
-                    })}
+        <CardContent className="space-y-6 pt-4">
+          {previewTab === "gelir-gider-ui" ? (
+            <>
+              {/* TOP SUMMARY METRICS BAR */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 block mb-1">
+                      🟢 Toplam Gelir
+                    </span>
+                    <span className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
+                      {formatMoney(totalGelir)}
+                    </span>
+                  </div>
+                  <div className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-500/20 text-emerald-600">
+                    <ArrowUpRight className="h-5 w-5" />
                   </div>
                 </div>
-              ) : selectedPreviewTable === "personeller" ? (
-                /* Personeller UI Component Preview */
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {tableRows.slice(0, 12).map((row: any, idx: number) => {
-                    return (
-                      <div key={idx} className="rounded-2xl border bg-card p-4 shadow-xs border-border/80 hover:border-cyan-500/40 transition">
-                        <div className="flex items-center gap-3">
-                          <div className="grid h-10 w-10 place-items-center rounded-xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 font-extrabold text-sm border border-cyan-500/30">
-                            {row.ad ? row.ad.slice(0, 2).toUpperCase() : "P"}
-                          </div>
-                          <div>
-                            <h4 className="font-extrabold text-sm text-foreground">{row.ad || "Personel"}</h4>
-                            <p className="text-xs text-muted-foreground font-semibold">{row.gorev || "Saha Personeli"}</p>
-                          </div>
-                        </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs bg-muted/40 p-2.5 rounded-xl border border-border/50">
-                          <div>
-                            <span className="text-[10px] text-muted-foreground block">Aylık Taban:</span>
-                            <strong className="text-foreground font-bold">{formatMoney(Number(row.aylik_maas || 0))}</strong>
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-muted-foreground block">Saat Ücreti:</span>
-                            <strong className="text-emerald-600 font-bold">{formatMoney(Number(row.saat_ucreti || 0))}</strong>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : selectedPreviewTable === "avans_talepleri" ? (
-                /* Avans Talepleri UI Component Preview */
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {tableRows.slice(0, 12).map((row: any, idx: number) => {
-                    const isPending = row.durum === "beklemede"
-                    const isApproved = row.durum === "onaylandi"
-                    return (
-                      <div
-                        key={idx}
-                        className={`rounded-2xl border p-4 shadow-xs bg-card transition ${
-                          isPending
-                            ? "border-amber-300 dark:border-amber-500/40"
-                            : isApproved
-                            ? "border-emerald-300 dark:border-emerald-500/40"
-                            : "border-red-300 dark:border-red-500/40"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-bold text-sm text-foreground">{row.user_name || "Personel"}</span>
-                          <Badge className={isPending ? "bg-amber-500 text-white" : isApproved ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}>
-                            {isPending ? "⏳ Beklemede" : isApproved ? "✅ Onaylandı" : "❌ Reddedildi"}
-                          </Badge>
-                        </div>
-                        <div className="mt-2 text-xl font-extrabold text-foreground">
-                          {formatMoney(Number(row.tutar || 0))}
-                        </div>
-                        {row.aciklama ? (
-                          <p className="mt-2 text-xs italic text-muted-foreground bg-muted/40 p-2 rounded-xl">
-                            "{row.aciklama}"
-                          </p>
-                        ) : null}
-                        {isApproved && row.odeme_tarihi ? (
-                          <p className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                            📅 Ödeme Tarihi: {row.odeme_tarihi}
-                          </p>
-                        ) : null}
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                /* Generic Styled Card Grid Preview for other tables */
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {tableRows.slice(0, 12).map((row: any, idx: number) => {
-                    const title = row.ad || row.title || row.user_name || row.display_name || row.sube_adi || `Kayıt #${idx + 1}`
-                    return (
-                      <div key={idx} className="rounded-2xl border bg-card p-4 shadow-xs border-border/80 hover:border-cyan-500/30 transition">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-bold text-sm text-foreground truncate">{title}</span>
-                          <Badge variant="outline" className="bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 text-[10px]">
-                            {selectedPreviewTable}
-                          </Badge>
-                        </div>
-                        <pre className="mt-2 text-[10px] font-mono text-muted-foreground bg-muted/40 p-2 rounded-xl max-h-24 overflow-auto whitespace-pre-wrap break-all">
-                          {JSON.stringify(row, null, 2)}
-                        </pre>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          ) : (
-            /* RAW DATA TABLE VIEW */
-            <div className="max-h-[380px] overflow-auto rounded-xl border">
-              <table className="w-full text-left text-xs">
-                <thead className="sticky top-0 bg-muted/90 backdrop-blur border-b font-bold text-muted-foreground uppercase">
-                  <tr>
-                    <th className="px-4 py-3">#</th>
-                    <th className="px-4 py-3">Simülasyon Durumu</th>
-                    <th className="px-4 py-3">Kayıt Veri Özeti (JSON / Sütunlar)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {tableRows.slice(0, 50).map((row: any, idx: number) => {
-                    const rowText = typeof row === "object" ? JSON.stringify(row) : String(row)
-                    const isIncome = rowText.includes("gelir") || rowText.includes("onaylandi")
-                    const isExpense = rowText.includes("gider") || rowText.includes("reddedildi")
-                    const rowTitle = row?.ad || row?.user_name || row?.display_name || row?.tarih || row?.created_at || `Kayıt #${idx + 1}`
 
-                    return (
-                      <tr key={idx} className="hover:bg-cyan-500/5 transition">
-                        <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground">{idx + 1}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <Badge
-                            className={
-                              isIncome
-                                ? "bg-emerald-600 text-white"
-                                : isExpense
-                                ? "bg-amber-600 text-white"
-                                : "bg-cyan-600 text-white"
-                            }
-                          >
-                            <BadgeCheck className="h-3 w-3 mr-1" />
-                            {pendingBackup ? "✨ Eklenecek Veri" : "✅ Canlı Tablo Kaydı"}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="font-bold text-foreground text-xs">{rowTitle}</div>
-                          <pre className="mt-1 text-[10px] font-mono text-muted-foreground bg-muted/40 p-2 rounded max-h-20 overflow-auto whitespace-pre-wrap break-all">
-                            {JSON.stringify(row, null, 2)}
-                          </pre>
-                        </td>
+                <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-4 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] font-bold text-red-700 dark:text-red-300 block mb-1">
+                      🔴 Toplam Gider
+                    </span>
+                    <span className="text-xl font-extrabold text-red-600 dark:text-red-400">
+                      {formatMoney(totalGider)}
+                    </span>
+                  </div>
+                  <div className="grid h-9 w-9 place-items-center rounded-xl bg-red-500/20 text-red-600">
+                    <ArrowDownRight className="h-5 w-5" />
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-cyan-500/30 bg-cyan-500/5 p-4 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-300 block mb-1">
+                      💰 Net Bakiye / Kasa Durumu
+                    </span>
+                    <span className={`text-xl font-extrabold ${netBakiye >= 0 ? "text-cyan-600 dark:text-cyan-400" : "text-red-600 dark:text-red-400"}`}>
+                      {formatMoney(netBakiye)}
+                    </span>
+                  </div>
+                  <div className="grid h-9 w-9 place-items-center rounded-xl bg-cyan-500/20 text-cyan-600">
+                    <Wallet className="h-5 w-5" />
+                  </div>
+                </div>
+              </div>
+
+              {/* SIMULATED NEW HESAP / ENTRY FORM */}
+              <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/5 via-slate-900/10 to-transparent p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-foreground flex items-center gap-2">
+                    <PlusCircle className="h-4 w-4 text-cyan-500" />
+                    Yeni Hesap Kaydı Ekleme Simülatörü (Sanki Yeni İşlem Giriliyormuş Gibi)
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleImportBackupIntoGelirGiderTable}
+                      className="h-8 text-xs gap-1 border-cyan-500/40 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/10 font-semibold"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Yedek Kayıtlarını Tabloya Doldur
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setSimulatedEntries([])}
+                      className="h-8 text-xs text-muted-foreground hover:text-foreground gap-1"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      Tabloyu Temizle
+                    </Button>
+                  </div>
+                </div>
+
+                <form onSubmit={handleAddSimulatedEntry} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 pt-1">
+                  <div>
+                    <ModernDatePicker
+                      label="Tarih"
+                      value={simFormTarih}
+                      onChange={setSimFormTarih}
+                      buttonClassName="h-10 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-muted-foreground block mb-1">İşlem Türü:</label>
+                    <Select value={simFormTur} onValueChange={(val: "gelir" | "gider") => setSimFormTur(val)}>
+                      <SelectTrigger className="h-10 text-xs font-bold">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        <SelectItem value="gider" className="font-bold text-red-600">🔴 Gider (-)</SelectItem>
+                        <SelectItem value="gelir" className="font-bold text-emerald-600">🟢 Gelir (+)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="lg:col-span-2">
+                    <label className="text-[11px] font-bold text-muted-foreground block mb-1">İşlem Açıklaması:</label>
+                    <Input
+                      placeholder="Örn: Otobüs Yakıt Alımı, Ofis Gideri..."
+                      value={simFormAciklama}
+                      onChange={(e) => setSimFormAciklama(e.target.value)}
+                      className="h-10 text-xs font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-muted-foreground block mb-1">Tutar (₺):</label>
+                    <Input
+                      type="number"
+                      placeholder="0.00"
+                      value={simFormTutar}
+                      onChange={(e) => setSimFormTutar(e.target.value)}
+                      className="h-10 text-xs font-bold text-emerald-600 dark:text-emerald-400"
+                    />
+                  </div>
+
+                  <div className="flex items-end">
+                    <Button type="submit" className="h-10 w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs gap-1.5 shadow-md">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Tabloya Ekle
+                    </Button>
+                  </div>
+                </form>
+              </div>
+
+              {/* LIVE GELİR-GİDER TABLE UI */}
+              <div className="rounded-2xl border border-border/80 overflow-hidden shadow-xs">
+                <div className="p-3 bg-muted/40 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs font-semibold">
+                  <div className="flex items-center gap-2">
+                    <Receipt className="h-4 w-4 text-cyan-500" />
+                    <span className="font-bold text-foreground">Canlı Gelir-Gider İşlem Tablosu</span>
+                    <Badge className="bg-cyan-600 text-white font-bold text-[10px]">{filteredSimEntries.length} İşlem</Badge>
+                  </div>
+
+                  <div className="relative w-full sm:w-64">
+                    <Input
+                      placeholder="Tablo içinde ara..."
+                      value={tableSearchQuery}
+                      onChange={(e) => setTableSearchQuery(e.target.value)}
+                      className="h-8 text-xs pl-8"
+                    />
+                    <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                </div>
+
+                <div className="max-h-[360px] overflow-auto">
+                  {filteredSimEntries.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                      <Receipt className="h-10 w-10 text-muted-foreground/40 mb-2" />
+                      <p className="text-sm font-semibold">Henüz canlı Gelir-Gider tablosunda kayıt yok.</p>
+                      <p className="text-xs opacity-75 mt-1">Yukarıdaki formdan simüle edilmiş kayıt ekleyebilir veya yedeğinizi aktarabilirsiniz.</p>
+                    </div>
+                  ) : (
+                    <table className="w-full text-left text-xs">
+                      <thead className="sticky top-0 bg-muted/90 backdrop-blur border-b font-bold text-muted-foreground uppercase">
+                        <tr>
+                          <th className="px-4 py-3">#</th>
+                          <th className="px-4 py-3">Tarih</th>
+                          <th className="px-4 py-3">İşlem Açıklaması</th>
+                          <th className="px-4 py-3">Kategori</th>
+                          <th className="px-4 py-3">Tür</th>
+                          <th className="px-4 py-3">Ödeme Türü</th>
+                          <th className="px-4 py-3 text-right">Tutar (₺)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {filteredSimEntries.map((item, idx) => {
+                          const isIncome = item.tur === "gelir"
+                          return (
+                            <tr key={item.id} className="hover:bg-cyan-500/5 transition">
+                              <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground">{idx + 1}</td>
+                              <td className="px-4 py-3 whitespace-nowrap font-semibold text-muted-foreground">
+                                {item.tarih}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="font-bold text-foreground">{item.aciklama}</div>
+                                {item.source === "simulated" && (
+                                  <span className="text-[10px] text-cyan-600 dark:text-cyan-400 font-semibold">✨ Yeni Simüle Edildi</span>
+                                )}
+                                {item.source === "backup" && (
+                                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">📂 Yedekten Yüklendi</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <Badge variant="outline" className="text-[10px]">
+                                  {item.kategori}
+                                </Badge>
+                              </td>
+                              <td className="px-4 py-3">
+                                <Badge className={isIncome ? "bg-emerald-600 text-white font-bold" : "bg-red-600 text-white font-bold"}>
+                                  {isIncome ? "🟢 Gelir" : "🔴 Gider"}
+                                </Badge>
+                              </td>
+                              <td className="px-4 py-3 text-muted-foreground font-semibold">
+                                {item.odeme_turu}
+                              </td>
+                              <td className="px-4 py-3 text-right whitespace-nowrap font-extrabold text-sm">
+                                <span className={isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>
+                                  {isIncome ? "+" : "-"}{formatMoney(item.tutar)}
+                                </span>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
+            /* RAW DATABASE TABLE VIEW */
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/30 p-3 rounded-xl border">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-muted-foreground">Önizlenecek Veritabanı Tablosu:</span>
+                  <Select value={selectedRawTable} onValueChange={setSelectedRawTable}>
+                    <SelectTrigger className="h-9 w-52 text-xs font-bold">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {availableTables.map((tbl) => (
+                        <SelectItem key={tbl} value={tbl} className="font-semibold text-xs cursor-pointer">
+                          📊 Tablo: {tbl}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="relative w-full sm:w-64">
+                  <Input
+                    placeholder="Tabloda JSON ara..."
+                    value={rawTableSearch}
+                    onChange={(e) => setRawTableSearch(e.target.value)}
+                    className="h-9 text-xs pl-8"
+                  />
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                </div>
+              </div>
+
+              <div className="max-h-[380px] overflow-auto rounded-xl border">
+                {rawTableRows.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                    <TableIcon className="h-10 w-10 text-muted-foreground/40 mb-2" />
+                    <p className="text-sm font-semibold">Bu tabloda önizlenecek veri kaydı bulunamadı.</p>
+                  </div>
+                ) : (
+                  <table className="w-full text-left text-xs">
+                    <thead className="sticky top-0 bg-muted/90 backdrop-blur border-b font-bold text-muted-foreground uppercase">
+                      <tr>
+                        <th className="px-4 py-3">#</th>
+                        <th className="px-4 py-3">Durum</th>
+                        <th className="px-4 py-3">Kayıt Veri Özeti (JSON)</th>
                       </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody className="divide-y">
+                      {rawTableRows.slice(0, 50).map((row: any, idx: number) => {
+                        const rowTitle = row?.ad || row?.user_name || row?.display_name || row?.tarih || row?.created_at || `Kayıt #${idx + 1}`
+                        return (
+                          <tr key={idx} className="hover:bg-cyan-500/5 transition">
+                            <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground">{idx + 1}</td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <Badge className="bg-cyan-600 text-white font-semibold">
+                                <BadgeCheck className="h-3 w-3 mr-1" />
+                                {pendingBackup ? "✨ Eklenecek Veri" : "✅ Canlı Kayıt"}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="font-bold text-foreground text-xs">{rowTitle}</div>
+                              <pre className="mt-1 text-[10px] font-mono text-muted-foreground bg-muted/40 p-2 rounded max-h-20 overflow-auto whitespace-pre-wrap break-all">
+                                {JSON.stringify(row, null, 2)}
+                              </pre>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </div>
           )}
         </CardContent>
