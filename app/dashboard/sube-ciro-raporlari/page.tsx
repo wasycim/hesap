@@ -7,6 +7,7 @@ import {
   Building2,
   CalendarDays,
   ChevronDown,
+  Coins,
   DollarSign,
   Download,
   FileSpreadsheet,
@@ -14,8 +15,10 @@ import {
   Layers,
   Percent,
   PieChart as PieIcon,
+  Sparkles,
   Store,
   TrendingUp,
+  Wallet,
 } from "lucide-react"
 import {
   Area,
@@ -97,11 +100,14 @@ function getFirmaHexColor(colorClass?: string, index = 0): string {
   return COLOR_MAP[colorClass] || DEFAULT_COLORS[index % DEFAULT_COLORS.length]
 }
 
-function formatMoney(value: number) {
-  return value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+function formatMoney(value?: number | null) {
+  const num = Number(value)
+  if (isNaN(num) || num === undefined || num === null) return "0,00"
+  return num.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function formatDate(value: string) {
+  if (!value) return "-"
   return new Date(value).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" })
 }
 
@@ -127,29 +133,35 @@ function escapeCsvValue(value: unknown) {
 
 function CustomPieTooltip({ active, payload }: any) {
   if (active && payload && payload.length) {
-    const data = payload[0].payload
-    const color = payload[0].color || payload[0].fill
+    const data = payload[0]?.payload || {}
+    const color = payload[0]?.color || payload[0]?.fill || "#10b981"
+    const name = data.name || payload[0]?.name || "Firma / Şube"
+    const val = data.value !== undefined ? data.value : (data.ciro !== undefined ? data.ciro : (payload[0]?.value || 0))
+    const kom = data.komisyon !== undefined ? data.komisyon : 0
+    const pct = data.percentage !== undefined ? data.percentage : 0
+
     return (
-      <div className="rounded-xl border bg-popover/95 p-3 shadow-xl backdrop-blur-md text-popover-foreground text-xs space-y-1.5 min-w-[170px]">
-        <div className="flex items-center gap-2 font-bold text-sm">
-          <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
-          <span className="truncate">{data.name}</span>
+      <div className="rounded-2xl border bg-popover/95 p-4 shadow-2xl backdrop-blur-md text-popover-foreground text-xs space-y-2 min-w-[210px] border-emerald-500/20">
+        <div className="flex items-center gap-2 font-bold text-sm border-b border-border/50 pb-2">
+          <span className="h-3.5 w-3.5 rounded-full shrink-0 shadow-md" style={{ backgroundColor: color }} />
+          <span className="truncate">{name}</span>
         </div>
-        <div className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">
-          {formatMoney(data.value)} ₺
-        </div>
-        {data.komisyon !== undefined && (
-          <div className="flex justify-between gap-4 text-muted-foreground pt-1 border-t border-border/50">
-            <span>Komisyon:</span>
-            <span className="font-semibold text-foreground">{formatMoney(data.komisyon)} ₺</span>
-          </div>
-        )}
-        {data.percentage !== undefined && (
+        <div className="space-y-1.5 pt-1">
           <div className="flex justify-between gap-4 text-muted-foreground">
-            <span>Ciro Payı:</span>
-            <span className="font-semibold text-foreground">%{Number(data.percentage).toFixed(1)}</span>
+            <span>Brüt Ciro Satış:</span>
+            <span className="font-bold text-foreground">{formatMoney(data.ciro || val)} ₺</span>
           </div>
-        )}
+          <div className="flex justify-between gap-4 text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 p-1.5 rounded-lg border border-emerald-500/20">
+            <span className="flex items-center gap-1">💰 Kazandığım Komisyon:</span>
+            <span>{formatMoney(kom)} ₺</span>
+          </div>
+          {pct > 0 && (
+            <div className="flex justify-between gap-4 text-muted-foreground pt-1">
+              <span>Genel Oran Payı:</span>
+              <span className="font-semibold text-foreground">%{Number(pct).toFixed(1)}</span>
+            </div>
+          )}
+        </div>
       </div>
     )
   }
@@ -159,9 +171,9 @@ function CustomPieTooltip({ active, payload }: any) {
 function CustomAreaTooltip({ active, payload, label }: any) {
   if (active && payload && payload.length) {
     return (
-      <div className="rounded-xl border bg-popover/95 p-3 shadow-xl backdrop-blur-md text-popover-foreground text-xs space-y-1.5 min-w-[180px]">
-        <div className="font-bold text-xs text-muted-foreground flex items-center gap-1.5">
-          <CalendarDays className="h-3.5 w-3.5" />
+      <div className="rounded-xl border bg-popover/95 p-3.5 shadow-xl backdrop-blur-md text-popover-foreground text-xs space-y-2 min-w-[190px]">
+        <div className="font-bold text-xs text-muted-foreground flex items-center gap-1.5 border-b border-border/40 pb-1.5">
+          <CalendarDays className="h-3.5 w-3.5 text-emerald-600" />
           {label}
         </div>
         {payload.map((item: any, idx: number) => (
@@ -192,6 +204,7 @@ export default function SubeCiroRaporlariPage() {
   const [rows, setRows] = useState<GelirKaydi[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("firma")
+  const [firmaPieMode, setFirmaPieMode] = useState<"komisyon" | "ciro">("komisyon")
   const [isMounted, setIsMounted] = useState(false)
 
   useEffect(() => {
@@ -342,6 +355,7 @@ export default function SubeCiroRaporlariPage() {
       .map((item, idx) => ({
         name: item.firma.ad,
         value: item.satis,
+        ciro: item.satis,
         komisyon: item.komisyon,
         percentage: totals.satis > 0 ? (item.satis / totals.satis) * 100 : 0,
         color: getFirmaHexColor(item.firma.color, idx),
@@ -350,11 +364,28 @@ export default function SubeCiroRaporlariPage() {
       .sort((a, b) => b.value - a.value)
   }, [firmaSummaries, totals.satis])
 
+  // DEDICATED EARNED COMMISSION PIE CHART DATA
+  const firmaKomisyonChartData = useMemo(() => {
+    return firmaSummaries
+      .filter((item) => item.komisyon > 0)
+      .map((item, idx) => ({
+        name: item.firma.ad,
+        value: item.komisyon, // PIE SLICE IS EARNED COMMISSION
+        ciro: item.satis,
+        komisyon: item.komisyon,
+        percentage: totals.komisyon > 0 ? (item.komisyon / totals.komisyon) * 100 : 0,
+        color: getFirmaHexColor(item.firma.color, idx),
+        id: item.firma.id,
+      }))
+      .sort((a, b) => b.value - a.value)
+  }, [firmaSummaries, totals.komisyon])
+
   const subeChartData = useMemo(() => {
     return subeSummaries
       .filter((item) => item.satis > 0)
       .map((item, idx) => ({
         name: item.sube.ad,
+        value: item.satis,
         ciro: item.satis,
         komisyon: item.komisyon,
         net: item.satis - item.komisyon,
@@ -399,6 +430,7 @@ export default function SubeCiroRaporlariPage() {
     return Array.from(map.entries()).map(([name, data], idx) => ({
       name,
       value: data.ciro,
+      ciro: data.ciro,
       komisyon: data.komisyon,
       percentage: totals.satis > 0 ? (data.ciro / totals.satis) * 100 : 0,
       color: idx === 0 ? "#10b981" : idx === 1 ? "#3b82f6" : "#f59e0b",
@@ -410,11 +442,11 @@ export default function SubeCiroRaporlariPage() {
       ["Şube Ciro Raporları"],
       ["Rapor Aralığı", `${formatDate(startDate)} - ${formatDate(endDate)}`],
       ["Toplam Satış", `${formatMoney(totals.satis)} TL`],
-      ["Toplam Komisyon", `${formatMoney(totals.komisyon)} TL`],
+      ["Kazandığım Komisyon", `${formatMoney(totals.komisyon)} TL`],
       ["Net Firma Hakedişi", `${formatMoney(netHakedis)} TL`],
       [],
       ["Şube Özetleri"],
-      ["Şube", "Toplam Satış", "Toplam Komisyon"],
+      ["Şube", "Toplam Satış", "Kazandığım Komisyon"],
       ...subeSummaries.map((item) => [
         item.sube.ad,
         `${formatMoney(item.satis)} TL`,
@@ -422,7 +454,7 @@ export default function SubeCiroRaporlariPage() {
       ]),
       [],
       ["Firma Özetleri"],
-      ["Firma", "Toplam Satış", "Toplam Komisyon"],
+      ["Firma", "Toplam Satış", "Kazandığım Komisyon"],
       ...firmaSummaries.map((item) => [
         item.firma.ad,
         `${formatMoney(item.satis)} TL`,
@@ -454,19 +486,19 @@ export default function SubeCiroRaporlariPage() {
 
   function exportPdf() {
     openPdfReport({
-      title: "Şube Ciro Raporları ve Görsel Analizler",
+      title: "Şube Ciro Raporları ve Komisyon Analizleri",
       subtitle: `${formatDate(startDate)} - ${formatDate(endDate)}`,
       orientation: "landscape",
       metrics: [
-        { label: "Toplam Satış", value: `${formatMoney(totals.satis)} TL` },
-        { label: "Toplam Komisyon", value: `${formatMoney(totals.komisyon)} TL` },
+        { label: "Toplam Satış (Ciro)", value: `${formatMoney(totals.satis)} TL` },
+        { label: "Kazandığım Komisyon", value: `${formatMoney(totals.komisyon)} TL` },
         { label: "Net Firma Hakedişi", value: `${formatMoney(netHakedis)} TL` },
         { label: "Kayıt Sayısı", value: String(detailRows.length) },
       ],
       tables: [
         {
           title: "Şube Özetleri",
-          headers: ["Şube", "Toplam Satış", "Toplam Komisyon"],
+          headers: ["Şube", "Toplam Satış", "Kazandığım Komisyon"],
           firstColumnWidth: "45%",
           rows: subeSummaries.map((item) => [
             item.sube.ad,
@@ -476,7 +508,7 @@ export default function SubeCiroRaporlariPage() {
         },
         {
           title: "Firma Özetleri",
-          headers: ["Firma", "Toplam Satış", "Komisyon Oranı", "Toplam Komisyon"],
+          headers: ["Firma", "Toplam Satış", "Komisyon Oranı", "Kazandığım Komisyon"],
           firstColumnWidth: "40%",
           rows: firmaSummaries.map((item) => [
             item.firma.ad,
@@ -503,47 +535,49 @@ export default function SubeCiroRaporlariPage() {
   }
 
   if (subeLoading) {
-    return <div className="flex h-64 items-center justify-center text-muted-foreground">Yükleniyor...</div>
+    return <div className="flex h-64 items-center justify-center text-muted-foreground font-medium">Yükleniyor...</div>
   }
 
   if (!isAdmin) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="text-center">
-          <h2 className="mb-2 text-xl font-semibold">Erişim engellendi</h2>
-          <p className="text-muted-foreground">Bu sayfaya sadece yöneticiler erişebilir.</p>
+        <div className="text-center space-y-2">
+          <h2 className="text-xl font-bold">Erişim engellendi</h2>
+          <p className="text-muted-foreground text-sm">Bu sayfaya sadece yöneticiler erişebilir.</p>
         </div>
       </div>
     )
   }
 
   if (loading) {
-    return <div className="flex h-64 items-center justify-center text-muted-foreground">Yükleniyor...</div>
+    return <div className="flex h-64 items-center justify-center text-muted-foreground font-medium">Yükleniyor...</div>
   }
 
+  const activePieData = firmaPieMode === "komisyon" ? firmaKomisyonChartData : firmaChartData
+
   return (
-    <div data-unsaved-ignore="true" className="space-y-6 p-4 sm:p-6 lg:p-8">
+    <div data-unsaved-ignore="true" className="space-y-6 sm:space-y-8 p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
       {/* Header */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-5 border-border/40">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-            <BarChart3 className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
-            Şube Ciro Raporları & Görsel Analizler
+          <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-black tracking-tight text-foreground">
+            <BarChart3 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+            Şube Ciro Raporları & Komisyon Analitiği
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Firma bazlı ciro dağılımları, komisyon oranları, zaman serisi trendleri ve şube karşılaştırmaları.
+          <p className="text-sm text-muted-foreground mt-1 font-medium">
+            Kazandığınız komisyon pasta grafik dağılımı, şube ciroları ve detaylı finansal hakediş özetleri.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={exportCsv} variant="outline" className="gap-2" disabled={detailRows.length === 0}>
+        <div className="flex flex-wrap gap-2.5">
+          <Button onClick={exportCsv} variant="outline" className="gap-2 font-semibold shadow-sm" disabled={detailRows.length === 0}>
             <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
             Excel (CSV)
           </Button>
-          <Button onClick={exportPdf} variant="outline" className="gap-2" disabled={detailRows.length === 0}>
+          <Button onClick={exportPdf} variant="outline" className="gap-2 font-semibold shadow-sm" disabled={detailRows.length === 0}>
             <Download className="h-4 w-4 text-blue-600" />
             PDF Rapor
           </Button>
-          <Button onClick={loadData} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
+          <Button onClick={loadData} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md">
             <Filter className="h-4 w-4" />
             Raporu Yenile
           </Button>
@@ -551,17 +585,22 @@ export default function SubeCiroRaporlariPage() {
       </div>
 
       {/* Filters */}
-      <Card className="border-emerald-500/20 shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Filter className="h-4 w-4 text-emerald-600" />
-            Filtreleme ve Rapor Aralığı
+      <Card className="border-emerald-500/20 shadow-md bg-card/50 backdrop-blur-sm">
+        <CardHeader className="pb-3 border-b border-border/30">
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="flex items-center gap-2 font-bold">
+              <Filter className="h-4 w-4 text-emerald-600" />
+              Filtreleme ve Rapor Aralığı
+            </span>
+            <Badge variant="secondary" className="font-semibold text-xs">
+              {startDate} / {endDate}
+            </Badge>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <CardContent className="p-5 sm:p-6 space-y-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <Select value={period} onValueChange={(value) => setPeriod(value as Period)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="font-semibold"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="daily">Günlük</SelectItem>
                 <SelectItem value="weekly">Haftalık</SelectItem>
@@ -586,7 +625,7 @@ export default function SubeCiroRaporlariPage() {
               }}
             />
             <Select value={selectedSubeId} onValueChange={setSelectedSubeId}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="font-semibold"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tüm Şubeler</SelectItem>
                 {subeler.map((sube) => (
@@ -597,7 +636,7 @@ export default function SubeCiroRaporlariPage() {
               </SelectContent>
             </Select>
             <Select value={selectedFirmaId} onValueChange={setSelectedFirmaId}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="font-semibold"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tüm Firmalar</SelectItem>
                 {firmalar.map((firma) => (
@@ -611,14 +650,16 @@ export default function SubeCiroRaporlariPage() {
 
           {/* Quick Firma Filter Badges */}
           {firmalar.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t text-xs">
-              <span className="text-muted-foreground font-semibold mr-1">Hızlı Filtre:</span>
+            <div className="flex flex-wrap items-center gap-2 pt-3 border-t text-xs">
+              <span className="text-muted-foreground font-bold mr-1 flex items-center gap-1">
+                <Sparkles className="h-3.5 w-3.5 text-amber-500" /> Hızlı Filtre:
+              </span>
               <button
                 type="button"
                 onClick={() => setSelectedFirmaId("all")}
-                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all shadow-sm ${
                   selectedFirmaId === "all"
-                    ? "bg-emerald-600 text-white shadow-sm"
+                    ? "bg-emerald-600 text-white shadow-emerald-500/20"
                     : "bg-muted hover:bg-muted/80 text-muted-foreground"
                 }`}
               >
@@ -632,13 +673,13 @@ export default function SubeCiroRaporlariPage() {
                     key={firma.id}
                     type="button"
                     onClick={() => setSelectedFirmaId(isSelected ? "all" : firma.id)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-all border ${
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-semibold transition-all border shadow-sm ${
                       isSelected
-                        ? "border-emerald-600 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200 font-bold shadow-sm"
-                        : "border-transparent bg-muted/60 hover:bg-muted text-muted-foreground"
+                        ? "border-emerald-600 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200 font-extrabold"
+                        : "border-border/60 bg-card hover:bg-muted text-muted-foreground"
                     }`}
                   >
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: hex }} />
+                    <span className="h-2.5 w-2.5 rounded-full shadow-sm" style={{ backgroundColor: hex }} />
                     <span>{firma.ad}</span>
                   </button>
                 )
@@ -648,138 +689,181 @@ export default function SubeCiroRaporlariPage() {
         </CardContent>
       </Card>
 
-      {/* KPI Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="border-l-4 border-l-emerald-500 bg-emerald-500/5">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Toplam Satış (Ciro)</p>
-              <p className="text-2xl font-black tracking-tight text-emerald-800 dark:text-emerald-200">
-                {formatMoney(totals.satis)} ₺
-              </p>
-              <p className="text-xs text-muted-foreground">{detailRows.length} İşlem / Satış Kaydı</p>
-            </div>
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-600">
-              <DollarSign className="h-6 w-6" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-blue-500 bg-blue-500/5">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Toplam Komisyon</p>
-              <p className="text-2xl font-black tracking-tight text-blue-800 dark:text-blue-200">
+      {/* KPI Metrics Highlight Grid */}
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        {/* HERO CARD: KAZANDIĞIM KOMİSYON */}
+        <Card className="border-2 border-blue-500/30 bg-gradient-to-br from-blue-500/10 via-indigo-500/5 to-transparent shadow-lg relative overflow-hidden">
+          <div className="absolute -right-4 -bottom-4 h-24 w-24 rounded-full bg-blue-500/10 blur-xl pointer-events-none" />
+          <CardContent className="p-6 flex items-center justify-between">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <Coins className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <p className="text-xs font-black uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                  Kazandığım Komisyon
+                </p>
+              </div>
+              <p className="text-3xl font-black tracking-tight text-blue-900 dark:text-blue-100">
                 {formatMoney(totals.komisyon)} ₺
               </p>
-              <p className="text-xs text-muted-foreground">Ort. Komisyon: %{avgKomisyonOrani.toFixed(1)}</p>
+              <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                Ortalama Oran: <span className="text-blue-600 dark:text-blue-400 font-bold">%{avgKomisyonOrani.toFixed(1)}</span>
+              </p>
             </div>
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-500/10 text-blue-600">
-              <Percent className="h-6 w-6" />
+            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/30">
+              <Wallet className="h-7 w-7" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-purple-500 bg-purple-500/5">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Net Firma Hakedişi</p>
-              <p className="text-2xl font-black tracking-tight text-purple-800 dark:text-purple-200">
+        <Card className="border-l-4 border-l-emerald-500 bg-emerald-500/5 shadow-md">
+          <CardContent className="p-6 flex items-center justify-between">
+            <div className="space-y-1.5">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Toplam Satış (Ciro)</p>
+              <p className="text-3xl font-black tracking-tight text-emerald-800 dark:text-emerald-200">
+                {formatMoney(totals.satis)} ₺
+              </p>
+              <p className="text-xs font-medium text-muted-foreground">{detailRows.length} İşlem Kaydı</p>
+            </div>
+            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-600 shadow-sm">
+              <DollarSign className="h-7 w-7" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-purple-500 bg-purple-500/5 shadow-md">
+          <CardContent className="p-6 flex items-center justify-between">
+            <div className="space-y-1.5">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Net Firma Hakedişi</p>
+              <p className="text-3xl font-black tracking-tight text-purple-800 dark:text-purple-200">
                 {formatMoney(netHakedis)} ₺
               </p>
-              <p className="text-xs text-muted-foreground">Ciro - Toplam Komisyon</p>
+              <p className="text-xs font-medium text-muted-foreground">Brüt Ciro - Komisyon</p>
             </div>
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-purple-500/10 text-purple-600">
-              <TrendingUp className="h-6 w-6" />
+            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-purple-500/10 text-purple-600 shadow-sm">
+              <TrendingUp className="h-7 w-7" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-amber-500 bg-amber-500/5">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Aktif Rapor Aralığı</p>
-              <p className="text-base font-bold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
-                <CalendarDays className="h-4 w-4 shrink-0 text-amber-600" />
-                {formatDate(startDate)} - {formatDate(endDate)}
+        <Card className="border-l-4 border-l-amber-500 bg-amber-500/5 shadow-md">
+          <CardContent className="p-6 flex items-center justify-between">
+            <div className="space-y-1.5">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Aktif Şube Seçimi</p>
+              <p className="text-base font-extrabold text-amber-900 dark:text-amber-100 flex items-center gap-1.5">
+                <Store className="h-4 w-4 shrink-0 text-amber-600" />
+                {selectedSubeId === "all" ? "Tüm Şubeler Toplamı" : subeler.find((s) => s.id === selectedSubeId)?.ad || "Şube"}
               </p>
-              <p className="text-xs text-muted-foreground">
-                {selectedSubeId === "all" ? "Tüm Şubeler" : subeler.find((s) => s.id === selectedSubeId)?.ad || "Şube"}
-              </p>
+              <p className="text-xs font-medium text-muted-foreground">{firmalar.length} Firma Tanımlı</p>
             </div>
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-amber-500/10 text-amber-600">
-              <Store className="h-6 w-6" />
+            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-amber-500/10 text-amber-600 shadow-sm">
+              <Building2 className="h-7 w-7" />
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Visual Analytics Tabbed Section */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-card p-2 rounded-xl border">
-          <div className="flex items-center gap-2 px-2 font-bold text-sm">
-            <PieIcon className="h-4 w-4 text-emerald-600" />
-            Görsel Analitik Grafikler
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-card p-3 rounded-2xl border shadow-sm">
+          <div className="flex items-center gap-2.5 px-3 font-extrabold text-base">
+            <PieIcon className="h-5 w-5 text-emerald-600" />
+            Görsel Analitik Grafikler & Dağılım
           </div>
-          <TabsList className="grid grid-cols-4 w-full sm:w-auto h-9">
-            <TabsTrigger value="firma" className="text-xs gap-1.5">
-              <PieIcon className="h-3.5 w-3.5" />
+          <TabsList className="grid grid-cols-4 w-full sm:w-auto h-10 p-1">
+            <TabsTrigger value="firma" className="text-xs font-bold gap-2">
+              <PieIcon className="h-4 w-4 text-blue-500" />
               Firma Pasta
             </TabsTrigger>
-            <TabsTrigger value="trend" className="text-xs gap-1.5">
-              <TrendingUp className="h-3.5 w-3.5" />
+            <TabsTrigger value="trend" className="text-xs font-bold gap-2">
+              <TrendingUp className="h-4 w-4 text-emerald-500" />
               Ciro Trendi
             </TabsTrigger>
-            <TabsTrigger value="sube" className="text-xs gap-1.5">
-              <Building2 className="h-3.5 w-3.5" />
+            <TabsTrigger value="sube" className="text-xs font-bold gap-2">
+              <Building2 className="h-4 w-4 text-purple-500" />
               Şube Dağılımı
             </TabsTrigger>
-            <TabsTrigger value="vardiya" className="text-xs gap-1.5">
-              <Layers className="h-3.5 w-3.5" />
+            <TabsTrigger value="vardiya" className="text-xs font-bold gap-2">
+              <Layers className="h-4 w-4 text-amber-500" />
               Vardiya
             </TabsTrigger>
           </TabsList>
         </div>
 
-        {/* Tab 1: Firma Pasta & Çubuk Grafiği */}
-        <TabsContent value="firma" className="space-y-4 m-0">
-          <div className="grid gap-4 xl:grid-cols-2">
-            <Card>
-              <CardHeader className="pb-2">
+        {/* Tab 1: Firma Pasta (Kazandığım Komisyon & Ciro) */}
+        <TabsContent value="firma" className="space-y-6 m-0">
+          {/* Sub Mode Toggle for Firma Pie Chart */}
+          <div className="flex items-center justify-between bg-muted/40 p-2.5 rounded-xl border">
+            <div className="flex items-center gap-2 text-xs font-bold">
+              <Coins className="h-4 w-4 text-blue-600" />
+              Pasta Grafik Görünüm Modu:
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setFirmaPieMode("komisyon")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all shadow-sm ${
+                  firmaPieMode === "komisyon"
+                    ? "bg-blue-600 text-white shadow-blue-500/20"
+                    : "bg-card text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                💰 Kazandığım Komisyon Pastası
+              </button>
+              <button
+                type="button"
+                onClick={() => setFirmaPieMode("ciro")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all shadow-sm ${
+                  firmaPieMode === "ciro"
+                    ? "bg-emerald-600 text-white shadow-emerald-500/20"
+                    : "bg-card text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                📊 Brüt Ciro Pastası
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-2 items-start">
+            {/* PASTA GRAFİK CARD */}
+            <Card className="shadow-md border-border/60">
+              <CardHeader className="pb-3 border-b border-border/30">
                 <CardTitle className="text-base flex items-center justify-between">
-                  <span>Firma Ciro Dağılımı (Pasta Grafik)</span>
-                  <Badge variant="outline" className="font-normal text-xs">
-                    %{totals.satis > 0 ? "100" : "0"} Pay
+                  <span className="flex items-center gap-2 font-black">
+                    <PieIcon className={`h-5 w-5 ${firmaPieMode === "komisyon" ? "text-blue-600" : "text-emerald-600"}`} />
+                    {firmaPieMode === "komisyon" ? "Kazandığım Komisyon Dağılımı (Pasta Grafik)" : "Firma Ciro Dağılımı (Pasta Grafik)"}
+                  </span>
+                  <Badge variant={firmaPieMode === "komisyon" ? "default" : "secondary"} className="font-bold text-xs">
+                    {firmaPieMode === "komisyon" ? `${formatMoney(totals.komisyon)} ₺ Komisyon` : `${formatMoney(totals.satis)} ₺ Ciro`}
                   </Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-2">
-                {firmaChartData.length === 0 ? (
-                  <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-                    Bu periyotta gösterilecek ciro verisi bulunamadı.
+              <CardContent className="p-6">
+                {activePieData.length === 0 ? (
+                  <div className="flex h-72 items-center justify-center text-sm text-muted-foreground font-medium">
+                    Bu periyotta gösterilecek veri bulunamadı.
                   </div>
                 ) : (
-                  <div className="h-72 w-full">
+                  <div className="h-80 w-full">
                     {isMounted && (
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie
-                            data={firmaChartData}
+                            data={activePieData}
                             cx="50%"
                             cy="50%"
-                            innerRadius={65}
-                            outerRadius={105}
-                            paddingAngle={3}
+                            innerRadius={70}
+                            outerRadius={115}
+                            paddingAngle={4}
                             dataKey="value"
                           >
-                            {firmaChartData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} stroke="#ffffff" strokeWidth={2} />
+                            {activePieData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} stroke="#ffffff" strokeWidth={2.5} />
                             ))}
                           </Pie>
                           <Tooltip content={<CustomPieTooltip />} />
                           <Legend
                             formatter={(value: string) => (
-                              <span className="text-xs font-semibold text-foreground">{value}</span>
+                              <span className="text-xs font-bold text-foreground px-1">{value}</span>
                             )}
                           />
                         </PieChart>
@@ -790,42 +874,55 @@ export default function SubeCiroRaporlariPage() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Firma Ciro Katkı Sıralaması</CardTitle>
+            {/* TABLO / SIRALAMA CARD */}
+            <Card className="shadow-md border-border/60">
+              <CardHeader className="pb-3 border-b border-border/30">
+                <CardTitle className="text-base flex items-center justify-between">
+                  <span className="font-black">Firma Hakediş & Komisyon Sıralaması</span>
+                  <Badge variant="outline" className="font-semibold text-xs">
+                    {firmaSummaries.length} Firma
+                  </Badge>
+                </CardTitle>
               </CardHeader>
-              <CardContent className="pt-2">
+              <CardContent className="p-6">
                 {firmaSummaries.length === 0 ? (
-                  <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-                    Firma ciro kaydı bulunamadı.
+                  <div className="flex h-72 items-center justify-center text-sm text-muted-foreground font-medium">
+                    Firma kaydı bulunamadı.
                   </div>
                 ) : (
-                  <div className="space-y-3.5 max-h-[300px] overflow-y-auto pr-1">
+                  <div className="space-y-4 max-h-[340px] overflow-y-auto pr-2 custom-scrollbar">
                     {firmaSummaries.map((item, idx) => {
-                      const percentage = totals.satis > 0 ? (item.satis / totals.satis) * 100 : 0
+                      const ciroPct = totals.satis > 0 ? (item.satis / totals.satis) * 100 : 0
+                      const komPct = totals.komisyon > 0 ? (item.komisyon / totals.komisyon) * 100 : 0
                       const hex = getFirmaHexColor(item.firma.color, idx)
                       return (
-                        <div key={item.firma.id} className="space-y-1">
-                          <div className="flex items-center justify-between text-xs font-semibold">
+                        <div key={item.firma.id} className="space-y-2 p-3 rounded-xl border bg-card/60 hover:bg-muted/30 transition-all">
+                          <div className="flex items-center justify-between text-xs font-bold">
                             <div className="flex items-center gap-2">
-                              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: hex }} />
-                              <span>{item.firma.ad}</span>
-                              <span className="text-[11px] font-normal text-muted-foreground">
-                                (%{item.firma.komisyon_orani ?? 0} komisyon)
-                              </span>
+                              <span className="h-3 w-3 rounded-full shadow-sm" style={{ backgroundColor: hex }} />
+                              <span className="text-sm font-extrabold">{item.firma.ad}</span>
+                              <Badge variant="secondary" className="text-[10px] font-bold">
+                                %{item.firma.komisyon_orani ?? 0} komisyon
+                              </Badge>
                             </div>
                             <div className="flex items-center gap-3">
-                              <span className="text-muted-foreground">%{percentage.toFixed(1)}</span>
-                              <span className="font-bold text-emerald-700 dark:text-emerald-300">
-                                {formatMoney(item.satis)} ₺
+                              <span className="text-muted-foreground text-[11px]">Pay: %{komPct.toFixed(1)}</span>
+                              <span className="font-black text-blue-600 dark:text-blue-400 text-sm">
+                                {formatMoney(item.komisyon)} ₺
                               </span>
                             </div>
                           </div>
+
                           <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
                             <div
                               className="h-full rounded-full transition-all duration-500"
-                              style={{ width: `${Math.min(100, percentage)}%`, backgroundColor: hex }}
+                              style={{ width: `${Math.min(100, komPct)}%`, backgroundColor: hex }}
                             />
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5">
+                            <span>Brüt Satış: <strong className="text-foreground">{formatMoney(item.satis)} ₺</strong></span>
+                            <span>Net Firma: <strong className="text-foreground">{formatMoney(Math.max(0, item.satis - item.komisyon))} ₺</strong></span>
                           </div>
                         </div>
                       )
@@ -838,20 +935,20 @@ export default function SubeCiroRaporlariPage() {
         </TabsContent>
 
         {/* Tab 2: Ciro Trendi */}
-        <TabsContent value="trend" className="space-y-4 m-0">
-          <Card>
-            <CardHeader className="pb-2 flex flex-row items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-emerald-600" />
-                Ciro Zaman Serisi Eğrisi ({startDate} / {endDate})
+        <TabsContent value="trend" className="space-y-6 m-0">
+          <Card className="shadow-md border-border/60">
+            <CardHeader className="pb-3 border-b border-border/30 flex flex-row items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2 font-black">
+                <TrendingUp className="h-5 w-5 text-emerald-600" />
+                Ciro ve Komisyon Zaman Serisi Eğrisi
               </CardTitle>
-              <Badge variant="outline" className="font-normal text-xs">
-                {trendChartData.length} Günlük Veri
+              <Badge variant="outline" className="font-semibold text-xs">
+                {trendChartData.length} Günlük Rapor
               </Badge>
             </CardHeader>
-            <CardContent className="pt-4">
+            <CardContent className="p-6">
               {trendChartData.length === 0 ? (
-                <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+                <div className="flex h-72 items-center justify-center text-sm text-muted-foreground font-medium">
                   Zaman serisinde gösterilecek veri yok.
                 </div>
               ) : (
@@ -877,6 +974,7 @@ export default function SubeCiroRaporlariPage() {
                         <Area
                           type="monotone"
                           dataKey="Ciro"
+                          name="Brüt Satış (Ciro)"
                           stroke="#10b981"
                           strokeWidth={2.5}
                           fillOpacity={1}
@@ -885,8 +983,9 @@ export default function SubeCiroRaporlariPage() {
                         <Area
                           type="monotone"
                           dataKey="Komisyon"
+                          name="Kazandığım Komisyon"
                           stroke="#3b82f6"
-                          strokeWidth={2}
+                          strokeWidth={2.5}
                           fillOpacity={1}
                           fill="url(#komisyonGradient)"
                         />
@@ -899,20 +998,23 @@ export default function SubeCiroRaporlariPage() {
           </Card>
         </TabsContent>
 
-        {/* Tab 3: Şube Dağılımı */}
-        <TabsContent value="sube" className="space-y-4 m-0">
-          <div className="grid gap-4 xl:grid-cols-2">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Şube Bazlı Ciro Karşılaştırması</CardTitle>
+        {/* Tab 3: Şube Dağılımı (Fixed tooltip & crash resistance) */}
+        <TabsContent value="sube" className="space-y-6 m-0">
+          <div className="grid gap-6 xl:grid-cols-2 items-start">
+            <Card className="shadow-md border-border/60">
+              <CardHeader className="pb-3 border-b border-border/30">
+                <CardTitle className="text-base font-black flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-purple-600" />
+                  Şube Bazlı Ciro Karşılaştırması
+                </CardTitle>
               </CardHeader>
-              <CardContent className="pt-2">
+              <CardContent className="p-6">
                 {subeChartData.length === 0 ? (
-                  <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-                    Şube ciro verisi yok.
+                  <div className="flex h-72 items-center justify-center text-sm text-muted-foreground font-medium">
+                    Şube ciro verisi bulunamadı.
                   </div>
                 ) : (
-                  <div className="h-72 w-full">
+                  <div className="h-80 w-full">
                     {isMounted && (
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={subeChartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
@@ -922,7 +1024,7 @@ export default function SubeCiroRaporlariPage() {
                           <Tooltip content={<CustomPieTooltip />} />
                           <Legend />
                           <Bar dataKey="ciro" name="Toplam Satış (Ciro)" fill="#10b981" radius={[6, 6, 0, 0]} />
-                          <Bar dataKey="komisyon" name="Komisyon Tutarı" fill="#3b82f6" radius={[6, 6, 0, 0]} />
+                          <Bar dataKey="komisyon" name="Kazandığım Komisyon" fill="#3b82f6" radius={[6, 6, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     )}
@@ -931,17 +1033,17 @@ export default function SubeCiroRaporlariPage() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Şube Payı Pasta Grafiği</CardTitle>
+            <Card className="shadow-md border-border/60">
+              <CardHeader className="pb-3 border-b border-border/30">
+                <CardTitle className="text-base font-black">Şube Payı Pasta Grafiği</CardTitle>
               </CardHeader>
-              <CardContent className="pt-2">
+              <CardContent className="p-6">
                 {subeChartData.length === 0 ? (
-                  <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+                  <div className="flex h-72 items-center justify-center text-sm text-muted-foreground font-medium">
                     Gösterilecek veri yok.
                   </div>
                 ) : (
-                  <div className="h-72 w-full">
+                  <div className="h-80 w-full">
                     {isMounted && (
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
@@ -949,19 +1051,19 @@ export default function SubeCiroRaporlariPage() {
                             data={subeChartData}
                             cx="50%"
                             cy="50%"
-                            innerRadius={60}
-                            outerRadius={100}
+                            innerRadius={65}
+                            outerRadius={105}
                             paddingAngle={4}
                             dataKey="ciro"
                           >
                             {subeChartData.map((entry, index) => (
-                              <Cell key={`sube-cell-${index}`} fill={entry.color} stroke="#ffffff" strokeWidth={2} />
+                              <Cell key={`sube-cell-${index}`} fill={entry.color} stroke="#ffffff" strokeWidth={2.5} />
                             ))}
                           </Pie>
                           <Tooltip content={<CustomPieTooltip />} />
                           <Legend
                             formatter={(value: string) => (
-                              <span className="text-xs font-semibold text-foreground">{value}</span>
+                              <span className="text-xs font-bold text-foreground px-1">{value}</span>
                             )}
                           />
                         </PieChart>
@@ -975,19 +1077,19 @@ export default function SubeCiroRaporlariPage() {
         </TabsContent>
 
         {/* Tab 4: Vardiya Performansı */}
-        <TabsContent value="vardiya" className="space-y-4 m-0">
-          <div className="grid gap-4 xl:grid-cols-2">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Vardiya Ciro Dağılımı (Sabah / Akşam)</CardTitle>
+        <TabsContent value="vardiya" className="space-y-6 m-0">
+          <div className="grid gap-6 xl:grid-cols-2 items-start">
+            <Card className="shadow-md border-border/60">
+              <CardHeader className="pb-3 border-b border-border/30">
+                <CardTitle className="text-base font-black">Vardiya Ciro Dağılımı (Sabah / Akşam)</CardTitle>
               </CardHeader>
-              <CardContent className="pt-2">
+              <CardContent className="p-6">
                 {vardiyaChartData.length === 0 ? (
-                  <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+                  <div className="flex h-72 items-center justify-center text-sm text-muted-foreground font-medium">
                     Vardiya verisi bulunamadı.
                   </div>
                 ) : (
-                  <div className="h-72 w-full">
+                  <div className="h-80 w-full">
                     {isMounted && (
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
@@ -995,13 +1097,13 @@ export default function SubeCiroRaporlariPage() {
                             data={vardiyaChartData}
                             cx="50%"
                             cy="50%"
-                            innerRadius={60}
-                            outerRadius={100}
+                            innerRadius={65}
+                            outerRadius={105}
                             paddingAngle={4}
                             dataKey="value"
                           >
                             {vardiyaChartData.map((entry, index) => (
-                              <Cell key={`var-cell-${index}`} fill={entry.color} stroke="#ffffff" strokeWidth={2} />
+                              <Cell key={`var-cell-${index}`} fill={entry.color} stroke="#ffffff" strokeWidth={2.5} />
                             ))}
                           </Pie>
                           <Tooltip content={<CustomPieTooltip />} />
@@ -1014,25 +1116,25 @@ export default function SubeCiroRaporlariPage() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Vardiya Ciro Karşılaştırması</CardTitle>
+            <Card className="shadow-md border-border/60">
+              <CardHeader className="pb-3 border-b border-border/30">
+                <CardTitle className="text-base font-black">Vardiya Ciro & Komisyon Karşılaştırması</CardTitle>
               </CardHeader>
-              <CardContent className="pt-2 space-y-4">
+              <CardContent className="p-6 space-y-4">
                 {vardiyaChartData.map((v) => (
-                  <div key={v.name} className="space-y-1.5 rounded-lg border p-3.5 bg-muted/20">
-                    <div className="flex items-center justify-between text-sm font-bold">
+                  <div key={v.name} className="space-y-2 rounded-xl border p-4 bg-muted/20">
+                    <div className="flex items-center justify-between text-sm font-black">
                       <div className="flex items-center gap-2">
-                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: v.color }} />
+                        <span className="h-3.5 w-3.5 rounded-full shadow-sm" style={{ backgroundColor: v.color }} />
                         <span>{v.name}</span>
                       </div>
-                      <span className="text-emerald-600 dark:text-emerald-400">{formatMoney(v.value)} ₺</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">{formatMoney(v.value)} ₺</span>
                     </div>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Komisyon: {formatMoney(v.komisyon)} ₺</span>
-                      <span className="font-semibold text-foreground">%{v.percentage.toFixed(1)} Pay</span>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+                      <span className="font-bold text-blue-600 dark:text-blue-400">Komisyon: {formatMoney(v.komisyon)} ₺</span>
+                      <span className="font-bold text-foreground">%{v.percentage.toFixed(1)} Pay</span>
                     </div>
-                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                    <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{ width: `${Math.min(100, v.percentage)}%`, backgroundColor: v.color }}
@@ -1047,35 +1149,35 @@ export default function SubeCiroRaporlariPage() {
       </Tabs>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
+      <div className="grid gap-6 xl:grid-cols-2 items-start">
+        <Card className="shadow-md border-border/60">
+          <CardHeader className="pb-3 border-b border-border/30">
             <CardTitle className="text-base flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-emerald-600" />
-                Şube Özetleri
+              <span className="flex items-center gap-2 font-black">
+                <Building2 className="h-5 w-5 text-emerald-600" />
+                Şube Özet Tablosu
               </span>
-              <Badge variant="outline" className="font-normal text-xs">
+              <Badge variant="outline" className="font-semibold text-xs">
                 {subeSummaries.length} Şube
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2.5">
+          <CardContent className="p-6 space-y-3">
             {subeSummaries.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">Bu aralıkta satış yok.</p>
+              <p className="py-8 text-center text-sm text-muted-foreground font-medium">Bu aralıkta satış yok.</p>
             ) : (
               subeSummaries.map((item) => (
                 <div
                   key={item.sube.id}
-                  className="flex items-center justify-between rounded-xl border p-3.5 bg-card hover:bg-muted/40 transition-colors"
+                  className="flex items-center justify-between rounded-xl border p-4 bg-card hover:bg-muted/40 transition-colors shadow-sm"
                 >
-                  <div>
-                    <p className="font-bold text-sm">{item.sube.ad}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Satış {formatMoney(item.satis)} ₺</p>
+                  <div className="space-y-0.5">
+                    <p className="font-black text-sm">{item.sube.ad}</p>
+                    <p className="text-xs font-semibold text-muted-foreground">Brüt Satış: {formatMoney(item.satis)} ₺</p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-extrabold text-emerald-600 dark:text-emerald-400">{formatMoney(item.komisyon)} ₺</p>
-                    <p className="text-[11px] text-muted-foreground">Komisyon</p>
+                  <div className="text-right space-y-0.5">
+                    <p className="font-black text-blue-600 dark:text-blue-400 text-base">{formatMoney(item.komisyon)} ₺</p>
+                    <p className="text-[11px] font-bold text-muted-foreground">Kazandığım Komisyon</p>
                   </div>
                 </div>
               ))
@@ -1083,21 +1185,21 @@ export default function SubeCiroRaporlariPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
+        <Card className="shadow-md border-border/60">
+          <CardHeader className="pb-3 border-b border-border/30">
             <CardTitle className="text-base flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <Store className="h-4 w-4 text-emerald-600" />
-                Firma Özetleri
+              <span className="flex items-center gap-2 font-black">
+                <Store className="h-5 w-5 text-emerald-600" />
+                Firma Özet Tablosu
               </span>
-              <Badge variant="outline" className="font-normal text-xs">
+              <Badge variant="outline" className="font-semibold text-xs">
                 {firmaSummaries.length} Firma
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2.5">
+          <CardContent className="p-6 space-y-3">
             {firmaSummaries.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">Bu aralıkta firma satışı yok.</p>
+              <p className="py-8 text-center text-sm text-muted-foreground font-medium">Bu aralıkta firma satışı yok.</p>
             ) : (
               firmaSummaries.map((item, idx) => {
                 const hex = getFirmaHexColor(item.firma.color, idx)
@@ -1107,24 +1209,24 @@ export default function SubeCiroRaporlariPage() {
                     key={item.firma.id}
                     type="button"
                     onClick={() => setSelectedFirmaId(isSelected ? "all" : item.firma.id)}
-                    className={`flex w-full items-center justify-between rounded-xl border p-3.5 text-left transition-all ${
+                    className={`flex w-full items-center justify-between rounded-xl border p-4 text-left transition-all shadow-sm ${
                       isSelected
-                        ? "border-emerald-500 bg-emerald-500/10 shadow-sm"
+                        ? "border-emerald-500 bg-emerald-500/10 font-bold"
                         : "bg-card hover:bg-muted/40"
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <span className="h-3.5 w-3.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: hex }} />
-                      <div>
-                        <p className="font-bold text-sm">{item.firma.ad}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Satış {formatMoney(item.satis)} ₺ · Oran %{item.firma.komisyon_orani ?? 0}
+                      <span className="h-3.5 w-3.5 rounded-full shrink-0 shadow-md" style={{ backgroundColor: hex }} />
+                      <div className="space-y-0.5">
+                        <p className="font-black text-sm">{item.firma.ad}</p>
+                        <p className="text-xs font-semibold text-muted-foreground">
+                          Satış: {formatMoney(item.satis)} ₺ · Komisyon: %{item.firma.komisyon_orani ?? 0}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-extrabold text-emerald-600 dark:text-emerald-400">{formatMoney(item.komisyon)} ₺</p>
-                      <p className="text-[11px] text-muted-foreground">Komisyon</p>
+                    <div className="text-right space-y-0.5">
+                      <p className="font-black text-blue-600 dark:text-blue-400 text-base">{formatMoney(item.komisyon)} ₺</p>
+                      <p className="text-[11px] font-bold text-muted-foreground">Kazandığım Komisyon</p>
                     </div>
                   </button>
                 )
@@ -1135,11 +1237,11 @@ export default function SubeCiroRaporlariPage() {
       </div>
 
       {/* Detailed Table */}
-      <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between flex-wrap gap-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Layers className="h-4 w-4 text-emerald-600" />
-            Günlük ve Vardiya Detayı ({detailRows.length} Kayıt)
+      <Card className="shadow-md border-border/60">
+        <CardHeader className="pb-3 border-b border-border/30 flex flex-row items-center justify-between flex-wrap gap-2">
+          <CardTitle className="text-base font-black flex items-center gap-2">
+            <Layers className="h-5 w-5 text-emerald-600" />
+            Günlük ve Vardiya Detay Tablosu ({detailRows.length} Kayıt)
           </CardTitle>
           <div className="flex items-center gap-2">
             {selectedFirmaId !== "all" && (
@@ -1147,31 +1249,31 @@ export default function SubeCiroRaporlariPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setSelectedFirmaId("all")}
-                className="h-8 text-xs text-emerald-600 hover:text-emerald-700"
+                className="h-8 text-xs font-bold text-emerald-600 hover:text-emerald-700"
               >
                 Filtreyi Temizle
               </Button>
             )}
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="sticky-table-scroll rounded-xl border overflow-hidden">
+        <CardContent className="p-6">
+          <div className="sticky-table-scroll rounded-xl border overflow-hidden shadow-sm">
             <table className="sticky-table min-w-[860px] w-full text-sm">
-              <thead className="bg-muted/50 border-b">
+              <thead className="bg-muted/60 border-b">
                 <tr>
-                  <th className="sticky-date-first-column bg-muted/50 p-3 text-left">Tarih</th>
-                  <th className="p-3 text-left">Şube</th>
-                  <th className="sticky-shift-after-date-column bg-muted/50 p-3 text-left">Vardiya</th>
-                  <th className="p-3 text-left">Firma</th>
-                  <th className="p-3 text-right">Satış</th>
-                  <th className="p-3 text-right">Oran</th>
-                  <th className="p-3 text-right">Komisyon</th>
+                  <th className="sticky-date-first-column bg-muted/60 p-3.5 text-left font-black">Tarih</th>
+                  <th className="p-3.5 text-left font-black">Şube</th>
+                  <th className="sticky-shift-after-date-column bg-muted/60 p-3.5 text-left font-black">Vardiya</th>
+                  <th className="p-3.5 text-left font-black">Firma</th>
+                  <th className="p-3.5 text-right font-black">Satış</th>
+                  <th className="p-3.5 text-right font-black">Oran</th>
+                  <th className="p-3.5 text-right font-black text-blue-600 dark:text-blue-400">Kazandığım Komisyon</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {detailRows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                    <td colSpan={7} className="p-8 text-center text-muted-foreground font-medium">
                       Filtreye uygun detay bulunamadı.
                     </td>
                   </tr>
@@ -1180,22 +1282,22 @@ export default function SubeCiroRaporlariPage() {
                     const hex = getFirmaHexColor(row.firma?.color, index)
                     return (
                       <tr key={`${row.firma_id}-${row.tarih}-${row.vardiya}-${index}`} className="hover:bg-muted/30 transition-colors">
-                        <td className="sticky-date-first-column bg-card p-3 font-medium">{formatDate(row.tarih)}</td>
-                        <td className="p-3 font-medium">{row.subeAd}</td>
-                        <td className="sticky-shift-after-date-column bg-card p-3 font-medium">
-                          <span className="px-2 py-0.5 rounded bg-muted text-xs font-semibold">
+                        <td className="sticky-date-first-column bg-card p-3.5 font-bold">{formatDate(row.tarih)}</td>
+                        <td className="p-3.5 font-semibold">{row.subeAd}</td>
+                        <td className="sticky-shift-after-date-column bg-card p-3.5 font-semibold">
+                          <span className="px-2.5 py-1 rounded-md bg-muted text-xs font-bold">
                             {getShiftLabel(row.vardiya)}
                           </span>
                         </td>
-                        <td className="p-3">
-                          <span className="inline-flex items-center gap-2 font-semibold">
-                            <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: hex }} />
+                        <td className="p-3.5">
+                          <span className="inline-flex items-center gap-2 font-bold">
+                            <span className="h-2.5 w-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: hex }} />
                             {row.firma?.ad || "-"}
                           </span>
                         </td>
-                        <td className="p-3 text-right font-bold">{formatMoney(row.satis)} ₺</td>
-                        <td className="p-3 text-right text-muted-foreground">%{row.firma?.komisyon_orani ?? 0}</td>
-                        <td className="p-3 text-right font-extrabold text-emerald-600 dark:text-emerald-400">
+                        <td className="p-3.5 text-right font-bold">{formatMoney(row.satis)} ₺</td>
+                        <td className="p-3.5 text-right text-muted-foreground font-semibold">%{row.firma?.komisyon_orani ?? 0}</td>
+                        <td className="p-3.5 text-right font-black text-blue-600 dark:text-blue-400 text-base">
                           {formatMoney(row.komisyon)} ₺
                         </td>
                       </tr>
