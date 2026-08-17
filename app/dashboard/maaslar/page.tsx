@@ -800,61 +800,6 @@ export default function MaaslarPage() {
             </CardContent>
           </Card>
         )}
-        {/* Personel Kendi Avans Talepleri Takibi */}
-        {myAvansTalepleri.length > 0 && (
-          <Card className="mb-6 border-amber-300/60 bg-amber-50/40 dark:border-amber-500/30 dark:bg-amber-500/10">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base font-bold text-amber-900 dark:text-amber-200">
-                <HandCoins className="h-5 w-5 text-amber-600" />
-                Avans Taleplerim ({myAvansTalepleri.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {myAvansTalepleri.map(req => {
-                  const isPending = req.durum === "beklemede"
-                  const isApproved = req.durum === "onaylandi"
-                  return (
-                    <div
-                      key={req.id}
-                      className={`rounded-xl border p-4 shadow-sm bg-white dark:bg-slate-900 ${
-                        isPending
-                          ? "border-amber-300 dark:border-amber-500/40"
-                          : isApproved
-                          ? "border-emerald-300 dark:border-emerald-500/40"
-                          : "border-red-300 dark:border-red-500/40"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-extrabold text-lg text-foreground">
-                          {Number(req.tutar).toLocaleString("tr-TR")} ₺
-                        </span>
-                        <Badge className={isPending ? "bg-amber-500" : isApproved ? "bg-emerald-600" : "bg-red-600"}>
-                          {isPending ? "⏳ Beklemede" : isApproved ? "✅ Onaylandı" : "❌ Reddedildi"}
-                        </Badge>
-                      </div>
-                      {req.aciklama ? (
-                        <p className="mt-2 text-xs italic text-muted-foreground bg-muted/50 p-2 rounded">
-                          "{req.aciklama}"
-                        </p>
-                      ) : null}
-                      {isApproved && req.odeme_tarihi ? (
-                        <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                          📅 Ödeme Tarihi: {new Date(req.odeme_tarihi).toLocaleDateString("tr-TR")}
-                        </p>
-                      ) : null}
-                      {!isPending && req.red_sebebi ? (
-                        <p className="mt-2 text-xs font-semibold text-red-700 dark:text-red-300">
-                          ⚠️ Red Sebebi: {req.red_sebebi}
-                        </p>
-                      ) : null}
-                    </div>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
         {/* Personnel Summary Cards */}
         <div className="mb-6 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
           {visiblePersonelSummaries.map(item => (
