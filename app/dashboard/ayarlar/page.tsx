@@ -16,11 +16,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { ArrowDown, ArrowUp, GripVertical, Plus, Save, Trash2, Users, Package } from "lucide-react"
+import { ArrowDown, ArrowUp, GripVertical, Plus, Save, Trash2, Users, Package, UserX, AlertCircle } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { logSecurityEvent } from "@/lib/audit-log"
 import { COLOR_OPTIONS, getColumnTextColor, getColumnColorClass, getColumnColorStyle } from "@/lib/table-column-settings"
 import { VardiyaSettingsCard } from "@/components/dashboard/vardiya-settings-card"
+import { ExitDatePicker } from "@/components/ui/exit-date-picker"
+import { getLocalDateString } from "@/lib/date-navigation"
 
 interface Ortak {
   id: string
@@ -242,12 +244,17 @@ export default function AyarlarPage() {
 
   async function savePersonelSalaries() {
     setSavingSalaries(true)
+    const todayStr = getLocalDateString()
+
     for (const personel of personeller) {
       const netMaas = Number(netDrafts[personel.id]) || 0
       const bankaMaas = Number(bankaDrafts[personel.id]) || 0
       const nakitMaas = Number(nakitDrafts[personel.id]) || 0
       const aylikMaas = netMaas || (bankaMaas + nakitMaas)
       const istenCikisTarihi = exitDateDrafts[personel.id] ? exitDateDrafts[personel.id] : null
+      const isExited = Boolean(istenCikisTarihi && istenCikisTarihi <= todayStr)
+      const isAktif = isExited ? false : personel.aktif
+
       await supabase
         .from("personeller")
         .update({
@@ -256,6 +263,7 @@ export default function AyarlarPage() {
           aylik_maas: aylikMaas,
           saatlik_mesai_ucreti: aylikMaas > 0 ? aylikMaas / 30 / 8 : 0,
           isten_cikis_tarihi: istenCikisTarihi,
+          aktif: isAktif,
         })
         .eq("id", personel.id)
     }
@@ -403,6 +411,55 @@ export default function AyarlarPage() {
     loadData()
   }
 
+  async function hardDeletePersonel(id: string) {
+    const personel = personeller.find(item => item.id === id)
+    setConfirmState({
+      title: "Personeli Veritabanından KALICI Olarak Sil?",
+      description: `"${personel?.ad || "Bu personel"}" veritabanından TAMAMEN SİLİNECEKTİR. Bu işlem geri alınamaz!`,
+      action: () => performHardDeletePersonel(id),
+    })
+  }
+
+  async function performHardDeletePersonel(id: string) {
+    const personel = personeller.find(item => item.id === id)
+    const { error } = await supabase.from("personeller").delete().eq("id", id)
+    if (error) {
+      toast.error(`Kalıcı silme hatası: ${error.message}`)
+      return
+    }
+    await logSecurityEvent("person_hard_delete", { id, label: personel?.ad, sube_id: currentSube?.id })
+    toast.success(`${personel?.ad || "Personel"} veritabanından kalıcı olarak silindi.`)
+    loadData()
+  }
+
+  async function cleanAllTestPersonnel() {
+    const testItems = personeller.filter(p => {
+      const name = (p.ad || "").toLocaleUpperCase("tr-TR")
+      return name.includes("TEST") || name.includes("DEMO") || name.startsWith("TEST")
+    })
+
+    if (testItems.length === 0) {
+      toast.info("Sistemde adı 'TEST' veya 'DEMO' içeren test personeli bulunamadı.")
+      return
+    }
+
+    setConfirmState({
+      title: `${testItems.length} Adet Test Personelini Komple Sil?`,
+      description: `Aşağıdaki test personelleri veritabanından KALICI OLARAK silinecektir:\n\n${testItems.map(p => "• " + p.ad).join("\n")}`,
+      action: async () => {
+        const testIds = testItems.map(p => p.id)
+        const { error } = await supabase.from("personeller").delete().in("id", testIds)
+        if (error) {
+          toast.error(`Test personelleri silinirken hata: ${error.message}`)
+          return
+        }
+        await logSecurityEvent("test_personnel_clean", { count: testItems.length, sube_id: currentSube?.id })
+        toast.success(`${testItems.length} adet test personeli veritabanından komple silindi!`)
+        loadData()
+      },
+    })
+  }
+
   async function deleteKargoFirma(id: string) {
     setConfirmState({
       title: "Firma silinsin mi?",
@@ -548,7 +605,7 @@ export default function AyarlarPage() {
 
         {/* Personeller Card */}
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-4">
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-white/20 rounded-lg">
                 <Users className="w-5 h-5 text-white" />
@@ -558,6 +615,16 @@ export default function AyarlarPage() {
                 <p className="text-blue-100 text-sm">Gider tablosunda mavi sütunlar</p>
               </div>
             </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={cleanAllTestPersonnel}
+              className="bg-white/15 hover:bg-white/25 text-white border-0 text-xs font-semibold gap-1.5 backdrop-blur-sm shadow-sm"
+              title="İçinde TEST/DEMO geçen personelleri kalıcı sil"
+            >
+              <UserX className="w-3.5 h-3.5 text-rose-200" /> Test Personellerini Sil
+            </Button>
           </div>
           
           <div className="p-5 space-y-6">
@@ -645,12 +712,12 @@ export default function AyarlarPage() {
             </div>
             
             <div className="space-y-4 max-h-[520px] overflow-y-auto pr-1">
-              {personeller.filter(p => p.aktif).length === 0 ? (
+              {personeller.filter(p => p.aktif && (!p.isten_cikis_tarihi || p.isten_cikis_tarihi > getLocalDateString())).length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   Henüz aktif personel bulunmuyor
                 </div>
               ) : (
-                personeller.filter(p => p.aktif).map((personel) => (
+                personeller.filter(p => p.aktif && (!p.isten_cikis_tarihi || p.isten_cikis_tarihi > getLocalDateString())).map((personel) => (
                   <div 
                     key={personel.id} 
                     className="p-4 rounded-xl border bg-card border-border shadow-sm transition-all"
@@ -725,11 +792,10 @@ export default function AyarlarPage() {
                       </div>
                       <div>
                         <label className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 block mb-1">İşten Çıkış Tarihi (İşten Ayrıldıysa)</label>
-                        <Input
-                          type="date"
+                        <ExitDatePicker
+                          compact
                           value={exitDateDrafts[personel.id] || ""}
-                          onChange={(e) => setExitDateDrafts(prev => ({ ...prev, [personel.id]: e.target.value }))}
-                          className="h-9 text-xs"
+                          onChange={(val) => setExitDateDrafts(prev => ({ ...prev, [personel.id]: val }))}
                         />
                       </div>
                     </div>
@@ -737,32 +803,54 @@ export default function AyarlarPage() {
                 ))
               )}
 
-              {/* Silinen / Pasif Personeller Bölümü */}
-              {personeller.filter(p => !p.aktif).length > 0 && (
+              {/* Silinen / Pasif / Ayrılan Personeller Bölümü */}
+              {personeller.filter(p => !p.aktif || Boolean(p.isten_cikis_tarihi && p.isten_cikis_tarihi <= getLocalDateString())).length > 0 && (
                 <div className="pt-4 border-t space-y-3">
-                  <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">
-                    Silinen / Pasif Personeller ({personeller.filter(p => !p.aktif).length})
-                  </h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">
+                      Silinen / Pasif / İşten Ayrılan Personeller ({personeller.filter(p => !p.aktif || Boolean(p.isten_cikis_tarihi && p.isten_cikis_tarihi <= getLocalDateString())).length})
+                    </h4>
+                  </div>
                   <div className="space-y-2">
-                    {personeller.filter(p => !p.aktif).map((personel) => (
-                      <div
-                        key={personel.id}
-                        className="flex items-center justify-between p-3 rounded-lg border bg-muted/40 opacity-75 text-sm"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium line-through text-muted-foreground">{personel.ad}</span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-muted text-muted-foreground">Silindi / Pasif</span>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => togglePersonel(personel.id, false)}
-                          className="h-8 text-xs gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                    {personeller.filter(p => !p.aktif || Boolean(p.isten_cikis_tarihi && p.isten_cikis_tarihi <= getLocalDateString())).map((personel) => {
+                      const isResigned = Boolean(personel.isten_cikis_tarihi && personel.isten_cikis_tarihi <= getLocalDateString())
+                      return (
+                        <div
+                          key={personel.id}
+                          className="flex items-center justify-between p-3 rounded-lg border bg-muted/40 opacity-90 text-sm"
                         >
-                          Geri Yükle / Aktif Et
-                        </Button>
-                      </div>
-                    ))}
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium line-through text-muted-foreground">{personel.ad}</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                              isResigned
+                                ? "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"
+                                : "bg-muted text-muted-foreground"
+                            }`}>
+                              {isResigned ? `İşten Ayrıldı (${personel.isten_cikis_tarihi})` : "Silindi / Pasif"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => togglePersonel(personel.id, false)}
+                              className="h-8 text-xs gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                            >
+                              Geri Yükle / Aktif Et
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => hardDeletePersonel(personel.id)}
+                              className="h-8 text-xs gap-1 bg-rose-600 hover:bg-rose-700 text-white"
+                              title="Veritabanından kalıcı olarak sil"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Kalıcı Sil (DB'den)
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}

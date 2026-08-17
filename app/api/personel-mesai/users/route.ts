@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
   let personelQuery = admin
     .from("personeller")
-    .select("id, ad, aktif, sube_id, sira, sabit_vardiya")
+    .select("id, ad, aktif, sube_id, sira, sabit_vardiya, isten_cikis_tarihi")
     .eq("aktif", true)
     .order("sira", { ascending: true })
     .order("ad", { ascending: true })
@@ -56,7 +56,8 @@ export async function GET(request: NextRequest) {
     ]),
   )
 
-  const users = await Promise.all((personeller || []).map(async (personel) => {
+  const activePersoneller = (personeller || []).filter((p) => !p.isten_cikis_tarihi || p.isten_cikis_tarihi >= date)
+  const users = await Promise.all(activePersoneller.map(async (personel) => {
     const branch = branchById.get(personel.sube_id)
     const profile = profileByBranchAndName.get(`${personel.sube_id || ""}:${normalizeName(personel.ad)}`)
     const shift = await resolvePersonelDashboardShift({

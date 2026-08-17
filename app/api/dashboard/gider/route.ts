@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
       .order("sira", { ascending: true }),
     admin
       .from("personeller")
-      .select("id, ad, aktif")
+      .select("id, ad, aktif, isten_cikis_tarihi")
       .eq("sube_id", sube.id)
       .order("sira", { ascending: true }),
     admin
@@ -168,7 +168,12 @@ export async function GET(request: NextRequest) {
       }
     })
 
-  const personeller = allPersoneller.filter(p => p.aktif || usedPersonelIds.has(p.id))
+  const personeller = allPersoneller.filter(p => {
+    if (p.isten_cikis_tarihi && p.isten_cikis_tarihi < monthStart && !usedPersonelIds.has(p.id)) {
+      return false
+    }
+    return (p.aktif && (!p.isten_cikis_tarihi || p.isten_cikis_tarihi >= monthStart)) || usedPersonelIds.has(p.id)
+  })
 
   return NextResponse.json({
     userId: user.id,

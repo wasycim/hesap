@@ -7,6 +7,8 @@ export type SecurityEventType =
   | "column_delete"
   | "column_hide"
   | "person_delete"
+  | "person_hard_delete"
+  | "test_personnel_clean"
   | "kargo_cari_delete"
   | "gelir_firma_delete"
   | "ortak_delete"

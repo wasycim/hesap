@@ -231,11 +231,12 @@ export default function MaaslarPage() {
     const monthStartDate = `${year}-${String(monthIndex).padStart(2, "0")}-01`
 
     setPersoneller(allPersoneller.filter(p => {
-      // If employee resigned before this month started, exclude them unless they have recorded entries in this month
-      if (p.isten_cikis_tarihi && p.isten_cikis_tarihi < monthStartDate && !usedPersonelIds.has(p.id)) {
+      const exitedBeforeMonth = Boolean(p.isten_cikis_tarihi && p.isten_cikis_tarihi < monthStartDate)
+      if (exitedBeforeMonth && !usedPersonelIds.has(p.id)) {
         return false
       }
-      return p.aktif || usedPersonelIds.has(p.id) || Boolean(p.isten_cikis_tarihi && p.isten_cikis_tarihi >= monthStartDate)
+      const isActiveInMonth = p.aktif && (!p.isten_cikis_tarihi || p.isten_cikis_tarihi >= monthStartDate)
+      return isActiveInMonth || usedPersonelIds.has(p.id)
     }))
     setOrtaklar(ortakRes.data || [])
     setRows(giderRes.data || [])

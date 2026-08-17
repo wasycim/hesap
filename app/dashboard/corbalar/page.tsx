@@ -140,7 +140,15 @@ export default function CorbalarPage() {
       .eq("aktif", true)
       .order("sira", { ascending: true })
     
-    if (personelData) setPersoneller(personelData)
+    const monthIndex = MONTHS.indexOf(month) + 1
+    const monthStartDate = `${year}-${String(monthIndex).padStart(2, "0")}-01`
+
+    if (personelData) {
+      setPersoneller(personelData.filter(p => {
+        if (p.isten_cikis_tarihi && p.isten_cikis_tarihi < monthStartDate) return false
+        return p.aktif
+      }))
+    }
 
     // Çorba kayıtlarını çek
     const { data: corbaData } = await supabase
