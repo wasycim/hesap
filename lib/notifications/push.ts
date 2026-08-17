@@ -412,6 +412,38 @@ function safeJsonParse(value: string) {
   }
 }
 
+async function sendExpoPushNotification(input: PushInput): Promise<PushDeliveryResult> {
+  try {
+    const res = await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Accept-encoding": "gzip, deflate",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        to: input.token,
+        sound: "default",
+        title: input.title,
+        body: input.body,
+        data: { href: input.href, notificationId: input.notificationId, level: input.level },
+      }),
+    })
+    const payload = await res.json()
+    if (res.ok && payload.data?.status === "ok") {
+      return { ok: true, status: "sent", response: payload }
+    }
+    return {
+      ok: false,
+      status: "failed",
+      error: payload.data?.message || payload.errors?.[0]?.message || "Expo Push gönderimi başarısız.",
+      response: payload,
+    }
+  } catch (err) {
+    return { ok: false, status: "failed", error: err instanceof Error ? err.message : "Expo push hatası." }
+  }
+}
+
 async function sendNativePushNotification(provider: "apns" | "fcm", input: PushInput) {
   return provider === "apns" ? sendApnsNotificationToToken(input) : sendPushNotificationToToken(input)
 }
@@ -439,7 +471,7 @@ export async function deliverPushToUserDevices(admin: any, input: DeliverToUserI
       failed: 0,
       skipped: 0,
       deviceCount: 0,
-      configured: fcmProviderStatus.configured || apnsProviderStatus.configured,
+      configured: fcmProviderStatus.configured || apnsProviderStatus.configured || true,
       missing: [...fcmProviderStatus.missing, ...apnsProviderStatus.missing],
     }
   }
@@ -448,33 +480,48 @@ export async function deliverPushToUserDevices(admin: any, input: DeliverToUserI
   const results: PushDeliveryResult[] = []
 
   for (const device of targetDevices) {
-    const provider = isIosDevice(device.platform) ? "apns" : "fcm"
-    const activeProviderStatus = provider === "apns" ? apnsProviderStatus : fcmProviderStatus
+    const tokenStr = String(device.push_token || "").trim()
+    const isExpoToken = tokenStr.startsWith("ExponentPushToken[") || tokenStr.startsWith("ExpoPushToken[")
+
     let result: PushDeliveryResult
     try {
-      result = activeProviderStatus.configured
-        ? await sendNativePushNotification(provider, {
-            token: String(device.push_token),
-            title: input.title,
-            body: input.body,
-            href: input.href,
-            notificationId: input.notificationId,
-            level: input.level,
-          })
-        : {
-            ok: false,
-            status: "skipped" as const,
-            error: `${provider.toUpperCase()} ayarları eksik: ${activeProviderStatus.missing.join(", ")}`,
-          }
+      if (isExpoToken) {
+        result = await sendExpoPushNotification({
+          token: tokenStr,
+          title: input.title,
+          body: input.body,
+          href: input.href,
+          notificationId: input.notificationId,
+          level: input.level,
+        })
+      } else {
+        const provider = isIosDevice(device.platform) ? "apns" : "fcm"
+        const activeProviderStatus = provider === "apns" ? apnsProviderStatus : fcmProviderStatus
+        result = activeProviderStatus.configured
+          ? await sendNativePushNotification(provider, {
+              token: tokenStr,
+              title: input.title,
+              body: input.body,
+              href: input.href,
+              notificationId: input.notificationId,
+              level: input.level,
+            })
+          : {
+              ok: false,
+              status: "skipped" as const,
+              error: `${provider.toUpperCase()} ayarları eksik: ${activeProviderStatus.missing.join(", ")}`,
+            }
+      }
     } catch (error) {
       result = {
         ok: false,
         status: "failed",
-        error: error instanceof Error ? error.message : `${provider.toUpperCase()} push gonderimi tamamlanamadi.`,
+        error: error instanceof Error ? error.message : "Push gönderimi tamamlanamadı.",
       }
     }
 
     results.push(result)
+    const provider = isExpoToken ? "expo" : (isIosDevice(device.platform) ? "apns" : "fcm")
     if ((provider === "apns" && isUnregisteredApnsResult(result)) || (provider === "fcm" && isUnregisteredFcmResult(result))) {
       await admin
         .from("user_devices")
