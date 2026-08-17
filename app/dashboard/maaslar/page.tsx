@@ -253,7 +253,22 @@ export default function MaaslarPage() {
     const nakitMaas = Number(personel.nakit_maas !== undefined && personel.nakit_maas !== null ? personel.nakit_maas : (personel.aylik_maas || 0))
     const baseSalary = bankaMaas + nakitMaas
     const isSelectedForKargo = !kargoSeciliPersoneller || kargoSeciliPersoneller.includes(personel.id)
-    const kargoHakedisAmount = isSelectedForKargo ? kargoPrimAmount : 0
+    let kargoHakedisAmount = 0
+    if (isSelectedForKargo && kargoPrimAmount > 0) {
+      const monthIndex = MONTHS.indexOf(month) + 1
+      const totalDaysInMonth = new Date(year, monthIndex, 0).getDate()
+      const monthStartDate = `${year}-${String(monthIndex).padStart(2, "0")}-01`
+      const monthEndDate = `${year}-${String(monthIndex).padStart(2, "0")}-${String(totalDaysInMonth).padStart(2, "0")}`
+
+      if (personel.isten_cikis_tarihi && personel.isten_cikis_tarihi >= monthStartDate && personel.isten_cikis_tarihi <= monthEndDate) {
+        const exitDate = new Date(personel.isten_cikis_tarihi)
+        const exitDay = exitDate.getDate()
+        const ratio = Math.min(1, Math.max(0, exitDay / totalDaysInMonth))
+        kargoHakedisAmount = kargoPrimAmount * ratio
+      } else {
+        kargoHakedisAmount = kargoPrimAmount
+      }
+    }
     const hourlyRate = Number(personel.saatlik_mesai_ucreti) || (baseSalary > 0 ? baseSalary / 30 / 8 : 0)
     const advances: Detail[] = []
     const overtime: OvertimeDetail[] = []

@@ -62,9 +62,8 @@ export default function KargoPrimPage() {
     const [personelRes, primRes] = await Promise.all([
       supabase
         .from("personeller")
-        .select("id, ad, aktif")
+        .select("id, ad, aktif, isten_cikis_tarihi")
         .eq("sube_id", currentSube.id)
-        .eq("aktif", true)
         .order("sira", { ascending: true }),
       supabase
         .from("kargo_prim_kayitlari")
@@ -342,6 +341,24 @@ export default function KargoPrimPage() {
                   <tbody className="divide-y">
                     {personeller.map(p => {
                       const isSelected = seciliPersonelIds.includes(p.id)
+                      const monthIndex = MONTHS.indexOf(month) + 1
+                      const totalDaysInMonth = new Date(year, monthIndex, 0).getDate()
+                      const monthStartDate = `${year}-${String(monthIndex).padStart(2, "0")}-01`
+                      const monthEndDate = `${year}-${String(monthIndex).padStart(2, "0")}-${String(totalDaysInMonth).padStart(2, "0")}`
+                      
+                      let ratio = 1.0
+                      let isResignedThisMonth = false
+                      let exitDayNumber = totalDaysInMonth
+
+                      if (p.isten_cikis_tarihi && p.isten_cikis_tarihi >= monthStartDate && p.isten_cikis_tarihi <= monthEndDate) {
+                        const exitDate = new Date(p.isten_cikis_tarihi)
+                        exitDayNumber = exitDate.getDate()
+                        ratio = Math.min(1, Math.max(0, exitDayNumber / totalDaysInMonth))
+                        isResignedThisMonth = true
+                      }
+
+                      const individualHakedis = isSelected ? personelBasinaHakedis * ratio : 0
+
                       return (
                         <tr key={p.id} className={`transition-colors ${isSelected ? "bg-card hover:bg-muted/30" : "bg-muted/20 opacity-60 hover:opacity-80"}`}>
                           <td className="p-3 text-center">
@@ -359,14 +376,25 @@ export default function KargoPrimPage() {
                             </button>
                           </td>
                           <td className="p-3 font-semibold">
-                            {p.ad}
-                            {!isSelected && <span className="ml-2 text-xs font-normal text-muted-foreground">(Dahil Edilmedi)</span>}
+                            <div className="flex items-center gap-2">
+                              <span>{p.ad}</span>
+                              {isResignedThisMonth && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
+                                  {exitDayNumber} {month}'ta Ayrıldı ({exitDayNumber}/{totalDaysInMonth} Gün)
+                                </span>
+                              )}
+                              {!isSelected && <span className="text-xs font-normal text-muted-foreground">(Dahil Edilmedi)</span>}
+                            </div>
                           </td>
                           <td className="p-3 text-muted-foreground">
-                            {isSelected ? `Eşit Pay (1/${selectedCount})` : "0 Pay"}
+                            {isSelected ? (
+                              isResignedThisMonth
+                                ? `Kıst Payı (${exitDayNumber}/${totalDaysInMonth} Gün - %${Math.round(ratio * 100)})`
+                                : `Tam Pay (1/${selectedCount})`
+                            ) : "0 Pay"}
                           </td>
                           <td className={`p-3 text-right font-bold ${isSelected ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
-                            {isSelected ? `${formatMoney(personelBasinaHakedis)} ₺` : "0,00 ₺"}
+                            {isSelected ? `${formatMoney(individualHakedis)} ₺` : "0,00 ₺"}
                           </td>
                         </tr>
                       )

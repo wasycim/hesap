@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   const { data: branch } = await admin.from("subeler").select("id, ad, kod").eq("id", profile.sube_id).maybeSingle()
   const { data: candidates, error: personelError } = await admin
     .from("personeller")
-    .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif")
+    .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif, isten_cikis_tarihi")
     .eq("sube_id", profile.sube_id)
 
   if (personelError) return NextResponse.json({ error: personelError.message }, { status: 500 })
@@ -150,7 +150,14 @@ export async function GET(request: NextRequest) {
   if (kargoPrimData) {
     const secili = kargoPrimData.secili_personeller as string[] | null
     const isSelected = !secili || secili.includes(personel.id)
-    const kargoAmount = isSelected ? Number(kargoPrimData.personel_hakedis || 0) : 0
+    let kargoAmount = isSelected ? Number(kargoPrimData.personel_hakedis || 0) : 0
+    if (kargoAmount > 0 && personel.isten_cikis_tarihi && personel.isten_cikis_tarihi >= start && personel.isten_cikis_tarihi <= end) {
+      const exitDate = new Date(personel.isten_cikis_tarihi)
+      const exitDay = exitDate.getDate()
+      const totalDaysInMonth = new Date(exitDate.getFullYear(), exitDate.getMonth() + 1, 0).getDate()
+      const ratio = Math.min(1, Math.max(0, exitDay / totalDaysInMonth))
+      kargoAmount = kargoAmount * ratio
+    }
     if (kargoAmount > 0) {
       overtime.push({
         date: start,
