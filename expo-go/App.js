@@ -22,15 +22,6 @@ import { StatusBar } from "expo-status-bar"
 import * as Print from "expo-print"
 import * as SecureStore from "expo-secure-store"
 import * as Sharing from "expo-sharing"
-import * as Notifications from "expo-notifications"
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-})
 
 const LOGO_IMG = require("./assets/logo.png")
 
@@ -106,35 +97,11 @@ async function getDeviceIdentity() {
     await SecureStore.setItemAsync(DEVICE_KEY, deviceId)
   }
 
-  let pushToken = null
-  let pushRegistrationError = null
-  try {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync()
-    let finalStatus = existingStatus
-    if (existingStatus !== "granted") {
-      const { status } = await Notifications.requestPermissionsAsync()
-      finalStatus = status
-    }
-    if (finalStatus === "granted") {
-      const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: "efc72129-3fef-468b-a646-c0b8ce98bb36",
-      }).catch(async () => {
-        return await Notifications.getDevicePushTokenAsync()
-      })
-      pushToken = typeof tokenData === "string" ? tokenData : tokenData?.data || null
-    } else {
-      pushRegistrationError = "Bildirim izni verilmedi."
-    }
-  } catch (err) {
-    pushRegistrationError = err?.message || "Push token alınamadı."
-  }
-
   return {
     deviceId,
     platform: Platform.OS === "ios" ? "ios" : "android",
     label: Platform.OS === "ios" ? "iPhone / iPad uygulaması" : "Android uygulaması",
-    pushToken,
-    pushRegistrationError,
+    pushToken: null,
   }
 }
 
