@@ -639,13 +639,16 @@ export default function MaaslarPage() {
   const pendingAvansList = useMemo(() => avansTalepleri.filter(item => item.durum === "beklemede"), [avansTalepleri])
 
   const myAvansTalepleri = useMemo(() => {
-    const myName = normalizeName(currentUserProfile?.displayName)
-    if (!myName) return avansTalepleri
-    return avansTalepleri.filter(req => {
-      const rName = normalizeName(req.user_name)
-      return rName === myName || rName.includes(myName) || myName.includes(rName)
-    })
-  }, [avansTalepleri, currentUserProfile?.displayName])
+    if (isManager) {
+      const myName = normalizeName(currentUserProfile?.displayName)
+      if (!myName) return avansTalepleri
+      return avansTalepleri.filter(req => {
+        const rName = normalizeName(req.user_name)
+        return rName === myName || rName.includes(myName) || myName.includes(rName)
+      })
+    }
+    return avansTalepleri
+  }, [avansTalepleri, currentUserProfile?.displayName, isManager])
 
   const filteredAvansTalepleri = useMemo(() => {
     return avansTalepleri.filter(item => {
@@ -943,6 +946,61 @@ export default function MaaslarPage() {
                 totalLabel="Toplam Çorba Kazanılan"
                 variant="info"
               />
+
+              {/* Non-manager personnel personal advance requests status section */}
+              {!isManager && myAvansTalepleri.length > 0 && (
+                <div className="col-span-full mt-2 border-t pt-4">
+                  <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+                    <HandCoins className="h-4 w-4 text-amber-600" />
+                    Avans Taleplerim ve Durumları ({myAvansTalepleri.length})
+                  </h3>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {myAvansTalepleri.map((req) => {
+                      const isPending = req.durum === "beklemede"
+                      const isApproved = req.durum === "onaylandi"
+                      return (
+                        <div
+                          key={req.id}
+                          className={`rounded-xl border p-3.5 shadow-sm bg-card ${
+                            isPending
+                              ? "border-amber-300 dark:border-amber-500/40"
+                              : isApproved
+                              ? "border-emerald-300 dark:border-emerald-500/40"
+                              : "border-red-300 dark:border-red-500/40"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-extrabold text-base text-foreground">
+                              {Number(req.tutar).toLocaleString("tr-TR")} ₺
+                            </span>
+                            <Badge className={isPending ? "bg-amber-500 text-white" : isApproved ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}>
+                              {isPending ? "⏳ Beklemede" : isApproved ? "✅ Onaylandı" : "❌ Reddedildi"}
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            Talep Tarihi: {new Date(req.created_at).toLocaleDateString("tr-TR")}
+                          </p>
+                          {req.aciklama ? (
+                            <p className="mt-1.5 text-xs italic text-muted-foreground bg-muted/40 p-1.5 rounded">
+                              "{req.aciklama}"
+                            </p>
+                          ) : null}
+                          {isApproved && req.odeme_tarihi ? (
+                            <p className="mt-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                              📅 Ödeme Tarihi: {new Date(req.odeme_tarihi).toLocaleDateString("tr-TR")}
+                            </p>
+                          ) : null}
+                          {!isPending && req.red_sebebi ? (
+                            <p className="mt-1.5 text-xs font-semibold text-red-700 dark:text-red-300">
+                              ⚠️ Red Sebebi: {req.red_sebebi}
+                            </p>
+                          ) : null}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

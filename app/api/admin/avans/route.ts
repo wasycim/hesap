@@ -13,7 +13,7 @@ async function getAuthUserAndProfile() {
   const admin = createAdminClient()
   const { data: profile } = await admin
     .from("user_profiles")
-    .select("id, user_id, display_name, sube_id, is_admin, is_developer")
+    .select("id, user_id, display_name, sube_id, is_admin, is_developer, tc_kimlik")
     .eq("user_id", user.id)
     .single()
 
@@ -22,8 +22,8 @@ async function getAuthUserAndProfile() {
 
 export async function GET(request: NextRequest) {
   const { user, profile } = await getAuthUserAndProfile()
-  if (!user || !profile || (!profile.is_admin && !profile.is_developer)) {
-    return NextResponse.json({ error: "Yetkisiz erişim." }, { status: 403 })
+  if (!user || !profile) {
+    return NextResponse.json({ error: "Oturum açmanız gerekiyor." }, { status: 401 })
   }
 
   const admin = createAdminClient()
@@ -32,7 +32,11 @@ export async function GET(request: NextRequest) {
     .select("*")
     .order("created_at", { ascending: false })
 
-  if (profile.sube_id && !profile.is_developer) {
+  const isManager = Boolean(profile.is_admin || profile.is_developer)
+  if (!isManager) {
+    // Non-admin user gets their own advance requests
+    query = query.or(`user_id.eq.${user.id}${profile.tc_kimlik ? `,tc_kimlik.eq.${profile.tc_kimlik}` : ""}`)
+  } else if (profile.sube_id && !profile.is_developer) {
     query = query.eq("sube_id", profile.sube_id)
   }
 
