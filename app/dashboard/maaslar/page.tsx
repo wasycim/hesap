@@ -572,17 +572,6 @@ export default function MaaslarPage() {
     return <div className="flex h-64 items-center justify-center text-muted-foreground">Yükleniyor...</div>
   }
 
-  if (!isAdmin) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="text-center">
-          <h2 className="mb-2 text-xl font-semibold">Erişim engellendi</h2>
-          <p className="text-muted-foreground">Bu sayfaya sadece yöneticiler erişebilir.</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-col gap-3 bg-emerald-700 p-4 text-white sm:flex-row sm:items-center sm:justify-between">
