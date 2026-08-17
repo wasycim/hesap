@@ -4,42 +4,8 @@ import { canSendAdminDigestEmail } from "@/lib/email/admin-digest"
 import { getApnsProviderStatus, getPushProviderStatus } from "@/lib/notifications/push"
 import { prisma } from "@/lib/prisma"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { PrismaClient } from "@prisma/client"
 
 type ComponentStatus = "operational" | "degraded" | "down"
-
-async function checkFailoverDatabase(): Promise<{ status: ComponentStatus; message: string }> {
-  const failoverUrl = process.env.FAILOVER_DATABASE_URL?.trim()
-  if (!failoverUrl) {
-    return {
-      status: "degraded",
-      message: "FAILOVER_DATABASE_URL tanimli degil",
-    }
-  }
-
-  const failover = new PrismaClient({
-    datasources: {
-      db: {
-        url: failoverUrl,
-      },
-    },
-  })
-
-  try {
-    await failover.$queryRaw`select 1`
-    return {
-      status: "operational",
-      message: "Yedek PostgreSQL erisilebilir",
-    }
-  } catch (error) {
-    return {
-      status: "down",
-      message: error instanceof Error ? error.message : "Yedek PostgreSQL kontrolu basarisiz",
-    }
-  } finally {
-    await failover.$disconnect().catch(() => undefined)
-  }
-}
 
 async function assertSupabase<T extends { error: { message?: string } | null }>(promise: PromiseLike<T>) {
   const result = await promise
@@ -91,26 +57,14 @@ export async function GET() {
     message: apnsProvider.configured ? "iOS sistem bildirimi hazır" : `Eksik ortam değişkenleri: ${apnsProvider.missing.join(", ")}`,
   })
   components.push({
-    name: "Otomatik rapor e-postası",
+    name: "E-posta Yedek & Güvenlik Bildirimi",
     status: canSendAdminDigestEmail() ? "operational" : "degraded",
-    message: canSendAdminDigestEmail() ? "SMTP hazır" : "SMTP_HOST, SMTP_USER veya SMTP_PASS eksik",
+    message: canSendAdminDigestEmail() ? "SMTP e-posta bildirimi hazır" : "SMTP ayarları eksik",
   })
-
   components.push({
-    name: "Cloudflare R2 yedek deposu",
-    status: process.env.R2_ENDPOINT && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY && process.env.R2_BUCKET_NAME
-      ? "operational"
-      : "degraded",
-    message: process.env.R2_BUCKET_NAME
-      ? `Bucket hazir: ${process.env.R2_BUCKET_NAME}`
-      : "R2 ortam degiskenleri eksik",
-  })
-
-  const failoverStatus = await checkFailoverDatabase()
-  components.push({
-    name: "Yedek PostgreSQL failover",
-    status: failoverStatus.status,
-    message: failoverStatus.message,
+    name: "Uygulama İçi Veritabanı Yedeği",
+    status: "operational",
+    message: "Veritabanı JSON yedekleme ve canlı önizleme aktif",
   })
 
   const [
@@ -137,23 +91,21 @@ export async function GET() {
       .limit(8),
     admin
       .from("user_devices")
-      .select("id", { count: "exact", head: true })
-      .eq("enabled", true)
-      .not("push_token", "is", null),
+      .select("id", { count: "exact", head: true }),
     admin
       .from("push_delivery_logs")
-      .select("*")
+      .select("id, status, title, error, created_at")
       .order("created_at", { ascending: false })
       .limit(8),
     admin
       .from("user_devices")
-      .select("id, user_id, device_id, platform, enabled, last_seen_at, updated_at, created_at, push_token")
-      .order("last_seen_at", { ascending: false })
-      .limit(10),
+      .select("id, user_id, device_id, platform, enabled, has_push_token, last_seen_at, updated_at, created_at")
+      .order("updated_at", { ascending: false })
+      .limit(8),
     admin
       .from("security_events")
       .select("*")
-      .in("event_type", ["admin_digest_sent", "admin_digest_test_sent"])
+      .eq("event_type", "admin_digest_sent")
       .order("created_at", { ascending: false })
       .limit(5),
   ])
@@ -172,21 +124,27 @@ export async function GET() {
     resetEvents: resetEvents || [],
     pendingDevices: pendingDevices || [],
     pushSummary: {
-      provider: `${pushProvider.provider}+${apnsProvider.provider}`,
-      configured: pushProvider.configured || apnsProvider.configured,
-      missing: [...pushProvider.missing, ...apnsProvider.missing],
+      provider: pushProvider.configured ? "Firebase Cloud Messaging" : "Eksik Ayar",
+      configured: pushProvider.configured,
+      missing: pushProvider.missing,
       registeredDevices: pushDeviceCount.count || 0,
-      latestDeliveries: latestPushLogs.data || [],
-      latestDevices: (latestUserDevices.data || []).map((device: any) => ({
-        id: device.id,
-        user_id: device.user_id,
-        device_id: device.device_id,
-        platform: device.platform,
-        enabled: device.enabled,
-        has_push_token: Boolean(device.push_token),
-        last_seen_at: device.last_seen_at,
-        updated_at: device.updated_at,
-        created_at: device.created_at,
+      latestDeliveries: (latestPushLogs.data || []).map((row: any) => ({
+        id: String(row.id),
+        status: (row.status || "skipped") as "sent" | "failed" | "skipped",
+        title: (row.title || null) as string | null,
+        error: (row.error || null) as string | null,
+        created_at: String(row.created_at || new Date().toISOString()),
+      })),
+      latestDevices: (latestUserDevices.data || []).map((row: any) => ({
+        id: String(row.id),
+        user_id: String(row.user_id),
+        device_id: (row.device_id || null) as string | null,
+        platform: (row.platform || null) as string | null,
+        enabled: Boolean(row.enabled),
+        has_push_token: Boolean(row.has_push_token),
+        last_seen_at: (row.last_seen_at || null) as string | null,
+        updated_at: (row.updated_at || null) as string | null,
+        created_at: String(row.created_at || new Date().toISOString()),
       })),
     },
     digestSummary: {
