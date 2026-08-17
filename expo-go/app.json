@@ -38,7 +38,7 @@
         "projectId": "efc72129-3fef-468b-a646-c0b8ce98bb36"
       }
     },
-    "owner": "wasysystem",
+    "owner": "wasycimm",
     "plugins": [
       [
         "expo-camera",
