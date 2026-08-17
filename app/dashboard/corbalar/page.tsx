@@ -137,7 +137,6 @@ export default function CorbalarPage() {
       .from("personeller")
       .select("*")
       .eq("sube_id", currentSube.id)
-      .eq("aktif", true)
       .order("sira", { ascending: true })
     
     const monthIndex = MONTHS.indexOf(month) + 1
@@ -146,6 +145,7 @@ export default function CorbalarPage() {
     if (personelData) {
       setPersoneller(personelData.filter(p => {
         if (p.isten_cikis_tarihi && p.isten_cikis_tarihi < monthStartDate) return false
+        if (p.isten_cikis_tarihi && p.isten_cikis_tarihi >= monthStartDate) return true
         return p.aktif
       }))
     }
@@ -157,7 +157,6 @@ export default function CorbalarPage() {
       .eq("sube_id", currentSube.id)
       .eq("ay_yil", ayYil)
       .order("tarih", { ascending: false })
-
     if (corbaData && personelData) {
       // Tarihe gore grupla
       const rowMap = new Map<string, CorbaRow>()

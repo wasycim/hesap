@@ -172,7 +172,8 @@ export async function GET(request: NextRequest) {
     if (p.isten_cikis_tarihi && p.isten_cikis_tarihi < monthStart && !usedPersonelIds.has(p.id)) {
       return false
     }
-    return (p.aktif && (!p.isten_cikis_tarihi || p.isten_cikis_tarihi >= monthStart)) || usedPersonelIds.has(p.id)
+    const isExitedThisMonthOrLater = Boolean(p.isten_cikis_tarihi && p.isten_cikis_tarihi >= monthStart)
+    return p.aktif || isExitedThisMonthOrLater || usedPersonelIds.has(p.id)
   })
 
   return NextResponse.json({

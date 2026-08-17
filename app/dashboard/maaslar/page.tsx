@@ -235,8 +235,8 @@ export default function MaaslarPage() {
       if (exitedBeforeMonth && !usedPersonelIds.has(p.id)) {
         return false
       }
-      const isActiveInMonth = p.aktif && (!p.isten_cikis_tarihi || p.isten_cikis_tarihi >= monthStartDate)
-      return isActiveInMonth || usedPersonelIds.has(p.id)
+      const isExitedThisMonthOrLater = Boolean(p.isten_cikis_tarihi && p.isten_cikis_tarihi >= monthStartDate)
+      return p.aktif || isExitedThisMonthOrLater || usedPersonelIds.has(p.id)
     }))
     setOrtaklar(ortakRes.data || [])
     setRows(giderRes.data || [])

@@ -78,7 +78,8 @@ export default function KargoPrimPage() {
 
     const activePersonelList = (personelRes.data || []).filter(p => {
       if (p.isten_cikis_tarihi && p.isten_cikis_tarihi < monthStartDate) return false
-      return p.aktif && (!p.isten_cikis_tarihi || p.isten_cikis_tarihi >= monthStartDate)
+      if (p.isten_cikis_tarihi && p.isten_cikis_tarihi >= monthStartDate) return true
+      return p.aktif
     })
     setPersoneller(activePersonelList)
 
