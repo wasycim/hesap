@@ -172,7 +172,7 @@ export default function MaaslarPage() {
     const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes, corbaRes, avansRes] = await Promise.all([
       supabase
         .from("personeller")
-        .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif")
+        .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif, isten_cikis_tarihi")
         .eq("sube_id", currentSube.id)
         .order("sira", { ascending: true }),
       supabase
@@ -226,6 +226,10 @@ export default function MaaslarPage() {
     ;(corbaRes.data || []).forEach(c => {
       if (Number(c.miktar) > 0) usedPersonelIds.add(c.personel_id)
     })
+
+    if (kargoPrimRes.data?.secili_personeller && Array.isArray(kargoPrimRes.data.secili_personeller)) {
+      (kargoPrimRes.data.secili_personeller as string[]).forEach(id => usedPersonelIds.add(id))
+    }
 
     const monthIndex = MONTHS.indexOf(month) + 1
     const monthStartDate = `${year}-${String(monthIndex).padStart(2, "0")}-01`
