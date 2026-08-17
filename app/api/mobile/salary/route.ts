@@ -212,6 +212,7 @@ export async function GET(request: NextRequest) {
       branch,
       personel: { id: personel.id, name: personel.ad },
       isManager,
+      personelList: isManager ? (candidates || []).map((p) => ({ id: p.id, name: p.ad })) : [],
       baseSalary,
       bankaMaas,
       nakitMaas,

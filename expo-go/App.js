@@ -22,6 +22,15 @@ import { StatusBar } from "expo-status-bar"
 import * as Print from "expo-print"
 import * as SecureStore from "expo-secure-store"
 import * as Sharing from "expo-sharing"
+import * as Notifications from "expo-notifications"
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+})
 
 const LOGO_IMG = require("./assets/logo.png")
 
@@ -97,10 +106,35 @@ async function getDeviceIdentity() {
     await SecureStore.setItemAsync(DEVICE_KEY, deviceId)
   }
 
+  let pushToken = null
+  let pushRegistrationError = null
+  try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync()
+    let finalStatus = existingStatus
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync()
+      finalStatus = status
+    }
+    if (finalStatus === "granted") {
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: "efc72129-3fef-468b-a646-c0b8ce98bb36",
+      }).catch(async () => {
+        return await Notifications.getDevicePushTokenAsync()
+      })
+      pushToken = typeof tokenData === "string" ? tokenData : tokenData?.data || null
+    } else {
+      pushRegistrationError = "Bildirim izni verilmedi."
+    }
+  } catch (err) {
+    pushRegistrationError = err?.message || "Push token alınamadı."
+  }
+
   return {
     deviceId,
     platform: Platform.OS === "ios" ? "ios" : "android",
     label: Platform.OS === "ios" ? "iPhone / iPad uygulaması" : "Android uygulaması",
+    pushToken,
+    pushRegistrationError,
   }
 }
 
@@ -127,8 +161,8 @@ export default function App() {
   const [verifyCode, setVerifyCode] = useState("")
   const [authLoading, setAuthLoading] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
-  const [error, setError] = useState("")
+  const [selectedPersonelId, setSelectedPersonelId] = useState("")
+  const lastLoadedRef = useRef("")
   const [overview, setOverview] = useState(null)
   const [salary, setSalary] = useState(null)
   const [attendance, setAttendance] = useState(null)
@@ -282,15 +316,19 @@ export default function App() {
     }
   }, [clearSession, requestJson, session])
 
-  const loadSalary = useCallback(async (targetMonth, targetYear) => {
+  const loadSalary = useCallback(async (targetMonth, targetYear, targetPersonelId) => {
     if (!session) return
     const m = targetMonth || period.month
     const y = targetYear || period.year
+    const pid = targetPersonelId !== undefined ? targetPersonelId : selectedPersonelId
     setLoading(true)
     setError("")
     try {
+      let url = `/api/mobile/salary?month=${m}&year=${y}`
+      if (pid) url += `&personelId=${encodeURIComponent(pid)}`
+
       const [salaryData, avansData] = await Promise.all([
-        requestJson(`/api/mobile/salary?month=${m}&year=${y}`),
+        requestJson(url),
         requestJson("/api/mobile/avans").catch(() => ({ requests: [] })),
       ])
       setSalary({
@@ -304,7 +342,7 @@ export default function App() {
     } finally {
       setLoading(false)
     }
-  }, [session])
+  }, [clearSession, period.month, period.year, requestJson, selectedPersonelId, session])
 
   const loadAttendance = useCallback(async () => {
     if (!session) return
@@ -453,11 +491,16 @@ export default function App() {
 
   useEffect(() => {
     if (!sessionToken) return
-    if (screen === "salary") loadSalary(period.month, period.year)
+
+    const key = `${screen}:${period.month}-${period.year}:${selectedPersonelId}`
+    if (lastLoadedRef.current === key) return
+    lastLoadedRef.current = key
+
+    if (screen === "salary") loadSalary(period.month, period.year, selectedPersonelId)
     if (screen === "attendance") loadAttendance()
     if (screen === "tracking") loadTracking()
     if (screen === "shifts") loadShifts()
-  }, [screen, sessionToken, period.month, period.year])
+  }, [screen, sessionToken, period.month, period.year, selectedPersonelId, loadSalary, loadAttendance, loadTracking, loadShifts])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -748,6 +791,11 @@ export default function App() {
             onShare={shareSalaryPdf}
             onRequestReload={loadSalary}
             requestJson={requestJson}
+            selectedPersonelId={selectedPersonelId}
+            onSelectPersonel={(pid) => {
+              setSelectedPersonelId(pid)
+              loadSalary(period.month, period.year, pid)
+            }}
           />
         ) : null}
         {screen === "attendance" ? <AttendanceScreen data={attendance} onOpenScanner={openScanner} /> : null}
@@ -858,7 +906,7 @@ function StatCard({ label, value, tone, wide, money = true }) {
   )
 }
 
-function SalaryScreen({ data, period, onPrev, onNext, onShare, onRequestReload, requestJson }) {
+function SalaryScreen({ data, period, onPrev, onNext, onShare, onRequestReload, requestJson, selectedPersonelId, onSelectPersonel }) {
   const [showCorbaDetail, setShowCorbaDetail] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [tutar, setTutar] = useState("")
@@ -893,9 +941,42 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare, onRequestReload, 
   }
 
   const avansRequests = data?.avansRequests || []
+  const personelList = data?.personelList || []
 
   return (
     <View>
+      {/* Manager Personnel Selector Chips */}
+      {data?.isManager && personelList.length > 0 ? (
+        <View style={{ marginBottom: 14, backgroundColor: "#0f172a", borderRadius: 16, padding: 12, borderWidth: 1, borderColor: "#334155" }}>
+          <Text style={{ color: "#38bdf8", fontSize: 12, fontWeight: "900", marginBottom: 8, letterSpacing: 0.5 }}>
+            👑 YÖNETİCİ PERSONEL SEÇİMİ ({personelList.length} Personel)
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {personelList.map((p) => {
+              const isSelected = p.id === data.personel?.id
+              return (
+                <TouchableOpacity
+                  key={p.id}
+                  onPress={() => onSelectPersonel && onSelectPersonel(p.id)}
+                  style={{
+                    paddingHorizontal: 14,
+                    paddingVertical: 8,
+                    borderRadius: 10,
+                    backgroundColor: isSelected ? "#0284c7" : "#1e293b",
+                    borderWidth: 1,
+                    borderColor: isSelected ? "#38bdf8" : "#334155",
+                  }}
+                >
+                  <Text style={{ color: "#ffffff", fontSize: 13, fontWeight: isSelected ? "900" : "600" }}>
+                    {p.name} {isSelected ? "✓" : ""}
+                  </Text>
+                </TouchableOpacity>
+              )
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
+
       <View style={styles.periodRow}>
         <TouchableOpacity style={styles.circleButton} onPress={onPrev}><Text style={styles.circleButtonText}>‹</Text></TouchableOpacity>
         <Text style={styles.periodText}>{monthLabel(period.month, period.year)}</Text>
