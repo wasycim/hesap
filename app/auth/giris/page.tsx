@@ -126,7 +126,7 @@ export default function GirisPage() {
     }
 
     const phoneMobileLogin = isPhoneMobileDeviceContext()
-    const nextPath = getSafeNextPath() || (phoneMobileLogin ? "/mobile" : "/dashboard")
+    const nextPath = getSafeNextPath() || "/dashboard"
     if (phoneMobileLogin || nextPath.startsWith("/mobile")) {
     const identity = await getOrCreateDeviceIdentity()
     const deviceResponse = await fetch("/api/auth/device-verification/start", {

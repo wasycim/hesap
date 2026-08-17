@@ -12,28 +12,58 @@ export async function GET(request: NextRequest) {
   const now = new Date()
   const month = clampInt(request.nextUrl.searchParams.get("month"), 1, 12, now.getMonth() + 1)
   const year = clampInt(request.nextUrl.searchParams.get("year"), 2020, 2100, now.getFullYear())
+  const requestedPersonelId = request.nextUrl.searchParams.get("personelId")?.trim()
+
   const start = `${year}-${String(month).padStart(2, "0")}-01`
   const end = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`
 
   const admin = createAdminClient()
   const { data: profile, error: profileError } = await admin
     .from("user_profiles")
-    .select("user_id, sube_id, display_name, dashboard_access")
+    .select("user_id, sube_id, display_name, dashboard_access, is_admin, is_developer, tc_kimlik")
     .eq("user_id", user.id)
     .maybeSingle()
+
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
   if (!profile || profile.dashboard_access === false || !profile.sube_id) {
     return NextResponse.json({ error: "Personel profili veya şube eşleştirmesi bulunamadı." }, { status: 404 })
   }
+
+  const isManager = Boolean(profile.is_admin || profile.is_developer)
 
   const { data: branch } = await admin.from("subeler").select("id, ad, kod").eq("id", profile.sube_id).maybeSingle()
   const { data: candidates, error: personelError } = await admin
     .from("personeller")
     .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif")
     .eq("sube_id", profile.sube_id)
+
   if (personelError) return NextResponse.json({ error: personelError.message }, { status: 500 })
 
-  const personel = (candidates || []).find((item) => normalizeName(item.ad) === normalizeName(profile.display_name))
+  let personel: typeof candidates[0] | undefined
+
+  // 1. If manager requested specific personelId
+  if (isManager && requestedPersonelId) {
+    personel = (candidates || []).find((item) => item.id === requestedPersonelId)
+  }
+
+  // 2. Multi-level matching for current user
+  if (!personel) {
+    personel = (candidates || []).find((item) => item.id === profile.tc_kimlik)
+  }
+  if (!personel) {
+    personel = (candidates || []).find((item) => normalizeName(item.ad) === normalizeName(profile.display_name))
+  }
+  if (!personel) {
+    personel = (candidates || []).find((item) => {
+      const pName = normalizeName(item.ad)
+      const uName = normalizeName(profile.display_name)
+      return pName.includes(uName) || uName.includes(pName)
+    })
+  }
+  if (!personel && isManager && candidates?.length) {
+    personel = candidates[0]
+  }
+
   if (!personel) {
     return NextResponse.json({
       error: "Kullanıcı hesabı bir personel kaydıyla eşleşmiyor. Yönetici, hesap adı ile personel adını eşleştirmelidir.",
@@ -81,10 +111,11 @@ export async function GET(request: NextRequest) {
       .order("tarih"),
     admin
       .from("avans_talepleri")
-      .select("id, tutar, odeme_tarihi, created_at, durum")
-      .eq("user_id", user.id)
+      .select("id, tutar, user_id, user_name, tc_kimlik, odeme_tarihi, created_at, durum")
+      .eq("sube_id", profile.sube_id)
       .eq("durum", "onaylandi"),
   ])
+
   if (rowsError || approvalsError) return NextResponse.json({ error: rowsError?.message || approvalsError?.message }, { status: 500 })
 
   const bankaMaas = Number(personel.banka_maas || 0)
@@ -98,7 +129,15 @@ export async function GET(request: NextRequest) {
   for (const req of approvedAvansData || []) {
     const tutar = Number(req.tutar || 0)
     const targetDate = req.odeme_tarihi || (req.created_at ? req.created_at.slice(0, 10) : "")
-    if (tutar > 0 && targetDate && targetDate >= start && targetDate <= end) {
+    const reqName = normalizeName(req.user_name || "")
+    const pName = normalizeName(personel.ad || "")
+
+    const isMatch =
+      req.user_id === user.id ||
+      (req.tc_kimlik && req.tc_kimlik === personel.id) ||
+      (reqName && pName && (reqName === pName || reqName.includes(pName) || pName.includes(reqName)))
+
+    if (tutar > 0 && targetDate && targetDate >= start && targetDate <= end && isMatch) {
       advances.push({
         date: targetDate,
         amount: tutar,
@@ -166,22 +205,31 @@ export async function GET(request: NextRequest) {
 
   const advanceTotal = advances.reduce((sum, item) => sum + item.amount, 0)
   const overtimeTotal = overtime.reduce((sum, item) => sum + item.amount, 0)
-  return NextResponse.json({
-    period: { month, year, monthName, start, end },
-    branch,
-    personel: { id: personel.id, name: personel.ad },
-    baseSalary,
-    bankaMaas,
-    nakitMaas,
-    hourlyRate,
-    corbaTotal,
-    corbaDetails,
-    advanceTotal,
-    overtimeTotal,
-    remaining: baseSalary + overtimeTotal - advanceTotal,
-    advances,
-    overtime: overtime.sort((a, b) => a.date.localeCompare(b.date)),
-  }, { headers: { "Cache-Control": "no-store" } })
+
+  return NextResponse.json(
+    {
+      period: { month, year, monthName, start, end },
+      branch,
+      personel: { id: personel.id, name: personel.ad },
+      isManager,
+      baseSalary,
+      bankaMaas,
+      nakitMaas,
+      hourlyRate,
+      corbaTotal,
+      corbaDetails,
+      advanceTotal,
+      overtimeTotal,
+      remaining: baseSalary + overtimeTotal - advanceTotal,
+      advances: advances.sort((a, b) => a.date.localeCompare(b.date)),
+      overtime: overtime.sort((a, b) => a.date.localeCompare(b.date)),
+    },
+    {
+      headers: {
+        "Cache-Control": "private, max-age=0, must-revalidate",
+      },
+    }
+  )
 }
 
 function normalizeName(value: unknown) {
