@@ -15,7 +15,13 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const userIds = Array.from(new Set((licenses || []).map((license: any) => license.user_id).filter(Boolean)))
+  // Filter out web platform entries so only iOS, Android, and EXE / Desktop applications are returned
+  const appLicenses = (licenses || []).filter((license: any) => {
+    const p = String(license.platform || "").toLowerCase().trim()
+    return p !== "web" && !p.includes("browser") && !p.includes("chrome") && !p.includes("firefox")
+  })
+
+  const userIds = Array.from(new Set(appLicenses.map((license: any) => license.user_id).filter(Boolean)))
   const { data: profiles } = userIds.length
     ? await admin
         .from("user_profiles")
@@ -25,7 +31,7 @@ export async function GET() {
   const profileByUserId = new Map((profiles || []).map((profile: any) => [String(profile.user_id), profile]))
 
   return NextResponse.json({
-    licenses: (licenses || []).map((license: any) => ({
+    licenses: appLicenses.map((license: any) => ({
       ...license,
       user_profile: profileByUserId.get(String(license.user_id)) || null,
     })),

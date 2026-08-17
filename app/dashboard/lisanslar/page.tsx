@@ -33,12 +33,21 @@ function formatDate(value?: string | null) {
   return new Date(value).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" })
 }
 
+function isAppDevice(platform?: string | null) {
+  if (!platform) return false
+  const p = platform.toLowerCase().trim()
+  if (p === "web" || p.includes("browser") || p.includes("chrome") || p.includes("firefox") || p.includes("safari")) {
+    return false
+  }
+  return true
+}
+
 function platformIcon(platform: string) {
-  const normalized = platform.toLowerCase()
-  if (normalized.includes("android") || normalized.includes("ios") || normalized.includes("mobile")) return Smartphone
+  const normalized = (platform || "").toLowerCase()
+  if (normalized.includes("android") || normalized.includes("ios") || normalized.includes("mobile") || normalized.includes("apple")) return Smartphone
   if (normalized.includes("tablet")) return Tablet
-  if (normalized.includes("desktop") || normalized.includes("electron") || normalized.includes("windows")) return Laptop
-  return MonitorCheck
+  if (normalized.includes("desktop") || normalized.includes("electron") || normalized.includes("windows") || normalized.includes("exe")) return Laptop
+  return Laptop
 }
 
 export default function LisanslarPage() {
@@ -106,13 +115,19 @@ export default function LisanslarPage() {
   }
 
   const platforms = useMemo(() => {
-    const unique = Array.from(new Set(licenses.map((license) => license.platform || "web")))
+    const unique = Array.from(new Set(
+      licenses
+        .map((license) => license.platform || "")
+        .filter((p) => isAppDevice(p))
+    ))
     return unique.sort((a, b) => a.localeCompare(b, "tr"))
   }, [licenses])
 
   const filtered = useMemo(() => {
     const clean = query.trim().toLocaleLowerCase("tr-TR")
     return licenses.filter((license) => {
+      if (!isAppDevice(license.platform)) return false
+
       const profile = license.user_profile
       const haystack = [
         profile?.display_name,
@@ -124,20 +139,31 @@ export default function LisanslarPage() {
         license.last_ip,
       ].filter(Boolean).join(" ").toLocaleLowerCase("tr-TR")
       if (clean && !haystack.includes(clean)) return false
-      if (platform !== "all" && license.platform !== platform) return false
+      
+      const pName = String(license.platform || "").toLowerCase()
+      if (platform !== "all") {
+        if (platform === "android" && !pName.includes("android")) return false
+        if (platform === "ios" && !pName.includes("ios") && !pName.includes("apple")) return false
+        if (platform === "desktop" && !pName.includes("desktop") && !pName.includes("electron") && !pName.includes("windows") && !pName.includes("exe")) return false
+        if (platform !== "android" && platform !== "ios" && platform !== "desktop" && license.platform !== platform) return false
+      }
+
       if (status === "active" && !license.active) return false
       if (status === "revoked" && license.active) return false
       return true
     })
   }, [licenses, platform, query, status])
 
-  const stats = useMemo(() => ({
-    total: licenses.length,
-    active: licenses.filter((license) => license.active).length,
-    revoked: licenses.filter((license) => !license.active).length,
-    desktop: licenses.filter((license) => /desktop|electron|windows/i.test(license.platform)).length,
-    mobile: licenses.filter((license) => /android|ios|mobile/i.test(license.platform)).length,
-  }), [licenses])
+  const stats = useMemo(() => {
+    const appLicenses = licenses.filter((license) => isAppDevice(license.platform))
+    return {
+      total: appLicenses.length,
+      active: appLicenses.filter((license) => license.active).length,
+      revoked: appLicenses.filter((license) => !license.active).length,
+      desktop: appLicenses.filter((license) => /desktop|electron|windows|exe/i.test(license.platform)).length,
+      mobile: appLicenses.filter((license) => /android|ios|mobile|apple/i.test(license.platform)).length,
+    }
+  }, [licenses])
 
   return (
     <main className="space-y-6 p-4 sm:p-6 lg:p-8">
@@ -145,7 +171,7 @@ export default function LisanslarPage() {
         <div>
           <h1 className="text-2xl font-black tracking-normal">Cihaz Bazlı Lisanslama</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Hangi PC/telefon aktif, kimin cihazı, son IP ve son görülme bilgisi.
+            Hangi Mobil (iOS, Android) veya Masaüstü (EXE) uygulaması aktif, kimin cihazı, son IP ve son görülme bilgisi.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -164,11 +190,11 @@ export default function LisanslarPage() {
       </header>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <StatCard label="Toplam" value={stats.total} />
+        <StatCard label="Toplam Uygulama" value={stats.total} />
         <StatCard label="Aktif" value={stats.active} />
         <StatCard label="İptal" value={stats.revoked} />
-        <StatCard label="EXE/PC" value={stats.desktop} />
-        <StatCard label="Mobil" value={stats.mobile} />
+        <StatCard label="EXE / Masaüstü" value={stats.desktop} />
+        <StatCard label="Mobil (iOS/Android)" value={stats.mobile} />
       </section>
 
       <Card>
@@ -185,8 +211,10 @@ export default function LisanslarPage() {
           <Select value={platform} onValueChange={setPlatform}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tüm platformlar</SelectItem>
-              {platforms.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+              <SelectItem value="all">Tüm cihazlar (Mobil & EXE)</SelectItem>
+              <SelectItem value="android">Android Uygulaması</SelectItem>
+              <SelectItem value="ios">iOS Uygulaması</SelectItem>
+              <SelectItem value="desktop">EXE / Masaüstü Uygulaması</SelectItem>
             </SelectContent>
           </Select>
           <Select value={status} onValueChange={setStatus}>
