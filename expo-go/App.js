@@ -877,6 +877,12 @@ function StatCard({ label, value, tone, wide, money = true }) {
 
 function SalaryScreen({ data, period, onPrev, onNext, onShare, onRequestReload, requestJson, selectedPersonelId, onSelectPersonel }) {
   const [showCorbaDetail, setShowCorbaDetail] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [tutar, setTutar] = useState("")
+  const [aciklama, setAciklama] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+  const [modalError, setModalError] = useState("")
+
   const [actionModal, setActionModal] = useState({ open: false, id: "", action: "", req: null })
   const [actionInput, setActionInput] = useState("")
   const [actionDateInput, setActionDateInput] = useState(new Date().toISOString().split("T")[0])
