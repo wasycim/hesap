@@ -877,11 +877,11 @@ function StatCard({ label, value, tone, wide, money = true }) {
 
 function SalaryScreen({ data, period, onPrev, onNext, onShare, onRequestReload, requestJson, selectedPersonelId, onSelectPersonel }) {
   const [showCorbaDetail, setShowCorbaDetail] = useState(false)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [tutar, setTutar] = useState("")
-  const [aciklama, setAciklama] = useState("")
-  const [submitting, setSubmitting] = useState(false)
-  const [modalError, setModalError] = useState("")
+  const [actionModal, setActionModal] = useState({ open: false, id: "", action: "", req: null })
+  const [actionInput, setActionInput] = useState("")
+  const [actionDateInput, setActionDateInput] = useState(new Date().toISOString().split("T")[0])
+  const [actionSubmitting, setActionSubmitting] = useState(false)
+  const [actionModalError, setActionModalError] = useState("")
 
   async function handleSendAvansRequest() {
     const numTutar = Number(tutar)
@@ -909,16 +909,49 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare, onRequestReload, 
     }
   }
 
-  async function handleActionAvans(id, action) {
+  function openApproveModal(req) {
+    setActionInput("")
+    setActionDateInput(new Date().toISOString().split("T")[0])
+    setActionModalError("")
+    setActionModal({ open: true, id: req.id, action: "approve", req })
+  }
+
+  function openRejectModal(req) {
+    setActionInput("")
+    setActionModalError("")
+    setActionModal({ open: true, id: req.id, action: "reject", req })
+  }
+
+  async function handleConfirmManagerAction() {
+    if (actionModal.action === "reject" && !actionInput.trim()) {
+      setActionModalError("Red sebebi yazılması zorunludur.")
+      return
+    }
+
+    setActionSubmitting(true)
+    setActionModalError("")
     try {
       await requestJson("/api/mobile/avans", {
         method: "POST",
-        body: JSON.stringify({ action, id, red_sebebi: action === "reject" ? "Yönetici tarafından reddedildi" : undefined }),
+        body: JSON.stringify({
+          action: actionModal.action,
+          id: actionModal.id,
+          odeme_tarihi: actionModal.action === "approve" ? actionDateInput : undefined,
+          red_sebebi: actionModal.action === "reject" ? actionInput.trim() : undefined,
+        }),
       })
-      Alert.alert("İşlem Başarılı ✅", action === "approve" ? "Avans talebi onaylandı." : "Avans talebi reddedildi.")
+      setActionModal({ open: false, id: "", action: "", req: null })
+      Alert.alert(
+        "İşlem Başarılı ✅",
+        actionModal.action === "approve"
+          ? "Avans talebi onaylandı ve personele bildirim iletildi."
+          : "Avans talebi reddedildi ve personele bildirim iletildi."
+      )
       if (onRequestReload) onRequestReload()
     } catch (err) {
-      Alert.alert("Hata ❌", err.message || "İşlem gerçekleştirilemedi.")
+      setActionModalError(err.message || "İşlem gerçekleştirilemedi.")
+    } finally {
+      setActionSubmitting(false)
     }
   }
 
@@ -1051,13 +1084,13 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare, onRequestReload, 
                       <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
                         <TouchableOpacity
                           style={{ flex: 1, backgroundColor: "#059669", paddingVertical: 8, borderRadius: 8, alignItems: "center" }}
-                          onPress={() => handleActionAvans(req.id, "approve")}
+                          onPress={() => openApproveModal(req)}
                         >
                           <Text style={{ color: "#ffffff", fontWeight: "900", fontSize: 12 }}>✅ Onayla</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={{ flex: 1, backgroundColor: "#dc2626", paddingVertical: 8, borderRadius: 8, alignItems: "center" }}
-                          onPress={() => handleActionAvans(req.id, "reject")}
+                          onPress={() => openRejectModal(req)}
                         >
                           <Text style={{ color: "#ffffff", fontWeight: "900", fontSize: 12 }}>❌ Reddet</Text>
                         </TouchableOpacity>
@@ -1162,6 +1195,70 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare, onRequestReload, 
                 disabled={submitting}
               >
                 {submitting ? <ActivityIndicator color="#ffffff" /> : <Text style={[styles.primaryText, { color: "#ffffff" }]}>Talebi Gönder</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Yönetici Avans Onay/Red Modalı */}
+      <Modal visible={actionModal.open} transparent animationType="fade" onRequestClose={() => setActionModal({ open: false, id: "", action: "", req: null })}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", padding: 20 }}>
+          <View style={{ backgroundColor: "#ffffff", borderRadius: 24, padding: 22, shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 16 }}>
+            <Text style={{ fontSize: 20, fontWeight: "900", color: "#0f172a", marginBottom: 6 }}>
+              {actionModal.action === "approve" ? "✅ Avans Talebini Onayla" : "❌ Avans Talebini Reddet"}
+            </Text>
+            <Text style={{ fontSize: 13, color: "#64748b", marginBottom: 14 }}>
+              {actionModal.req?.user_name ? `${actionModal.req.user_name} · ` : ""}{Number(actionModal.req?.tutar || 0).toLocaleString("tr-TR")} ₺ avans talebi işlemi.
+            </Text>
+
+            {actionModal.action === "approve" ? (
+              <>
+                <Text style={{ fontSize: 12, fontWeight: "800", color: "#334155", marginBottom: 4 }}>Ödeme Tarihi (YYYY-AA-GG) *</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={actionDateInput}
+                  onChangeText={setActionDateInput}
+                  placeholder="2026-08-18"
+                  placeholderTextColor="#94a3b8"
+                />
+              </>
+            ) : (
+              <>
+                <Text style={{ fontSize: 12, fontWeight: "800", color: "#334155", marginBottom: 4 }}>Red Sebebi (Zorunlu) *</Text>
+                <TextInput
+                  style={[styles.modalInput, { height: 80, textAlignVertical: "top", paddingTop: 10 }]}
+                  value={actionInput}
+                  onChangeText={setActionInput}
+                  placeholder="Örn: Bütçe yetersiz, önümüzdeki ay tekrar talep edin"
+                  multiline
+                  placeholderTextColor="#94a3b8"
+                />
+              </>
+            )}
+
+            {actionModalError ? <Text style={styles.errorText}>{actionModalError}</Text> : null}
+
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 18 }}>
+              <TouchableOpacity
+                style={[styles.primaryButton, { flex: 1, backgroundColor: "#e2e8f0" }]}
+                onPress={() => setActionModal({ open: false, id: "", action: "", req: null })}
+                disabled={actionSubmitting}
+              >
+                <Text style={[styles.primaryText, { color: "#334155" }]}>Vazgeç</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.primaryButton, { flex: 1, backgroundColor: actionModal.action === "approve" ? "#059669" : "#dc2626" }]}
+                onPress={handleConfirmManagerAction}
+                disabled={actionSubmitting}
+              >
+                {actionSubmitting ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={[styles.primaryText, { color: "#ffffff" }]}>
+                    {actionModal.action === "approve" ? "Onayla & Bildir" : "Reddet & Bildir"}
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
