@@ -390,7 +390,7 @@ export function AdminAttendanceDashboard({ adminName }: DashboardProps) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{selectedUser?.name}</DialogTitle>
-            <DialogDescription>Personel TC ve şifresiyle giriş yapar; kendi kamerasıyla /terminal ekranındaki 30 saniyede bir yenilenen QR kodu okutur.</DialogDescription>
+            <DialogDescription>Personel TC ve şifresiyle giriş yapar; kendi kamerasıyla /terminal ekranındaki 5 saniyede bir yenilenen QR kodu okutur.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 rounded-md border bg-muted/40 p-4 text-sm">
             <div className="flex items-center justify-between gap-3">

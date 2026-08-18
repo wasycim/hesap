@@ -277,7 +277,7 @@ export function PersonnelTerminalScanner({ userName, dashboardMode = false }: Pe
         </section>
 
         <footer className="border-t border-white/10 px-4 py-3 text-center text-xs text-white/45">
-          Terminal QR 30 saniyede bir yenilenir. Guncel QR'i okutun.
+          Terminal QR 5 saniyede bir yenilenir. Guncel QR'i okutun.
         </footer>
       </div>
     </main>

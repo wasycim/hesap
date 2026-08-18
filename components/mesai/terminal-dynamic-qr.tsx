@@ -131,7 +131,7 @@ export function TerminalDynamicQr() {
               </div>
             ) : null}
             <div>
-              <p className="text-3xl font-black">QR her 3 saniyede bir yenilenir (Güvenli)</p>
+              <p className="text-3xl font-black">QR her 5 saniyede bir yenilenir (Güvenli)</p>
               <p className="mt-2 text-white/55">Personel TC ve sifre ile giris yapar, kamerasi ile bu kodu okutup giris/cikis yapar.</p>
               {deviceKey ? (
                 <p className="mt-3 text-xs text-white/35">Terminal cihaz kodu: {deviceKey.slice(0, 8)}...{deviceKey.slice(-6)}</p>
