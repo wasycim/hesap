@@ -1306,13 +1306,17 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
     <View>
       <View style={styles.heroCard}>
         <Text style={styles.heroEyebrow}>HAFTALIK VARDİYA PLANI</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 }}>
-          <View style={{ backgroundColor: currentUserShift?.color || "#f59e0b", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
-            <Text style={{ color: "#ffffff", fontWeight: "900", fontSize: 16 }}>{currentUserShift?.shortCode || "SAB"}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 6, flexWrap: "nowrap" }}>
+          <View style={{ backgroundColor: currentUserShift?.color || "#f59e0b", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 }}>
+            <Text style={{ color: "#ffffff", fontWeight: "900", fontSize: 14 }}>{currentUserShift?.shortCode || "SAB"}</Text>
           </View>
-          <Text style={[styles.heroTitle, { marginTop: 0 }]}>{currentUserShift ? currentUserShift.label : "Vardiya Yok"}</Text>
+          <Text style={[styles.heroTitle, { marginTop: 0, flex: 1, flexShrink: 1 }]} numberOfLines={1} adjustsFontSizeToFit>
+            {currentUserShift ? currentUserShift.label : "Vardiya Yok"}
+          </Text>
         </View>
-        <Text style={styles.heroSub}>{currentUserShift?.hours ? `Saatler: ${currentUserShift.hours}` : activeDate}</Text>
+        <Text style={styles.heroSub} numberOfLines={1} adjustsFontSizeToFit>
+          {currentUserShift?.hours ? `Saatler: ${currentUserShift.hours}` : activeDate}
+        </Text>
       </View>
 
       <Text style={styles.sectionTitle}>Haftalık Gün Seçimi</Text>
@@ -1325,10 +1329,10 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
               style={[styles.selectChip, isActive && styles.selectChipActive, { paddingHorizontal: 16, paddingVertical: 10 }]}
               onPress={() => setSelectedDayDate(wd.date)}
             >
-              <Text style={[styles.selectChipText, isActive && styles.selectChipTextActive, { textAlign: "center" }]}>
+              <Text style={[styles.selectChipText, isActive && styles.selectChipTextActive, { textAlign: "center" }]} numberOfLines={1}>
                 {wd.shortDay}
               </Text>
-              <Text style={[{ fontSize: 10, color: "#64748b", marginTop: 2 }, isActive && { color: "#e2e8f0" }]}>
+              <Text style={[{ fontSize: 10, color: "#64748b", marginTop: 2, textAlign: "center" }, isActive && { color: "#e2e8f0" }]} numberOfLines={1}>
                 {wd.date.slice(5)}
               </Text>
             </TouchableOpacity>
@@ -1352,19 +1356,19 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
           <Text style={styles.sectionTitle}>Haftalık Şube Vardiya Çizelgesi</Text>
           {(weeklyGrid || []).map((p) => (
             <View key={p.personelId} style={[styles.infoCard, { marginBottom: 10 }]}>
-              <Text style={styles.infoTitle}>{p.name}</Text>
+              <Text style={styles.infoTitle} numberOfLines={1}>{p.name}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginTop: 8 }}>
                 {p.weeklyDays.map((d) => (
                   <View
                     key={d.date}
                     style={[
-                      { padding: 8, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.06)", alignItems: "center", minWidth: 64 },
-                      d.date === activeDate && { backgroundColor: "rgba(16,185,129,0.2)", borderWidth: 1, borderColor: "#10b981" },
+                      { padding: 8, borderRadius: 8, backgroundColor: "#f1f5f9", alignItems: "center", minWidth: 64, borderWidth: 1, borderColor: "#e2e8f0" },
+                      d.date === activeDate && { backgroundColor: "rgba(16,185,129,0.15)", borderWidth: 1, borderColor: "#10b981" },
                     ]}
                   >
-                    <Text style={{ fontSize: 11, fontWeight: "900", color: "#94a3b8" }}>{d.shortDay}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: "900", color: "#334155" }} numberOfLines={1}>{d.shortDay}</Text>
                     <View style={{ backgroundColor: d.color || "#0284c7", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginTop: 4 }}>
-                      <Text style={{ fontSize: 12, fontWeight: "900", color: "#ffffff" }}>{d.shortCode || d.shiftCode}</Text>
+                      <Text style={{ fontSize: 12, fontWeight: "900", color: "#ffffff" }} numberOfLines={1}>{d.shortCode || d.shiftCode}</Text>
                     </View>
                   </View>
                 ))}
@@ -1381,10 +1385,10 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
               {allShifts.map((p) => (
                 <TouchableOpacity
                   key={p.personelId}
-                  style={[styles.selectChip, selectedPersonel === p.personelId && styles.selectChipActive]}
+                  style={[styles.selectChip, selectedPersonel === p.personelId && styles.selectChipActive, { maxWidth: "100%" }]}
                   onPress={() => setSelectedPersonel(p.personelId)}
                 >
-                  <Text style={[styles.selectChipText, selectedPersonel === p.personelId && styles.selectChipTextActive]}>
+                  <Text style={[styles.selectChipText, selectedPersonel === p.personelId && styles.selectChipTextActive]} numberOfLines={1} adjustsFontSizeToFit>
                     {p.name}
                   </Text>
                 </TouchableOpacity>
@@ -1399,14 +1403,14 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
                   style={[
                     styles.selectChip,
                     selectedShift === s.code && styles.selectChipActive,
-                    { flexDirection: "row", alignItems: "center", gap: 6 },
+                    { flexDirection: "row", alignItems: "center", gap: 6, maxWidth: "100%" },
                   ]}
                   onPress={() => setSelectedShift(s.code)}
                 >
                   <View style={{ backgroundColor: s.color || "#0284c7", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
                     <Text style={{ fontSize: 10, fontWeight: "900", color: "#ffffff" }}>{s.shortCode}</Text>
                   </View>
-                  <Text style={[styles.selectChipText, selectedShift === s.code && styles.selectChipTextActive]}>
+                  <Text style={[styles.selectChipText, selectedShift === s.code && styles.selectChipTextActive]} numberOfLines={1} adjustsFontSizeToFit>
                     {s.label}
                   </Text>
                 </TouchableOpacity>
@@ -1419,6 +1423,8 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
           </View>
         </View>
       ) : null}
+    </View>
+  )
     </View>
   )
 }
