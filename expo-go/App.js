@@ -1465,8 +1465,6 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
       ) : null}
     </View>
   )
-    </View>
-  )
 }
 
 function ReportsScreen({ data }) {
