@@ -83,7 +83,7 @@ function formatMinutes(value) {
   const total = Number(value) || 0
   const hours = Math.floor(total / 60)
   const minutes = total % 60
-  return `${hours ? `${hours} sa ` : ""}${minutes ? `${minutes} dk` : ""}`.trim() || "Doğrudan tutar"
+  return `${hours ? `${hours} sa ` : ""}${minutes ? `${minutes} dk` : ""}`.trim() || "Sabit Ek Ödeme"
 }
 
 function makeDeviceId() {
@@ -869,8 +869,8 @@ function OverviewScreen({ data }) {
 function StatCard({ label, value, tone, wide, money = true }) {
   return (
     <View style={[styles.statCard, wide && styles.statWide, styles[`tone_${tone}`]]}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{money ? formatMoney(value) : String(value)}</Text>
+      <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
+      <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{money ? formatMoney(value) : String(value)}</Text>
     </View>
   )
 }
@@ -1088,7 +1088,7 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare, onRequestReload, 
 
             <Text style={{ fontSize: 12, fontWeight: "800", color: "#334155", marginBottom: 4 }}>Avans Tutarı (₺) *</Text>
             <TextInput
-              style={styles.input}
+              style={styles.modalInput}
               value={tutar}
               onChangeText={setTutar}
               placeholder="Örn: 1000"
@@ -1098,7 +1098,7 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare, onRequestReload, 
 
             <Text style={{ fontSize: 12, fontWeight: "800", color: "#334155", marginTop: 12, marginBottom: 4 }}>Açıklama / Not (Opsiyonel)</Text>
             <TextInput
-              style={[styles.input, { height: 80, textAlignVertical: "top", paddingTop: 10 }]}
+              style={[styles.modalInput, { height: 80, textAlignVertical: "top", paddingTop: 10 }]}
               value={aciklama}
               onChangeText={setAciklama}
               placeholder="Örn: Acil ihtiyaç avansı"
@@ -1651,10 +1651,10 @@ function SummaryRow({ title, meta, amount }) {
   return (
     <View style={styles.detailRow}>
       <View style={styles.detailTextWrap}>
-        <Text style={styles.detailTitle}>{title}</Text>
-        <Text style={styles.detailMeta}>{meta}</Text>
+        <Text style={styles.detailTitle} numberOfLines={1}>{title}</Text>
+        <Text style={styles.detailMeta} numberOfLines={1}>{meta}</Text>
       </View>
-      <Text style={styles.detailAmount}>{amount}</Text>
+      <Text style={styles.detailAmount} numberOfLines={1} adjustsFontSizeToFit>{amount}</Text>
     </View>
   )
 }
@@ -1662,8 +1662,8 @@ function SummaryRow({ title, meta, amount }) {
 function MiniMetric({ label, value, positive, negative }) {
   return (
     <View style={styles.miniMetric}>
-      <Text style={styles.miniMetricLabel}>{label}</Text>
-      <Text style={[styles.miniMetricValue, positive && styles.positiveText, negative && styles.negativeText]}>
+      <Text style={[styles.miniMetricLabel, { flexShrink: 1 }]} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
+      <Text style={[styles.miniMetricValue, positive && styles.positiveText, negative && styles.negativeText, { flexShrink: 0 }]} numberOfLines={1} adjustsFontSizeToFit>
         {positive ? "+" : negative ? "−" : ""}{formatMoney(value)}
       </Text>
     </View>
@@ -1677,10 +1677,10 @@ function DetailSection({ title, rows, empty }) {
       {rows.length ? rows.map((row, index) => (
         <View style={styles.detailRow} key={`${row.title}-${index}`}>
           <View style={styles.detailTextWrap}>
-            <Text style={styles.detailTitle}>{row.title}</Text>
-            <Text style={styles.detailMeta}>{row.meta}</Text>
+            <Text style={styles.detailTitle} numberOfLines={2}>{row.title}</Text>
+            <Text style={styles.detailMeta} numberOfLines={2}>{row.meta}</Text>
           </View>
-          <Text style={[styles.detailAmount, row.positive && styles.positiveText, row.negative && styles.negativeText]}>{row.amount}</Text>
+          <Text style={[styles.detailAmount, row.positive && styles.positiveText, row.negative && styles.negativeText]} numberOfLines={1} adjustsFontSizeToFit>{row.amount}</Text>
         </View>
       )) : <Text style={styles.emptyText}>{empty}</Text>}
     </View>
@@ -1832,6 +1832,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginTop: 12,
     color: "#f8fafc",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  modalInput: {
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    backgroundColor: "#f8fafc",
+    paddingHorizontal: 16,
+    marginTop: 6,
+    color: "#0f172a",
     fontSize: 16,
     fontWeight: "700",
   },

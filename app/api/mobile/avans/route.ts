@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { deliverPushToUserDevices } from "@/lib/notifications/push"
+import { getRequestAuthUser } from "@/lib/mobile-auth"
 
-async function getAuthUserAndProfile() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+async function getAuthUserAndProfile(request: NextRequest) {
+  const user = await getRequestAuthUser(request)
   if (!user) return { user: null, profile: null }
 
   const admin = createAdminClient()
@@ -15,13 +12,13 @@ async function getAuthUserAndProfile() {
     .from("user_profiles")
     .select("id, user_id, display_name, sube_id, is_admin, tc_kimlik")
     .eq("user_id", user.id)
-    .single()
+    .maybeSingle()
 
   return { user, profile }
 }
 
 export async function GET(request: NextRequest) {
-  const { user, profile } = await getAuthUserAndProfile()
+  const { user, profile } = await getAuthUserAndProfile(request)
   if (!user || !profile) {
     return NextResponse.json({ error: "Oturum açmanız gerekiyor." }, { status: 401 })
   }
@@ -37,11 +34,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ requests: data || [] })
+  return NextResponse.json({ requests: data || [] }, { headers: { "Cache-Control": "no-store" } })
 }
 
 export async function POST(request: NextRequest) {
-  const { user, profile } = await getAuthUserAndProfile()
+  const { user, profile } = await getAuthUserAndProfile(request)
   if (!user || !profile) {
     return NextResponse.json({ error: "Oturum açmanız gerekiyor." }, { status: 401 })
   }
