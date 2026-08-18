@@ -909,6 +909,19 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare, onRequestReload, 
     }
   }
 
+  async function handleActionAvans(id, action) {
+    try {
+      await requestJson("/api/mobile/avans", {
+        method: "POST",
+        body: JSON.stringify({ action, id, red_sebebi: action === "reject" ? "Yönetici tarafından reddedildi" : undefined }),
+      })
+      Alert.alert("İşlem Başarılı ✅", action === "approve" ? "Avans talebi onaylandı." : "Avans talebi reddedildi.")
+      if (onRequestReload) onRequestReload()
+    } catch (err) {
+      Alert.alert("Hata ❌", err.message || "İşlem gerçekleştirilemedi.")
+    }
+  }
+
   const avansRequests = data?.avansRequests || []
   const personelList = data?.personelList || []
 
@@ -964,7 +977,7 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare, onRequestReload, 
                 <Text style={styles.pdfButtonText}>📄 PDF İndir</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.pdfButton, { backgroundColor: "#f59e0b", borderOutlined: false }]}
+                style={[styles.pdfButton, { backgroundColor: "#f59e0b" }]}
                 onPress={() => { setModalError(""); setModalOpen(true); }}
               >
                 <Text style={[styles.pdfButtonText, { color: "#ffffff" }]}>💰 Avans İste</Text>
@@ -983,11 +996,11 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare, onRequestReload, 
             ) : null}
           </View>
 
-          {/* Avans Taleplerim Section */}
+          {/* Avans Talepleri Section */}
           {avansRequests.length > 0 ? (
             <View style={{ marginTop: 16, backgroundColor: "#ffffff", borderRadius: 18, padding: 14, borderWidth: 1, borderColor: "#e2e8f0" }}>
               <Text style={{ fontSize: 15, fontWeight: "900", color: "#0f172a", marginBottom: 10 }}>
-                📋 Avans Taleplerim ({avansRequests.length})
+                {data?.isManager ? "📥 Personel Avans Talepleri" : "📋 Avans Taleplerim"} ({avansRequests.length})
               </Text>
               {avansRequests.map((req, idx) => {
                 const isPending = req.durum === "beklemede"
@@ -1005,9 +1018,16 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare, onRequestReload, 
                     }}
                   >
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                      <Text style={{ fontSize: 16, fontWeight: "900", color: "#0f172a" }}>
-                        {Number(req.tutar).toLocaleString("tr-TR")} ₺
-                      </Text>
+                      <View style={{ flex: 1, paddingRight: 8 }}>
+                        {req.user_name ? (
+                          <Text style={{ fontSize: 13, fontWeight: "800", color: "#1e293b", marginBottom: 2 }} numberOfLines={1}>
+                            👤 {req.user_name}
+                          </Text>
+                        ) : null}
+                        <Text style={{ fontSize: 16, fontWeight: "900", color: "#0f172a" }}>
+                          {Number(req.tutar).toLocaleString("tr-TR")} ₺
+                        </Text>
+                      </View>
                       <View style={{
                         paddingHorizontal: 8,
                         paddingVertical: 4,
@@ -1019,11 +1039,31 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare, onRequestReload, 
                         </Text>
                       </View>
                     </View>
+
                     {req.aciklama ? (
                       <Text style={{ fontSize: 12, color: "#475569", marginTop: 4, fontStyle: "italic" }}>
                         "{req.aciklama}"
                       </Text>
                     ) : null}
+
+                    {/* Manager Approval Action Buttons */}
+                    {data?.isManager && isPending ? (
+                      <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                        <TouchableOpacity
+                          style={{ flex: 1, backgroundColor: "#059669", paddingVertical: 8, borderRadius: 8, alignItems: "center" }}
+                          onPress={() => handleActionAvans(req.id, "approve")}
+                        >
+                          <Text style={{ color: "#ffffff", fontWeight: "900", fontSize: 12 }}>✅ Onayla</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={{ flex: 1, backgroundColor: "#dc2626", paddingVertical: 8, borderRadius: 8, alignItems: "center" }}
+                          onPress={() => handleActionAvans(req.id, "reject")}
+                        >
+                          <Text style={{ color: "#ffffff", fontWeight: "900", fontSize: 12 }}>❌ Reddet</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+
                     {isApproved && req.odeme_tarihi ? (
                       <Text style={{ fontSize: 12, fontWeight: "800", color: "#047857", marginTop: 4 }}>
                         📅 Ödeme Tarihi: {formatDate(req.odeme_tarihi)}
