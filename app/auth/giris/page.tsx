@@ -111,17 +111,11 @@ export default function GirisPage() {
     }
 
     if (profile?.dashboard_access === false) {
-      await supabase.auth.signOut()
-
-      if (mesaiLoginOk) {
-        clearSavedLogin()
-        router.push(getSafeNextPath() || "/mesai-qr")
-        router.refresh()
-        return
-      }
-
-      setError("Bu kullanici sadece mesai giris cikis icin yetkili.")
-      setLoading(false)
+      const requestedPath = getSafeNextPath()
+      const targetPath = (requestedPath && !requestedPath.startsWith("/dashboard")) ? requestedPath : "/mobile"
+      clearSavedLogin()
+      router.push(targetPath)
+      router.refresh()
       return
     }
 
