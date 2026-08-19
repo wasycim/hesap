@@ -166,7 +166,7 @@ async function getDashboardAccess(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   const access = await getDashboardAccess(request)
-  if (!access.user || access.profile?.dashboard_access === false) {
+  if (!access.user || !access.profile) {
     return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
   }
 

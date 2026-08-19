@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     .maybeSingle()
 
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
-  if (!profile || profile.dashboard_access === false || !profile.sube_id) {
+  if (!profile || !profile.sube_id) {
     return NextResponse.json({ error: "Erişim yetkiniz bulunmuyor." }, { status: 403 })
   }
 
