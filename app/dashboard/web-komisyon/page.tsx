@@ -733,23 +733,23 @@ export default function WebKomisyonPage() {
                       {/* Save Row Button */}
                       <td className="p-2 text-center whitespace-nowrap">
                         <Button
-                          variant="ghost"
+                          type="button"
                           size="sm"
                           onClick={() => saveMonth(ayYil, m, MONTHS.indexOf(m))}
                           disabled={isSavingThis}
                           className={cn(
-                            "h-8 px-2.5 text-xs font-semibold transition-all",
+                            "h-8.5 px-3 text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1.5",
                             isSaved
-                              ? "text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-950/50"
-                              : "text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                              ? "bg-amber-600 hover:bg-amber-700 text-white dark:bg-amber-600 dark:hover:bg-amber-500"
+                              : "bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-600 dark:hover:bg-emerald-500"
                           )}
                         >
                           {isSavingThis ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin text-white" />
                           ) : (
                             <>
-                              <Save className="mr-1 h-3.5 w-3.5" />
-                              {isSaved ? "Güncelle" : "Kaydet"}
+                              <Save className="h-3.5 w-3.5" />
+                              <span>{isSaved ? "Güncelle" : "Kaydet"}</span>
                             </>
                           )}
                         </Button>
