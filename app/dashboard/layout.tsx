@@ -28,9 +28,7 @@ export default async function DashboardLayout({
     .eq("user_id", user.id)
     .maybeSingle()
 
-  if (profile?.dashboard_access === false) {
-    redirect("/mesai-qr")
-  }
+
 
   return (
     <SubeProvider>

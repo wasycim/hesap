@@ -95,7 +95,16 @@ export async function GET() {
   const role = profile?.is_developer ? "developer" : profile?.is_admin ? "admin" : "user"
   const permissions = defaultsForRole(role)
   if (profile?.dashboard_access === false) {
-    return NextResponse.json({ role, permissions: {}, keys: allPermissionKeys })
+    const attendancePermissions = Object.fromEntries(allPermissionKeys.map((key) => [key, false])) as Record<string, boolean>
+    attendancePermissions.dashboard = true
+    attendancePermissions.maaslar = true
+    attendancePermissions.mesai_takip = true
+    attendancePermissions.vardiya = true
+    attendancePermissions.mesai = true
+    attendancePermissions.personel_mesai = true
+    attendancePermissions.bildirimler = true
+    attendancePermissions.hesap = true
+    return NextResponse.json({ role: "user", permissions: attendancePermissions, keys: allPermissionKeys })
   }
 
   const { data: overrides } = await admin
