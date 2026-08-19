@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { getDashboardShiftCatalog } from "@/lib/qr-attendance/dashboard-vardiya"
 
 export async function GET(request: NextRequest) {
-  const session = await requireAnyMesaiAdmin()
+  const session = await requireAnyMesaiAdmin(request)
 
   if (!session.ok) {
     return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })

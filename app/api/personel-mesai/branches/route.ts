@@ -2,8 +2,8 @@ import { NextResponse } from "next/server"
 import { requireAnyMesaiAdmin } from "@/lib/qr-attendance/admin"
 import { createAdminClient } from "@/lib/supabase/admin"
 
-export async function GET() {
-  const session = await requireAnyMesaiAdmin()
+export async function GET(request: NextRequest) {
+  const session = await requireAnyMesaiAdmin(request)
 
   if (!session.ok) {
     return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })

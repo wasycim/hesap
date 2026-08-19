@@ -11,7 +11,7 @@ function normalizeName(value: string | null | undefined) {
 }
 
 export async function GET(request: NextRequest) {
-  const session = await requireAnyMesaiAdmin()
+  const session = await requireAnyMesaiAdmin(request)
 
   if (!session.ok) {
     return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })

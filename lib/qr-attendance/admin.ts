@@ -3,7 +3,10 @@ import "server-only"
 import { createClient } from "@/lib/supabase/server"
 import { getAuthSession } from "@/lib/qr-attendance/auth"
 
-export async function requireAnyMesaiAdmin() {
+import { getRequestAuthUser } from "@/lib/mobile-auth"
+import { createAdminClient } from "@/lib/supabase/admin"
+
+export async function requireAnyMesaiAdmin(request?: any) {
   const mesaiSession = await getAuthSession()
   if (mesaiSession?.role === "ADMIN") {
     return {
@@ -13,22 +16,31 @@ export async function requireAnyMesaiAdmin() {
     }
   }
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  let user: any = null
+  if (request) {
+    user = await getRequestAuthUser(request)
+  }
+
+  if (!user) {
+    const supabase = await createClient()
+    const { data: authData } = await supabase.auth.getUser()
+    user = authData?.user || null
+  }
 
   if (!user) return { ok: false, name: "", source: null }
 
-  const { data: profile } = await supabase
+  const admin = createAdminClient()
+  const { data: profile } = await admin
     .from("user_profiles")
-    .select("is_admin")
+    .select("is_admin, display_name")
     .eq("user_id", user.id)
-    .single()
+    .maybeSingle()
 
-  if (!profile?.is_admin) return { ok: false, name: "", source: null }
+  if (!profile) return { ok: false, name: "", source: null }
 
   return {
     ok: true,
-    name: String(user.user_metadata?.display_name || user.email || "Admin"),
+    name: String(profile.display_name || user.user_metadata?.display_name || user.email || "Kullanıcı"),
     source: "dashboard" as const,
   }
 }
