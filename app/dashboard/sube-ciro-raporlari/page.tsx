@@ -93,22 +93,41 @@ const COLOR_MAP: Record<string, string> = {
 }
 
 const DEFAULT_COLORS = [
-  "#10b981",
-  "#3b82f6",
-  "#f59e0b",
-  "#a855f7",
-  "#ec4899",
-  "#06b6d4",
-  "#f97316",
-  "#6366f1",
-  "#14b8a6",
-  "#ef4444",
-  "#8b5cf6",
+  "#3b82f6", // Bright Blue
+  "#10b981", // Emerald Green
+  "#f59e0b", // Warm Amber
+  "#a855f7", // Purple
+  "#ec4899", // Pink
+  "#06b6d4", // Cyan
+  "#f97316", // Orange
+  "#6366f1", // Indigo
+  "#14b8a6", // Teal
+  "#ef4444", // Red
+  "#8b5cf6", // Violet
+  "#84cc16", // Lime
+  "#0ea5e9", // Sky Blue
+  "#d946ef", // Fuchsia
+  "#f43f5e", // Rose
+  "#eab308", // Yellow
+  "#2563eb", // Royal Blue
+  "#c084fc", // Soft Purple
+  "#fb923c", // Light Orange
+  "#38bdf8", // Light Cyan
+  "#4ade80", // Light Green
+  "#f472b6", // Light Pink
+  "#a78bfa", // Lavender
 ]
 
 function getFirmaHexColor(colorClass?: string, index = 0): string {
-  if (!colorClass) return DEFAULT_COLORS[index % DEFAULT_COLORS.length]
-  return COLOR_MAP[colorClass] || DEFAULT_COLORS[index % DEFAULT_COLORS.length]
+  if (colorClass && COLOR_MAP[colorClass]) {
+    const baseColor = COLOR_MAP[colorClass]
+    const baseIdx = DEFAULT_COLORS.indexOf(baseColor)
+    if (baseIdx !== -1 && index > 0) {
+      return DEFAULT_COLORS[(baseIdx + index) % DEFAULT_COLORS.length]
+    }
+    return baseColor
+  }
+  return DEFAULT_COLORS[index % DEFAULT_COLORS.length]
 }
 
 function formatMoney(value?: number | null) {
@@ -138,8 +157,44 @@ function compareDateVardiya(a: Pick<GelirKaydi, "tarih" | "vardiya">, b: Pick<Ge
   return (VARDIYA_SIRASI[a.vardiya || ""] ?? 99) - (VARDIYA_SIRASI[b.vardiya || ""] ?? 99)
 }
 
-function escapeCsvValue(value: unknown) {
-  return `"${String(value ?? "").replace(/"/g, '""')}"`
+function CustomPieLegendGrid({
+  data,
+  title = "Firma Dağılım Payları",
+}: {
+  data: Array<{ name: string; value: number; color: string; percentage?: number }>
+  title?: string
+}) {
+  if (!data || data.length === 0) return null
+
+  return (
+    <div className="mt-3 border-t border-border/40 pt-3 space-y-2">
+      <div className="flex items-center justify-between text-xs font-bold text-muted-foreground px-1">
+        <span>{title} ({data.length} Firma)</span>
+        <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">Sıralama: Pay %</span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-44 overflow-y-auto pr-1 custom-scrollbar">
+        {data.map((item, idx) => (
+          <div
+            key={`${item.name}-${idx}`}
+            className="flex items-center justify-between gap-1.5 p-1.5 rounded-lg border border-border/60 bg-muted/20 hover:bg-muted/50 transition-colors text-xs"
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span
+                className="h-2.5 w-2.5 rounded-full shrink-0 shadow-sm"
+                style={{ backgroundColor: item.color }}
+              />
+              <span className="font-bold truncate text-[11px] text-foreground" title={item.name}>
+                {item.name}
+              </span>
+            </div>
+            <span className="font-black text-[11px] shrink-0 text-emerald-700 dark:text-emerald-300">
+              %{item.percentage ? item.percentage.toFixed(1) : "0.0"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function CustomPieTooltip({ active, payload }: any) {
@@ -926,29 +981,32 @@ export default function SubeCiroRaporlariPage() {
                 ) : (
                   <div className="h-80 w-full">
                     {isMounted && (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={activePieData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={70}
-                            outerRadius={115}
-                            paddingAngle={4}
-                            dataKey="value"
-                          >
-                            {activePieData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} stroke="#ffffff" strokeWidth={2.5} />
-                            ))}
-                          </Pie>
-                          <Tooltip content={<CustomPieTooltip />} />
-                          <Legend
-                            formatter={(value: string) => (
-                              <span className="text-xs font-bold text-foreground px-1">{value}</span>
-                            )}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
+                      <div className="space-y-3">
+                        <div className="h-64 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={activePieData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={60}
+                                outerRadius={105}
+                                paddingAngle={3}
+                                dataKey="value"
+                              >
+                                {activePieData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.color} stroke="var(--background)" strokeWidth={2} />
+                                ))}
+                              </Pie>
+                              <Tooltip content={<CustomPieTooltip />} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <CustomPieLegendGrid
+                          data={activePieData}
+                          title={firmaPieMode === "komisyon" ? "Komisyon Payı Dağılımı" : "Ciro Payı Dağılımı"}
+                        />
+                      </div>
                     )}
                   </div>
                 )}
@@ -1101,32 +1159,33 @@ export default function SubeCiroRaporlariPage() {
                 ) : (
                   <div className="h-80 w-full">
                     {isMounted && (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={webKomisyonFirmaData}
-                            dataKey="value"
-                            nameKey="name"
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={65}
-                            outerRadius={105}
-                            paddingAngle={3}
-                          >
-                            {webKomisyonFirmaData.map((entry, idx) => (
-                              <Cell key={`cell-${idx}`} fill={entry.color} stroke="transparent" />
-                            ))}
-                          </Pie>
-                          <Tooltip content={<CustomPieTooltip />} />
-                          <Legend
-                            formatter={(value, entry: any) => (
-                              <span className="text-xs font-bold text-foreground">
-                                {value} (%{entry?.payload?.percentage?.toFixed(1) || 0})
-                              </span>
-                            )}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
+                      <div className="space-y-3">
+                        <div className="h-64 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={webKomisyonFirmaData}
+                                dataKey="value"
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={60}
+                                outerRadius={105}
+                                paddingAngle={3}
+                              >
+                                {webKomisyonFirmaData.map((entry, idx) => (
+                                  <Cell key={`cell-${idx}`} fill={entry.color} stroke="var(--background)" strokeWidth={2} />
+                                ))}
+                              </Pie>
+                              <Tooltip content={<CustomPieTooltip />} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <CustomPieLegendGrid
+                          data={webKomisyonFirmaData}
+                          title="İnternet Komisyon Payları"
+                        />
+                      </div>
                     )}
                   </div>
                 )}

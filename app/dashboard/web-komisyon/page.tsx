@@ -506,7 +506,7 @@ export default function WebKomisyonPage() {
   return (
     <div className="flex h-full flex-col space-y-6 p-4 sm:p-6 lg:p-8">
       {/* Header Banner - Sleek Emerald/Slate Financial Theme */}
-      <div className="flex flex-col gap-4 rounded-xl bg-gradient-to-r from-emerald-800 via-teal-700 to-slate-900 p-5 text-white shadow-lg sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 rounded-xl bg-gradient-to-r from-emerald-800 via-teal-700 to-slate-900 dark:from-emerald-950 dark:via-teal-900 dark:to-slate-950 p-5 text-white shadow-lg sm:flex-row sm:items-center sm:justify-between border dark:border-emerald-800/40">
         <div className="flex items-center gap-3">
           <div className="grid h-12 w-12 place-items-center rounded-lg bg-white/10 backdrop-blur">
             <Globe className="h-7 w-7 text-emerald-200 transition-transform duration-700 hover:rotate-[360deg]" />
