@@ -108,8 +108,35 @@ export async function GET(request: NextRequest) {
     .maybeSingle()
 
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
-  if (!profile || profile.dashboard_access === false || !profile.sube_id) {
-    return NextResponse.json({ error: "Personel profili veya şube eşleştirmesi bulunamadı." }, { status: 404 })
+  if (!profile || profile.dashboard_access === false) {
+    return NextResponse.json({ error: "Personel profili veya şube erişimi yetkisi bulunamadı." }, { status: 404 })
+  }
+
+  let subeId = profile.sube_id as string | null
+
+  if (!subeId) {
+    const uName = profile.display_name?.trim() || ""
+    const { data: globalMatch } = await admin
+      .from("personeller")
+      .select("sube_id")
+      .or(`ad.ilike.%${uName}%`)
+      .limit(1)
+      .maybeSingle()
+
+    if (globalMatch?.sube_id) {
+      subeId = globalMatch.sube_id
+    } else {
+      const { data: firstBranch } = await admin.from("subeler").select("id").eq("aktif", true).order("ad").limit(1).maybeSingle()
+      subeId = firstBranch?.id || null
+    }
+
+    if (subeId) {
+      await admin.from("user_profiles").update({ sube_id: subeId }).eq("user_id", user.id)
+    }
+  }
+
+  if (!subeId) {
+    return NextResponse.json({ error: "Sistemde aktif şube bulunamadı." }, { status: 404 })
   }
 
   const isAdmin = Boolean(profile.is_admin || profile.is_developer)
@@ -121,10 +148,10 @@ export async function GET(request: NextRequest) {
     { data: customShifts },
     { data: fixedShifts }
   ] = await Promise.all([
-    admin.from("subeler").select("id, ad, kod").eq("id", profile.sube_id).maybeSingle(),
-    admin.from("personeller").select("id, ad, sabit_vardiya, sira, aktif").eq("sube_id", profile.sube_id).eq("aktif", true).order("sira"),
-    admin.from("vardiya_planlari").select("id, personel_id, tarih, vardiya, notlar").eq("sube_id", profile.sube_id).in("tarih", weekDateKeys),
-    admin.from("vardiya_tanimlari").select("id, ad, simge, baslangic, bitis, aktif, sira").eq("sube_id", profile.sube_id).eq("aktif", true).order("sira"),
+    admin.from("subeler").select("id, ad, kod").eq("id", subeId).maybeSingle(),
+    admin.from("personeller").select("id, ad, sabit_vardiya, sira, aktif").eq("sube_id", subeId).eq("aktif", true).order("sira"),
+    admin.from("vardiya_planlari").select("id, personel_id, tarih, vardiya, notlar").eq("sube_id", subeId).in("tarih", weekDateKeys),
+    admin.from("vardiya_tanimlari").select("id, ad, simge, baslangic, bitis, aktif, sira").eq("sube_id", subeId).eq("aktif", true).order("sira"),
     admin.from("vardiya_sabit_ayarlari").select("kod, ad, simge, baslangic, bitis, aktif").eq("aktif", true),
   ])
 

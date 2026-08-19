@@ -22,7 +22,7 @@
       }
     },
     "android": {
-      "package": "wasy.system.hesap.expo",
+      "package": "wasy.systems.hesap",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f172a"

@@ -30,6 +30,7 @@
     "eas:build:ios": "npm --prefix expo-go run eas:build:ios",
     "eas:submit:ios": "npm --prefix expo-go run eas:submit:ios",
     "eas:testflight": "npm --prefix expo-go run eas:testflight",
+    "eas:android": "npm --prefix expo-go run eas:android",
     "supabase:auth-config": "node scripts/update-supabase-auth-config.mjs",
     "supabase:system-schema": "node scripts/apply-system-operations-schema.js",
     "supabase:push-audit-schema": "node scripts/apply-push-and-advanced-log-schema.js",

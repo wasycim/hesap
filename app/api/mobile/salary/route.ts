@@ -25,17 +25,45 @@ export async function GET(request: NextRequest) {
     .maybeSingle()
 
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
-  if (!profile || profile.dashboard_access === false || !profile.sube_id) {
-    return NextResponse.json({ error: "Personel profili veya şube eşleştirmesi bulunamadı." }, { status: 404 })
+  if (!profile || profile.dashboard_access === false) {
+    return NextResponse.json({ error: "Personel profili veya şube erişimi yetkisi bulunamadı." }, { status: 404 })
+  }
+
+  let subeId = profile.sube_id as string | null
+
+  // 1. Eğer şube henüz seçilmemişse, personeller tablosunda bu kullanıcıya ait kaydı tüm şubelerde ara
+  if (!subeId) {
+    const uName = profile.display_name?.trim() || ""
+    const { data: globalMatch } = await admin
+      .from("personeller")
+      .select("sube_id")
+      .or(`id.eq.${profile.tc_kimlik},ad.ilike.%${uName}%`)
+      .limit(1)
+      .maybeSingle()
+
+    if (globalMatch?.sube_id) {
+      subeId = globalMatch.sube_id
+    } else {
+      const { data: firstBranch } = await admin.from("subeler").select("id").eq("aktif", true).order("ad").limit(1).maybeSingle()
+      subeId = firstBranch?.id || null
+    }
+
+    if (subeId) {
+      await admin.from("user_profiles").update({ sube_id: subeId }).eq("user_id", user.id)
+    }
+  }
+
+  if (!subeId) {
+    return NextResponse.json({ error: "Sistemde aktif şube bulunamadı." }, { status: 404 })
   }
 
   const isManager = Boolean(profile.is_admin || profile.is_developer)
 
-  const { data: branch } = await admin.from("subeler").select("id, ad, kod").eq("id", profile.sube_id).maybeSingle()
-  const { data: candidates, error: personelError } = await admin
+  const { data: branch } = await admin.from("subeler").select("id, ad, kod").eq("id", subeId).maybeSingle()
+  let { data: candidates, error: personelError } = await admin
     .from("personeller")
     .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif, isten_cikis_tarihi")
-    .eq("sube_id", profile.sube_id)
+    .eq("sube_id", subeId)
 
   if (personelError) return NextResponse.json({ error: personelError.message }, { status: 500 })
 
@@ -62,6 +90,27 @@ export async function GET(request: NextRequest) {
   }
   if (!personel && isManager && candidates?.length) {
     personel = candidates[0]
+  }
+
+  // 3. Eğer personel kaydı hiç bulunamazsa, kullanıcı adı ile otomatik personel kaydı oluştur
+  if (!personel) {
+    const newPersonelId = profile.tc_kimlik || `p_${Date.now()}`
+    const newPersonelName = profile.display_name?.trim() || "Yeni Personel"
+    const { data: createdPersonel } = await admin.from("personeller").insert({
+      id: newPersonelId,
+      ad: newPersonelName,
+      sube_id: subeId,
+      aylik_maas: 0,
+      banka_maas: 0,
+      nakit_maas: 0,
+      saatlik_mesai_ucreti: 0,
+      aktif: true,
+    }).select().maybeSingle()
+
+    if (createdPersonel) {
+      personel = createdPersonel
+      candidates = [...(candidates || []), createdPersonel]
+    }
   }
 
   if (!personel) {

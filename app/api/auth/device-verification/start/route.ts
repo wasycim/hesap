@@ -9,7 +9,8 @@ import {
 import { getRequestAuthUser } from "@/lib/mobile-auth"
 import { createAdminClient } from "@/lib/supabase/admin"
 
-const codeTtlMs = 10 * 60 * 1000
+// GEÇİCİ CİHAZ DOĞRULAMA DEVRE DIŞI BIRAKMA BAYRAĞI (İsteğe göre true/false yapılabilir)
+const DISABLE_DEVICE_VERIFICATION = true
 
 export async function POST(request: NextRequest) {
   const user = await getRequestAuthUser(request)
@@ -20,6 +21,22 @@ export async function POST(request: NextRequest) {
   const platform = String(body.platform || "web").trim().slice(0, 30)
   const label = String(body.label || platform || "Bilinmeyen cihaz").trim().slice(0, 140)
   const resend = body.resend === true
+
+  // Cihaz doğrulaması geçici olarak devre dışı bırakıldıysa otomatik olarak güvenli cihaz kaydet ve geç
+  if (DISABLE_DEVICE_VERIFICATION) {
+    const admin = createAdminClient()
+    if (deviceId && /^[a-zA-Z0-9._:-]{8,200}$/.test(deviceId)) {
+      await admin.from("trusted_devices").upsert({
+        user_id: user.id,
+        device_id: deviceId,
+        platform,
+        label,
+        verified_at: new Date().toISOString(),
+        last_seen_at: new Date().toISOString(),
+      }, { onConflict: "user_id,device_id" })
+    }
+    return trustedResponse(user.id, deviceId || "bypassed-device-id", { challengeRequired: false, trusted: true, bypassed: true })
+  }
   if (!isPhoneMobileVerificationRequest(request, platform)) {
     return NextResponse.json({ error: "Cihaz doğrulaması sadece telefon mobil uygulaması için kullanılır." }, { status: 403 })
   }

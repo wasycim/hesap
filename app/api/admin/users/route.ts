@@ -143,6 +143,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: authError?.message || "Kullanici olusturulamadi." }, { status: 500 })
   }
 
+  let finalSubeId = subeId || null
+
+  // Eğer şube id seçilmediyse veya boşsa, personeller tablosunda isim veya TC eşleşmesi ara
+  if (!finalSubeId) {
+    const { data: matchedPersonel } = await admin
+      .from("personeller")
+      .select("sube_id, ad, id")
+      .or(`id.eq.${tcKimlik},ad.ilike.%${displayName.trim()}%`)
+      .limit(1)
+      .maybeSingle()
+
+    if (matchedPersonel?.sube_id) {
+      finalSubeId = matchedPersonel.sube_id
+    } else {
+      // Hala bulunamadıysa ilk aktif şubeyi varsayılan olarak ata
+      const { data: firstBranch } = await admin
+        .from("subeler")
+        .select("id")
+        .eq("aktif", true)
+        .order("ad")
+        .limit(1)
+        .maybeSingle()
+      finalSubeId = firstBranch?.id || null
+    }
+  }
+
   const { error: profileError } = await admin.from("user_profiles").upsert({
     user_id: authData.user.id,
     email,
@@ -152,7 +178,7 @@ export async function POST(request: NextRequest) {
     is_developer,
     dashboard_access: dashboardAccess,
     license_exempt: is_developer,
-    sube_id: subeId,
+    sube_id: finalSubeId,
     vardiya,
     updated_at: new Date().toISOString(),
   }, { onConflict: "user_id" })
