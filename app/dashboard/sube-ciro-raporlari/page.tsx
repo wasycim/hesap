@@ -523,26 +523,30 @@ export default function SubeCiroRaporlariPage() {
     }))
   }, [reportRows, totals.satis])
 
-  const webKomisyonTotal = useMemo(() => {
-    return webKomisyonRows.reduce((sum, item) => sum + (Number(item.toplam_komisyon) || 0), 0)
-  }, [webKomisyonRows])
-
-  const webKomisyonTrendData = useMemo(() => {
-    return webKomisyonRows.map((item) => ({
-      tarih: item.ay_yil || item.tarih,
-      Komisyon: Number(item.toplam_komisyon) || 0,
-    }))
-  }, [webKomisyonRows])
+  // Filter web komisyon rows by date range window
+  const filteredWebKomisyonRows = useMemo(() => {
+    const startMonth = startDate.slice(0, 7)
+    const endMonth = endDate.slice(0, 7)
+    return webKomisyonRows.filter((item) => {
+      const itemMonth = (item.tarih || "").slice(0, 7)
+      return itemMonth >= startMonth && itemMonth <= endMonth
+    })
+  }, [webKomisyonRows, startDate, endDate])
 
   const webKomisyonFirmaData = useMemo(() => {
     const map = new Map<string, number>()
-    webKomisyonRows.forEach((item) => {
+    filteredWebKomisyonRows.forEach((item) => {
       const deg = item.firma_degerleri || {}
       Object.entries(deg).forEach(([fId, amount]) => {
+        if (selectedFirmaId !== "all" && fId !== selectedFirmaId) return
         const val = Number(amount) || 0
-        map.set(fId, (map.get(fId) || 0) + val)
+        if (val > 0) {
+          map.set(fId, (map.get(fId) || 0) + val)
+        }
       })
     })
+
+    const totalFiltered = Array.from(map.values()).reduce((sum, val) => sum + val, 0)
 
     return Array.from(map.entries())
       .map(([fId, total], idx) => {
@@ -552,12 +556,34 @@ export default function SubeCiroRaporlariPage() {
           value: total,
           komisyon: total,
           isWebKomisyon: true,
-          percentage: webKomisyonTotal > 0 ? (total / webKomisyonTotal) * 100 : 0,
+          percentage: totalFiltered > 0 ? (total / totalFiltered) * 100 : 0,
           color: getFirmaHexColor(firma.color, idx),
         }
       })
       .sort((a, b) => b.value - a.value)
-  }, [webKomisyonRows, firmalar, webKomisyonTotal])
+  }, [filteredWebKomisyonRows, firmalar, selectedFirmaId])
+
+  const webKomisyonTotal = useMemo(() => {
+    return webKomisyonFirmaData.reduce((sum, item) => sum + item.value, 0)
+  }, [webKomisyonFirmaData])
+
+  const webKomisyonTrendData = useMemo(() => {
+    return filteredWebKomisyonRows
+      .map((item) => {
+        let monthTotal = 0
+        const deg = item.firma_degerleri || {}
+        Object.entries(deg).forEach(([fId, amount]) => {
+          if (selectedFirmaId !== "all" && fId !== selectedFirmaId) return
+          monthTotal += Number(amount) || 0
+        })
+
+        return {
+          tarih: item.ay_yil || item.tarih,
+          Komisyon: monthTotal,
+        }
+      })
+      .filter((t) => t.Komisyon > 0)
+  }, [filteredWebKomisyonRows, selectedFirmaId])
 
   function exportCsv() {
     const lines: unknown[][] = [
