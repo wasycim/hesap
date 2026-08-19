@@ -61,6 +61,29 @@ function formatMoney(value: number) {
   })
 }
 
+function allowOnlyNumericKeys(e: React.KeyboardEvent<HTMLInputElement>) {
+  const allowedKeys = [
+    "Backspace",
+    "Delete",
+    "Tab",
+    "Enter",
+    "ArrowLeft",
+    "ArrowRight",
+    "ArrowUp",
+    "ArrowDown",
+    "Home",
+    "End",
+    ",",
+    ".",
+  ]
+  if (allowedKeys.includes(e.key) || e.ctrlKey || e.metaKey) {
+    return
+  }
+  if (!/^[0-9]$/.test(e.key)) {
+    e.preventDefault()
+  }
+}
+
 function isSpreadsheetControl(element: Element | null): element is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
   if (
     !(element instanceof HTMLInputElement) &&
@@ -249,6 +272,8 @@ export default function WebKomisyonPage() {
   }
 
   const handleAmountChange = (ayYil: string, firmaId: string, value: string) => {
+    // Strictly filter out non-numeric characters (letters, spaces, symbols)
+    const sanitized = value.replace(/[^0-9.,]/g, "")
     setMonthlyData((prev) => {
       const currentMonth = prev[ayYil] || { amounts: {}, notlar: "" }
       return {
@@ -257,7 +282,7 @@ export default function WebKomisyonPage() {
           ...currentMonth,
           amounts: {
             ...currentMonth.amounts,
-            [firmaId]: value,
+            [firmaId]: sanitized,
           },
         },
       }
@@ -310,7 +335,7 @@ export default function WebKomisyonPage() {
   }, [monthlyData, year])
 
   // Top Performing Firm
-  const topFirm = useMemo(() => {
+  const topFirm = useMemo<{ firma: Firma; total: number } | null>(() => {
     if (firmalar.length === 0) return null
     let maxTotal = 0
     let bestFirma: Firma | null = null
@@ -448,8 +473,20 @@ export default function WebKomisyonPage() {
     openPdfReport({
       title: `${year} Yılı Web Komisyon Raporu`,
       subtitle: `${currentSube?.ad || "Genel"} Şubesi - 14 No Firmaları Web Komisyon Gelirleri`,
-      headers: tableColumns.map((c) => c.label),
-      rows: tableRows.map((r) => tableColumns.map((c) => r[c.key])),
+      orientation: "landscape",
+      metrics: [
+        { label: "Yıllık Toplam Web Komisyon", value: `${formatMoney(grandTotal)} ₺` },
+        { label: "Ortalama Aylık Komisyon", value: `${formatMoney(activeMonthsCount > 0 ? grandTotal / activeMonthsCount : 0)} ₺` },
+        { label: "Kayıtlı Ay Sayısı", value: `${activeMonthsCount} / 12 Ay` },
+        { label: "Firma Sayısı", value: `${firmalar.length} Firma` },
+      ],
+      tables: [
+        {
+          title: "14 No Firmaları Aylık Web Komisyon Dağılım Tablosu",
+          headers: tableColumns.map((c) => c.label),
+          rows: tableRows.map((r) => tableColumns.map((c) => r[c.key])),
+        },
+      ],
     })
   }
 
@@ -472,7 +509,7 @@ export default function WebKomisyonPage() {
       <div className="flex flex-col gap-4 rounded-xl bg-gradient-to-r from-emerald-800 via-teal-700 to-slate-900 p-5 text-white shadow-lg sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="grid h-12 w-12 place-items-center rounded-lg bg-white/10 backdrop-blur">
-            <Globe className="h-7 w-7 text-emerald-200 transition-transform duration-300 hover:rotate-12 hover:scale-110" />
+            <Globe className="h-7 w-7 text-emerald-200 animate-[spin_8s_linear_infinite]" />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Web Komisyon Tablosu</h1>
@@ -623,7 +660,7 @@ export default function WebKomisyonPage() {
               <h2 className="text-base font-bold">14 No Firmaları Web Komisyon Gelir Tablosu ({year})</h2>
             </div>
             <span className="text-xs text-muted-foreground font-medium">
-              ⌨️ Yön tuşları (⬆️⬇️⬅️➡️) ile hücreler arasında rahatça dolaşabilirsiniz.
+              💡 Firma hücrelerine sadece sayı girilebilir (harf yazılamaz). Not alanına açıklama ekleyebilirsiniz.
             </span>
           </div>
         </CardHeader>
@@ -687,7 +724,7 @@ export default function WebKomisyonPage() {
                         </div>
                       </td>
 
-                      {/* Firm Columns Input Fields */}
+                      {/* Firm Columns Input Fields (Strict Numeric Only) */}
                       {firmalar.map((firma) => {
                         const rawVal = monthlyData[ayYil]?.amounts?.[firma.id] ?? ""
                         const numVal = parseCurrencyInputValue(rawVal)
@@ -697,6 +734,7 @@ export default function WebKomisyonPage() {
                             <CurrencyInput
                               value={rawVal}
                               onChange={(e) => handleAmountChange(ayYil, firma.id, e.target.value)}
+                              onKeyDown={allowOnlyNumericKeys}
                               placeholder="0"
                               showCurrencySymbol={true}
                               containerClassName={cn(
@@ -719,7 +757,7 @@ export default function WebKomisyonPage() {
                         {formatMoney(monthTotal)} ₺
                       </td>
 
-                      {/* Notes Input */}
+                      {/* Notes Input (Text allowed) */}
                       <td className="p-1.5 border-r">
                         <Input
                           type="text"

@@ -12,6 +12,7 @@ import {
   Download,
   FileSpreadsheet,
   Filter,
+  Globe,
   Layers,
   Percent,
   PieChart as PieIcon,
@@ -59,6 +60,16 @@ interface GelirKaydi {
   tarih: string
   vardiya: string | null
   custom_values: Record<string, number>
+}
+
+interface WebKomisyonItem {
+  id: string
+  sube_id: string
+  tarih: string
+  ay_yil: string
+  firma_degerleri: Record<string, number>
+  toplam_komisyon: number
+  notlar?: string | null
 }
 
 type Period = "daily" | "weekly" | "monthly" | "custom"
@@ -202,6 +213,7 @@ export default function SubeCiroRaporlariPage() {
   const [selectedFirmaId, setSelectedFirmaId] = useState("all")
   const [firmalar, setFirmalar] = useState<Firma[]>([])
   const [rows, setRows] = useState<GelirKaydi[]>([])
+  const [webKomisyonRows, setWebKomisyonRows] = useState<WebKomisyonItem[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("firma")
   const [firmaPieMode, setFirmaPieMode] = useState<"komisyon" | "ciro">("komisyon")
@@ -248,12 +260,18 @@ export default function SubeCiroRaporlariPage() {
       .order("tarih", { ascending: true })
       .order("vardiya", { ascending: true })
 
+    let webKomisyonQuery = supabase
+      .from("web_komisyon_kayitlari")
+      .select("*")
+      .order("tarih", { ascending: true })
+
     if (selectedSubeId !== "all") {
       firmaQuery = firmaQuery.eq("sube_id", selectedSubeId)
       gelirQuery = gelirQuery.eq("sube_id", selectedSubeId)
+      webKomisyonQuery = webKomisyonQuery.eq("sube_id", selectedSubeId)
     }
 
-    const [firmaRes, gelirRes] = await Promise.all([firmaQuery, gelirQuery])
+    const [firmaRes, gelirRes, webRes] = await Promise.all([firmaQuery, gelirQuery, webKomisyonQuery])
     setFirmalar(firmaRes.data || [])
     setRows(
       (gelirRes.data || [])
@@ -263,6 +281,7 @@ export default function SubeCiroRaporlariPage() {
         }))
         .sort(compareDateVardiya)
     )
+    setWebKomisyonRows(webRes.data || [])
     setLoading(false)
   }
 
@@ -436,6 +455,40 @@ export default function SubeCiroRaporlariPage() {
       color: idx === 0 ? "#10b981" : idx === 1 ? "#3b82f6" : "#f59e0b",
     }))
   }, [reportRows, totals.satis])
+
+  const webKomisyonTotal = useMemo(() => {
+    return webKomisyonRows.reduce((sum, item) => sum + (Number(item.toplam_komisyon) || 0), 0)
+  }, [webKomisyonRows])
+
+  const webKomisyonTrendData = useMemo(() => {
+    return webKomisyonRows.map((item) => ({
+      tarih: item.ay_yil || item.tarih,
+      Komisyon: Number(item.toplam_komisyon) || 0,
+    }))
+  }, [webKomisyonRows])
+
+  const webKomisyonFirmaData = useMemo(() => {
+    const map = new Map<string, number>()
+    webKomisyonRows.forEach((item) => {
+      const deg = item.firma_degerleri || {}
+      Object.entries(deg).forEach(([fId, amount]) => {
+        const val = Number(amount) || 0
+        map.set(fId, (map.get(fId) || 0) + val)
+      })
+    })
+
+    return Array.from(map.entries())
+      .map(([fId, total], idx) => {
+        const firma = firmalar.find((f) => f.id === fId) || { ad: "14 No Firma", color: "" }
+        return {
+          name: firma.ad,
+          value: total,
+          percentage: webKomisyonTotal > 0 ? (total / webKomisyonTotal) * 100 : 0,
+          color: getFirmaHexColor(firma.color, idx),
+        }
+      })
+      .sort((a, b) => b.value - a.value)
+  }, [webKomisyonRows, firmalar, webKomisyonTotal])
 
   function exportCsv() {
     const lines: unknown[][] = [
@@ -690,7 +743,7 @@ export default function SubeCiroRaporlariPage() {
       </Card>
 
       {/* KPI Metrics Highlight Grid */}
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
         {/* HERO CARD: KAZANDIĞIM KOMİSYON */}
         <Card className="border-2 border-blue-500/30 bg-gradient-to-br from-blue-500/10 via-indigo-500/5 to-transparent shadow-lg relative overflow-hidden">
           <div className="absolute -right-4 -bottom-4 h-24 w-24 rounded-full bg-blue-500/10 blur-xl pointer-events-none" />
@@ -711,6 +764,30 @@ export default function SubeCiroRaporlariPage() {
             </div>
             <div className="grid h-14 w-14 place-items-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/30">
               <Wallet className="h-7 w-7" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* HERO CARD 2: KAZANDIĞIN İNTERNET KOMİSYONLARI */}
+        <Card className="border-2 border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent shadow-lg relative overflow-hidden">
+          <div className="absolute -right-4 -bottom-4 h-24 w-24 rounded-full bg-emerald-500/10 blur-xl pointer-events-none" />
+          <CardContent className="p-6 flex items-center justify-between">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <Globe className="h-4 w-4 text-emerald-600 dark:text-emerald-400 animate-[spin_8s_linear_infinite]" />
+                <p className="text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                  İnternet Komisyonları
+                </p>
+              </div>
+              <p className="text-3xl font-black tracking-tight text-emerald-900 dark:text-emerald-100">
+                {formatMoney(webKomisyonTotal)} ₺
+              </p>
+              <p className="text-xs font-semibold text-muted-foreground">
+                14 No Web Komisyon Geliri
+              </p>
+            </div>
+            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-500/30">
+              <Globe className="h-7 w-7 animate-[spin_8s_linear_infinite]" />
             </div>
           </CardContent>
         </Card>
@@ -769,10 +846,14 @@ export default function SubeCiroRaporlariPage() {
             <PieIcon className="h-5 w-5 text-emerald-600" />
             Görsel Analitik Grafikler & Dağılım
           </div>
-          <TabsList className="grid grid-cols-4 w-full sm:w-auto h-10 p-1">
+          <TabsList className="grid grid-cols-5 w-full sm:w-auto h-10 p-1">
             <TabsTrigger value="firma" className="text-xs font-bold gap-2">
               <PieIcon className="h-4 w-4 text-blue-500" />
               Firma Pasta
+            </TabsTrigger>
+            <TabsTrigger value="web_komisyon" className="text-xs font-bold gap-2">
+              <Globe className="h-4 w-4 text-emerald-500 animate-[spin_8s_linear_infinite]" />
+              İnternet Komisyonu
             </TabsTrigger>
             <TabsTrigger value="trend" className="text-xs font-bold gap-2">
               <TrendingUp className="h-4 w-4 text-emerald-500" />
@@ -932,6 +1013,176 @@ export default function SubeCiroRaporlariPage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* Tab Web Komisyon: Kazandığın İnternet Komisyonları Analizi */}
+        <TabsContent value="web_komisyon" className="space-y-6 m-0">
+          {/* Top Banner Card */}
+          <div className="flex flex-col gap-3 rounded-2xl bg-gradient-to-r from-emerald-800 via-teal-700 to-slate-900 p-5 text-white shadow-lg sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="grid h-11 w-11 place-items-center rounded-xl bg-white/10 backdrop-blur">
+                <Globe className="h-6 w-6 text-emerald-200 animate-[spin_8s_linear_infinite]" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold">Kazandığın İnternet Komisyonları Analiz Paneli</h3>
+                <p className="text-xs text-emerald-100">
+                  14 No Firmalarından Elde Edilen Aylık İnternet Komisyon Verileri ve Grafik Dağılımı
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold px-3 py-1 text-sm shadow">
+                {formatMoney(webKomisyonTotal)} ₺ Toplam İnternet Komisyonu
+              </Badge>
+            </div>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-2 items-start">
+            {/* AYLIK INTERNET KOMISYONU TREND GRAFIGI */}
+            <Card className="shadow-md border-border/60">
+              <CardHeader className="pb-3 border-b border-border/30">
+                <CardTitle className="text-base flex items-center justify-between">
+                  <span className="flex items-center gap-2 font-black">
+                    <TrendingUp className="h-5 w-5 text-emerald-600" />
+                    Aylık İnternet Komisyon Gelir Trendi
+                  </span>
+                  <Badge variant="outline" className="font-bold text-xs">
+                    {webKomisyonTrendData.length} Dönem Kayıtlı
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                {webKomisyonTrendData.length === 0 ? (
+                  <div className="flex h-72 items-center justify-center text-sm text-muted-foreground font-medium">
+                    Bu şube için henüz internet komisyon kaydı bulunamadı.
+                  </div>
+                ) : (
+                  <div className="h-80 w-full">
+                    {isMounted && (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={webKomisyonTrendData}>
+                          <defs>
+                            <linearGradient id="subeCiroWebGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                              <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                          <XAxis dataKey="tarih" stroke="#888888" fontSize={11} tickLine={false} axisLine={false} />
+                          <YAxis stroke="#888888" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `${v.toLocaleString("tr-TR")}₺`} />
+                          <Tooltip formatter={(value: any) => [`${formatMoney(value)} ₺`, "İnternet Komisyonu"]} />
+                          <Area type="monotone" dataKey="Komisyon" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#subeCiroWebGrad)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* 14 NO FIRMALARI INTERNET KOMISYONU PASTA GRAFIGI */}
+            <Card className="shadow-md border-border/60">
+              <CardHeader className="pb-3 border-b border-border/30">
+                <CardTitle className="text-base flex items-center justify-between">
+                  <span className="flex items-center gap-2 font-black">
+                    <PieIcon className="h-5 w-5 text-teal-600" />
+                    14 No Firmaları İnternet Komisyon Dağılımı
+                  </span>
+                  <Badge variant="secondary" className="font-bold text-xs">
+                    {webKomisyonFirmaData.length} Firma
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                {webKomisyonFirmaData.length === 0 ? (
+                  <div className="flex h-72 items-center justify-center text-sm text-muted-foreground font-medium">
+                    Firma bazlı internet komisyon verisi bulunamadı.
+                  </div>
+                ) : (
+                  <div className="h-80 w-full">
+                    {isMounted && (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={webKomisyonFirmaData}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={65}
+                            outerRadius={105}
+                            paddingAngle={3}
+                          >
+                            {webKomisyonFirmaData.map((entry, idx) => (
+                              <Cell key={`cell-${idx}`} fill={entry.color} stroke="transparent" />
+                            ))}
+                          </Pie>
+                          <Tooltip content={<CustomPieTooltip />} />
+                          <Legend
+                            formatter={(value, entry: any) => (
+                              <span className="text-xs font-bold text-foreground">
+                                {value} (%{entry?.payload?.percentage?.toFixed(1) || 0})
+                              </span>
+                            )}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* FIRMA BAZLI INTERNET KOMISYON LISTESI */}
+          <Card className="shadow-md border-border/60">
+            <CardHeader className="pb-3 border-b border-border/30">
+              <CardTitle className="text-base flex items-center justify-between">
+                <span className="flex items-center gap-2 font-black">
+                  <Coins className="h-5 w-5 text-emerald-600" />
+                  14 No Firmaları İnternet Komisyon Detay Listesi
+                </span>
+                <span className="text-xs text-muted-foreground font-medium">
+                  Toplam: <strong>{formatMoney(webKomisyonTotal)} ₺</strong>
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              {webKomisyonFirmaData.length === 0 ? (
+                <div className="text-center text-sm text-muted-foreground py-6">
+                  Gösterilecek firma komisyon verisi bulunamadı.
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {webKomisyonFirmaData.map((item) => (
+                    <div key={item.name} className="p-4 rounded-xl border bg-card/60 hover:bg-muted/30 transition-all space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="h-3.5 w-3.5 rounded-full shadow-sm" style={{ backgroundColor: item.color }} />
+                          <span className="font-extrabold text-sm">{item.name}</span>
+                        </div>
+                        <Badge variant="outline" className="font-bold text-xs border-emerald-500/30 text-emerald-700 dark:text-emerald-300">
+                          %{item.percentage.toFixed(1)}
+                        </Badge>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(100, item.percentage)}%`, backgroundColor: item.color }}
+                        />
+                      </div>
+                      <div className="flex justify-between items-center text-xs text-muted-foreground pt-1">
+                        <span>Toplam İnternet Komisyonu:</span>
+                        <strong className="text-emerald-700 dark:text-emerald-300 font-black text-sm">
+                          {formatMoney(item.value)} ₺
+                        </strong>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Tab 2: Ciro Trendi */}

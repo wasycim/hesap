@@ -633,7 +633,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 )}
               >
-                <Globe className="sidebar-menu-icon menu-icon-sway h-5 w-5 text-purple-500" />
+                <Globe className="sidebar-menu-icon h-5 w-5 text-emerald-500 animate-[spin_8s_linear_infinite]" />
                 <span>Web Komisyon</span>
               </Link>
             </li>
