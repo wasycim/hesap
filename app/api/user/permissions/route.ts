@@ -12,6 +12,7 @@ const allPermissionKeys = [
   "corbalar",
   "kargo_cari",
   "kargo_prim",
+  "web_komisyon",
   "personel_mesai",
   "carsi_hesap",
   "darica_hesap",
@@ -62,6 +63,7 @@ function defaultsForRole(role: "developer" | "admin" | "user") {
   permissions.corbalar = true
   permissions.kargo_cari = true
   permissions.kargo_prim = false // Sadece yonetici ve developer!
+  permissions.web_komisyon = false // Sadece yonetici ve developer!
   permissions.personel_mesai = true
   permissions.carsi_hesap = true
   permissions.darica_hesap = true

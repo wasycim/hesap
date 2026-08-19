@@ -18,6 +18,7 @@ import {
   Columns3,
   Eye,
   FileSearch,
+  Globe,
   Landmark,
   LayoutDashboard,
   LogOut,
@@ -102,6 +103,8 @@ const developerMenuItems = [
 ]
 
 const permissionKeyByHref: Record<string, string> = {
+  "/dashboard/kargo-prim": "kargo_prim",
+  "/dashboard/web-komisyon": "web_komisyon",
   "/dashboard/bildirim-gonder": "bildirim_gonder",
   "/dashboard/sube-ciro-raporlari": "sube_ciro_raporlari",
   "/dashboard/performans": "performans",
@@ -333,7 +336,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   }, [currentSube?.id])
 
   useEffect(() => {
-    if (pathname.startsWith("/dashboard/kargo-cari") || pathname.startsWith("/dashboard/kargo-prim")) {
+    if (pathname.startsWith("/dashboard/kargo-cari") || pathname.startsWith("/dashboard/kargo-prim") || pathname.startsWith("/dashboard/web-komisyon")) {
       setKargoOpen(true)
     }
   }, [pathname])
@@ -614,6 +617,24 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
               >
                 <Coins className="sidebar-menu-icon menu-icon-sway h-5 w-5 text-emerald-500" />
                 <span>Kargo Prim</span>
+              </Link>
+            </li>
+          )}
+
+          {canSeeMenu("web_komisyon") && (
+            <li key="/dashboard/web-komisyon">
+              <Link
+                href="/dashboard/web-komisyon"
+                onClick={() => setMobileOpen(false)}
+                className={cn(
+                  "sidebar-menu-item group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                  pathname === "/dashboard/web-komisyon"
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                )}
+              >
+                <Globe className="sidebar-menu-icon menu-icon-sway h-5 w-5 text-purple-500" />
+                <span>Web Komisyon</span>
               </Link>
             </li>
           )}

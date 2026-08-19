@@ -16,6 +16,7 @@ const routePermissions: Array<{ prefix: string; key: string }> = [
   { prefix: "/dashboard/corbalar", key: "corbalar" },
   { prefix: "/dashboard/kargo-cari", key: "kargo_cari" },
   { prefix: "/dashboard/kargo-prim", key: "kargo_prim" },
+  { prefix: "/dashboard/web-komisyon", key: "web_komisyon" },
   { prefix: "/dashboard/personel-mesai", key: "personel_mesai" },
   { prefix: "/dashboard/carsi-hesap", key: "carsi_hesap" },
   { prefix: "/dashboard/darica-hesap", key: "darica_hesap" },

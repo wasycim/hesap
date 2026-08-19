@@ -13,6 +13,8 @@ export const backupTables = [
   "kargo_cari_notlari",
   "kolon_ayarlari",
   "on_dort_no_hesap_kayitlari",
+  "kargo_prim_kayitlari",
+  "web_komisyon_kayitlari",
   "companies",
   "partners",
   "records",
