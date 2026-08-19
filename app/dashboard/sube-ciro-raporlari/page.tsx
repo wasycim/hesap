@@ -202,9 +202,12 @@ function CustomPieTooltip({ active, payload }: any) {
     const data = payload[0]?.payload || {}
     const color = payload[0]?.color || payload[0]?.fill || "#10b981"
     const name = data.name || payload[0]?.name || "Firma / Şube"
-    const val = data.value !== undefined ? data.value : (data.ciro !== undefined ? data.ciro : (payload[0]?.value || 0))
+    const val = data.value !== undefined ? data.value : 0
     const kom = data.komisyon !== undefined ? data.komisyon : 0
+    const ciro = data.ciro !== undefined ? data.ciro : 0
     const pct = data.percentage !== undefined ? data.percentage : 0
+
+    const isWebOrKomOnly = ciro === 0 || Boolean(data.isWebKomisyon)
 
     return (
       <div className="rounded-2xl border bg-popover/95 p-4 shadow-2xl backdrop-blur-md text-popover-foreground text-xs space-y-2 min-w-[210px] border-emerald-500/20">
@@ -213,14 +216,23 @@ function CustomPieTooltip({ active, payload }: any) {
           <span className="truncate">{name}</span>
         </div>
         <div className="space-y-1.5 pt-1">
-          <div className="flex justify-between gap-4 text-muted-foreground">
-            <span>Brüt Ciro Satış:</span>
-            <span className="font-bold text-foreground">{formatMoney(data.ciro || val)} ₺</span>
-          </div>
-          <div className="flex justify-between gap-4 text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 p-1.5 rounded-lg border border-emerald-500/20">
-            <span className="flex items-center gap-1">💰 Kazandığım Komisyon:</span>
-            <span>{formatMoney(kom)} ₺</span>
-          </div>
+          {isWebOrKomOnly ? (
+            <div className="flex justify-between gap-4 text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
+              <span className="flex items-center gap-1">💰 Kazandığım Komisyon:</span>
+              <span>{formatMoney(val || kom)} ₺</span>
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-between gap-4 text-muted-foreground">
+                <span>Brüt Ciro Satış:</span>
+                <span className="font-bold text-foreground">{formatMoney(ciro)} ₺</span>
+              </div>
+              <div className="flex justify-between gap-4 text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 p-1.5 rounded-lg border border-emerald-500/20">
+                <span className="flex items-center gap-1">💰 Kazandığım Komisyon:</span>
+                <span>{formatMoney(kom)} ₺</span>
+              </div>
+            </>
+          )}
           {pct > 0 && (
             <div className="flex justify-between gap-4 text-muted-foreground pt-1">
               <span>Genel Oran Payı:</span>
@@ -538,6 +550,8 @@ export default function SubeCiroRaporlariPage() {
         return {
           name: firma.ad,
           value: total,
+          komisyon: total,
+          isWebKomisyon: true,
           percentage: webKomisyonTotal > 0 ? (total / webKomisyonTotal) * 100 : 0,
           color: getFirmaHexColor(firma.color, idx),
         }
