@@ -200,7 +200,7 @@ function CustomPieLegendGrid({
 function CustomPieTooltip({ active, payload }: any) {
   if (active && payload && payload.length) {
     const data = payload[0]?.payload || {}
-    const color = payload[0]?.color || payload[0]?.fill || "#10b981"
+    const color = data.color || payload[0]?.color || payload[0]?.fill || "#10b981"
     const name = data.name || payload[0]?.name || "Firma / Şube"
     const val = data.value !== undefined ? data.value : 0
     const kom = data.komisyon !== undefined ? data.komisyon : 0
@@ -993,18 +993,18 @@ export default function SubeCiroRaporlariPage() {
                     Bu periyotta gösterilecek veri bulunamadı.
                   </div>
                 ) : (
-                  <div className="h-80 w-full">
+                  <div className="w-full">
                     {isMounted && (
                       <div className="space-y-3">
-                        <div className="h-64 w-full">
+                        <div className="h-56 w-full">
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                               <Pie
                                 data={activePieData}
                                 cx="50%"
                                 cy="50%"
-                                innerRadius={60}
-                                outerRadius={105}
+                                innerRadius={55}
+                                outerRadius={95}
                                 paddingAngle={3}
                                 dataKey="value"
                               >
@@ -1171,10 +1171,10 @@ export default function SubeCiroRaporlariPage() {
                     Firma bazlı internet komisyon verisi bulunamadı.
                   </div>
                 ) : (
-                  <div className="h-80 w-full">
+                  <div className="w-full">
                     {isMounted && (
                       <div className="space-y-3">
-                        <div className="h-64 w-full">
+                        <div className="h-56 w-full">
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                               <Pie
@@ -1183,8 +1183,8 @@ export default function SubeCiroRaporlariPage() {
                                 nameKey="name"
                                 cx="50%"
                                 cy="50%"
-                                innerRadius={60}
-                                outerRadius={105}
+                                innerRadius={55}
+                                outerRadius={95}
                                 paddingAngle={3}
                               >
                                 {webKomisyonFirmaData.map((entry, idx) => (
