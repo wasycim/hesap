@@ -774,7 +774,7 @@ export default function SubeCiroRaporlariPage() {
           <CardContent className="p-6 flex items-center justify-between">
             <div className="space-y-1.5">
               <div className="flex items-center gap-1.5">
-                <Globe className="h-4 w-4 text-emerald-600 dark:text-emerald-400 animate-[spin_8s_linear_infinite]" />
+                <Globe className="h-4 w-4 text-emerald-600 dark:text-emerald-400 transition-transform duration-700 hover:rotate-[360deg]" />
                 <p className="text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                   İnternet Komisyonları
                 </p>
@@ -787,7 +787,7 @@ export default function SubeCiroRaporlariPage() {
               </p>
             </div>
             <div className="grid h-14 w-14 place-items-center rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-500/30">
-              <Globe className="h-7 w-7 animate-[spin_8s_linear_infinite]" />
+              <Globe className="h-7 w-7 transition-transform duration-700 hover:rotate-[360deg]" />
             </div>
           </CardContent>
         </Card>
@@ -852,7 +852,7 @@ export default function SubeCiroRaporlariPage() {
               Firma Pasta
             </TabsTrigger>
             <TabsTrigger value="web_komisyon" className="text-xs font-bold gap-2">
-              <Globe className="h-4 w-4 text-emerald-500 animate-[spin_8s_linear_infinite]" />
+              <Globe className="h-4 w-4 text-emerald-500 transition-transform duration-700 group-hover:rotate-[360deg]" />
               İnternet Komisyonu
             </TabsTrigger>
             <TabsTrigger value="trend" className="text-xs font-bold gap-2">
@@ -1021,7 +1021,7 @@ export default function SubeCiroRaporlariPage() {
           <div className="flex flex-col gap-3 rounded-2xl bg-gradient-to-r from-emerald-800 via-teal-700 to-slate-900 p-5 text-white shadow-lg sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="grid h-11 w-11 place-items-center rounded-xl bg-white/10 backdrop-blur">
-                <Globe className="h-6 w-6 text-emerald-200 animate-[spin_8s_linear_infinite]" />
+                <Globe className="h-6 w-6 text-emerald-200 transition-transform duration-700 hover:rotate-[360deg]" />
               </div>
               <div>
                 <h3 className="text-lg font-bold">Kazandığın İnternet Komisyonları Analiz Paneli</h3>

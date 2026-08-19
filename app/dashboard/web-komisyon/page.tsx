@@ -509,7 +509,7 @@ export default function WebKomisyonPage() {
       <div className="flex flex-col gap-4 rounded-xl bg-gradient-to-r from-emerald-800 via-teal-700 to-slate-900 p-5 text-white shadow-lg sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="grid h-12 w-12 place-items-center rounded-lg bg-white/10 backdrop-blur">
-            <Globe className="h-7 w-7 text-emerald-200 animate-[spin_8s_linear_infinite]" />
+            <Globe className="h-7 w-7 text-emerald-200 transition-transform duration-700 hover:rotate-[360deg]" />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Web Komisyon Tablosu</h1>
