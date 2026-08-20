@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "wasy.systems.hesap",
+      "sha256_cert_fingerprints": [
+        "62:CB:74:14:A4:1F:EA:98:95:2A:70:AA:75:D4:0A:7E:1E:1D:A6:8B:25:20:52:CA:54:69:21:D1:9D:68:5D:73"
+      ]
+    }
+  }
+]
