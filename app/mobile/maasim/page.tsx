@@ -214,7 +214,10 @@ function formatMoney(value: number) {
   return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(value)
 }
 function formatDate(value: string) {
-  return new Date(`${value}T12:00:00`).toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" })
+  if (!value) return "-"
+  const d = new Date(value.includes("T") ? value : `${value}T12:00:00.000Z`)
+  if (isNaN(d.getTime())) return "-"
+  return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" })
 }
 function formatMinutes(value: number) {
   const hours = Math.floor(value / 60)

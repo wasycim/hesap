@@ -37,13 +37,34 @@ function formatMoney(value) {
   return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(Number(value) || 0)
 }
 
+function safeParseDate(value) {
+  if (!value) return null
+  if (value instanceof Date) return isNaN(value.getTime()) ? null : value
+  const s = String(value).trim()
+  if (!s) return null
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const d = new Date(`${s}T12:00:00.000Z`)
+    return isNaN(d.getTime()) ? null : d
+  }
+
+  const d = new Date(s.includes(" ") ? s.replace(" ", "T") : s)
+  return isNaN(d.getTime()) ? null : d
+}
+
 function formatDate(value) {
-  if (!value) return "-"
-  return new Date(`${value}T12:00:00`).toLocaleDateString("tr-TR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  })
+  const d = safeParseDate(value)
+  if (!d) return "-"
+  try {
+    return d.toLocaleDateString("tr-TR", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "Europe/Istanbul",
+    })
+  } catch (e) {
+    return "-"
+  }
 }
 
 function monthLabel(month, year) {
@@ -69,14 +90,19 @@ function monthStartKey() {
 }
 
 function formatDateTime(value) {
-  if (!value) return "-"
-  return new Date(value).toLocaleString("tr-TR", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Europe/Istanbul",
-  })
+  const d = safeParseDate(value)
+  if (!d) return "-"
+  try {
+    return d.toLocaleString("tr-TR", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Europe/Istanbul",
+    })
+  } catch (e) {
+    return "-"
+  }
 }
 
 function formatMinutes(value) {
