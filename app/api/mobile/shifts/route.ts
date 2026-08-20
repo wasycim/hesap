@@ -108,8 +108,8 @@ export async function GET(request: NextRequest) {
     .maybeSingle()
 
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
-  if (!profile || profile.dashboard_access === false) {
-    return NextResponse.json({ error: "Personel profili veya şube erişimi yetkisi bulunamadı." }, { status: 404 })
+  if (!profile) {
+    return NextResponse.json({ error: "Personel profili bulunamadı." }, { status: 404 })
   }
 
   let subeId = profile.sube_id as string | null

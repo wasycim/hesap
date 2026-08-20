@@ -585,6 +585,11 @@ export default function SubeCiroRaporlariPage() {
       .filter((t) => t.Komisyon > 0)
   }, [filteredWebKomisyonRows, selectedFirmaId])
 
+  function escapeCsvValue(val: unknown): string {
+    const s = String(val ?? "")
+    return s.includes(";") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s
+  }
+
   function exportCsv() {
     const lines: unknown[][] = [
       ["Şube Ciro Raporları"],

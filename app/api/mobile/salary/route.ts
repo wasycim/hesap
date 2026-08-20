@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
     .maybeSingle()
 
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
-  if (!profile || profile.dashboard_access === false) {
-    return NextResponse.json({ error: "Personel profili veya şube erişimi yetkisi bulunamadı." }, { status: 404 })
+  if (!profile) {
+    return NextResponse.json({ error: "Personel profili bulunamadı." }, { status: 404 })
   }
 
   let subeId = profile.sube_id as string | null
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 
   if (personelError) return NextResponse.json({ error: personelError.message }, { status: 500 })
 
-  let personel: typeof candidates[0] | undefined
+  let personel: NonNullable<typeof candidates>[number] | undefined
 
   // 1. If manager requested specific personelId
   if (isManager && requestedPersonelId) {

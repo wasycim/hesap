@@ -281,7 +281,13 @@ export async function GET(request: NextRequest) {
 
   if (!access.isAdmin && access.profile && summaryByKey.size === 0) {
     const branch = access.profile.sube_id ? branchById.get(access.profile.sube_id) || null : null
-    summaryByKey.set(`${access.profile.sube_id || ""}:${normalizeName(access.profile.display_name)}`, {
+    const fallbackKey = `${access.profile.sube_id || ""}:${normalizeName(access.profile.display_name)}`
+    personelMetaBySummaryKey.set(fallbackKey, {
+      personelId: access.profile.user_id,
+      subeId: String(access.profile.sube_id || ""),
+      sabitVardiya: null,
+    })
+    summaryByKey.set(fallbackKey, {
       personelId: access.profile.user_id,
       name: access.profile.display_name || "Personel",
       tcKimlik: access.profile.tc_kimlik || null,

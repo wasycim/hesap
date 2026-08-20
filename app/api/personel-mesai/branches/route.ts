@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { requireAnyMesaiAdmin } from "@/lib/qr-attendance/admin"
 import { createAdminClient } from "@/lib/supabase/admin"
 

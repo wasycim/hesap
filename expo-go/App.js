@@ -672,7 +672,7 @@ export default function App() {
   if (!session) {
     return (
       <AuthFrame>
-        <Text style={styles.authEyebrow}>HESAP MOBİL v3.0</Text>
+        <Text style={styles.authEyebrow}>HESAP MOBİL v9.0</Text>
         <Text style={styles.authTitle}>iOS & Android Giriş</Text>
         <Text style={styles.authText}>Personel maaş ve mesai takip sistemine güvenli giriş yapın.</Text>
         <TextInput
@@ -718,7 +718,7 @@ export default function App() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={styles.topEyebrow}>HESAP MOBİL</Text>
               <View style={styles.proBadge}>
-                <Text style={styles.proBadgeText}>v6.1 PRO</Text>
+                <Text style={styles.proBadgeText}>v9.0 PRO</Text>
               </View>
             </View>
             <Text style={styles.topTitle}>{session.user?.displayName || "Kullanıcı"}</Text>
@@ -1359,34 +1359,45 @@ function TrackingScreen({ data }) {
         <StatCard label="Fazla" value={formatMinutes(totals.overtime)} tone="green" money={false} />
       </View>
 
-      {(data.branchSummaries || []).length ? (
-        <View style={styles.detailSection}>
-          <Text style={styles.sectionTitle}>Şube özetleri</Text>
-          {(data.branchSummaries || []).map((item) => (
-            <SummaryRow
-              key={item.branch?.id || item.branch?.ad}
-              title={item.branch?.ad || "Şube"}
-              meta={`${item.personelCount || 0} personel · ${item.logCount || 0} kayıt · açık ${item.openCount || 0}`}
-              amount={item.payableOvertimeMinutes ? `Maaşa ${formatMinutes(item.payableOvertimeMinutes)}` : formatMinutes(item.workedMinutes)}
-            />
-          ))}
-        </View>
-      ) : null}
+      <View style={styles.reportCard}>
+        <Text style={styles.reportTitle}>Personel Performans Raporu</Text>
+        <Text style={styles.reportSubtitle}>
+          Seçili tarih aralığında kişi bazlı çalışma, geç kalma, net fazla mesai ve maaşa işlenecek mesai toplamı.
+        </Text>
 
-      <View style={styles.detailSection}>
-        <Text style={styles.sectionTitle}>Personel özetleri</Text>
-        {(data.personelSummaries || []).length ? (data.personelSummaries || []).slice(0, 40).map((item) => (
-          <SummaryRow
-            key={`${item.personelId}-${item.name}`}
-            title={item.name}
-            meta={`${item.branch?.ad || "Şube"} · ${item.logCount || 0} kayıt · geç ${formatMinutes(item.lateMinutes)}`}
-            amount={item.payableOvertimeMinutes ? `Maaşa ${formatMinutes(item.payableOvertimeMinutes)}` : formatMinutes(item.workedMinutes)}
-          />
-        )) : <Text style={styles.emptyText}>Personel özeti bulunamadı.</Text>}
+        <View style={styles.reportTable}>
+          <View style={styles.reportTableHeader}>
+            <Text style={[styles.reportTh, { flex: 2.2 }]}>Personel</Text>
+            <Text style={[styles.reportTh, { flex: 1.5, textAlign: "right" }]}>Çalışma</Text>
+            <Text style={[styles.reportTh, { flex: 1.3, textAlign: "right" }]}>Geç Kalma</Text>
+            <Text style={[styles.reportTh, { flex: 1.5, textAlign: "right" }]}>Net Fazla</Text>
+          </View>
+
+          {(data.personelSummaries || []).length ? (
+            (data.personelSummaries || []).map((item) => (
+              <View key={`${item.personelId}-${item.name}`} style={styles.reportTableRow}>
+                <Text style={[styles.reportTdName, { flex: 2.2 }]} numberOfLines={1}>
+                  {String(item.name || "").toUpperCase()}
+                </Text>
+                <Text style={[styles.reportTdWorked, { flex: 1.5, textAlign: "right" }]}>
+                  {formatMinutes(item.workedMinutes)}
+                </Text>
+                <Text style={[styles.reportTdLate, { flex: 1.3, textAlign: "right" }]}>
+                  {formatMinutes(item.lateMinutes)}
+                </Text>
+                <Text style={[styles.reportTdOvertime, { flex: 1.5, textAlign: "right" }]}>
+                  {formatMinutes(item.overtimeMinutes)}
+                </Text>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.emptyText}>Personel performans özeti bulunamadı.</Text>
+          )}
+        </View>
       </View>
 
       <View style={styles.detailSection}>
-        <Text style={styles.sectionTitle}>Detaylar</Text>
+        <Text style={styles.sectionTitle}>Mesai Hareket Detayları</Text>
         {(data.details || []).length ? (data.details || []).slice(0, 40).map((item) => (
           <View style={styles.detailRow} key={`${item.id}-${item.workDate}`}>
             <View style={styles.detailTextWrap}>
@@ -2476,5 +2487,73 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: "900",
     letterSpacing: 0.5,
+  },
+  reportCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  reportTitle: {
+    color: "#f8fafc",
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  reportSubtitle: {
+    color: "#94a3b8",
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 14,
+  },
+  reportTable: {
+    borderRadius: 12,
+    backgroundColor: "#090d16",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    overflow: "hidden",
+  },
+  reportTableHeader: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  reportTh: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  reportTableRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.04)",
+  },
+  reportTdName: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  reportTdWorked: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  reportTdLate: {
+    color: "#ef4444",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  reportTdOvertime: {
+    color: "#f59e0b",
+    fontSize: 13,
+    fontWeight: "800",
   },
 })

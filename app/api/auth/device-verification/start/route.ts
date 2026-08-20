@@ -11,6 +11,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 
 // GEÇİCİ CİHAZ DOĞRULAMA DEVRE DIŞI BIRAKMA BAYRAĞI (İsteğe göre true/false yapılabilir)
 const DISABLE_DEVICE_VERIFICATION = true
+const codeTtlMs = 15 * 60 * 1000
 
 export async function POST(request: NextRequest) {
   const user = await getRequestAuthUser(request)
