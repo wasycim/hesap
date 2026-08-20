@@ -78,7 +78,7 @@ export default function MobileSalaryPage() {
           rows: data.overtime.map((item) => [
             formatDate(item.date),
             item.description,
-            item.minutes ? formatMinutes(item.minutes) : "Sabit Ek Ödeme",
+            item.minutes ? formatMinutes(item.minutes) : "-",
             `+${formatMoney(item.amount)}`,
           ]),
         },

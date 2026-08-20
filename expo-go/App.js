@@ -81,9 +81,10 @@ function formatDateTime(value) {
 
 function formatMinutes(value) {
   const total = Number(value) || 0
+  if (!total) return "-"
   const hours = Math.floor(total / 60)
   const minutes = total % 60
-  return `${hours ? `${hours} sa ` : ""}${minutes ? `${minutes} dk` : ""}`.trim() || "Sabit Ek Ödeme"
+  return `${hours ? `${hours} sa ` : ""}${minutes ? `${minutes} dk` : ""}`.trim() || "-"
 }
 
 function makeDeviceId() {
@@ -328,7 +329,7 @@ export default function App() {
     }
   }, [clearSession, requestJson, session])
 
-  const loadTracking = useCallback(async () => {
+  const loadTracking = useCallback(async (targetSubeId = "all") => {
     if (!session) return
     setLoading(true)
     setError("")
@@ -336,7 +337,7 @@ export default function App() {
       const params = new URLSearchParams({
         from: monthStartKey(),
         to: dateKey(),
-        subeId: "all",
+        subeId: targetSubeId || "all",
       })
       setTracking(await requestJson(`/api/dashboard/mesai-takip?${params.toString()}`))
     } catch (reason) {
@@ -769,7 +770,7 @@ export default function App() {
         ) : null}
         {screen === "attendance" ? <AttendanceScreen data={attendance} onOpenScanner={openScanner} /> : null}
         {screen === "shifts" ? <ShiftsScreen data={shifts} onRequestReload={loadShifts} requestJson={requestJson} /> : null}
-        {screen === "tracking" ? <TrackingScreen data={tracking} /> : null}
+        {screen === "tracking" ? <TrackingScreen data={tracking} onRequestBranchFilter={(subeId) => loadTracking(subeId)} /> : null}
       </ScrollView>
 
       <Modal visible={scannerOpen} animationType="slide" onRequestClose={() => { isScanningRef.current = false; setScannerOpen(false); }}>
@@ -1329,16 +1330,42 @@ function AttendanceRow({ item }) {
   )
 }
 
-function TrackingScreen({ data }) {
-  const totals = (data?.personelSummaries || []).reduce((acc, item) => {
-    acc.logs += Number(item.logCount || 0)
-    acc.open += Number(item.openCount || 0)
-    acc.late += Number(item.lateMinutes || 0)
-    acc.overtime += Number(item.overtimeMinutes || 0)
-    acc.payable += Number(item.payableOvertimeMinutes || 0)
-    acc.worked += Number(item.workedMinutes || 0)
-    return acc
-  }, { logs: 0, open: 0, late: 0, overtime: 0, payable: 0, worked: 0 })
+function TrackingScreen({ data, onRequestBranchFilter }) {
+  const [selectedBranchId, setSelectedBranchId] = useState("all")
+
+  const branches = useMemo(() => {
+    const list = data?.branches || []
+    if (list.length) return list
+    const map = new Map()
+    for (const item of (data?.personelSummaries || [])) {
+      if (item.branch?.id) map.set(item.branch.id, item.branch)
+    }
+    return Array.from(map.values())
+  }, [data])
+
+  const filteredPersonelSummaries = useMemo(() => {
+    const summaries = data?.personelSummaries || []
+    if (selectedBranchId === "all") return summaries
+    return summaries.filter((item) => item.branch?.id === selectedBranchId || item.branch?.ad === selectedBranchId)
+  }, [data?.personelSummaries, selectedBranchId])
+
+  const filteredDetails = useMemo(() => {
+    const details = data?.details || []
+    if (selectedBranchId === "all") return details
+    return details.filter((item) => item.branch?.id === selectedBranchId || item.branch?.ad === selectedBranchId)
+  }, [data?.details, selectedBranchId])
+
+  const totals = useMemo(() => {
+    return filteredPersonelSummaries.reduce((acc, item) => {
+      acc.logs += Number(item.logCount || 0)
+      acc.open += Number(item.openCount || 0)
+      acc.late += Number(item.lateMinutes || 0)
+      acc.overtime += Number(item.overtimeMinutes || 0)
+      acc.payable += Number(item.payableOvertimeMinutes || 0)
+      acc.worked += Number(item.workedMinutes || 0)
+      return acc
+    }, { logs: 0, open: 0, late: 0, overtime: 0, payable: 0, worked: 0 })
+  }, [filteredPersonelSummaries])
 
   if (!data) {
     return <EmptyState title="Mesai takip bekleniyor" text="Rapor verileri yüklendiğinde burada görünecek." />
@@ -1351,6 +1378,44 @@ function TrackingScreen({ data }) {
         <Text style={styles.heroTitle}>{formatDate(data.range?.from)} - {formatDate(data.range?.to)}</Text>
         <Text style={styles.heroSub}>Giriş/çıkış, geç kalma ve fazla mesai özeti</Text>
       </View>
+
+      {branches.length > 0 ? (
+        <View style={{ marginBottom: 14 }}>
+          <Text style={{ color: "#94a3b8", fontSize: 12, fontWeight: "800", marginBottom: 8, paddingHorizontal: 2 }}>
+            🏢 ŞUBE FİLTRESİ
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            <TouchableOpacity
+              style={[styles.selectChip, selectedBranchId === "all" ? styles.selectChipActive : null]}
+              onPress={() => {
+                setSelectedBranchId("all")
+                onRequestBranchFilter?.("all")
+              }}
+            >
+              <Text style={[styles.selectChipText, selectedBranchId === "all" ? styles.selectChipTextActive : null]}>
+                Tüm Şubeler
+              </Text>
+            </TouchableOpacity>
+            {branches.map((b) => {
+              const isActive = selectedBranchId === b.id || selectedBranchId === b.ad
+              return (
+                <TouchableOpacity
+                  key={b.id || b.ad}
+                  style={[styles.selectChip, isActive ? styles.selectChipActive : null]}
+                  onPress={() => {
+                    setSelectedBranchId(b.id || b.ad)
+                    onRequestBranchFilter?.(b.id || "all")
+                  }}
+                >
+                  <Text style={[styles.selectChipText, isActive ? styles.selectChipTextActive : null]}>
+                    {b.ad}
+                  </Text>
+                </TouchableOpacity>
+              )
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
 
       <View style={styles.statsGrid}>
         <StatCard label="Kayıt" value={totals.logs} tone="blue" money={false} />
@@ -1373,8 +1438,8 @@ function TrackingScreen({ data }) {
             <Text style={[styles.reportTh, { flex: 1.5, textAlign: "right" }]}>Net Fazla</Text>
           </View>
 
-          {(data.personelSummaries || []).length ? (
-            (data.personelSummaries || []).map((item) => (
+          {filteredPersonelSummaries.length ? (
+            filteredPersonelSummaries.map((item) => (
               <View key={`${item.personelId}-${item.name}`} style={styles.reportTableRow}>
                 <Text style={[styles.reportTdName, { flex: 2.2 }]} numberOfLines={1}>
                   {String(item.name || "").toUpperCase()}
@@ -1391,14 +1456,14 @@ function TrackingScreen({ data }) {
               </View>
             ))
           ) : (
-            <Text style={styles.emptyText}>Personel performans özeti bulunamadı.</Text>
+            <Text style={styles.emptyText}>Seçilen şubede personel performans özeti bulunamadı.</Text>
           )}
         </View>
       </View>
 
       <View style={styles.detailSection}>
         <Text style={styles.sectionTitle}>Mesai Hareket Detayları</Text>
-        {(data.details || []).length ? (data.details || []).slice(0, 40).map((item) => (
+        {filteredDetails.length ? (filteredDetails.slice(0, 40).map((item) => (
           <View style={styles.detailRow} key={`${item.id}-${item.workDate}`}>
             <View style={styles.detailTextWrap}>
               <Text style={styles.detailTitle}>{item.personel} · {formatDate(item.workDate)}</Text>
@@ -1413,7 +1478,7 @@ function TrackingScreen({ data }) {
               {item.status === "OPEN" ? "Açık" : item.approvalStatus === "approved" ? "Onaylı" : "Kapalı"}
             </Text>
           </View>
-        )) : <Text style={styles.emptyText}>Detay kaydı bulunamadı.</Text>}
+        ))) : <Text style={styles.emptyText}>Detay kaydı bulunamadı.</Text>}
       </View>
     </View>
   )
