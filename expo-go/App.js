@@ -19,18 +19,9 @@ import {
 } from "react-native"
 import { CameraView, useCameraPermissions } from "expo-camera"
 import { StatusBar } from "expo-status-bar"
-import * as Notifications from "expo-notifications"
 import * as Print from "expo-print"
 import * as SecureStore from "expo-secure-store"
 import * as Sharing from "expo-sharing"
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-})
 
 const LOGO_IMG = require("./assets/logo.png")
 
@@ -133,27 +124,11 @@ async function getDeviceIdentity() {
     await SecureStore.setItemAsync(DEVICE_KEY, deviceId)
   }
 
-  let pushToken = null
-  try {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync()
-    let finalStatus = existingStatus
-    if (existingStatus !== "granted") {
-      const { status } = await Notifications.requestPermissionsAsync()
-      finalStatus = status
-    }
-    if (finalStatus === "granted") {
-      const tokenData = await Notifications.getExpoPushTokenAsync().catch(() => null)
-      pushToken = tokenData?.data || null
-    }
-  } catch (e) {
-    // Non-fatal fallback
-  }
-
   return {
     deviceId,
     platform: Platform.OS === "ios" ? "ios" : "android",
     label: Platform.OS === "ios" ? "iPhone / iPad uygulaması" : "Android uygulaması",
-    pushToken,
+    pushToken: null,
   }
 }
 
