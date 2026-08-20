@@ -699,7 +699,7 @@ export default function App() {
   if (!session) {
     return (
       <AuthFrame>
-        <Text style={styles.authEyebrow}>HESAP MOBİL v9.0</Text>
+        <Text style={styles.authEyebrow}>HESAP MOBİL</Text>
         <Text style={styles.authTitle}>iOS & Android Giriş</Text>
         <Text style={styles.authText}>Personel maaş ve mesai takip sistemine güvenli giriş yapın.</Text>
         <TextInput
@@ -744,9 +744,6 @@ export default function App() {
           <View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={styles.topEyebrow}>HESAP MOBİL</Text>
-              <View style={styles.proBadge}>
-                <Text style={styles.proBadgeText}>v9.0 PRO</Text>
-              </View>
             </View>
             <Text style={styles.topTitle}>{session.user?.displayName || "Kullanıcı"}</Text>
           </View>
