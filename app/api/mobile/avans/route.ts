@@ -45,7 +45,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ requests: data || [], isManager }, { headers: { "Cache-Control": "no-store" } })
+  const managerUserIds = Array.from(new Set((data || []).map((r) => r.onaylayan_user_id).filter(Boolean)))
+  let managerNameMap = new Map<string, string>()
+  if (managerUserIds.length > 0) {
+    const { data: managers } = await admin
+      .from("user_profiles")
+      .select("user_id, display_name")
+      .in("user_id", managerUserIds)
+    if (managers) {
+      managerNameMap = new Map(managers.map((m) => [m.user_id, m.display_name || "Yönetici"]))
+    }
+  }
+
+  const enrichedRequests = (data || []).map((r) => ({
+    ...r,
+    reviewer_name: r.onaylayan_user_id ? managerNameMap.get(r.onaylayan_user_id) || "Yönetici" : null,
+  }))
+
+  return NextResponse.json({ requests: enrichedRequests, isManager }, { headers: { "Cache-Control": "no-store" } })
 }
 
 export async function POST(request: NextRequest) {

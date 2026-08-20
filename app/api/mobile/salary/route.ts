@@ -262,13 +262,19 @@ export async function GET(request: NextRequest) {
   const advanceTotal = advances.reduce((sum, item) => sum + item.amount, 0)
   const overtimeTotal = overtime.reduce((sum, item) => sum + item.amount, 0)
 
+  const activeCandidates = (candidates || []).filter((p) => {
+    if (p.isten_cikis_tarihi && p.isten_cikis_tarihi < start) return false
+    if (p.aktif === false && (!p.isten_cikis_tarihi || p.isten_cikis_tarihi < start)) return false
+    return true
+  })
+
   return NextResponse.json(
     {
       period: { month, year, monthName, start, end },
       branch,
       personel: { id: personel.id, name: personel.ad },
       isManager,
-      personelList: isManager ? (candidates || []).map((p) => ({ id: p.id, name: p.ad })) : [],
+      personelList: isManager ? activeCandidates.map((p) => ({ id: p.id, name: p.ad })) : [],
       baseSalary,
       bankaMaas,
       nakitMaas,
