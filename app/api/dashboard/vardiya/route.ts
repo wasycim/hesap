@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { isTestPersonnel } from "@/lib/utils/test-personnel"
 
 type AssignmentInput = {
   personel_id: string
@@ -117,7 +118,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: fixedShiftRes.error.message }, { status: 500 })
   }
 
-  const allPersoneller = personelRes.data || []
+  const allPersoneller = (personelRes.data || []).filter((p) => !isTestPersonnel(p))
   const monthFrom = range.from
   const filteredPersoneller = allPersoneller.filter((p) => {
     if (p.isten_cikis_tarihi && p.isten_cikis_tarihi < monthFrom) return false

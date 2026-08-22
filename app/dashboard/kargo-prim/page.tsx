@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Check, ChevronLeft, ChevronRight, Coins, Save, ShieldAlert, Users, Wallet } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { isTestPersonnel } from "@/lib/utils/test-personnel"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -77,6 +78,7 @@ export default function KargoPrimPage() {
     const monthStartDate = `${year}-${String(monthIndex).padStart(2, "0")}-01`
 
     const activePersonelList = (personelRes.data || []).filter(p => {
+      if (isTestPersonnel(p)) return false
       if (p.isten_cikis_tarihi && p.isten_cikis_tarihi < monthStartDate) return false
       if (p.isten_cikis_tarihi && p.isten_cikis_tarihi >= monthStartDate) return true
       return p.aktif

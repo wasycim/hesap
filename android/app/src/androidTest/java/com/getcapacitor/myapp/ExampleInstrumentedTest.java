@@ -1,4 +1,4 @@
-package wasy.system.hesap;
+package wasy.systems.hesap;
 
 import static org.junit.Assert.*;
 
@@ -21,6 +21,6 @@ public class ExampleInstrumentedTest {
         // Context of the app under test.
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
 
-        assertEquals("wasy.system.hesap", appContext.getPackageName());
+        assertEquals("wasy.systems.hesap", appContext.getPackageName());
     }
 }

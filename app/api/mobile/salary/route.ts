@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getRequestAuthUser } from "@/lib/mobile-auth"
+import { isTestPersonnel } from "@/lib/utils/test-personnel"
 
 type Detail = { date: string; amount: number; description: string }
 type OvertimeDetail = Detail & { minutes: number; rate: number; source: "attendance" | "manual" }
@@ -263,6 +264,7 @@ export async function GET(request: NextRequest) {
   const overtimeTotal = overtime.reduce((sum, item) => sum + item.amount, 0)
 
   const activeCandidates = (candidates || []).filter((p) => {
+    if (isTestPersonnel(p)) return false
     if (p.isten_cikis_tarihi && p.isten_cikis_tarihi < start) return false
     if (p.aktif === false && (!p.isten_cikis_tarihi || p.isten_cikis_tarihi < start)) return false
     return true

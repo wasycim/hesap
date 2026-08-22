@@ -3,6 +3,7 @@ import { getMonthEndDate, getMonthStartDate } from "@/lib/date-navigation"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getShiftBusinessDate } from "@/lib/shift-business-date"
+import { isTestPersonnel } from "@/lib/utils/test-personnel"
 
 const VARDIYASIZ_SUBELER = ["carsi", "darica"]
 
@@ -169,6 +170,7 @@ export async function GET(request: NextRequest) {
     })
 
   const personeller = allPersoneller.filter(p => {
+    if (isTestPersonnel(p)) return false
     if (p.isten_cikis_tarihi && p.isten_cikis_tarihi < monthStart && !usedPersonelIds.has(p.id)) {
       return false
     }

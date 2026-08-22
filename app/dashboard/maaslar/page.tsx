@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Calendar, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, FileText, HandCoins, Wallet, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
+import { isTestPersonnel } from "@/lib/utils/test-personnel"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -211,7 +212,7 @@ export default function MaaslarPage() {
       setAvansTalepleri(avansPayload.requests)
     }
     
-    const allPersoneller = personelRes.data || []
+    const allPersoneller = (personelRes.data || []).filter((p) => !isTestPersonnel(p))
     const usedPersonelIds = new Set<string>()
 
     ;(giderRes.data || []).forEach(row => {

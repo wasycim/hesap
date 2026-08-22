@@ -6,6 +6,7 @@ import { getShiftLabel, shiftBoundary } from "@/lib/qr-attendance/time"
 import { roundOvertimeToPaidMinutes } from "@/lib/mesai/overtime"
 import { getDashboardShiftCatalog } from "@/lib/qr-attendance/dashboard-vardiya"
 import type { DashboardShift } from "@/lib/qr-attendance/dashboard-vardiya"
+import { isTestPersonnel } from "@/lib/utils/test-personnel"
 
 function dateParam(value: string | null) {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
@@ -197,9 +198,10 @@ export async function GET(request: NextRequest) {
   if (personelError) return NextResponse.json({ error: personelError.message }, { status: 500 })
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
 
-  const visiblePersoneller = access.isAdmin
+  const visiblePersoneller = (access.isAdmin
     ? (personeller || [])
     : (personeller || []).filter((personel) => normalizeName(personel.ad) === normalizeName(access.profile?.display_name))
+  ).filter((personel) => !isTestPersonnel(personel))
   const branchById = new Map((branches || []).map((branch) => [branch.id, branch]))
   const branchIds = new Set(visiblePersoneller.map((personel) => personel.sube_id))
   if (!access.isAdmin && access.profile?.sube_id) branchIds.add(access.profile.sube_id)

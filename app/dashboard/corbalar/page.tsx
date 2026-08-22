@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
+import { isTestPersonnel } from "@/lib/utils/test-personnel"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -144,6 +145,7 @@ export default function CorbalarPage() {
 
     if (personelData) {
       setPersoneller(personelData.filter(p => {
+        if (isTestPersonnel(p)) return false
         if (p.isten_cikis_tarihi && p.isten_cikis_tarihi < monthStartDate) return false
         if (p.isten_cikis_tarihi && p.isten_cikis_tarihi >= monthStartDate) return true
         return p.aktif

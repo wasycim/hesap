@@ -1,4 +1,4 @@
-package wasy.system.hesap;
+package wasy.systems.hesap;
 
 import static org.junit.Assert.*;
 

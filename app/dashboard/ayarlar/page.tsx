@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
+import { isTestPersonnel } from "@/lib/utils/test-personnel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -125,8 +126,9 @@ export default function AyarlarPage() {
 
     if (ortakRes.data) setOrtaklar(ortakRes.data)
     if (personelRes.data) {
-      setPersoneller(personelRes.data)
-      setNetDrafts(Object.fromEntries(personelRes.data.map(personel => [
+      const validPersoneller = personelRes.data.filter((p) => !isTestPersonnel(p))
+      setPersoneller(validPersoneller)
+      setNetDrafts(Object.fromEntries(validPersoneller.map(personel => [
         personel.id,
         String(Number(personel.aylik_maas || 0)),
       ])))

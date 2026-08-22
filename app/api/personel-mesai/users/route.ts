@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAnyMesaiAdmin } from "@/lib/qr-attendance/admin"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { resolvePersonelDashboardShift, todayInIstanbul } from "@/lib/qr-attendance/dashboard-vardiya"
+import { isTestPersonnel } from "@/lib/utils/test-personnel"
 
 function normalizeName(value: string | null | undefined) {
   return String(value || "")
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
     ]),
   )
 
-  const activePersoneller = (personeller || []).filter((p) => !p.isten_cikis_tarihi || p.isten_cikis_tarihi >= date)
+  const activePersoneller = (personeller || []).filter((p) => (!p.isten_cikis_tarihi || p.isten_cikis_tarihi >= date) && !isTestPersonnel(p))
   const users = await Promise.all(activePersoneller.map(async (personel) => {
     const branch = branchById.get(personel.sube_id)
     const profile = profileByBranchAndName.get(`${personel.sube_id || ""}:${normalizeName(personel.ad)}`)
