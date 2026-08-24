@@ -419,13 +419,11 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
       supabase
         .from("kolon_ayarlari")
         .select("*")
-        .eq("sube_id", currentSube.id)
         .eq("table_type", "on_dort_no_hesap")
         .order("sort_order", { ascending: true }),
       supabase
         .from("on_dort_no_hesap_kayitlari")
-        .select("id, tarih, tutarlar")
-        .eq("sube_id", currentSube.id)
+        .select("id, tarih, tutarlar, updated_at")
         .eq("ay_yil", ayYil)
         .order("tarih", { ascending: true }),
       supabase
@@ -489,12 +487,10 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
         .eq("ay_yil", ayYil),
       supabase
         .from("on_dort_no_hesap_kayitlari")
-        .select("tutarlar")
-        .eq("sube_id", currentSube.id)
+        .select("tutarlar, tarih, updated_at")
         .lt("tarih", selectedMonthStartDate)
         .order("tarih", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+        .limit(10),
       supabase
         .from("gelir_firmalar")
         .select("id, ad")
@@ -533,20 +529,54 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
       deliveryCounterKey,
     )
     const nextBesAKesilenDetails = buildBesAKesilenDetails(deliveryCounterData || [], onDortFirmalarData || [])
-     setIncomeDetails(nextIncomeDetails)
+    setIncomeDetails(nextIncomeDetails)
     setExpenseDetails(nextExpenseDetails)
     setTransferDetails(nextTransferDetails)
     setDeliveryDetails(nextDeliveryDetails)
     setBesAKesilenDetails(nextBesAKesilenDetails)
+
+    const lastPrevRecord = (previousRecordData || []).find((r: any) => r.tutarlar && typeof r.tutarlar.kalan === "number") || (previousRecordData || [])[0]
+
     setOpeningBalance(
       selectedMonthStartDate === HISTORICAL_OPENING_BALANCE_DATE
         ? HISTORICAL_OPENING_BALANCE
-        : Number(previousRecordData?.tutarlar?.kalan) || 0,
+        : Number(lastPrevRecord?.tutarlar?.kalan) || 0,
     )
     setColumnSettings(mergeColumnSettings("on_dort_no_hesap", settingsData as TableColumnSetting[] | null))
-    setRows((recordData || [])
-      .filter(row => isDateInSelectedMonth(row.tarih, month, year))
-      .map(row => ({ id: row.id, tarih: row.tarih, tutarlar: applyAutoValues(row.tarih, (row.tutarlar || {}) as Values, nextIncomeDetails, nextExpenseDetails, nextTransferDetails, nextDeliveryDetails, nextBesAKesilenDetails) }))
+
+    // Deduplicate records by tarih (pick non-empty / most recently updated row)
+    const rowsByDate: Record<string, any> = {}
+    ;(recordData || []).forEach((row: any) => {
+      const existing = rowsByDate[row.tarih]
+      if (!existing) {
+        rowsByDate[row.tarih] = row
+      } else {
+        const existingGelir = Number(existing.tutarlar?.gelir_toplam) || 0
+        const existingGider = Number(existing.tutarlar?.gider_toplam) || 0
+        const currentGelir = Number(row.tutarlar?.gelir_toplam) || 0
+        const currentGider = Number(row.tutarlar?.gider_toplam) || 0
+
+        const existingHasData = existingGelir > 0 || existingGider > 0
+        const currentHasData = currentGelir > 0 || currentGider > 0
+
+        if (currentHasData && !existingHasData) {
+          rowsByDate[row.tarih] = row
+        } else if (currentHasData && existingHasData) {
+          if (new Date(row.updated_at || 0) > new Date(existing.updated_at || 0)) {
+            rowsByDate[row.tarih] = row
+          }
+        } else if (!currentHasData && !existingHasData) {
+          if (new Date(row.updated_at || 0) > new Date(existing.updated_at || 0)) {
+            rowsByDate[row.tarih] = row
+          }
+        }
+      }
+    })
+    const finalRecordData = Object.values(rowsByDate)
+
+    setRows(finalRecordData
+      .filter((row: any) => isDateInSelectedMonth(row.tarih, month, year))
+      .map((row: any) => ({ id: row.id, tarih: row.tarih, tutarlar: applyAutoValues(row.tarih, (row.tutarlar || {}) as Values, nextIncomeDetails, nextExpenseDetails, nextTransferDetails, nextDeliveryDetails, nextBesAKesilenDetails) }))
       .sort(compareDateAscending))
     markClean()
     setLoading(false)
@@ -968,7 +998,6 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
   }
 
   async function saveData() {
-    if (!currentSube || !currentUserId) return false
     setSaving(true)
 
     const invalidDateIndex = orderedRows.findIndex(row => !isDateInSelectedMonth(row.tarih, month, year))
@@ -981,7 +1010,6 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
     const { error: deleteError } = await supabase
       .from("on_dort_no_hesap_kayitlari")
       .delete()
-      .eq("sube_id", currentSube.id)
       .eq("ay_yil", ayYil)
 
     if (deleteError) {
@@ -992,11 +1020,12 @@ export function OnDortNoHesapTable({ section = "all", embedded = false }: OnDort
 
     if (orderedRows.length > 0) {
       const saveValueMap = buildCalculatedValueMap(rows)
+      const targetSubeId = currentSube?.id || sourceSube?.id || "172cc1f6-3012-47d3-a707-36e6f77e97cf"
       const { error: insertError } = await supabase
         .from("on_dort_no_hesap_kayitlari")
         .insert(orderedRows.map(row => ({
-          user_id: currentUserId,
-          sube_id: currentSube.id,
+          user_id: currentUserId || "system",
+          sube_id: targetSubeId,
           ay_yil: ayYil,
           tarih: row.tarih,
           tutarlar: getCalculatedValues(row, saveValueMap),

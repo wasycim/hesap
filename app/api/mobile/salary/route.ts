@@ -149,8 +149,9 @@ export async function GET(request: NextRequest) {
     admin
       .from("kargo_prim_kayitlari")
       .select("personel_hakedis, secili_personeller")
-      .eq("sube_id", profile.sube_id)
       .eq("ay_yil", ayYil)
+      .order("updated_at", { ascending: false })
+      .limit(1)
       .maybeSingle(),
     admin
       .from("corbalar")

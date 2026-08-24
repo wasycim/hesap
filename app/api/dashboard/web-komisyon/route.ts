@@ -85,24 +85,42 @@ export async function GET(request: NextRequest) {
 
   if (firmaErr) return NextResponse.json({ error: firmaErr.message }, { status: 500 })
 
-  // Web komisyon kayitlarini getir (ilgili yil icin)
+  // Web komisyon kayitlarini getir (ilgili yil icin - tum subeler arasi ortak)
   const yearStart = `${year}-01-01`
   const yearEnd = `${year}-12-31`
   const { data: recordsData, error: recordsErr } = await admin
     .from("web_komisyon_kayitlari")
     .select("*")
-    .eq("sube_id", sube.id)
     .gte("tarih", yearStart)
     .lte("tarih", yearEnd)
     .order("tarih", { ascending: true })
 
   if (recordsErr) return NextResponse.json({ error: recordsErr.message }, { status: 500 })
 
+  // Deduplicate by ay_yil: pick the record with valid data / most recently updated
+  const recordsByAyYil: Record<string, any> = {}
+  ;(recordsData || []).forEach((rec: any) => {
+    const existing = recordsByAyYil[rec.ay_yil]
+    if (!existing) {
+      recordsByAyYil[rec.ay_yil] = rec
+    } else {
+      const existingTotal = Number(existing.toplam_komisyon) || 0
+      const currentTotal = Number(rec.toplam_komisyon) || 0
+      if (currentTotal > 0 && existingTotal === 0) {
+        recordsByAyYil[rec.ay_yil] = rec
+      } else if (currentTotal > 0 && existingTotal > 0) {
+        if (new Date(rec.updated_at) > new Date(existing.updated_at)) {
+          recordsByAyYil[rec.ay_yil] = rec
+        }
+      }
+    }
+  })
+
   return NextResponse.json({
     sube,
     isAdmin: true,
     firmalar: firmalarData || [],
-    records: recordsData || [],
+    records: Object.values(recordsByAyYil),
   })
 }
 
@@ -125,6 +143,20 @@ export async function POST(request: NextRequest) {
   const { sube } = await resolveSube(admin, requestedSubeId, profile)
   if (!sube) return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 })
 
+  // Check existing records for these ay_yil values across all subes
+  const ayYilList = records.map((r: any) => r.ay_yil).filter(Boolean)
+  const { data: existingRecords } = await admin
+    .from("web_komisyon_kayitlari")
+    .select("id, sube_id, ay_yil")
+    .in("ay_yil", ayYilList)
+
+  const existingMap = new Map<string, { id: string; sube_id: string }>()
+  ;(existingRecords || []).forEach((r: any) => {
+    if (!existingMap.has(r.ay_yil)) {
+      existingMap.set(r.ay_yil, { id: r.id, sube_id: r.sube_id })
+    }
+  })
+
   const upsertPayloads = records.map((rec: any) => {
     const firmaDegerleri = typeof rec.firma_degerleri === "object" && rec.firma_degerleri !== null
       ? rec.firma_degerleri
@@ -135,8 +167,10 @@ export async function POST(request: NextRequest) {
       0
     )
 
-    return {
-      sube_id: sube.id,
+    const existing = existingMap.get(rec.ay_yil)
+
+    const payload: any = {
+      sube_id: existing?.sube_id || sube.id,
       tarih: rec.tarih,
       ay_yil: rec.ay_yil,
       firma_degerleri: firmaDegerleri,
@@ -144,11 +178,17 @@ export async function POST(request: NextRequest) {
       notlar: rec.notlar || null,
       updated_at: new Date().toISOString(),
     }
+
+    if (existing?.id) {
+      payload.id = existing.id
+    }
+
+    return payload
   })
 
   const { data, error } = await admin
     .from("web_komisyon_kayitlari")
-    .upsert(upsertPayloads, { onConflict: "sube_id,ay_yil" })
+    .upsert(upsertPayloads)
     .select()
 
   if (error) {

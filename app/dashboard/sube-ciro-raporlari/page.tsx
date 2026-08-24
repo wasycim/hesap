@@ -335,7 +335,6 @@ export default function SubeCiroRaporlariPage() {
     if (selectedSubeId !== "all") {
       firmaQuery = firmaQuery.eq("sube_id", selectedSubeId)
       gelirQuery = gelirQuery.eq("sube_id", selectedSubeId)
-      webKomisyonQuery = webKomisyonQuery.eq("sube_id", selectedSubeId)
     }
 
     const [firmaRes, gelirRes, webRes] = await Promise.all([firmaQuery, gelirQuery, webKomisyonQuery])
