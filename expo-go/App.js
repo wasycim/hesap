@@ -127,7 +127,7 @@ async function getDeviceIdentity() {
   return {
     deviceId,
     platform: Platform.OS === "ios" ? "ios" : "android",
-    label: Platform.OS === "ios" ? "iPhone / iPad uygulaması" : "Android uygulaması",
+    label: Platform.OS === "ios" ? "iPhone / iPad Uygulaması" : "Mobil Uygulama",
     pushToken: null,
   }
 }
@@ -700,7 +700,7 @@ export default function App() {
     return (
       <AuthFrame>
         <Text style={styles.authEyebrow}>HESAP MOBİL</Text>
-        <Text style={styles.authTitle}>iOS & Android Giriş</Text>
+        <Text style={styles.authTitle}>Güvenli Mobil Giriş</Text>
         <Text style={styles.authText}>Personel maaş ve mesai takip sistemine güvenli giriş yapın.</Text>
         <TextInput
           style={styles.input}
