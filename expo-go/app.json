@@ -2,7 +2,7 @@
   "expo": {
     "name": "Hesap",
     "slug": "hesap",
-    "version": "9.8.9",
+    "version": "9.8.91",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "hesapgo",
