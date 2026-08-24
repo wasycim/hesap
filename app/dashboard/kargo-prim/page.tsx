@@ -41,8 +41,8 @@ export default function KargoPrimPage() {
   const years = Array.from({ length: 10 }, (_, i) => startYear + i)
 
   useEffect(() => {
-    loadData()
-  }, [ayYil])
+    if (currentSube) loadData()
+  }, [currentSube?.id, ayYil])
 
   if (!isAdmin && !loading) {
     return (
@@ -57,19 +57,20 @@ export default function KargoPrimPage() {
   }
 
   async function loadData() {
+    if (!currentSube) return
     setLoading(true)
 
     const [personelRes, primRes] = await Promise.all([
       supabase
         .from("personeller")
-        .select("id, ad, aktif, isten_cikis_tarihi, sube_id")
+        .select("id, ad, aktif, isten_cikis_tarihi")
+        .eq("sube_id", currentSube.id)
         .order("sira", { ascending: true }),
       supabase
         .from("kargo_prim_kayitlari")
         .select("*")
+        .eq("sube_id", currentSube.id)
         .eq("ay_yil", ayYil)
-        .order("updated_at", { ascending: false })
-        .limit(1)
         .maybeSingle(),
     ])
 
@@ -126,21 +127,14 @@ export default function KargoPrimPage() {
   const personelBasinaHakedis = selectedCount > 0 ? isciHakedis / selectedCount : 0
 
   async function handleSave() {
+    if (!currentSube) return
     setSaving(true)
 
     const monthIndex = MONTHS.indexOf(month) + 1
     const tarih = `${year}-${String(monthIndex).padStart(2, "0")}-01`
 
-    // Check if a record already exists for this ay_yil across any sube
-    const { data: existingRecord } = await supabase
-      .from("kargo_prim_kayitlari")
-      .select("id, sube_id")
-      .eq("ay_yil", ayYil)
-      .limit(1)
-      .maybeSingle()
-
-    const payload: any = {
-      sube_id: existingRecord?.sube_id || currentSube?.id || "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981",
+    const payload = {
+      sube_id: currentSube.id,
       tarih,
       ay_yil: ayYil,
       toplam_ciro: ciroNum,
@@ -151,13 +145,9 @@ export default function KargoPrimPage() {
       updated_at: new Date().toISOString(),
     }
 
-    if (existingRecord?.id) {
-      payload.id = existingRecord.id
-    }
-
     const { error } = await supabase
       .from("kargo_prim_kayitlari")
-      .upsert(payload)
+      .upsert(payload, { onConflict: "sube_id,ay_yil" })
 
     setSaving(false)
 

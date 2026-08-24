@@ -193,9 +193,8 @@ export default function MaaslarPage() {
       supabase
         .from("kargo_prim_kayitlari")
         .select("personel_hakedis, secili_personeller")
+        .eq("sube_id", currentSube.id)
         .eq("ay_yil", ayYil)
-        .order("updated_at", { ascending: false })
-        .limit(1)
         .maybeSingle(),
       supabase
         .from("corbalar")
