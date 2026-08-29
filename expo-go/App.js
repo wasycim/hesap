@@ -483,15 +483,14 @@ export default function App() {
   const loadNotifications = useCallback(async () => {
     if (!session) return
     setLoading(true)
-    setError("")
     try {
       const data = await requestJson("/api/notifications")
       setNotificationsList(data.notifications || [])
       setUnreadNotificationsCount(data.unreadCount || 0)
     } catch (reason) {
       if (reason.status === 401) await clearSession()
-      setError(reason.message || "Bildirimler yüklenemedi.")
       setNotificationsList([])
+      setUnreadNotificationsCount(0)
     } finally {
       setLoading(false)
     }
