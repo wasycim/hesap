@@ -1,6 +1,6 @@
 {
   "name": "hesap-mobile-ios",
-  "version": "9.8.97",
+  "version": "9.8.98",
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
