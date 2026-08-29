@@ -30,6 +30,10 @@
 	<string>Terminal QR kodunu okutmak ve personel mesai giriş çıkış işlemini tamamlamak için kamera kullanılır.</string>
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>Mesai, rapor ve güvenlik uyarıları için bildirim gönderilir.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

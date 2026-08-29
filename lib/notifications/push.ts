@@ -185,16 +185,29 @@ export async function sendPushNotificationToToken(input: PushInput): Promise<Pus
             priority: "HIGH",
             notification: {
               sound: "default",
-              channel_id: "hesap_alerts",
+              channel_id: "hesap_alerts_v2",
+              visibility: "PUBLIC",
+              notification_priority: "PRIORITY_MAX",
+              default_sound: true,
+              default_vibrate_timings: true,
+              default_light_settings: true,
             },
           },
           apns: {
             headers: {
               "apns-priority": "10",
+              "apns-push-type": "alert",
             },
             payload: {
               aps: {
+                alert: {
+                  title: input.title,
+                  body: input.body,
+                },
                 sound: "default",
+                badge: 1,
+                "interruption-level": "active",
+                "relevance-score": 1.0,
               },
             },
           },
@@ -322,6 +335,8 @@ function sendApnsRequest(input: PushInput, deviceToken: string, environment: Apn
       sound: "default",
       badge: 1,
       "thread-id": "hesap",
+      "interruption-level": "active",
+      "relevance-score": 1.0,
     },
     href: input.href || "/dashboard",
     notificationId: input.notificationId || "",

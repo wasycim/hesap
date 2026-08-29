@@ -229,13 +229,15 @@ async function registerPushNotificationsInternal(setPushState: (state: PushState
   }
 
   if (Capacitor.getPlatform() === "android") {
+    await PushNotifications.deleteChannel({ id: "hesap_alerts" }).catch(() => undefined)
     await PushNotifications.createChannel({
-      id: "hesap_alerts",
+      id: "hesap_alerts_v2",
       name: "Hesap Bildirimleri",
       description: "Mesai, vardiya, rapor ve güvenlik uyarıları",
       importance: 5,
       visibility: 1,
       sound: "default",
+      vibration: true,
     }).catch(() => undefined)
   }
   await PushNotifications.register().catch(() => undefined)
