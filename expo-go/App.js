@@ -22,6 +22,15 @@ import { StatusBar } from "expo-status-bar"
 import * as Print from "expo-print"
 import * as SecureStore from "expo-secure-store"
 import * as Sharing from "expo-sharing"
+import * as Notifications from "expo-notifications"
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+})
 
 const LOGO_IMG = require("./assets/logo.png")
 
@@ -117,6 +126,32 @@ function makeDeviceId() {
   return `native-${Platform.OS}-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`
 }
 
+async function registerForPushNotificationsAsync() {
+  let token = null
+  try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync()
+    let finalStatus = existingStatus
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync()
+      finalStatus = status
+    }
+    if (finalStatus === "granted") {
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: "efc72129-3fef-468b-a646-c0b8ce98bb36",
+      }).catch(() => null)
+      if (tokenData?.data) {
+        token = tokenData.data
+      } else {
+        const deviceToken = await Notifications.getDevicePushTokenAsync().catch(() => null)
+        if (deviceToken?.data) token = deviceToken.data
+      }
+    }
+  } catch (e) {
+    // fallback
+  }
+  return token
+}
+
 async function getDeviceIdentity() {
   let deviceId = await SecureStore.getItemAsync(DEVICE_KEY)
   if (!deviceId) {
@@ -167,6 +202,8 @@ export default function App() {
   const [reports, setReports] = useState(null)
   const [debts, setDebts] = useState(null)
   const [backups, setBackups] = useState(null)
+  const [notificationsList, setNotificationsList] = useState([])
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0)
   const [scannerOpen, setScannerOpen] = useState(false)
   const [scanLocked, setScanLocked] = useState(false)
   const [scanMessage, setScanMessage] = useState("")
@@ -191,6 +228,8 @@ export default function App() {
     setReports(null)
     setDebts(null)
     setBackups(null)
+    setNotificationsList([])
+    setUnreadNotificationsCount(0)
     setScannerOpen(false)
     setScanLocked(false)
     setScanMessage("")
@@ -248,9 +287,10 @@ export default function App() {
 
   const registerDevice = useCallback(async (activeSession) => {
     const identity = await getDeviceIdentity()
+    const pushToken = await registerForPushNotificationsAsync()
     await requestJson("/api/mobile/register-device", {
       method: "POST",
-      body: JSON.stringify(identity),
+      body: JSON.stringify({ ...identity, pushToken }),
     }, activeSession).catch(() => undefined)
   }, [requestJson])
 
@@ -440,6 +480,36 @@ export default function App() {
     }
   }, [clearSession, requestJson, session])
 
+  const loadNotifications = useCallback(async () => {
+    if (!session) return
+    setLoading(true)
+    setError("")
+    try {
+      const data = await requestJson("/api/notifications")
+      setNotificationsList(data.notifications || [])
+      setUnreadNotificationsCount(data.unreadCount || 0)
+    } catch (reason) {
+      if (reason.status === 401) await clearSession()
+      setError(reason.message || "Bildirimler yüklenemedi.")
+      setNotificationsList([])
+    } finally {
+      setLoading(false)
+    }
+  }, [clearSession, requestJson, session])
+
+  const markNotificationAsRead = useCallback(async (id) => {
+    if (!session) return
+    try {
+      await requestJson("/api/notifications", {
+        method: "PATCH",
+        body: JSON.stringify(id ? { id } : { all: true }),
+      })
+      await loadNotifications()
+    } catch (e) {
+      // fallback
+    }
+  }, [loadNotifications, requestJson, session])
+
   const processQrUrl = useCallback(async (url) => {
     if (!url) return
     let qr = url
@@ -487,6 +557,24 @@ export default function App() {
 
   useEffect(() => {
     if (!sessionToken) return
+    loadNotifications()
+
+    const receivedSub = Notifications.addNotificationReceivedListener(() => {
+      loadNotifications()
+    })
+    const responseSub = Notifications.addNotificationResponseReceivedListener(() => {
+      setScreen("notifications")
+      loadNotifications()
+    })
+
+    return () => {
+      receivedSub.remove()
+      responseSub.remove()
+    }
+  }, [loadNotifications, sessionToken])
+
+  useEffect(() => {
+    if (!sessionToken) return
 
     const key = `${screen}:${period.month}-${period.year}:${selectedPersonelId}`
     if (lastLoadedRef.current === key) return
@@ -496,7 +584,8 @@ export default function App() {
     if (screen === "attendance") loadAttendance()
     if (screen === "tracking") loadTracking()
     if (screen === "shifts") loadShifts()
-  }, [screen, sessionToken, period.month, period.year, selectedPersonelId, loadSalary, loadAttendance, loadTracking, loadShifts])
+    if (screen === "notifications") loadNotifications()
+  }, [screen, sessionToken, period.month, period.year, selectedPersonelId, loadSalary, loadAttendance, loadTracking, loadShifts, loadNotifications])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -509,10 +598,11 @@ export default function App() {
       if (screen === "reports") await loadReports()
       if (screen === "debts") await loadDebts()
       if (screen === "backups") await loadBackups()
+      if (screen === "notifications") await loadNotifications()
     } finally {
       setRefreshing(false)
     }
-  }, [loadAttendance, loadBackups, loadDebts, loadOverview, loadReports, loadSalary, loadShifts, loadTracking, screen])
+  }, [loadAttendance, loadBackups, loadDebts, loadNotifications, loadOverview, loadReports, loadSalary, loadShifts, loadTracking, screen])
 
   async function handleLogin() {
     const tcKimlik = normalizeTc(loginForm.tcKimlik)
@@ -765,6 +855,11 @@ export default function App() {
           <TabButton label="⏰ Mesai QR" active={screen === "attendance"} onPress={() => setScreen("attendance")} />
           <TabButton label="📅 Vardiyam" active={screen === "shifts"} onPress={() => setScreen("shifts")} />
           <TabButton label="⏱️ Mesai Takip" active={screen === "tracking"} onPress={() => setScreen("tracking")} />
+          <TabButton
+            label={unreadNotificationsCount > 0 ? `🔔 Bildirimler (${unreadNotificationsCount})` : "🔔 Bildirimler"}
+            active={screen === "notifications"}
+            onPress={() => { setScreen("notifications"); loadNotifications(); }}
+          />
         </ScrollView>
       </View>
 
@@ -794,6 +889,15 @@ export default function App() {
         {screen === "attendance" ? <AttendanceScreen data={attendance} onOpenScanner={openScanner} /> : null}
         {screen === "shifts" ? <ShiftsScreen data={shifts} onRequestReload={loadShifts} requestJson={requestJson} /> : null}
         {screen === "tracking" ? <TrackingScreen data={tracking} onRequestBranchFilter={(subeId) => loadTracking(subeId)} /> : null}
+        {screen === "notifications" ? (
+          <NotificationsScreen
+            notifications={notificationsList}
+            unreadCount={unreadNotificationsCount}
+            onMarkRead={(id) => markNotificationAsRead(id)}
+            onMarkAllRead={() => markNotificationAsRead()}
+            loading={loading}
+          />
+        ) : null}
       </ScrollView>
 
       <Modal visible={scannerOpen} animationType="slide" onRequestClose={() => { isScanningRef.current = false; setScannerOpen(false); }}>
@@ -2651,3 +2755,61 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 })
+
+function NotificationsScreen({ notifications, unreadCount, onMarkRead, onMarkAllRead, loading }) {
+  return (
+    <View style={{ gap: 12 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Text style={{ fontSize: 18, fontWeight: "900", color: "#f8fafc" }}>Bildirimler</Text>
+          {unreadCount > 0 ? (
+            <View style={{ backgroundColor: "#ef4444", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2 }}>
+              <Text style={{ color: "#fff", fontSize: 11, fontWeight: "900" }}>{unreadCount} yeni</Text>
+            </View>
+          ) : null}
+        </View>
+        {notifications?.length ? (
+          <TouchableOpacity onPress={() => onMarkAllRead()} style={{ backgroundColor: "rgba(16,185,129,0.15)", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 }}>
+            <Text style={{ color: "#34d399", fontSize: 12, fontWeight: "800" }}>Tümünü okundu yap</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      {!notifications?.length && !loading ? (
+        <View style={{ backgroundColor: "#0f172a", borderRadius: 16, padding: 24, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
+          <Text style={{ fontSize: 32, marginBottom: 8 }}>🔔</Text>
+          <Text style={{ color: "#f8fafc", fontSize: 15, fontWeight: "800" }}>Henüz bildirim yok</Text>
+          <Text style={{ color: "#94a3b8", fontSize: 13, textAlign: "center", marginTop: 4 }}>Sistem, vardiya veya mesai duyuruları burada gösterilecektir.</Text>
+        </View>
+      ) : null}
+
+      {notifications?.map((item) => {
+        const isRead = Boolean(item.read_at)
+        const levelColor = item.level === "error" ? "#ef4444" : item.level === "warning" ? "#f59e0b" : item.level === "success" ? "#10b981" : "#3b82f6"
+        return (
+          <TouchableOpacity
+            key={item.id}
+            onPress={() => onMarkRead(item.id)}
+            style={{
+              backgroundColor: isRead ? "#0f172a" : "#1e293b",
+              borderRadius: 16,
+              padding: 16,
+              borderWidth: 1,
+              borderColor: isRead ? "rgba(255,255,255,0.06)" : levelColor,
+              gap: 6,
+            }}
+          >
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Text style={{ color: "#f8fafc", fontSize: 15, fontWeight: "800", flex: 1 }}>{item.title}</Text>
+              {!isRead ? (
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: levelColor }} />
+              ) : null}
+            </View>
+            <Text style={{ color: "#cbd5e1", fontSize: 13, lineHeight: 18 }}>{item.body}</Text>
+            <Text style={{ color: "#64748b", fontSize: 11, marginTop: 4 }}>{formatDateTime(item.created_at)}</Text>
+          </TouchableOpacity>
+        )
+      })}
+    </View>
+  )
+}

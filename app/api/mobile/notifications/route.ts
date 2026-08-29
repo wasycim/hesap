@@ -1,8 +1,10 @@
+import { NextRequest, NextResponse } from "next/server"
 import { getRequestAuthUser } from "@/lib/mobile-auth"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
   const user = await getRequestAuthUser(request)
-  if (!user) return NextResponse.json({ notifications: [], unreadCount: 0 })
+  if (!user) return NextResponse.json({ error: "Oturum bulunamadı." }, { status: 401 })
 
   const admin = createAdminClient()
   const { data, error } = await admin
@@ -52,25 +54,6 @@ export async function PATCH(request: NextRequest) {
     .update({ read_at: new Date().toISOString() })
     .eq("id", id)
     .or(`user_id.eq.${user.id},user_id.is.null`)
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
-}
-
-export async function DELETE(request: NextRequest) {
-  const user = await getRequestAuthUser(request)
-  if (!user) return NextResponse.json({ error: "Oturum bulunamadı." }, { status: 401 })
-
-  const id = String(request.nextUrl.searchParams.get("id") || "").trim()
-  if (!id) return NextResponse.json({ error: "Bildirim id zorunlu." }, { status: 400 })
-
-  const admin = createAdminClient()
-  const { error } = await admin
-    .from("app_notifications")
-    .delete()
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .not("read_at", "is", null)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })

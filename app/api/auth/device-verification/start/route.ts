@@ -23,20 +23,33 @@ export async function POST(request: NextRequest) {
   const label = String(body.label || platform || "Bilinmeyen cihaz").trim().slice(0, 140)
   const resend = body.resend === true
 
-  // Cihaz doğrulaması geçici olarak devre dışı bırakıldıysa otomatik olarak güvenli cihaz kaydet ve geç
-  if (DISABLE_DEVICE_VERIFICATION) {
+  const isIosDevice =
+    platform.toLowerCase() === "ios" ||
+    platform.toLowerCase() === "ios-web" ||
+    request.cookies.get("hesap-native-platform")?.value === "ios"
+
+  // 2 aşamalı e-posta ile cihaz doğrulaması ve cihaz kaydı SADECE iOS cihazları için zorunludur.
+  // Android, Web ve Masaüstü platformları için cihaz doğrulaması atlanır.
+  if (!isIosDevice) {
     const admin = createAdminClient()
     if (deviceId && /^[a-zA-Z0-9._:-]{8,200}$/.test(deviceId)) {
-      await admin.from("trusted_devices").upsert({
-        user_id: user.id,
-        device_id: deviceId,
-        platform,
-        label,
-        verified_at: new Date().toISOString(),
-        last_seen_at: new Date().toISOString(),
-      }, { onConflict: "user_id,device_id" })
+      await admin.from("trusted_devices").upsert(
+        {
+          user_id: user.id,
+          device_id: deviceId,
+          platform,
+          label,
+          verified_at: new Date().toISOString(),
+          last_seen_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,device_id" }
+      )
     }
-    return trustedResponse(user.id, deviceId || "bypassed-device-id", { challengeRequired: false, trusted: true, bypassed: true })
+    return trustedResponse(user.id, deviceId || "bypassed-device-id", {
+      challengeRequired: false,
+      trusted: true,
+      bypassed: true,
+    })
   }
   if (!isPhoneMobileVerificationRequest(request, platform)) {
     return NextResponse.json({ error: "Cihaz doğrulaması sadece telefon mobil uygulaması için kullanılır." }, { status: 403 })

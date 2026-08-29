@@ -2,7 +2,7 @@
   "expo": {
     "name": "Hesap",
     "slug": "hesap",
-    "version": "9.8.92",
+    "version": "9.8.94",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "hesapgo",
@@ -47,7 +47,14 @@
         }
       ],
       "expo-secure-store",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#10b981"
+        }
+      ]
     ]
   }
 }

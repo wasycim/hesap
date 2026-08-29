@@ -1,13 +1,13 @@
 {
   "name": "hesap-mobile-ios",
-  "version": "9.8.92",
+  "version": "9.8.94",
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start --tunnel",
     "start:lan": "expo start",
-    "ios": "expo start --ios",
-    "android": "expo start --android",
+    "ios": "expo run:ios",
+    "android": "expo run:android",
     "web": "expo start --web",
     "eas:login": "npx --yes eas-cli@20.5.0 login",
     "eas:whoami": "npx --yes eas-cli@20.5.0 whoami",
@@ -22,6 +22,7 @@
   "dependencies": {
     "expo": "~57.0.2",
     "expo-camera": "~57.0.0",
+    "expo-notifications": "~57.0.13",
     "expo-print": "~57.0.0",
     "expo-secure-store": "~57.0.0",
     "expo-sharing": "~57.0.2",
