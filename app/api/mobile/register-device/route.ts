@@ -18,6 +18,17 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient()
   const now = new Date().toISOString()
+
+  const { data: existingDevice } = await admin
+    .from("user_devices")
+    .select("push_token")
+    .eq("user_id", user.id)
+    .eq("device_id", deviceId)
+    .eq("platform", platform)
+    .maybeSingle()
+
+  const finalPushToken = pushToken || existingDevice?.push_token || null
+
   const { data, error } = await admin
     .from("user_devices")
     .upsert(
@@ -25,7 +36,7 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         device_id: deviceId || null,
         platform,
-        push_token: pushToken,
+        push_token: finalPushToken,
         enabled: true,
         last_seen_at: now,
         updated_at: now,
