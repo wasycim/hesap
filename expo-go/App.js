@@ -129,10 +129,25 @@ function makeDeviceId() {
 async function registerForPushNotificationsAsync() {
   let token = null
   try {
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync("default", {
+        name: "default",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#FF231F7C",
+      }).catch(() => undefined)
+    }
     const { status: existingStatus } = await Notifications.getPermissionsAsync()
     let finalStatus = existingStatus
     if (existingStatus !== "granted") {
-      const { status } = await Notifications.requestPermissionsAsync()
+      const { status } = await Notifications.requestPermissionsAsync({
+        ios: {
+          allowAlert: true,
+          allowBadge: true,
+          allowSound: true,
+          allowAnnouncements: true,
+        },
+      }).catch(() => ({ status: existingStatus }))
       finalStatus = status
     }
     if (finalStatus === "granted") {
@@ -143,7 +158,9 @@ async function registerForPushNotificationsAsync() {
         token = tokenData.data
       } else {
         const deviceToken = await Notifications.getDevicePushTokenAsync().catch(() => null)
-        if (deviceToken?.data) token = deviceToken.data
+        if (deviceToken?.data) {
+          token = typeof deviceToken.data === "string" ? deviceToken.data : JSON.stringify(deviceToken.data)
+        }
       }
     }
   } catch (e) {
@@ -556,6 +573,7 @@ export default function App() {
 
   useEffect(() => {
     if (!sessionToken) return
+    registerDevice(session)
     loadNotifications()
 
     const receivedSub = Notifications.addNotificationReceivedListener(() => {
@@ -570,7 +588,7 @@ export default function App() {
       receivedSub.remove()
       responseSub.remove()
     }
-  }, [loadNotifications, sessionToken])
+  }, [loadNotifications, registerDevice, session, sessionToken])
 
   useEffect(() => {
     if (!sessionToken) return
