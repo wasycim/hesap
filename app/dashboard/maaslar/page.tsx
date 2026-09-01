@@ -558,12 +558,12 @@ export default function MaaslarPage() {
       subtitle: `${currentSube?.ad || ""} · ${month} ${year}`,
       orientation: "portrait",
       metrics: [
-        { label: "Net Maaş", value: `${formatMoney(item.baseSalary)} TL` },
-        { label: "Banka Maaş / Nakit", value: `${formatMoney(item.bankayaGonderilen)} TL / ${formatMoney(item.kalanNakit)} TL` },
+        { label: "Net Maaş (Taban)", value: `${formatMoney(item.baseSalary)} TL` },
+        { label: "Banka Maaş (Gönderilen)", value: `${formatMoney(item.bankayaGonderilen)} TL` },
+        { label: item.nakitOdemeTarihi ? `${formatDate(item.nakitOdemeTarihi)} Nakit Maaş` : "Nakit Maaş (Kalan)", value: `${formatMoney(item.kalanNakit)} TL` },
         { label: "Hakediş / Mesai", value: `+${formatMoney(item.overtimeTotal)} TL` },
-        { label: "Avans", value: `-${formatMoney(item.advanceTotal)} TL` },
+        { label: "Alınan Avans", value: `-${formatMoney(item.advanceTotal)} TL` },
         ...(item.corbaTotal > 0 ? [{ label: "Çorba Kazanılan", value: `+${formatMoney(item.corbaTotal)} TL` }] : []),
-        { label: item.nakitOdemeTarihi ? `${formatDate(item.nakitOdemeTarihi)} Nakit` : "Nakit Alınacak Net", value: `${formatMoney(item.kalanNakit)} TL` },
       ],
       tables: [
         {
