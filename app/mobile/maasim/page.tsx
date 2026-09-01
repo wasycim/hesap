@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { ChevronLeft, ChevronRight, Clock3, FileUp, Loader2, MinusCircle, WalletCards, Users } from "lucide-react"
-import { openPdfReport } from "@/lib/pdf-report"
+import { openPdfReport, isIOSPlatform } from "@/lib/pdf-report"
 
 type Salary = {
   period: { month: number; year: number }
@@ -24,6 +24,11 @@ export default function MobileSalaryPage() {
   const [data, setData] = useState<Salary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isIOS, setIsIOS] = useState(false)
+
+  useEffect(() => {
+    setIsIOS(isIOSPlatform())
+  }, [])
 
   const loadSalaryData = useCallback(async () => {
     setLoading(true)
@@ -94,10 +99,12 @@ export default function MobileSalaryPage() {
           <h1>{data?.isManager ? "Maaş & Bordro Yönetimi" : "Maaşım"}</h1>
           <p>{data?.isManager ? "Personellerin ve yöneticinin maaş bordrosu" : "Yalnızca size ait maaş ve onaylı avans/mesai bilgileri"}</p>
         </div>
-        <button type="button" className="ios-share-button" onClick={sharePdf} disabled={!data}>
-          <FileUp className="h-5 w-5" />
-          <span>PDF</span>
-        </button>
+        {!isIOS && (
+          <button type="button" className="ios-share-button" onClick={sharePdf} disabled={!data}>
+            <FileUp className="h-5 w-5" />
+            <span>PDF</span>
+          </button>
+        )}
       </header>
 
       <div className="ios-period-picker">

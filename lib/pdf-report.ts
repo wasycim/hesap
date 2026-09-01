@@ -737,6 +737,14 @@ function archivePdfReport(title: string, subtitle: string | undefined, html: str
   }).catch(() => undefined)
 }
 
+export function isIOSPlatform(): boolean {
+  if (typeof window === "undefined") return false
+  const cap = (window as Record<string, any>).Capacitor
+  if (cap?.getPlatform?.() === "ios") return true
+  const ua = window.navigator?.userAgent || ""
+  return /iPhone|iPad|iPod/i.test(ua)
+}
+
 export function openPdfReport({
   title,
   subtitle,
@@ -748,6 +756,11 @@ export function openPdfReport({
   charts = [],
   archive = true,
 }: PdfReportOptions) {
+  if (typeof window !== "undefined" && isIOSPlatform()) {
+    window.alert("iOS uygulamasında PDF indirme kapalıdır. Tüm detayları ekrandan detaylı şekilde inceleyebilirsiniz.")
+    return
+  }
+
   if (typeof window !== "undefined" && document.documentElement.classList.contains("native-app")) {
     if (archive) {
       const html = buildPdfHtml({ title, subtitle, orientation, metrics, tables, charts, autoPrint: false })
