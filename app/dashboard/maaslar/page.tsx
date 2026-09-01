@@ -559,16 +559,16 @@ export default function MaaslarPage() {
       orientation: "portrait",
       metrics: [
         // SOL TARAF — GELİR KUTUCUKLARI (YEŞİL RAKAMLAR)
-        { label: "Net Maaş (Taban)", value: `${formatMoney(item.baseSalary)} TL`, side: "left", color: "green" },
-        ...(item.kargoHakedisAmount > 0 ? [{ label: "Kargo Prim", value: `+${formatMoney(item.kargoHakedisAmount)} TL`, side: "left", color: "green" }] : []),
-        ...(item.corbaTotal > 0 ? [{ label: "Çorba Kazanç", value: `+${formatMoney(item.corbaTotal)} TL`, side: "left", color: "green" }] : []),
-        { label: "Mesai Ücreti", value: `+${formatMoney(item.mesaiKazanc)} TL`, side: "left", color: "green" },
-        { label: "Toplam Kazanç", value: `${formatMoney(item.toplamKazanc)} TL`, side: "left", color: "green" },
+        { label: "Net Maaş (Taban)", value: `${formatMoney(item.baseSalary)} TL`, side: "left" as const, color: "green" as const },
+        ...(item.kargoHakedisAmount > 0 ? [{ label: "Kargo Prim", value: `+${formatMoney(item.kargoHakedisAmount)} TL`, side: "left" as const, color: "green" as const }] : []),
+        ...(item.corbaTotal > 0 ? [{ label: "Çorba Kazanç", value: `+${formatMoney(item.corbaTotal)} TL`, side: "left" as const, color: "green" as const }] : []),
+        { label: "Mesai Ücreti", value: `+${formatMoney(item.mesaiKazanc)} TL`, side: "left" as const, color: "green" as const },
+        { label: "Toplam Kazanç", value: `${formatMoney(item.toplamKazanc)} TL`, side: "left" as const, color: "green" as const },
 
         // SAĞ TARAF — GİDER KUTUCUKLARI (KIRMIZI / SİYAH RAKAMLAR)
-        { label: "Alınan Avans", value: `-${formatMoney(item.advanceTotal)} TL`, side: "right", color: "red" },
-        { label: "Bankaya Gönderilen", value: `-${formatMoney(item.bankayaGonderilen)} TL`, side: "right", color: "red" },
-        { label: item.nakitOdemeTarihi ? `${formatDate(item.nakitOdemeTarihi)} Nakit Alınacak` : "Nakit Alınacak Net", value: `${formatMoney(item.kalanNakit)} TL`, side: "right", color: "black" },
+        { label: "Alınan Avans", value: `-${formatMoney(item.advanceTotal)} TL`, side: "right" as const, color: "red" as const },
+        { label: "Bankaya Gönderilen", value: `-${formatMoney(item.bankayaGonderilen)} TL`, side: "right" as const, color: "red" as const },
+        { label: item.nakitOdemeTarihi ? `${formatDate(item.nakitOdemeTarihi)} Nakit Alınacak` : "Nakit Alınacak Net", value: `${formatMoney(item.kalanNakit)} TL`, side: "right" as const, color: "black" as const },
       ],
       tables: [
         {
