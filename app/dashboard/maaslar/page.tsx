@@ -536,9 +536,9 @@ export default function MaaslarPage() {
   }), { baseSalary: 0, advances: 0, overtime: 0, remaining: 0 }), [visiblePersonelSummaries])
   const ortakTotal = useMemo(() => visibleOrtakSummaries.reduce((sum, item) => sum + item.total, 0), [visibleOrtakSummaries])
 
-  async function handleAddKesinti() {
-    if (!currentSube || !kesintiTargetPersonelId || !kesintiTutarInput) {
-      toast.error("Lütfen tüm alanları doldurun.")
+  async function handleAddKesintiForPersonel(personelId: string) {
+    if (!currentSube || !personelId || !kesintiTutarInput) {
+      toast.error("Lütfen kesinti tutarını giriniz.")
       return
     }
     const val = Number(kesintiTutarInput)
@@ -555,7 +555,7 @@ export default function MaaslarPage() {
         body: JSON.stringify({
           sube_id: currentSube.id,
           ay_yil: ayYil,
-          personel_id: kesintiTargetPersonelId,
+          personel_id: personelId,
           tutar: val,
           aciklama: kesintiAciklamaInput || "Maaş Kesintisi",
           tarih: kesintiTarihInput || new Date().toISOString().split("T")[0],
@@ -566,7 +566,6 @@ export default function MaaslarPage() {
       if (!res.ok) throw new Error(payload.error || "Kesinti kaydedilemedi.")
 
       toast.success("Kesinti başarıyla kaydedildi.")
-      setKesintiTargetPersonelId("")
       setKesintiTutarInput("")
       setKesintiAciklamaInput("")
       loadData()
@@ -640,19 +639,16 @@ export default function MaaslarPage() {
 
         // SAĞ TARAF — GİDER KUTUCUKLARI (KIRMIZI / SİYAH RAKAMLAR)
         { label: "Alınan Avans", value: `-${formatMoney(item.advanceTotal)} TL`, side: "right" as const, color: "red" as const },
-        { label: "Bankaya Gönderilen", value: `-${formatMoney(item.bankayaGonderilen)} TL`, side: "right" as const, color: "red" as const },
         ...(item.kesintiTotal > 0 ? [{ label: "Yapılan Kesintiler", value: `-${formatMoney(item.kesintiTotal)} TL`, side: "right" as const, color: "red" as const }] : []),
+        { label: "Bankaya Gönderilen", value: `-${formatMoney(item.bankayaGonderilen)} TL`, side: "right" as const, color: "red" as const },
         { label: item.nakitOdemeTarihi ? `${formatDate(item.nakitOdemeTarihi)} Nakit Alınacak` : "Nakit Alınacak Net", value: `${formatMoney(item.kalanNakit)} TL`, side: "right" as const, color: "black" as const },
       ],
       tables: [
         {
-          title: "AVANSLAR VE KESİNTİLER",
-          headers: ["Tarih", "Tür / Açıklama", "Tutar"],
+          title: "ALINAN AVANS DETAYI",
+          headers: ["Tarih", "Açıklama", "Tutar"],
           firstColumnWidth: "28%",
-          rows: [
-            ...item.advances.map(detail => [formatDate(detail.tarih), `Avans - ${detail.description}`, `-${formatMoney(detail.amount)} TL`]),
-            ...item.kesintiler.map((detail: any) => [formatDate(detail.tarih), `Kesinti - ${detail.aciklama}`, `-${formatMoney(Number(detail.tutar))} TL`]),
-          ],
+          rows: item.advances.map(detail => [formatDate(detail.tarih), detail.description, `-${formatMoney(detail.amount)} TL`]),
         },
         {
           title: "MESAİLER",
@@ -666,6 +662,16 @@ export default function MaaslarPage() {
               `+${formatMoney(detail.amount)} TL`,
             ]),
         },
+        ...(item.kesintiler && item.kesintiler.length > 0 ? [{
+          title: "KESİNTİLER DETAYI",
+          headers: ["Tarih", "Açıklama", "Tutar"],
+          firstColumnWidth: "28%",
+          rows: item.kesintiler.map((detail: any) => [
+            formatDate(detail.tarih),
+            detail.aciklama,
+            `-${formatMoney(Number(detail.tutar))} TL`,
+          ]),
+        }] : []),
       ],
     })
   }
@@ -1162,6 +1168,114 @@ export default function MaaslarPage() {
                 variant="info"
               />
 
+              {/* Kesintiler & Kesinti Ekleme Modülü (Seçili Personel İçin) */}
+              <div className="col-span-full border-t pt-4 mt-2">
+                <div className="rounded-xl border bg-slate-50/50 dark:bg-slate-900/30 p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                      <Scissors className="h-4 w-4" />
+                      {selectedPersonel.personel.ad} — Maaş Kesintileri ({selectedPersonel.kesintiler.length})
+                    </h4>
+                    {selectedPersonel.kesintiTotal > 0 && (
+                      <Badge variant="destructive" className="font-extrabold text-xs">
+                        Toplam Kesinti: -{formatMoney(selectedPersonel.kesintiTotal)} TL
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Manager Add Kesinti Form */}
+                  {isManager && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end border-t pt-3 border-dashed">
+                      <div>
+                        <label className="text-xs font-semibold block mb-1 text-foreground">Kesinti Tutarı (₺) *</label>
+                        <Input
+                          type="number"
+                          min="1"
+                          placeholder="Örn: 100"
+                          value={kesintiTutarInput}
+                          onChange={(e) => setKesintiTutarInput(e.target.value)}
+                          className="w-full h-10 text-xs bg-background"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold block mb-1 text-foreground">Kesinti Açıklaması *</label>
+                        <Input
+                          placeholder="Örn: Ekipman hasar bedeli"
+                          value={kesintiAciklamaInput}
+                          onChange={(e) => setKesintiAciklamaInput(e.target.value)}
+                          className="w-full h-10 text-xs bg-background"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold block mb-1 text-foreground">Kesinti Tarihi</label>
+                        <ModernDatePicker
+                          label=""
+                          value={kesintiTarihInput}
+                          onChange={(val) => setKesintiTarihInput(val)}
+                          buttonClassName="w-full h-10 text-xs bg-background border-input rounded-md px-3"
+                        />
+                      </div>
+                      <div className="sm:col-span-3 flex justify-end pt-1">
+                        <Button
+                          size="sm"
+                          className="bg-red-600 hover:bg-red-700 text-white text-xs gap-1.5 font-bold"
+                          onClick={() => handleAddKesintiForPersonel(selectedPersonel.personel.id)}
+                          disabled={kesintiSubmitting || !kesintiTutarInput}
+                        >
+                          <Plus className="h-4 w-4" />
+                          {kesintiSubmitting ? "Kaydediliyor..." : `${selectedPersonel.personel.ad} İçin Kesintiyi Kaydet`}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Kesintiler Listesi Tablosu */}
+                  <div className="rounded-lg border overflow-hidden bg-background">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-slate-100 dark:bg-slate-800 text-muted-foreground uppercase font-semibold">
+                        <tr>
+                          <th className="px-4 py-2">Tarih</th>
+                          <th className="px-4 py-2">Açıklama</th>
+                          <th className="px-4 py-2 text-right">Kesinti Tutarı</th>
+                          {isManager && <th className="px-4 py-2 text-right">İşlem</th>}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {selectedPersonel.kesintiler.length === 0 ? (
+                          <tr>
+                            <td colSpan={isManager ? 4 : 3} className="px-4 py-4 text-center text-muted-foreground italic">
+                              Bu ay için {selectedPersonel.personel.ad} adına kaydedilmiş kesinti bulunmuyor.
+                            </td>
+                          </tr>
+                        ) : (
+                          selectedPersonel.kesintiler.map((k: any) => (
+                            <tr key={k.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                              <td className="px-4 py-2.5 text-muted-foreground">{formatDate(k.tarih)}</td>
+                              <td className="px-4 py-2.5 font-medium">{k.aciklama}</td>
+                              <td className="px-4 py-2.5 text-right font-bold text-red-600 dark:text-red-400">
+                                -{Number(k.tutar).toLocaleString("tr-TR")} ₺
+                              </td>
+                              {isManager && (
+                                <td className="px-4 py-2.5 text-right">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
+                                    onClick={() => handleDeleteKesinti(k.id)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </td>
+                              )}
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
               {/* Non-manager personnel personal advance requests status section */}
               {!isManager && myAvansTalepleri.length > 0 && (
                 <div className="col-span-full mt-2 border-t pt-4">
@@ -1412,137 +1526,7 @@ export default function MaaslarPage() {
           </Card>
         )}
 
-        {/* Personel Kesintileri Yönetimi (Yönetici) */}
-        {isManager && (
-          <Card className="border shadow-sm">
-            <CardHeader className="bg-slate-50 dark:bg-slate-900/50 pb-4 border-b">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-lg bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400">
-                    <Scissors className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-base font-bold">Personel Kesintileri Yönetimi</CardTitle>
-                    <CardDescription className="text-xs">
-                      Personellerden yapılan ekstra kesintileri ekleyin (Hasar bedeli, geç gelme vb.). Kesintiler maaş bordrosuna ve kalan nakite otomatik yansır.
-                    </CardDescription>
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 md:p-6 space-y-6">
-              {/* Kesinti Ekle Formu */}
-              <div className="rounded-xl border bg-slate-50/50 dark:bg-slate-900/30 p-4 space-y-4">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Yeni Kesinti Ekle</h4>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                  <div>
-                    <label className="text-xs font-semibold block mb-1 text-foreground">Personel Seçin *</label>
-                    <Select
-                      value={kesintiTargetPersonelId}
-                      onValueChange={(val) => setKesintiTargetPersonelId(val)}
-                    >
-                      <SelectTrigger className="w-full h-10 text-xs bg-background">
-                        <SelectValue placeholder="-- Personel Seçiniz --" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {personeller.map(p => (
-                          <SelectItem key={p.id} value={p.id} className="text-xs">
-                            {p.ad}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold block mb-1 text-foreground">Kesinti Tutarı (₺) *</label>
-                    <Input
-                      type="number"
-                      min="1"
-                      placeholder="Örn: 100"
-                      value={kesintiTutarInput}
-                      onChange={(e) => setKesintiTutarInput(e.target.value)}
-                      className="w-full h-10 text-xs bg-background"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold block mb-1 text-foreground">Kesinti Açıklaması *</label>
-                    <Input
-                      placeholder="Örn: Ekipman hasar bedeli"
-                      value={kesintiAciklamaInput}
-                      onChange={(e) => setKesintiAciklamaInput(e.target.value)}
-                      className="w-full h-10 text-xs bg-background"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold block mb-1 text-foreground">Kesinti Tarihi</label>
-                    <ModernDatePicker
-                      label=""
-                      value={kesintiTarihInput}
-                      onChange={(val) => setKesintiTarihInput(val)}
-                      buttonClassName="w-full h-10 text-xs bg-background border-input rounded-md px-3"
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <Button
-                    size="sm"
-                    className="bg-red-600 hover:bg-red-700 text-white text-xs gap-1.5 font-bold"
-                    onClick={handleAddKesinti}
-                    disabled={kesintiSubmitting || !kesintiTargetPersonelId || !kesintiTutarInput}
-                  >
-                    <Plus className="h-4 w-4" />
-                    {kesintiSubmitting ? "Kaydediliyor..." : "Kesintiyi Kaydet"}
-                  </Button>
-                </div>
-              </div>
 
-              {/* Kesintiler Listesi Tablosu */}
-              <div className="rounded-lg border overflow-hidden">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-100 dark:bg-slate-800 text-muted-foreground uppercase font-semibold">
-                    <tr>
-                      <th className="px-4 py-2.5">Personel</th>
-                      <th className="px-4 py-2.5">Tarih</th>
-                      <th className="px-4 py-2.5">Açıklama</th>
-                      <th className="px-4 py-2.5 text-right">Kesinti Tutarı</th>
-                      <th className="px-4 py-2.5 text-right">İşlem</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {kesintilerList.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground italic">
-                          Bu ay için kaydedilmiş herhangi bir personel kesintisi bulunmamaktadır.
-                        </td>
-                      </tr>
-                    ) : (
-                      kesintilerList.map((k) => (
-                        <tr key={k.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
-                          <td className="px-4 py-3 font-semibold text-foreground">{k.personel?.ad || "Personel"}</td>
-                          <td className="px-4 py-3 text-muted-foreground">{formatDate(k.tarih)}</td>
-                          <td className="px-4 py-3">{k.aciklama}</td>
-                          <td className="px-4 py-3 text-right font-bold text-red-600 dark:text-red-400">
-                            -{Number(k.tutar).toLocaleString("tr-TR")} ₺
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
-                              onClick={() => handleDeleteKesinti(k.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Action Dialog for Avans Approval / Rejection */}
         <Dialog open={actionModal.open} onOpenChange={(open) => setActionModal(prev => ({ ...prev, open }))}>
