@@ -11,6 +11,8 @@ interface PdfTable {
   headers: string[]
   rows: Array<Array<string | number>>
   firstColumnWidth?: string
+  type?: "gelir" | "gider" | "income" | "expense" | "default"
+  sideBySide?: boolean
 }
 
 interface PdfChartDataPoint {
@@ -36,6 +38,7 @@ interface PdfReportOptions {
   tables: PdfTable[]
   charts?: PdfChart[]
   archive?: boolean
+  tableLayout?: "side-by-side" | "stacked" | "auto"
 }
 
 type DesktopBridge = {
@@ -198,44 +201,84 @@ function buildPdfHtml({
   tables,
   charts = [],
   autoPrint,
+  tableLayout,
 }: Required<Pick<PdfReportOptions, "title" | "orientation" | "metrics" | "tables">> & {
   subtitle?: string
   charts?: PdfChart[]
   autoPrint: boolean
+  tableLayout?: "side-by-side" | "stacked" | "auto"
 }) {
   const maxColumnCount = Math.max(...tables.map(table => table.headers.length), 1)
   const tableFontSize = maxColumnCount > 24 ? 5.8 : maxColumnCount > 18 ? 6.4 : maxColumnCount > 14 ? 7.2 : maxColumnCount > 10 ? 8.2 : 9.4
   const cellPadding = maxColumnCount > 18 ? "3px 3px" : maxColumnCount > 14 ? "4px 4px" : maxColumnCount > 10 ? "5px 5px" : "6px 7px"
 
-  const tableHtml = tables.map(table => `
-    <section class="section">
-      <div class="sectionTitle">${escapeHtml(table.title)}</div>
-      <table>
-        <colgroup>${table.headers.map((_, index) => (
-          index === 0 && table.firstColumnWidth ? `<col style="width:${table.firstColumnWidth}" />` : "<col />"
-        )).join("")}</colgroup>
-        <thead>
-          <tr>
-            ${table.headers.map(header => {
-              const customStyle = getPdfHeaderStyle(header)
-              const styleAttr = customStyle ? ` style="background-color: ${customStyle.bg} !important; color: ${customStyle.text} !important;"` : ""
-              return `<th class="${isMoneyLike(header) ? "money" : ""}"${styleAttr}>${escapeHtml(header)}</th>`
-            }).join("")}
-          </tr>
-        </thead>
-        <tbody>
-          ${table.rows.length === 0
-            ? `<tr><td colspan="${table.headers.length}" class="empty">Kayit bulunamadi.</td></tr>`
-            : table.rows.map((row, rowIndex) => `
-              <tr class="${rowIndex === table.rows.length - 1 && String(row[0]).toLocaleUpperCase("tr-TR").includes("TOPLAM") ? "totalRow" : ""}">
-                ${row.map((cell, index) => `<td class="${index === 0 ? "labelCell" : ""} ${isMoneyLike(cell) ? "money" : ""}">${escapeHtml(cell)}</td>`).join("")}
-              </tr>
-            `).join("")
-          }
-        </tbody>
-      </table>
-    </section>
-  `).join("")
+  const isSideBySide = tableLayout === "side-by-side" || tables.some(t => t.sideBySide) || (tableLayout !== "stacked" && tables.length === 2)
+
+  const renderTableSection = (table: PdfTable) => {
+    const titleUpper = (table.title || "").toLocaleUpperCase("tr-TR")
+    const isGelir = table.type === "gelir" || table.type === "income" || titleUpper.includes("GELİR") || titleUpper.includes("KAZANÇ")
+    const isGider = table.type === "gider" || table.type === "expense" || titleUpper.includes("GİDER") || titleUpper.includes("KESİNTİ") || titleUpper.includes("AVANS")
+    const typeClass = isGelir ? "table-type-gelir" : isGider ? "table-type-gider" : ""
+
+    return `
+      <section class="section ${typeClass}">
+        <div class="sectionTitle">${escapeHtml(table.title)}</div>
+        <table>
+          <colgroup>${table.headers.map((_, index) => (
+            index === 0 && table.firstColumnWidth ? `<col style="width:${table.firstColumnWidth}" />` : "<col />"
+          )).join("")}</colgroup>
+          <thead>
+            <tr>
+              ${table.headers.map(header => {
+                const customStyle = getPdfHeaderStyle(header)
+                const styleAttr = customStyle ? ` style="background-color: ${customStyle.bg} !important; color: ${customStyle.text} !important;"` : ""
+                return `<th class="${isMoneyLike(header) ? "money" : ""}"${styleAttr}>${escapeHtml(header)}</th>`
+              }).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${table.rows.length === 0
+              ? `<tr><td colspan="${table.headers.length}" class="empty">Kayit bulunamadi.</td></tr>`
+              : table.rows.map((row, rowIndex) => `
+                <tr class="${rowIndex === table.rows.length - 1 && String(row[0]).toLocaleUpperCase("tr-TR").includes("TOPLAM") ? "totalRow" : ""}">
+                  ${row.map((cell, index) => {
+                    const strCell = String(cell ?? "").trim()
+                    const isPos = strCell.startsWith("+") || (isGelir && index > 0 && isMoneyLike(cell) && !strCell.startsWith("-"))
+                    const isNeg = strCell.startsWith("-") || (isGider && index > 0 && isMoneyLike(cell) && !strCell.startsWith("+"))
+                    const colorClass = isPos ? "positive-money" : isNeg ? "negative-money" : ""
+                    return `<td class="${index === 0 ? "labelCell" : ""} ${isMoneyLike(cell) ? "money" : ""} ${colorClass}">${escapeHtml(cell)}</td>`
+                  }).join("")}
+                </tr>
+              `).join("")
+            }
+          </tbody>
+        </table>
+      </section>
+    `
+  }
+
+  let tableHtml = ""
+  let currentSideGroup: PdfTable[] = []
+
+  const flushSideGroup = () => {
+    if (currentSideGroup.length === 0) return
+    if (currentSideGroup.length > 1) {
+      tableHtml += `<div class="pdf-tables-side-by-side-grid">${currentSideGroup.map(renderTableSection).join("")}</div>`
+    } else {
+      tableHtml += renderTableSection(currentSideGroup[0])
+    }
+    currentSideGroup = []
+  }
+
+  for (const table of tables) {
+    if (table.sideBySide || (tableLayout === "side-by-side" && tables.length === 2)) {
+      currentSideGroup.push(table)
+    } else {
+      flushSideGroup()
+      tableHtml += renderTableSection(table)
+    }
+  }
+  flushSideGroup()
 
   const formatMoney = (value: number) => {
     return value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -463,6 +506,66 @@ function buildPdfHtml({
           th.money { text-align: center; }
           .labelCell { text-align: center; font-weight: 800; }
           .empty { color: #64748b; text-align: center; }
+
+          /* Gelir vs Gider Styling & Side-by-Side Grid */
+          .pdf-tables-side-by-side-grid {
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+            margin-top: 10px;
+            width: 100%;
+          }
+          .pdf-tables-side-by-side-grid .section {
+            flex: 1;
+            min-width: 0;
+            margin-top: 0;
+          }
+          .table-type-gelir .sectionTitle {
+            color: #047857;
+            border-left: 4px solid #047857;
+            padding-left: 8px;
+            font-size: 13px;
+          }
+          .table-type-gelir th {
+            background-color: #047857 !important;
+            color: #ffffff !important;
+          }
+          .table-type-gelir td.money, .table-type-gelir td.positive-money {
+            color: #047857 !important;
+            font-weight: 900 !important;
+          }
+          .table-type-gelir .totalRow td {
+            background-color: #d1fae5 !important;
+            color: #065f46 !important;
+            font-weight: 900 !important;
+          }
+          .table-type-gider .sectionTitle {
+            color: #b91c1c;
+            border-left: 4px solid #b91c1c;
+            padding-left: 8px;
+            font-size: 13px;
+          }
+          .table-type-gider th {
+            background-color: #b91c1c !important;
+            color: #ffffff !important;
+          }
+          .table-type-gider td.money, .table-type-gider td.negative-money {
+            color: #dc2626 !important;
+            font-weight: 900 !important;
+          }
+          .table-type-gider .totalRow td {
+            background-color: #fee2e2 !important;
+            color: #991b1b !important;
+            font-weight: 900 !important;
+          }
+          .positive-money {
+            color: #047857 !important;
+            font-weight: 900 !important;
+          }
+          .negative-money {
+            color: #dc2626 !important;
+            font-weight: 900 !important;
+          }
           @media screen {
             body { padding: 18px; }
             .paper { box-shadow: 0 18px 60px rgba(15, 23, 42, .18); margin: 0 auto; }
