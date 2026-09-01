@@ -1770,14 +1770,16 @@ function DetailList({
   empty,
   totalLabel,
   variant,
+  initialExpanded = false,
 }: {
   title: string
   items: Detail[]
   empty: string
   totalLabel: string
   variant: "expense" | "income" | "info"
+  initialExpanded?: boolean
 }) {
-  const [expanded, setExpanded] = useState(variant === "income")
+  const [expanded, setExpanded] = useState(initialExpanded)
   const total = items.reduce((sum, item) => sum + item.amount, 0)
   const amountClass = variant === "expense" ? "text-red-700 dark:text-red-100" : variant === "info" ? "text-amber-600 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-100"
   const prefix = variant === "expense" ? "-" : "+"
