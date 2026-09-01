@@ -388,37 +388,41 @@ function buildPdfHtml({
           }
           .metrics {
             display: grid;
-            grid-template-columns: repeat(${Math.min(Math.max(metrics.length, 1), 4)}, minmax(0, 1fr));
-            gap: 9px;
-            margin-bottom: 9px;
+            grid-template-columns: ${metrics.length >= 5 ? "repeat(2, minmax(0, 1fr))" : `repeat(${Math.min(Math.max(metrics.length, 1), 4)}, minmax(0, 1fr))`};
+            gap: 12px;
+            margin-bottom: 16px;
           }
           .metric {
-            min-height: 56px;
-            border: 1px solid #dbe3ee;
-            border-left: 5px solid #0f766e;
-            border-radius: 10px;
-            background: #f8fafc;
-            padding: 9px 11px;
+            min-height: 64px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 14px;
+            background: #ffffff;
+            padding: 12px 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
           }
           .metric .label {
             color: #64748b;
-            font-size: 10px;
-            font-weight: 800;
-            letter-spacing: .04em;
-            text-align: center;
-            text-transform: uppercase;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: .01em;
+            text-align: left;
+            text-transform: none;
+            margin-bottom: 4px;
           }
           .metric .value {
             display: block;
-            margin-top: 7px;
             color: #0f172a;
-            font-size: 19px;
+            font-size: 22px;
             font-weight: 900;
             font-variant-numeric: tabular-nums;
-            line-height: 1;
-            text-align: center;
+            line-height: 1.1;
+            text-align: left;
             white-space: nowrap;
           }
+          .metric .value.positive { color: #047857; }
+          .metric .value.negative { color: #dc2626; }
           .section { margin-top: 9px; }
           .sectionTitle { margin-bottom: 5px; color: #0f172a; font-size: 13px; font-weight: 800; }
           table {
@@ -676,12 +680,16 @@ function buildPdfHtml({
               </header>
               ${metrics.length ? `
                 <div class="metrics">
-                  ${metrics.map(metric => `
+                  ${metrics.map(metric => {
+                    const isPos = String(metric.value).trim().startsWith("+")
+                    const isNeg = String(metric.value).trim().startsWith("-")
+                    const valClass = isPos ? "positive" : isNeg ? "negative" : ""
+                    return `
                     <div class="metric">
                       <div class="label">${escapeHtml(metric.label)}</div>
-                      <div class="value">${escapeHtml(metric.value)}</div>
+                      <div class="value ${valClass}">${escapeHtml(metric.value)}</div>
                     </div>
-                  `).join("")}
+                  `}).join("")}
                 </div>
               ` : ""}
               ${chartHtml ? `<div class="pdf-charts-wrapper">${chartHtml}</div>` : ""}

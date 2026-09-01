@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Calendar, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, FileText, HandCoins, Wallet, XCircle } from "lucide-react"
+import { Calendar as CalendarIcon, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, Edit3, FileText, HandCoins, ShieldCheck, Wallet, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { isTestPersonnel } from "@/lib/utils/test-personnel"
@@ -48,8 +48,18 @@ interface GiderRow {
   ortak_pilarim?: Record<string, number>
 }
 
+interface MaasOnayi {
+  id?: string
+  sube_id: string
+  ay_yil: string
+  personel_id: string
+  bankaya_gonderilen: number
+  kalan_nakit: number
+  nakit_odeme_tarihi: string | null
+}
+
 type Detail = { tarih: string; amount: number; description: string }
-type OvertimeDetail = Detail & { hours: number; rate: number; minutes: number; source: "attendance" | "manual" }
+type OvertimeDetail = Detail & { hours: number; rate: number; minutes: number; source: "attendance" | "manual"; excludedFromTotal?: boolean }
 
 type AttendanceDetail = {
   id: number
@@ -137,6 +147,13 @@ export default function MaaslarPage() {
   const [modalInput, setModalInput] = useState("")
   const [actionLoading, setActionLoading] = useState(false)
 
+  const [maasOnaylari, setMaasOnaylari] = useState<Record<string, MaasOnayi>>({})
+  const [approveModalOpen, setApproveModalOpen] = useState(false)
+  const [approveTargetPersonelId, setApproveTargetPersonelId] = useState<string | null>(null)
+  const [approveBankaInput, setApproveBankaInput] = useState("")
+  const [approveNakitTarihi, setApproveNakitTarihi] = useState("")
+  const [savingApproval, setSavingApproval] = useState(false)
+
   const supabase = createClient()
   const { currentSube, isAdmin, loading: subeLoading } = useSube()
   const years = makeYearWindow(year)
@@ -170,7 +187,7 @@ export default function MaaslarPage() {
     const from = getMonthStartDate(month, year)
     const to = getMonthEndDate(month, year)
 
-    const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes, corbaRes, avansRes] = await Promise.all([
+    const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes, corbaRes, avansRes, maasOnayRes] = await Promise.all([
       supabase
         .from("personeller")
         .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif, isten_cikis_tarihi")
@@ -203,13 +220,26 @@ export default function MaaslarPage() {
         .eq("ay_yil", ayYil)
         .order("tarih", { ascending: true }),
       fetch("/api/admin/avans", { cache: "no-store" }),
+      fetch(`/api/admin/maas-onay?${new URLSearchParams({ subeId: currentSube.id, ayYil }).toString()}`, { cache: "no-store" }),
     ])
 
     const attendancePayload = await attendanceRes.json().catch(() => null) as AttendancePayload | null
     const approvalsPayload = await approvalsRes.json().catch(() => null)
     const avansPayload = await avansRes.json().catch(() => null)
+    const maasOnayPayload = await maasOnayRes?.json().catch(() => null)
+
     if (avansPayload?.requests) {
       setAvansTalepleri(avansPayload.requests)
+    }
+
+    if (maasOnayPayload?.items) {
+      const map: Record<string, MaasOnayi> = {}
+      for (const item of maasOnayPayload.items) {
+        map[item.personel_id] = item
+      }
+      setMaasOnaylari(map)
+    } else {
+      setMaasOnaylari({})
     }
     
     const allPersoneller = (personelRes.data || []).filter((p) => !isTestPersonnel(p))
@@ -256,7 +286,7 @@ export default function MaaslarPage() {
   const personelSummaries = useMemo(() => personeller.map(personel => {
     const bankaMaas = Number(personel.banka_maas || 0)
     const nakitMaas = Number(personel.nakit_maas !== undefined && personel.nakit_maas !== null ? personel.nakit_maas : (personel.aylik_maas || 0))
-    const baseSalary = bankaMaas + nakitMaas
+    const baseSalary = Number(personel.aylik_maas || (bankaMaas + nakitMaas))
     const isSelectedForKargo = !kargoSeciliPersoneller || kargoSeciliPersoneller.includes(personel.id)
     let kargoHakedisAmount = 0
     if (isSelectedForKargo && kargoPrimAmount > 0) {
@@ -346,25 +376,27 @@ export default function MaaslarPage() {
         overtime.push({
           tarih: row.tarih,
           amount: manualAmount,
-          description: `Gider tablosu manuel mesai tutarı: ${formatMoney(manualAmount)} TL`,
+          description: `Gider kaydındaki manuel mesai tutarı`,
           hours: 0,
           rate: 0,
           minutes: 0,
           source: "manual",
+          excludedFromTotal: true,
         })
       }
     })
 
     attendanceOvertime
-      .filter(detail => detail.personelId === personel.id && (detail.payableOvertimeMinutes ?? detail.overtimeMinutes) > 0 && approvalByLogId.has(Number(detail.id)))
+      .filter(detail => detail.personelId === personel.id && (detail.payableOvertimeMinutes ?? detail.overtimeMinutes) > 0)
       .forEach(detail => {
         const approval = approvalByLogId.get(Number(detail.id))
+        if (approval && approval.status === "rejected") return
         const payableMinutes = Number(approval?.payable_minutes) || detail.payableOvertimeMinutes || detail.overtimeMinutes
         const hours = payableMinutes / 60
         overtime.push({
           tarih: detail.workDate,
           amount: hours * hourlyRate,
-          description: `Mesai takip: gerçek ${formatDurationFromMinutes(detail.overtimeMinutes)}, maaşa ${formatDurationFromMinutes(payableMinutes)} x ${formatMoney(hourlyRate)} TL`,
+          description: `Mesai takip: ${formatDurationFromMinutes(detail.overtimeMinutes)} (${formatDurationFromMinutes(payableMinutes)} x ${formatMoney(hourlyRate)} TL)`,
           hours,
           rate: hourlyRate,
           minutes: payableMinutes,
@@ -392,29 +424,44 @@ export default function MaaslarPage() {
 
     overtime.sort((a, b) => a.tarih.localeCompare(b.tarih) || a.source.localeCompare(b.source))
     const advanceTotal = advances.reduce((sum, item) => sum + item.amount, 0)
-    const overtimeTotal = overtime.reduce((sum, item) => sum + item.amount, 0)
+    const overtimeTotal = overtime.filter(item => !item.excludedFromTotal).reduce((sum, item) => sum + item.amount, 0)
+    const mesaiKazanc = overtime
+      .filter((item) => !item.excludedFromTotal && !item.description.includes("Kargo Hakediş"))
+      .reduce((sum, item) => sum + item.amount, 0)
+    const toplamKazanc = baseSalary + kargoHakedisAmount + mesaiKazanc + corbaTotal
+    const totalHakedis = baseSalary + overtimeTotal
+    const remainingBeforeBank = Math.max(0, totalHakedis - advanceTotal)
 
-    // Nakit Maaştan Avans Düşüşü:
-    const nakitAlinacak = Math.max(0, nakitMaas - advanceTotal)
-    const remaining = bankaMaas + nakitAlinacak + overtimeTotal
+    const onay = maasOnaylari[personel.id] || null
+    const bankayaGonderilen = onay ? Number(onay.bankaya_gonderilen || 0) : 0
+    const kalanNakit = onay ? Number(onay.kalan_nakit || 0) : Math.max(0, remainingBeforeBank - bankayaGonderilen)
+    const nakitOdemeTarihi = onay ? onay.nakit_odeme_tarihi : null
 
     return {
       personel,
       baseSalary,
       bankaMaas,
       nakitMaas,
-      nakitAlinacak,
+      bankayaGonderilen,
+      kalanNakit,
+      nakitOdemeTarihi,
+      isApproved: Boolean(onay),
+      nakitAlinacak: kalanNakit,
       kargoHakedisAmount,
       corbaTotal,
       corbaDetails,
+      mesaiKazanc,
+      toplamKazanc,
       hourlyRate,
       advances,
       overtime,
       advanceTotal,
       overtimeTotal,
-      remaining,
+      totalHakedis,
+      remainingBeforeBank,
+      remaining: kalanNakit,
     }
-  }), [attendanceOvertime, corbaData, kargoPrimAmount, kargoSeciliPersoneller, month, overtimeApprovals, personeller, rows, year])
+  }), [attendanceOvertime, corbaData, kargoPrimAmount, kargoSeciliPersoneller, month, maasOnaylari, overtimeApprovals, personeller, rows, year])
 
   const ortakSummaries = useMemo(() => ortaklar.map(ortak => {
     const advances: Detail[] = []
@@ -483,15 +530,15 @@ export default function MaaslarPage() {
       tables: [
         {
           title: "Personel Maaşları",
-          headers: ["Personel", "Banka", "Nakit Alınacak", "Avans", "Ekstra/Prim", "Net Toplam"],
+          headers: ["Personel", "Net Maaş", "Bankaya Gönderilen", "Avans", "Ekstra/Prim", "Kalan Nakit"],
           firstColumnWidth: "25%",
           rows: personelSummaries.map(item => [
             item.personel.ad,
-            `${formatMoney(item.bankaMaas)} TL`,
-            `${formatMoney(item.nakitAlinacak)} TL`,
+            `${formatMoney(item.baseSalary)} TL`,
+            `${formatMoney(item.bankayaGonderilen)} TL`,
             `-${formatMoney(item.advanceTotal)} TL`,
             `+${formatMoney(item.overtimeTotal)} TL`,
-            `${formatMoney(item.remaining)} TL`,
+            `${formatMoney(item.kalanNakit)} TL`,
           ]),
         },
         {
@@ -507,37 +554,45 @@ export default function MaaslarPage() {
   function exportPersonelPdf(item = selectedPersonel) {
     if (!item) return
     openPdfReport({
-      title: `${item.personel.ad} Maaş Detayı`,
-      subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
+      title: `${item.personel.ad} Maaş Hakediş Raporu`,
+      subtitle: `${currentSube?.ad || ""} · ${month} ${year}`,
       orientation: "portrait",
       metrics: [
-        { label: "Banka Gönderilen", value: `${formatMoney(item.bankaMaas)} TL` },
-        { label: "Nakit Maaş (Taban)", value: `${formatMoney(item.nakitMaas)} TL` },
-        { label: "Alınan Avans", value: `-${formatMoney(item.advanceTotal)} TL` },
+        { label: "Net Maaş", value: `${formatMoney(item.baseSalary)} TL` },
+        { label: "Banka Maaş / Nakit", value: `${formatMoney(item.bankayaGonderilen)} TL / ${formatMoney(item.kalanNakit)} TL` },
+        { label: "Hakediş / Mesai", value: `+${formatMoney(item.overtimeTotal)} TL` },
+        { label: "Avans", value: `-${formatMoney(item.advanceTotal)} TL` },
         ...(item.corbaTotal > 0 ? [{ label: "Çorba Kazanılan", value: `+${formatMoney(item.corbaTotal)} TL` }] : []),
-        { label: "Nakit Alınacak", value: `${formatMoney(item.nakitAlinacak)} TL` },
-        { label: "Ekstra / Kargo Prim / Mesai", value: `+${formatMoney(item.overtimeTotal)} TL` },
-        { label: "Net Toplam Kalan", value: `${formatMoney(item.remaining)} TL` },
+        { label: item.nakitOdemeTarihi ? `${formatDate(item.nakitOdemeTarihi)} Nakit` : "Nakit Alınacak Net", value: `${formatMoney(item.kalanNakit)} TL` },
       ],
       tables: [
         {
-          title: "Alınan Avanslar",
+          title: "Toplam Kazançlar Özeti",
+          headers: ["Kazanç Kalemi", "Tutar"],
+          firstColumnWidth: "60%",
+          rows: [
+            ["Maaş (Taban)", `${formatMoney(item.baseSalary)} TL`],
+            ...(item.kargoHakedisAmount > 0 ? [["Kargo Prim", `+${formatMoney(item.kargoHakedisAmount)} TL`]] : []),
+            ...(item.mesaiKazanc > 0 ? [["Mesai Kazanç", `+${formatMoney(item.mesaiKazanc)} TL`]] : []),
+            ...(item.corbaTotal > 0 ? [["Çorba Kazanç", `+${formatMoney(item.corbaTotal)} TL`]] : []),
+            ["TOPLAM KAZANÇ", `${formatMoney(item.toplamKazanc)} TL`],
+          ],
+        },
+        {
+          title: "Avanslar",
           headers: ["Tarih", "Açıklama", "Tutar"],
           firstColumnWidth: "28%",
           rows: item.advances.map(detail => [formatDate(detail.tarih), detail.description, `-${formatMoney(detail.amount)} TL`]),
         },
         {
-          title: "Ekstra / Mesai / Prim Hakedişleri",
-          headers: ["Tarih", "Kaynak", "Mesai", "Saatlik Ücret", "Tutar"],
+          title: "Mesailer ve Hakedişler",
+          headers: ["Tarih", "Açıklama", "Tutar"],
           firstColumnWidth: "28%",
           rows: item.overtime.map(detail => {
             const isKargo = detail.description.includes("Kargo Hakediş")
-            const isDirectAmount = detail.source === "manual" && detail.minutes === 0 && detail.rate === 0
             return [
-              isKargo ? month : formatDate(detail.tarih),
-              isKargo ? "Kargo Prim" : detail.source === "attendance" ? "Mesai takip" : isDirectAmount ? "Hakediş / Manuel" : "Manuel",
-              isDirectAmount ? "Doğrudan tutar" : formatDurationFromMinutes(detail.minutes),
-              isDirectAmount ? "-" : `${formatMoney(detail.rate)} TL`,
+              isKargo ? `${month} ${year}` : formatDate(detail.tarih),
+              detail.description + (detail.excludedFromTotal ? " (Maaşa eklenmez)" : ""),
               `+${formatMoney(detail.amount)} TL`,
             ]
           }),
@@ -654,6 +709,63 @@ export default function MaaslarPage() {
       toast.error("Bir hata oluştu.")
     } finally {
       setSubmittingRequest(false)
+    }
+  }
+
+  function openApproveModal(personelId: string) {
+    const item = visiblePersonelSummaries.find(p => p.personel.id === personelId)
+    if (!item) return
+    setApproveTargetPersonelId(personelId)
+    setApproveBankaInput(item.bankayaGonderilen ? String(item.bankayaGonderilen) : "15000")
+    const defaultDate = item.nakitOdemeTarihi || `${year}-${String(MONTHS.indexOf(month) + 1).padStart(2, "0")}-15`
+    setApproveNakitTarihi(defaultDate)
+    setApproveModalOpen(true)
+  }
+
+  async function handleSaveMaasApproval() {
+    const targetItem = visiblePersonelSummaries.find(p => p.personel.id === approveTargetPersonelId)
+    if (!targetItem || !currentSube) return
+
+    const bankaAmt = Number(approveBankaInput)
+    if (isNaN(bankaAmt) || bankaAmt < 0) {
+      toast.error("Lütfen geçerli bir bankaya gönderilen tutar girin.")
+      return
+    }
+
+    const kalanAmt = Math.max(0, targetItem.remainingBeforeBank - bankaAmt)
+    if (!approveNakitTarihi) {
+      toast.error("Lütfen kalan nakit ödeme tarihini seçin.")
+      return
+    }
+
+    setSavingApproval(true)
+    try {
+      const res = await fetch("/api/admin/maas-onay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sube_id: currentSube.id,
+          ay_yil: ayYil,
+          personel_id: targetItem.personel.id,
+          bankaya_gonderilen: bankaAmt,
+          kalan_nakit: kalanAmt,
+          nakit_odeme_tarihi: approveNakitTarihi,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || "Maaş onayı kaydedilemedi.")
+        return
+      }
+
+      toast.success(`${targetItem.personel.ad} maaş onayı kaydedildi.`)
+      setApproveModalOpen(false)
+      loadData()
+    } catch {
+      toast.error("Maaş onayı kaydedilirken bir hata oluştu.")
+    } finally {
+      setSavingApproval(false)
     }
   }
 
@@ -834,32 +946,62 @@ export default function MaaslarPage() {
               onClick={() => setSelectedPersonelId(item.personel.id)}
             >
               <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-1">
-                  <p className={`truncate text-xs font-semibold uppercase ${item.remaining < 0 ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"}`}>{item.personel.ad}</p>
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <p className="truncate text-xs font-bold uppercase text-foreground">{item.personel.ad}</p>
+                  {item.isApproved ? (
+                    <Badge className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5">Onaylandı</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 text-muted-foreground">Bekliyor</Badge>
+                  )}
                 </div>
-                <p className={`mt-1 text-xl font-bold ${item.remaining < 0 ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"}`}>{formatMoney(item.remaining)} TL</p>
+                <p className={`text-xl font-extrabold ${item.remaining < 0 ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"}`}>
+                  {formatMoney(item.remaining)} TL
+                </p>
                 <div className="mt-2 space-y-1 text-xs border-t pt-2 border-emerald-200/60 dark:border-emerald-500/20">
                   <div className="flex justify-between text-muted-foreground">
-                    <span>Bankaya Gönderilen:</span>
-                    <span className="font-semibold text-foreground">{formatMoney(item.bankaMaas)} TL</span>
+                    <span>Net Maaş:</span>
+                    <span className="font-semibold text-foreground">{formatMoney(item.baseSalary)} TL</span>
                   </div>
-                  {item.kargoHakedisAmount > 0 && (
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Kargo Hakediş:</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">+{formatMoney(item.kargoHakedisAmount)} TL</span>
-                    </div>
-                  )}
-                  {item.corbaTotal > 0 && (
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Çorba Kazanılan:</span>
-                      <span className="font-bold text-amber-600 dark:text-amber-400">+{formatMoney(item.corbaTotal)} TL</span>
-                    </div>
-                  )}
                   <div className="flex justify-between text-muted-foreground">
-                    <span>Nakit Alınacak:</span>
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatMoney(item.nakitAlinacak)} TL</span>
+                    <span>Bankaya Gönderilen:</span>
+                    <span className="font-semibold text-blue-600 dark:text-blue-400">{formatMoney(item.bankayaGonderilen)} TL</span>
                   </div>
+                  {item.overtimeTotal > 0 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Ekstra / Prim:</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">+{formatMoney(item.overtimeTotal)} TL</span>
+                    </div>
+                  )}
+                  {item.advanceTotal > 0 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Alınan Avans:</span>
+                      <span className="font-bold text-rose-600 dark:text-rose-400">-{formatMoney(item.advanceTotal)} TL</span>
+                    </div>
+                  )}
+                  {item.nakitOdemeTarihi && (
+                    <div className="mt-2 pt-1.5 border-t border-dashed text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
+                      <span>Nakit Tarihi:</span>
+                      <span>{formatDate(item.nakitOdemeTarihi)}</span>
+                    </div>
+                  )}
                 </div>
+                {isManager && (
+                  <Button
+                    size="sm"
+                    className={`w-full mt-3 h-8 text-xs font-bold gap-1.5 transition-all shadow-sm rounded-lg border ${
+                      item.isApproved
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40 dark:hover:bg-emerald-500/30 border-emerald-600/30"
+                        : "bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-500 border-blue-500/30"
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openApproveModal(item.personel.id)
+                    }}
+                  >
+                    {item.isApproved ? <Edit3 className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                    {item.isApproved ? "Onayı Düzenle" : "Maaş Onayla"}
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -871,23 +1013,52 @@ export default function MaaslarPage() {
             <CardHeader className="pb-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <span>{selectedPersonel.personel.ad} Maaş Detayı</span>
-                  </CardTitle>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    <span>Bankaya Gönderilen: <strong className="text-foreground">{formatMoney(selectedPersonel.bankaMaas)} TL</strong></span>
-                    <span>Nakit Verilen (Taban): <strong className="text-foreground">{formatMoney(selectedPersonel.nakitMaas)} TL</strong></span>
-                    <span>Alınan Avans: <strong className="text-red-600">-{formatMoney(selectedPersonel.advanceTotal)} TL</strong></span>
-                    {selectedPersonel.corbaTotal > 0 && (
-                      <span>Çorba Kazanılan: <strong className="text-amber-600 dark:text-amber-400 font-bold">+{formatMoney(selectedPersonel.corbaTotal)} TL</strong></span>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-lg font-bold">{selectedPersonel.personel.ad} Maaş Detayı</CardTitle>
+                    {selectedPersonel.isApproved && selectedPersonel.nakitOdemeTarihi && (
+                      <Badge className="bg-emerald-600 text-white font-bold text-xs px-2.5 py-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                        {formatDate(selectedPersonel.nakitOdemeTarihi)} Nakit: {formatMoney(selectedPersonel.kalanNakit)} TL
+                      </Badge>
                     )}
-                    <span>Nakit Alınacak: <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{formatMoney(selectedPersonel.nakitAlinacak)} TL</strong></span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+                    <span>Maaş (Taban): <strong className="text-foreground">{formatMoney(selectedPersonel.baseSalary)} TL</strong></span>
+                    {selectedPersonel.kargoHakedisAmount > 0 && (
+                      <span>Kargo Prim: <strong className="text-emerald-600 dark:text-emerald-400">+{formatMoney(selectedPersonel.kargoHakedisAmount)} TL</strong></span>
+                    )}
+                    {selectedPersonel.mesaiKazanc > 0 && (
+                      <span>Mesai Kazanç: <strong className="text-emerald-600 dark:text-emerald-400">+{formatMoney(selectedPersonel.mesaiKazanc)} TL</strong></span>
+                    )}
+                    {selectedPersonel.corbaTotal > 0 && (
+                      <span>Çorba Kazanç: <strong className="text-amber-600 dark:text-amber-400">+{formatMoney(selectedPersonel.corbaTotal)} TL</strong></span>
+                    )}
+                    <span>Toplam Kazanç: <strong className="text-emerald-700 dark:text-emerald-300 font-extrabold text-sm">{formatMoney(selectedPersonel.toplamKazanc)} TL</strong></span>
+                    <span>Alınan Avans: <strong className="text-red-600">-{formatMoney(selectedPersonel.advanceTotal)} TL</strong></span>
+                    <span>Bankaya Gönderilen: <strong className="text-blue-600 dark:text-blue-400">{formatMoney(selectedPersonel.bankayaGonderilen)} TL</strong></span>
+                    <span>Kalan Nakit: <strong className="text-emerald-600 dark:text-emerald-400 font-extrabold">{formatMoney(selectedPersonel.kalanNakit)} TL</strong></span>
                   </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => exportPersonelPdf(selectedPersonel)} className="gap-2">
-                  <FileText className="h-4 w-4" />
-                  Personel PDF
-                </Button>
+                <div className="flex items-center gap-2">
+                  {isManager && (
+                    <Button
+                      size="sm"
+                      onClick={() => openApproveModal(selectedPersonel.personel.id)}
+                      className={`gap-2 font-bold shadow-sm rounded-lg border transition-all ${
+                        selectedPersonel.isApproved
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40 dark:hover:bg-emerald-500/30 border-emerald-600/30"
+                          : "bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-500 border-blue-500/30"
+                      }`}
+                    >
+                      <ShieldCheck className="h-4 w-4" />
+                      {selectedPersonel.isApproved ? "Maaş Onayını Düzenle" : "Maaş Onayla"}
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" onClick={() => exportPersonelPdf(selectedPersonel)} className="gap-2">
+                    <FileText className="h-4 w-4" />
+                    Personel PDF
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -1287,6 +1458,109 @@ export default function MaaslarPage() {
               >
                 <HandCoins className="h-4 w-4" />
                 {submittingRequest ? "Gönderiliyor..." : "Avans Talebi Gönder"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Maaş Onaylama Modal Dialog (Yönetici için) */}
+        <Dialog open={approveModalOpen} onOpenChange={setApproveModalOpen}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+                <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                Maaş Onayı — {visiblePersonelSummaries.find(p => p.personel.id === approveTargetPersonelId)?.personel.ad}
+              </DialogTitle>
+            </DialogHeader>
+
+            {(() => {
+              const targetItem = visiblePersonelSummaries.find(p => p.personel.id === approveTargetPersonelId)
+              if (!targetItem) return null
+              const bankaAmt = Number(approveBankaInput) || 0
+              const kalanNakitCalculated = Math.max(0, targetItem.remainingBeforeBank - bankaAmt)
+
+              return (
+                <div className="space-y-4 py-2">
+                  <div className="rounded-xl border bg-slate-50 dark:bg-slate-900 p-4 space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Örnek Maaş (Taban):</span>
+                      <span className="font-bold text-foreground">{formatMoney(targetItem.baseSalary)} ₺</span>
+                    </div>
+                    {targetItem.overtimeTotal > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Kargo Prim / Mesai Hakediş:</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">+{formatMoney(targetItem.overtimeTotal)} ₺</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-bold border-t pt-1.5 text-slate-900 dark:text-white">
+                      <span>Toplam Hakediş:</span>
+                      <span>{formatMoney(targetItem.totalHakedis)} ₺</span>
+                    </div>
+                    {targetItem.advanceTotal > 0 && (
+                      <div className="flex justify-between text-rose-600 dark:text-rose-400">
+                        <span>Alınan Avans:</span>
+                        <span className="font-bold">-{formatMoney(targetItem.advanceTotal)} ₺</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-extrabold text-sm border-t pt-1.5 text-foreground">
+                      <span>Avans Sonrası Kalan:</span>
+                      <span>{formatMoney(targetItem.remainingBeforeBank)} ₺</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-foreground mb-1 block">Bankaya Gönderilen Tutar (₺) *</label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="Örn: 15000"
+                        value={approveBankaInput}
+                        onChange={(e) => setApproveBankaInput(e.target.value)}
+                        className="h-10 text-base font-bold pr-8"
+                      />
+                      <span className="absolute right-3 top-2.5 text-sm font-bold text-muted-foreground">₺</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1">Yöneticinin bankadan personele göndereceği net tutar.</p>
+                  </div>
+
+                  <div className="rounded-xl border border-emerald-300 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 p-3.5 flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 block">Hesaplanan Kalan Nakit:</span>
+                      <span className="text-[11px] text-emerald-700 dark:text-emerald-300">Teyit Edin: {formatMoney(targetItem.remainingBeforeBank)} - {formatMoney(bankaAmt)} =</span>
+                    </div>
+                    <span className="text-2xl font-extrabold text-emerald-700 dark:text-emerald-200">
+                      {formatMoney(kalanNakitCalculated)} ₺
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <ModernDatePicker
+                      label="Kalan Nakit Ödeme Tarihi Seçin *"
+                      value={approveNakitTarihi}
+                      onChange={setApproveNakitTarihi}
+                    />
+                    {approveNakitTarihi && (
+                      <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300 mt-1">
+                        📌 Kaydedilecek Bilgi: {formatDate(approveNakitTarihi)} Nakit: {formatMoney(kalanNakitCalculated)} ₺
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setApproveModalOpen(false)}>
+                Vazgeç
+              </Button>
+              <Button
+                onClick={handleSaveMaasApproval}
+                disabled={savingApproval}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                {savingApproval ? "Kaydediliyor..." : "Onayla ve Kaydet"}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -129,7 +129,8 @@ export async function GET(request: NextRequest) {
     { data: approvals, error: approvalsError },
     { data: kargoPrimData },
     { data: corbaData },
-    { data: approvedAvansData }
+    { data: approvedAvansData },
+    { data: maasOnayiData }
   ] = await Promise.all([
     admin
       .from("gider_kayitlari")
@@ -164,16 +165,21 @@ export async function GET(request: NextRequest) {
       .select("id, tutar, user_id, user_name, tc_kimlik, odeme_tarihi, created_at, durum")
       .eq("sube_id", profile.sube_id)
       .eq("durum", "onaylandi"),
+    admin
+      .from("maas_onaylari")
+      .select("bankaya_gonderilen, kalan_nakit, nakit_odeme_tarihi")
+      .eq("sube_id", profile.sube_id)
+      .eq("ay_yil", ayYil)
+      .eq("personel_id", personel.id)
+      .maybeSingle(),
   ])
-
-  if (rowsError || approvalsError) return NextResponse.json({ error: rowsError?.message || approvalsError?.message }, { status: 500 })
 
   const bankaMaas = Number(personel.banka_maas || 0)
   const nakitMaas = Number(personel.nakit_maas !== undefined && personel.nakit_maas !== null ? personel.nakit_maas : (personel.aylik_maas || 0))
   const baseSalary = bankaMaas + nakitMaas
   const hourlyRate = Number(personel.saatlik_mesai_ucreti || 0) || (baseSalary > 0 ? baseSalary / 30 / 8 : 0)
   const advances: Detail[] = []
-  const overtime: OvertimeDetail[] = []
+  const overtime: (OvertimeDetail & { excludedFromTotal?: boolean })[] = []
 
   // Check approved advance requests for "Özel Avans"
   for (const req of approvedAvansData || []) {
@@ -239,10 +245,11 @@ export async function GET(request: NextRequest) {
     if (manualAmount > 0) overtime.push({
       date: row.tarih,
       amount: manualAmount,
-      description: "Gider kaydındaki manuel mesai tutarı",
+      description: "Gider kaydındaki manuel mesai tutarı (Maaşa eklenmez)",
       minutes: 0,
       rate: 0,
       source: "manual",
+      excludedFromTotal: true,
     })
   }
 
@@ -261,7 +268,7 @@ export async function GET(request: NextRequest) {
   }
 
   const advanceTotal = advances.reduce((sum, item) => sum + item.amount, 0)
-  const overtimeTotal = overtime.reduce((sum, item) => sum + item.amount, 0)
+  const overtimeTotal = overtime.filter(item => !item.excludedFromTotal).reduce((sum, item) => sum + item.amount, 0)
 
   const activeCandidates = (candidates || []).filter((p) => {
     if (isTestPersonnel(p)) return false
@@ -286,6 +293,11 @@ export async function GET(request: NextRequest) {
       advanceTotal,
       overtimeTotal,
       remaining: baseSalary + overtimeTotal - advanceTotal,
+      maasOnayi: maasOnayiData ? {
+        bankayaGonderilen: Number(maasOnayiData.bankaya_gonderilen || 0),
+        kalanNakit: Number(maasOnayiData.kalan_nakit || 0),
+        nakitOdemeTarihi: maasOnayiData.nakit_odeme_tarihi || null,
+      } : null,
       advances: advances.sort((a, b) => a.date.localeCompare(b.date)),
       overtime: overtime.sort((a, b) => a.date.localeCompare(b.date)),
     },

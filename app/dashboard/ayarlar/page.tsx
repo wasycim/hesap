@@ -170,10 +170,7 @@ export default function AyarlarPage() {
     if (!yeniPersonel.trim()) return
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || !currentSube) return
-    const netMaas = Number(yeniPersonelNetMaas) || (Number(yeniPersonelBankaMaas) + Number(yeniPersonelNakitMaas)) || 0
-    const bankaMaas = Number(yeniPersonelBankaMaas) || 0
-    const nakitMaas = Number(yeniPersonelNakitMaas) || Math.max(0, netMaas - bankaMaas)
-    const aylikMaas = netMaas || (bankaMaas + nakitMaas)
+    const aylikMaas = Number(yeniPersonelNetMaas) || 0
     const saatlikMesaiUcreti = aylikMaas > 0 ? aylikMaas / 30 / 8 : 0
     const istenCikisTarihi = yeniPersonelIstenCikisTarihi || null
 
@@ -181,8 +178,8 @@ export default function AyarlarPage() {
       user_id: user.id,
       sube_id: currentSube.id,
       ad: yeniPersonel.toLocaleUpperCase("tr-TR"),
-      banka_maas: bankaMaas,
-      nakit_maas: nakitMaas,
+      banka_maas: 0,
+      nakit_maas: aylikMaas,
       aylik_maas: aylikMaas,
       saatlik_mesai_ucreti: saatlikMesaiUcreti,
       isten_cikis_tarihi: istenCikisTarihi,
@@ -260,10 +257,7 @@ export default function AyarlarPage() {
     const todayStr = getLocalDateString()
 
     for (const personel of personeller) {
-      const netMaas = Number(netDrafts[personel.id]) || 0
-      const bankaMaas = Number(bankaDrafts[personel.id]) || 0
-      const nakitMaas = Number(nakitDrafts[personel.id]) || 0
-      const aylikMaas = netMaas || (bankaMaas + nakitMaas)
+      const aylikMaas = Number(netDrafts[personel.id]) || 0
       const istenCikisTarihi = exitDateDrafts[personel.id] ? exitDateDrafts[personel.id] : null
       const isExited = Boolean(istenCikisTarihi && istenCikisTarihi <= todayStr)
       const isAktif = isExited ? false : personel.aktif
@@ -271,8 +265,8 @@ export default function AyarlarPage() {
       await supabase
         .from("personeller")
         .update({
-          banka_maas: bankaMaas,
-          nakit_maas: nakitMaas,
+          banka_maas: 0,
+          nakit_maas: aylikMaas,
           aylik_maas: aylikMaas,
           saatlik_mesai_ucreti: aylikMaas > 0 ? aylikMaas / 30 / 8 : 0,
           isten_cikis_tarihi: istenCikisTarihi,
@@ -654,54 +648,18 @@ export default function AyarlarPage() {
                     onChange={(e) => setYeniPersonel(e.target.value)}
                     placeholder="Örn: AHMET YILMAZ"
                     className="h-10 text-sm"
-                    onKeyDown={(e) => e.key === "Enter" && addPersonel()}
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Net (Toplam) Maaş</label>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Personel Maaşı (₺)</label>
                   <Input
                     value={yeniPersonelNetMaas}
-                    onChange={(e) => {
-                      const netVal = e.target.value
-                      setYeniPersonelNetMaas(netVal)
-                      const net = Number(netVal) || 0
-                      const banka = Number(yeniPersonelBankaMaas) || 0
-                      setYeniPersonelNakitMaas(String(Math.max(0, net - banka)))
-                    }}
-                    placeholder="29000"
+                    onChange={(e) => setYeniPersonelNetMaas(e.target.value)}
+                    placeholder="28025"
                     className="h-10 text-sm font-semibold"
                     type="number"
                     min="0"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Bankaya Gönderilen</label>
-                  <Input
-                    value={yeniPersonelBankaMaas}
-                    onChange={(e) => {
-                      const bankaVal = e.target.value
-                      setYeniPersonelBankaMaas(bankaVal)
-                      const net = Number(yeniPersonelNetMaas) || 0
-                      const banka = Number(bankaVal) || 0
-                      if (net > 0) {
-                        setYeniPersonelNakitMaas(String(Math.max(0, net - banka)))
-                      }
-                    }}
-                    placeholder="14000"
-                    className="h-10 text-sm"
-                    type="number"
-                    min="0"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Nakit Verilen (Otomatik)</label>
-                  <Input
-                    value={yeniPersonelNakitMaas}
-                    onChange={(e) => setYeniPersonelNakitMaas(e.target.value)}
-                    placeholder="15000"
-                    className="h-10 text-sm font-semibold text-emerald-600 dark:text-emerald-400"
-                    type="number"
-                    min="0"
+                    onKeyDown={(e) => e.key === "Enter" && addPersonel()}
                   />
                 </div>
               </div>
@@ -749,9 +707,9 @@ export default function AyarlarPage() {
                         </button>
                       </div>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Net (Toplam) Maaş</label>
+                        <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Personel Maaşı</label>
                         <div className="relative">
                           <Input
                             type="number"
@@ -760,45 +718,8 @@ export default function AyarlarPage() {
                             value={netDrafts[personel.id] ?? String(Number(personel.aylik_maas || 0))}
                             onChange={(e) => {
                               const val = e.target.value
-                              const net = Number(val) || 0
-                              const banka = Number(bankaDrafts[personel.id] ?? (personel.banka_maas || 0))
                               setNetDrafts(prev => ({ ...prev, [personel.id]: val }))
-                              setNakitDrafts(prev => ({ ...prev, [personel.id]: String(Math.max(0, net - banka)) }))
                             }}
-                          />
-                          <span className="absolute right-2.5 top-2 text-xs font-bold text-muted-foreground">₺</span>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Bankaya Gönderilen</label>
-                        <div className="relative">
-                          <Input
-                            type="number"
-                            min="0"
-                            className="h-9 text-sm pr-7"
-                            value={bankaDrafts[personel.id] ?? String(Number(personel.banka_maas || 0))}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              const banka = Number(val) || 0
-                              const net = Number(netDrafts[personel.id] ?? (personel.aylik_maas || 0))
-                              setBankaDrafts(prev => ({ ...prev, [personel.id]: val }))
-                              if (net > 0) {
-                                setNakitDrafts(prev => ({ ...prev, [personel.id]: String(Math.max(0, net - banka)) }))
-                              }
-                            }}
-                          />
-                          <span className="absolute right-2.5 top-2 text-xs font-bold text-muted-foreground">₺</span>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Nakit Verilen (Otomatik)</label>
-                        <div className="relative">
-                          <Input
-                            type="number"
-                            min="0"
-                            className="h-9 text-sm pr-7 font-semibold text-emerald-600 dark:text-emerald-400"
-                            value={nakitDrafts[personel.id] ?? String(Number(personel.nakit_maas !== undefined && personel.nakit_maas !== null ? personel.nakit_maas : (personel.aylik_maas || 0)))}
-                            onChange={(e) => setNakitDrafts(prev => ({ ...prev, [personel.id]: e.target.value }))}
                           />
                           <span className="absolute right-2.5 top-2 text-xs font-bold text-muted-foreground">₺</span>
                         </div>
