@@ -836,11 +836,11 @@ function buildPdfHtml({
                   return `
                     <div class="pdf-metrics-side-container">
                       <div class="pdf-metrics-side-col left">
-                        <div class="pdf-metrics-col-title">GELİR & KAZANÇ KUTUCUKLARI</div>
+                        <div class="pdf-metrics-col-title">GELİR & KAZANÇLAR</div>
                         ${leftMetrics.map(renderMetricCard).join("")}
                       </div>
                       <div class="pdf-metrics-side-col right">
-                        <div class="pdf-metrics-col-title">GİDER & KESİNTİ KUTUCUKLARI</div>
+                        <div class="pdf-metrics-col-title">GİDER & KESİNTİLER</div>
                         ${rightMetrics.map(renderMetricCard).join("")}
                       </div>
                     </div>
