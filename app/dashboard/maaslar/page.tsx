@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Calendar as CalendarIcon, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, Edit3, FileText, HandCoins, ShieldCheck, Wallet, XCircle } from "lucide-react"
+import { Calendar as CalendarIcon, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, Edit3, FileText, HandCoins, Plus, Scissors, ShieldCheck, Trash2, Wallet, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { isTestPersonnel } from "@/lib/utils/test-personnel"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -154,6 +154,13 @@ export default function MaaslarPage() {
   const [approveNakitTarihi, setApproveNakitTarihi] = useState("")
   const [savingApproval, setSavingApproval] = useState(false)
 
+  const [kesintilerList, setKesintilerList] = useState<any[]>([])
+  const [kesintiTargetPersonelId, setKesintiTargetPersonelId] = useState("")
+  const [kesintiTutarInput, setKesintiTutarInput] = useState("")
+  const [kesintiAciklamaInput, setKesintiAciklamaInput] = useState("")
+  const [kesintiTarihInput, setKesintiTarihInput] = useState(new Date().toISOString().split("T")[0])
+  const [kesintiSubmitting, setKesintiSubmitting] = useState(false)
+
   const supabase = createClient()
   const { currentSube, isAdmin, loading: subeLoading } = useSube()
   const years = makeYearWindow(year)
@@ -187,7 +194,7 @@ export default function MaaslarPage() {
     const from = getMonthStartDate(month, year)
     const to = getMonthEndDate(month, year)
 
-    const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes, corbaRes, avansRes, maasOnayRes] = await Promise.all([
+    const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes, corbaRes, avansRes, maasOnayRes, kesintiRes] = await Promise.all([
       supabase
         .from("personeller")
         .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif, isten_cikis_tarihi")
@@ -221,15 +228,23 @@ export default function MaaslarPage() {
         .order("tarih", { ascending: true }),
       fetch("/api/admin/avans", { cache: "no-store" }),
       fetch(`/api/admin/maas-onay?${new URLSearchParams({ subeId: currentSube.id, ayYil }).toString()}`, { cache: "no-store" }),
+      fetch(`/api/admin/maas-kesinti?${new URLSearchParams({ subeId: currentSube.id, ayYil }).toString()}`, { cache: "no-store" }),
     ])
 
     const attendancePayload = await attendanceRes.json().catch(() => null) as AttendancePayload | null
     const approvalsPayload = await approvalsRes.json().catch(() => null)
     const avansPayload = await avansRes.json().catch(() => null)
     const maasOnayPayload = await maasOnayRes?.json().catch(() => null)
+    const kesintiPayload = await kesintiRes?.json().catch(() => null)
 
     if (avansPayload?.requests) {
       setAvansTalepleri(avansPayload.requests)
+    }
+
+    if (kesintiPayload?.items) {
+      setKesintilerList(kesintiPayload.items)
+    } else {
+      setKesintilerList([])
     }
 
     if (maasOnayPayload?.items) {
@@ -422,6 +437,9 @@ export default function MaaslarPage() {
         })
       })
 
+    const kesintiDetails = kesintilerList.filter(k => k.personel_id === personel.id)
+    const kesintiTotal = kesintiDetails.reduce((sum, item) => sum + Number(item.tutar || 0), 0)
+
     overtime.sort((a, b) => a.tarih.localeCompare(b.tarih) || a.source.localeCompare(b.source))
     const advanceTotal = advances.reduce((sum, item) => sum + item.amount, 0)
     const overtimeTotal = overtime.filter(item => !item.excludedFromTotal).reduce((sum, item) => sum + item.amount, 0)
@@ -430,7 +448,7 @@ export default function MaaslarPage() {
       .reduce((sum, item) => sum + item.amount, 0)
     const toplamKazanc = baseSalary + kargoHakedisAmount + mesaiKazanc + corbaTotal
     const totalHakedis = baseSalary + overtimeTotal
-    const remainingBeforeBank = Math.max(0, totalHakedis - advanceTotal)
+    const remainingBeforeBank = Math.max(0, totalHakedis - advanceTotal - kesintiTotal)
 
     const onay = maasOnaylari[personel.id] || null
     const bankayaGonderilen = onay ? Number(onay.bankaya_gonderilen || 0) : 0
@@ -460,8 +478,10 @@ export default function MaaslarPage() {
       totalHakedis,
       remainingBeforeBank,
       remaining: kalanNakit,
+      kesintiler: kesintiDetails,
+      kesintiTotal,
     }
-  }), [attendanceOvertime, corbaData, kargoPrimAmount, kargoSeciliPersoneller, month, maasOnaylari, overtimeApprovals, personeller, rows, year])
+  }), [attendanceOvertime, corbaData, kargoPrimAmount, kargoSeciliPersoneller, month, maasOnaylari, overtimeApprovals, personeller, rows, year, kesintilerList])
 
   const ortakSummaries = useMemo(() => ortaklar.map(ortak => {
     const advances: Detail[] = []
@@ -516,6 +536,59 @@ export default function MaaslarPage() {
   }), { baseSalary: 0, advances: 0, overtime: 0, remaining: 0 }), [visiblePersonelSummaries])
   const ortakTotal = useMemo(() => visibleOrtakSummaries.reduce((sum, item) => sum + item.total, 0), [visibleOrtakSummaries])
 
+  async function handleAddKesinti() {
+    if (!currentSube || !kesintiTargetPersonelId || !kesintiTutarInput) {
+      toast.error("Lütfen tüm alanları doldurun.")
+      return
+    }
+    const val = Number(kesintiTutarInput)
+    if (isNaN(val) || val <= 0) {
+      toast.error("Geçerli bir kesinti tutarı girin.")
+      return
+    }
+
+    setKesintiSubmitting(true)
+    try {
+      const res = await fetch("/api/admin/maas-kesinti", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sube_id: currentSube.id,
+          ay_yil: ayYil,
+          personel_id: kesintiTargetPersonelId,
+          tutar: val,
+          aciklama: kesintiAciklamaInput || "Maaş Kesintisi",
+          tarih: kesintiTarihInput || new Date().toISOString().split("T")[0],
+        }),
+      })
+
+      const payload = await res.json()
+      if (!res.ok) throw new Error(payload.error || "Kesinti kaydedilemedi.")
+
+      toast.success("Kesinti başarıyla kaydedildi.")
+      setKesintiTargetPersonelId("")
+      setKesintiTutarInput("")
+      setKesintiAciklamaInput("")
+      loadData()
+    } catch (err: any) {
+      toast.error(err.message || "Hata oluştu.")
+    } finally {
+      setKesintiSubmitting(false)
+    }
+  }
+
+  async function handleDeleteKesinti(id: string) {
+    if (!confirm("Bu kesintiyi silmek istediğinize emin misiniz?")) return
+    try {
+      const res = await fetch(`/api/admin/maas-kesinti?id=${id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Silinemedi.")
+      toast.success("Kesinti silindi.")
+      loadData()
+    } catch (err: any) {
+      toast.error(err.message || "Hata oluştu.")
+    }
+  }
+
   function exportGeneralPdf() {
     openPdfReport({
       title: "Maaşlar Genel Raporu",
@@ -559,48 +632,39 @@ export default function MaaslarPage() {
       orientation: "portrait",
       metrics: [
         // SOL TARAF — GELİR KUTUCUKLARI (YEŞİL RAKAMLAR)
-        { label: "Net Maaş (Taban)", value: `${formatMoney(item.baseSalary)} TL`, side: "left" as const, color: "green" as const },
+        { label: "Net Maaş (Taban)", value: `+${formatMoney(item.baseSalary)} TL`, side: "left" as const, color: "green" as const },
         ...(item.kargoHakedisAmount > 0 ? [{ label: "Kargo Prim", value: `+${formatMoney(item.kargoHakedisAmount)} TL`, side: "left" as const, color: "green" as const }] : []),
         ...(item.corbaTotal > 0 ? [{ label: "Çorba Kazanç", value: `+${formatMoney(item.corbaTotal)} TL`, side: "left" as const, color: "green" as const }] : []),
         { label: "Mesai Ücreti", value: `+${formatMoney(item.mesaiKazanc)} TL`, side: "left" as const, color: "green" as const },
-        { label: "Toplam Kazanç", value: `${formatMoney(item.toplamKazanc)} TL`, side: "left" as const, color: "green" as const },
+        { label: "Toplam Kazanç", value: `+${formatMoney(item.toplamKazanc)} TL`, side: "left" as const, color: "green" as const },
 
         // SAĞ TARAF — GİDER KUTUCUKLARI (KIRMIZI / SİYAH RAKAMLAR)
         { label: "Alınan Avans", value: `-${formatMoney(item.advanceTotal)} TL`, side: "right" as const, color: "red" as const },
         { label: "Bankaya Gönderilen", value: `-${formatMoney(item.bankayaGonderilen)} TL`, side: "right" as const, color: "red" as const },
+        ...(item.kesintiTotal > 0 ? [{ label: "Yapılan Kesintiler", value: `-${formatMoney(item.kesintiTotal)} TL`, side: "right" as const, color: "red" as const }] : []),
         { label: item.nakitOdemeTarihi ? `${formatDate(item.nakitOdemeTarihi)} Nakit Alınacak` : "Nakit Alınacak Net", value: `${formatMoney(item.kalanNakit)} TL`, side: "right" as const, color: "black" as const },
       ],
       tables: [
         {
-          title: "Toplam Kazançlar Özeti",
-          headers: ["Kazanç Kalemi", "Tutar"],
-          firstColumnWidth: "60%",
+          title: "AVANSLAR VE KESİNTİLER",
+          headers: ["Tarih", "Tür / Açıklama", "Tutar"],
+          firstColumnWidth: "28%",
           rows: [
-            ["Maaş (Taban)", `${formatMoney(item.baseSalary)} TL`],
-            ...(item.kargoHakedisAmount > 0 ? [["Kargo Prim", `+${formatMoney(item.kargoHakedisAmount)} TL`]] : []),
-            ["Mesai Kazanç", `${item.mesaiKazanc > 0 ? "+" : ""}${formatMoney(item.mesaiKazanc)} TL`],
-            ...(item.corbaTotal > 0 ? [["Çorba Kazanç", `+${formatMoney(item.corbaTotal)} TL`]] : []),
-            ["TOPLAM KAZANÇ", `${formatMoney(item.toplamKazanc)} TL`],
+            ...item.advances.map(detail => [formatDate(detail.tarih), `Avans - ${detail.description}`, `-${formatMoney(detail.amount)} TL`]),
+            ...item.kesintiler.map((detail: any) => [formatDate(detail.tarih), `Kesinti - ${detail.aciklama}`, `-${formatMoney(Number(detail.tutar))} TL`]),
           ],
         },
         {
-          title: "Avanslar Detayı",
+          title: "MESAİLER",
           headers: ["Tarih", "Açıklama", "Tutar"],
           firstColumnWidth: "28%",
-          rows: item.advances.map(detail => [formatDate(detail.tarih), detail.description, `-${formatMoney(detail.amount)} TL`]),
-        },
-        {
-          title: "Mesailer ve Hakedişler Detayı",
-          headers: ["Tarih", "Açıklama", "Tutar"],
-          firstColumnWidth: "28%",
-          rows: item.overtime.map(detail => {
-            const isKargo = detail.description.includes("Kargo Hakediş")
-            return [
-              isKargo ? `${month} ${year}` : formatDate(detail.tarih),
+          rows: item.overtime
+            .filter(detail => !detail.description.includes("Kargo Hakediş"))
+            .map(detail => [
+              formatDate(detail.tarih),
               detail.description + (detail.excludedFromTotal ? " (Maaşa eklenmez)" : ""),
               `+${formatMoney(detail.amount)} TL`,
-            ]
-          }),
+            ]),
         },
       ],
     })
@@ -1331,6 +1395,133 @@ export default function MaaslarPage() {
                           </tr>
                         )
                       })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Personel Kesintileri Yönetimi (Yönetici) */}
+        {isManager && (
+          <Card className="border shadow-sm">
+            <CardHeader className="bg-slate-50 dark:bg-slate-900/50 pb-4 border-b">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400">
+                    <Scissors className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base font-bold">Personel Kesintileri Yönetimi</CardTitle>
+                    <CardDescription className="text-xs">
+                      Personellerden yapılan ekstra kesintileri ekleyin (Hasar bedeli, geç gelme vb.). Kesintiler maaş bordrosuna ve kalan nakite otomatik yansır.
+                    </CardDescription>
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 md:p-6 space-y-6">
+              {/* Kesinti Ekle Formu */}
+              <div className="rounded-xl border bg-slate-50/50 dark:bg-slate-900/30 p-4 space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Yeni Kesinti Ekle</h4>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold block mb-1">Personel Seçin *</label>
+                    <select
+                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs"
+                      value={kesintiTargetPersonelId}
+                      onChange={(e) => setKesintiTargetPersonelId(e.target.value)}
+                    >
+                      <option value="">-- Personel Seçiniz --</option>
+                      {personeller.map(p => (
+                        <option key={p.id} value={p.id}>{p.ad}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold block mb-1">Kesinti Tutarı (₺) *</label>
+                    <Input
+                      type="number"
+                      min="1"
+                      placeholder="Örn: 100"
+                      value={kesintiTutarInput}
+                      onChange={(e) => setKesintiTutarInput(e.target.value)}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold block mb-1">Kesinti Açıklaması *</label>
+                    <Input
+                      placeholder="Örn: Ekipman hasar bedeli"
+                      value={kesintiAciklamaInput}
+                      onChange={(e) => setKesintiAciklamaInput(e.target.value)}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold block mb-1">Tarih</label>
+                    <Input
+                      type="date"
+                      value={kesintiTarihInput}
+                      onChange={(e) => setKesintiTarihInput(e.target.value)}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    className="bg-red-600 hover:bg-red-700 text-white text-xs gap-1.5 font-bold"
+                    onClick={handleAddKesinti}
+                    disabled={kesintiSubmitting || !kesintiTargetPersonelId || !kesintiTutarInput}
+                  >
+                    <Plus className="h-4 w-4" />
+                    {kesintiSubmitting ? "Kaydediliyor..." : "Kesintiyi Kaydet"}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Kesintiler Listesi Tablosu */}
+              <div className="rounded-lg border overflow-hidden">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-100 dark:bg-slate-800 text-muted-foreground uppercase font-semibold">
+                    <tr>
+                      <th className="px-4 py-2.5">Personel</th>
+                      <th className="px-4 py-2.5">Tarih</th>
+                      <th className="px-4 py-2.5">Açıklama</th>
+                      <th className="px-4 py-2.5 text-right">Kesinti Tutarı</th>
+                      <th className="px-4 py-2.5 text-right">İşlem</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {kesintilerList.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground italic">
+                          Bu ay için kaydedilmiş herhangi bir personel kesintisi bulunmamaktadır.
+                        </td>
+                      </tr>
+                    ) : (
+                      kesintilerList.map((k) => (
+                        <tr key={k.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                          <td className="px-4 py-3 font-semibold text-foreground">{k.personel?.ad || "Personel"}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{formatDate(k.tarih)}</td>
+                          <td className="px-4 py-3">{k.aciklama}</td>
+                          <td className="px-4 py-3 text-right font-bold text-red-600 dark:text-red-400">
+                            -{Number(k.tutar).toLocaleString("tr-TR")} ₺
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
+                              onClick={() => handleDeleteKesinti(k.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
                     )}
                   </tbody>
                 </table>
