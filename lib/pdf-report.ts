@@ -818,29 +818,45 @@ function buildPdfHtml({
               ${(() => {
                 if (!metrics.length) return ""
                 const hasSide = metrics.some(m => m.side === "left" || m.side === "right")
+
+                const getMetricColor = (m: PdfMetric) => {
+                  const strVal = String(m.value).trim()
+                  const labelUpper = m.label.toLocaleUpperCase("tr-TR")
+
+                  if (m.color === "black" || m.color === "neutral" || labelUpper.includes("NAKİT ALINACAK") || labelUpper.includes("NAKİT MAAŞ")) {
+                    return "#0f172a"
+                  }
+                  if (m.color === "green" || m.color === "positive" || m.side === "left" || strVal.startsWith("+")) {
+                    return "#047857"
+                  }
+                  if (m.color === "red" || m.color === "negative" || m.side === "right" || strVal.startsWith("-")) {
+                    return "#dc2626"
+                  }
+                  return "#0f172a"
+                }
+
+                const renderMetricCard = (m: PdfMetric) => {
+                  const hexColor = getMetricColor(m)
+                  return `
+                    <div class="metric" style="border: 1.5px solid #e2e8f0; background: #ffffff;">
+                      <div class="label" style="color: #64748b !important; font-weight: 700;">${escapeHtml(m.label)}</div>
+                      <div class="value" style="color: ${hexColor} !important; font-weight: 900 !important; font-size: 22px !important;">${escapeHtml(m.value)}</div>
+                    </div>
+                  `
+                }
+
                 if (hasSide) {
                   const leftMetrics = metrics.filter(m => m.side === "left")
                   const rightMetrics = metrics.filter(m => m.side === "right")
 
-                  const renderMetricCard = (m: PdfMetric) => {
-                    const strVal = String(m.value).trim()
-                    const colorClass = m.color || (strVal.startsWith("+") ? "positive" : strVal.startsWith("-") ? "negative" : "")
-                    return `
-                      <div class="metric">
-                        <div class="label">${escapeHtml(m.label)}</div>
-                        <div class="value ${colorClass}">${escapeHtml(m.value)}</div>
-                      </div>
-                    `
-                  }
-
                   return `
                     <div class="pdf-metrics-side-container">
                       <div class="pdf-metrics-side-col left">
-                        <div class="pdf-metrics-col-title">GELİR & KAZANÇLAR</div>
+                        <div class="pdf-metrics-col-title" style="color: #047857 !important; font-weight: 800;">GELİR & KAZANÇLAR</div>
                         ${leftMetrics.map(renderMetricCard).join("")}
                       </div>
                       <div class="pdf-metrics-side-col right">
-                        <div class="pdf-metrics-col-title">GİDER & KESİNTİLER</div>
+                        <div class="pdf-metrics-col-title" style="color: #b91c1c !important; font-weight: 800;">GİDER & KESİNTİLER</div>
                         ${rightMetrics.map(renderMetricCard).join("")}
                       </div>
                     </div>
@@ -849,15 +865,7 @@ function buildPdfHtml({
 
                 return `
                   <div class="metrics">
-                    ${metrics.map(metric => {
-                      const strVal = String(metric.value).trim()
-                      const colorClass = metric.color || (strVal.startsWith("+") ? "positive" : strVal.startsWith("-") ? "negative" : "")
-                      return `
-                      <div class="metric">
-                        <div class="label">${escapeHtml(metric.label)}</div>
-                        <div class="value ${colorClass}">${escapeHtml(metric.value)}</div>
-                      </div>
-                    `}).join("")}
+                    ${metrics.map(renderMetricCard).join("")}
                   </div>
                 `
               })()}
