@@ -4,6 +4,8 @@ type PdfAction = "print" | "download"
 interface PdfMetric {
   label: string
   value: string
+  color?: "green" | "red" | "black" | "positive" | "negative" | "neutral"
+  side?: "left" | "right"
 }
 
 interface PdfTable {
@@ -520,6 +522,41 @@ function buildPdfHtml({
           .labelCell { text-align: center; font-weight: 800; }
           .empty { color: #64748b; text-align: center; }
 
+          /* Side-by-Side Metric Boxes Styling */
+          .pdf-metrics-side-container {
+            display: flex;
+            gap: 14px;
+            margin-bottom: 14px;
+            align-items: stretch;
+            width: 100%;
+          }
+          .pdf-metrics-side-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            background: #f8fafc;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 10px 12px;
+          }
+          .pdf-metrics-col-title {
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: .04em;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+          }
+          .pdf-metrics-side-col.left .pdf-metrics-col-title { color: #047857; }
+          .pdf-metrics-side-col.right .pdf-metrics-col-title { color: #b91c1c; }
+          .pdf-metrics-side-col .metric {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 8px 12px;
+            min-height: 46px;
+          }
+
           /* Gelir vs Gider Styling & Side-by-Side Grid */
           .pdf-tables-side-by-side-grid {
             display: flex;
@@ -778,20 +815,52 @@ function buildPdfHtml({
                 </div>
                 <div class="badge">A4 ${orientation === "landscape" ? "Yatay" : "Dikey"}</div>
               </header>
-              ${metrics.length ? `
-                <div class="metrics">
-                  ${metrics.map(metric => {
-                    const isPos = String(metric.value).trim().startsWith("+")
-                    const isNeg = String(metric.value).trim().startsWith("-")
-                    const valClass = isPos ? "positive" : isNeg ? "negative" : ""
+              ${(() => {
+                if (!metrics.length) return ""
+                const hasSide = metrics.some(m => m.side === "left" || m.side === "right")
+                if (hasSide) {
+                  const leftMetrics = metrics.filter(m => m.side === "left")
+                  const rightMetrics = metrics.filter(m => m.side === "right")
+
+                  const renderMetricCard = (m: PdfMetric) => {
+                    const strVal = String(m.value).trim()
+                    const colorClass = m.color || (strVal.startsWith("+") ? "positive" : strVal.startsWith("-") ? "negative" : "")
                     return `
-                    <div class="metric">
-                      <div class="label">${escapeHtml(metric.label)}</div>
-                      <div class="value ${valClass}">${escapeHtml(metric.value)}</div>
+                      <div class="metric">
+                        <div class="label">${escapeHtml(m.label)}</div>
+                        <div class="value ${colorClass}">${escapeHtml(m.value)}</div>
+                      </div>
+                    `
+                  }
+
+                  return `
+                    <div class="pdf-metrics-side-container">
+                      <div class="pdf-metrics-side-col left">
+                        <div class="pdf-metrics-col-title">GELİR & KAZANÇ KUTUCUKLARI</div>
+                        ${leftMetrics.map(renderMetricCard).join("")}
+                      </div>
+                      <div class="pdf-metrics-side-col right">
+                        <div class="pdf-metrics-col-title">GİDER & KESİNTİ KUTUCUKLARI</div>
+                        ${rightMetrics.map(renderMetricCard).join("")}
+                      </div>
                     </div>
-                  `}).join("")}
-                </div>
-              ` : ""}
+                  `
+                }
+
+                return `
+                  <div class="metrics">
+                    ${metrics.map(metric => {
+                      const strVal = String(metric.value).trim()
+                      const colorClass = metric.color || (strVal.startsWith("+") ? "positive" : strVal.startsWith("-") ? "negative" : "")
+                      return `
+                      <div class="metric">
+                        <div class="label">${escapeHtml(metric.label)}</div>
+                        <div class="value ${colorClass}">${escapeHtml(metric.value)}</div>
+                      </div>
+                    `}).join("")}
+                  </div>
+                `
+              })()}
               ${chartHtml ? `<div class="pdf-charts-wrapper">${chartHtml}</div>` : ""}
               ${tableHtml}
             </main>
