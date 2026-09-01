@@ -650,6 +650,16 @@ export default function MaaslarPage() {
           firstColumnWidth: "28%",
           rows: item.advances.map(detail => [formatDate(detail.tarih), detail.description, `-${formatMoney(detail.amount)} TL`]),
         },
+        ...(item.kesintiler && item.kesintiler.length > 0 ? [{
+          title: "KESİNTİLER DETAYI",
+          headers: ["Tarih", "Açıklama", "Tutar"],
+          firstColumnWidth: "28%",
+          rows: item.kesintiler.map((detail: any) => [
+            formatDate(detail.tarih),
+            detail.aciklama,
+            `-${formatMoney(Number(detail.tutar))} TL`,
+          ]),
+        }] : []),
         {
           title: "MESAİLER",
           headers: ["Tarih", "Açıklama", "Tutar"],
@@ -662,16 +672,6 @@ export default function MaaslarPage() {
               `+${formatMoney(detail.amount)} TL`,
             ]),
         },
-        ...(item.kesintiler && item.kesintiler.length > 0 ? [{
-          title: "KESİNTİLER DETAYI",
-          headers: ["Tarih", "Açıklama", "Tutar"],
-          firstColumnWidth: "28%",
-          rows: item.kesintiler.map((detail: any) => [
-            formatDate(detail.tarih),
-            detail.aciklama,
-            `-${formatMoney(Number(detail.tutar))} TL`,
-          ]),
-        }] : []),
       ],
     })
   }
