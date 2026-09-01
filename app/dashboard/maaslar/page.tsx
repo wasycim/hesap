@@ -426,7 +426,7 @@ export default function MaaslarPage() {
     const advanceTotal = advances.reduce((sum, item) => sum + item.amount, 0)
     const overtimeTotal = overtime.filter(item => !item.excludedFromTotal).reduce((sum, item) => sum + item.amount, 0)
     const mesaiKazanc = overtime
-      .filter((item) => !item.excludedFromTotal && !item.description.includes("Kargo Hakediş"))
+      .filter((item) => !item.description.includes("Kargo Hakediş"))
       .reduce((sum, item) => sum + item.amount, 0)
     const toplamKazanc = baseSalary + kargoHakedisAmount + mesaiKazanc + corbaTotal
     const totalHakedis = baseSalary + overtimeTotal
@@ -573,7 +573,7 @@ export default function MaaslarPage() {
           rows: [
             ["Maaş (Taban)", `${formatMoney(item.baseSalary)} TL`],
             ...(item.kargoHakedisAmount > 0 ? [["Kargo Prim", `+${formatMoney(item.kargoHakedisAmount)} TL`]] : []),
-            ...(item.mesaiKazanc > 0 ? [["Mesai Kazanç", `+${formatMoney(item.mesaiKazanc)} TL`]] : []),
+            ["Mesai Kazanç", `${item.mesaiKazanc > 0 ? "+" : ""}${formatMoney(item.mesaiKazanc)} TL`],
             ...(item.corbaTotal > 0 ? [["Çorba Kazanç", `+${formatMoney(item.corbaTotal)} TL`]] : []),
             ["TOPLAM KAZANÇ", `${formatMoney(item.toplamKazanc)} TL`],
           ],
