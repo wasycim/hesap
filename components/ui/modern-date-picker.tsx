@@ -58,9 +58,9 @@ export function ModernDatePicker({
             <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-emerald-500/12 text-emerald-700 dark:text-emerald-300">
               <CalendarDays className="h-4 w-4" />
             </span>
-            <span className="min-w-0">
-              <span className="block text-[10px] font-semibold uppercase leading-none text-muted-foreground">{label}</span>
-              <span className="block truncate text-sm font-bold leading-5">{displayDate(value)}</span>
+            <span className="min-w-0 flex-1">
+              {label ? <span className="block text-[10px] font-semibold uppercase leading-none text-muted-foreground mb-0.5">{label}</span> : null}
+              <span className="block truncate text-xs font-bold leading-tight">{displayDate(value)}</span>
             </span>
           </span>
           <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />

@@ -1047,6 +1047,12 @@ export default function MaaslarPage() {
                       <span className="font-bold text-rose-600 dark:text-rose-400">-{formatMoney(item.advanceTotal)} TL</span>
                     </div>
                   )}
+                  {item.kesintiTotal > 0 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Yapılan Kesinti:</span>
+                      <span className="font-bold text-red-600 dark:text-red-400">-{formatMoney(item.kesintiTotal)} TL</span>
+                    </div>
+                  )}
                   {item.nakitOdemeTarihi && (
                     <div className="mt-2 pt-1.5 border-t border-dashed text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
                       <span>Nakit Tarihi:</span>
@@ -1104,6 +1110,9 @@ export default function MaaslarPage() {
                     )}
                     <span>Toplam Kazanç: <strong className="text-emerald-700 dark:text-emerald-300 font-extrabold text-sm">{formatMoney(selectedPersonel.toplamKazanc)} TL</strong></span>
                     <span>Alınan Avans: <strong className="text-red-600">-{formatMoney(selectedPersonel.advanceTotal)} TL</strong></span>
+                    {selectedPersonel.kesintiTotal > 0 && (
+                      <span>Yapılan Kesinti: <strong className="text-red-600 dark:text-red-400">-{formatMoney(selectedPersonel.kesintiTotal)} TL</strong></span>
+                    )}
                     <span>Bankaya Gönderilen: <strong className="text-blue-600 dark:text-blue-400">{formatMoney(selectedPersonel.bankayaGonderilen)} TL</strong></span>
                     <span>Kalan Nakit: <strong className="text-emerald-600 dark:text-emerald-400 font-extrabold">{formatMoney(selectedPersonel.kalanNakit)} TL</strong></span>
                   </div>
@@ -1425,14 +1434,14 @@ export default function MaaslarPage() {
               {/* Kesinti Ekle Formu */}
               <div className="rounded-xl border bg-slate-50/50 dark:bg-slate-900/30 p-4 space-y-4">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Yeni Kesinti Ekle</h4>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                   <div>
-                    <label className="text-xs font-semibold block mb-1">Personel Seçin *</label>
+                    <label className="text-xs font-semibold block mb-1 text-foreground">Personel Seçin *</label>
                     <Select
                       value={kesintiTargetPersonelId}
                       onValueChange={(val) => setKesintiTargetPersonelId(val)}
                     >
-                      <SelectTrigger className="h-9 text-xs">
+                      <SelectTrigger className="w-full h-10 text-xs bg-background">
                         <SelectValue placeholder="-- Personel Seçiniz --" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1445,30 +1454,32 @@ export default function MaaslarPage() {
                     </Select>
                   </div>
                   <div>
-                    <label className="text-xs font-semibold block mb-1">Kesinti Tutarı (₺) *</label>
+                    <label className="text-xs font-semibold block mb-1 text-foreground">Kesinti Tutarı (₺) *</label>
                     <Input
                       type="number"
                       min="1"
                       placeholder="Örn: 100"
                       value={kesintiTutarInput}
                       onChange={(e) => setKesintiTutarInput(e.target.value)}
-                      className="h-9 text-xs"
+                      className="w-full h-10 text-xs bg-background"
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold block mb-1">Kesinti Açıklaması *</label>
+                    <label className="text-xs font-semibold block mb-1 text-foreground">Kesinti Açıklaması *</label>
                     <Input
                       placeholder="Örn: Ekipman hasar bedeli"
                       value={kesintiAciklamaInput}
                       onChange={(e) => setKesintiAciklamaInput(e.target.value)}
-                      className="h-9 text-xs"
+                      className="w-full h-10 text-xs bg-background"
                     />
                   </div>
                   <div>
+                    <label className="text-xs font-semibold block mb-1 text-foreground">Kesinti Tarihi</label>
                     <ModernDatePicker
-                      label="Kesinti Tarihi"
+                      label=""
                       value={kesintiTarihInput}
                       onChange={(val) => setKesintiTarihInput(val)}
+                      buttonClassName="w-full h-10 text-xs bg-background border-input rounded-md px-3"
                     />
                   </div>
                 </div>
