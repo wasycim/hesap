@@ -1428,16 +1428,21 @@ export default function MaaslarPage() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div>
                     <label className="text-xs font-semibold block mb-1">Personel Seçin *</label>
-                    <select
-                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs"
+                    <Select
                       value={kesintiTargetPersonelId}
-                      onChange={(e) => setKesintiTargetPersonelId(e.target.value)}
+                      onValueChange={(val) => setKesintiTargetPersonelId(val)}
                     >
-                      <option value="">-- Personel Seçiniz --</option>
-                      {personeller.map(p => (
-                        <option key={p.id} value={p.id}>{p.ad}</option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="-- Personel Seçiniz --" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {personeller.map(p => (
+                          <SelectItem key={p.id} value={p.id} className="text-xs">
+                            {p.ad}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <label className="text-xs font-semibold block mb-1">Kesinti Tutarı (₺) *</label>
@@ -1460,12 +1465,10 @@ export default function MaaslarPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold block mb-1">Tarih</label>
-                    <Input
-                      type="date"
+                    <ModernDatePicker
+                      label="Kesinti Tarihi"
                       value={kesintiTarihInput}
-                      onChange={(e) => setKesintiTarihInput(e.target.value)}
-                      className="h-9 text-xs"
+                      onChange={(val) => setKesintiTarihInput(val)}
                     />
                   </div>
                 </div>
