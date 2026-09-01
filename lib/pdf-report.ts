@@ -242,10 +242,23 @@ function buildPdfHtml({
               : table.rows.map((row, rowIndex) => `
                 <tr class="${rowIndex === table.rows.length - 1 && String(row[0]).toLocaleUpperCase("tr-TR").includes("TOPLAM") ? "totalRow" : ""}">
                   ${row.map((cell, index) => {
+                    const strRowLabel = String(row[0] ?? "").toLocaleUpperCase("tr-TR")
                     const strCell = String(cell ?? "").trim()
-                    const isPos = strCell.startsWith("+") || (isGelir && index > 0 && isMoneyLike(cell) && !strCell.startsWith("-"))
-                    const isNeg = strCell.startsWith("-") || (isGider && index > 0 && isMoneyLike(cell) && !strCell.startsWith("+"))
-                    const colorClass = isPos ? "positive-money" : isNeg ? "negative-money" : ""
+                    const isNakitAlinacak = strRowLabel.includes("NAKİT ALINACAK") || strRowLabel.includes("NAKİT MAAŞ") || strCell.toLocaleUpperCase("tr-TR").includes("NAKİT ALINACAK")
+
+                    let colorClass = ""
+                    if (isNakitAlinacak) {
+                      colorClass = "black-money"
+                    } else if (strCell.startsWith("+")) {
+                      colorClass = "positive-money"
+                    } else if (strCell.startsWith("-")) {
+                      colorClass = "negative-money"
+                    } else if (isGelir && index > 0 && isMoneyLike(cell)) {
+                      colorClass = "positive-money"
+                    } else if (isGider && index > 0 && isMoneyLike(cell)) {
+                      colorClass = "negative-money"
+                    }
+
                     return `<td class="${index === 0 ? "labelCell" : ""} ${isMoneyLike(cell) ? "money" : ""} ${colorClass}">${escapeHtml(cell)}</td>`
                   }).join("")}
                 </tr>
@@ -520,42 +533,22 @@ function buildPdfHtml({
             min-width: 0;
             margin-top: 0;
           }
-          .table-type-gelir .sectionTitle {
-            color: #047857;
-            border-left: 4px solid #047857;
-            padding-left: 8px;
-            font-size: 13px;
-          }
-          .table-type-gelir th {
-            background-color: #047857 !important;
-            color: #ffffff !important;
-          }
           .table-type-gelir td.money, .table-type-gelir td.positive-money {
             color: #047857 !important;
             font-weight: 900 !important;
           }
           .table-type-gelir .totalRow td {
-            background-color: #d1fae5 !important;
-            color: #065f46 !important;
+            background-color: #ecfdf5 !important;
+            color: #047857 !important;
             font-weight: 900 !important;
-          }
-          .table-type-gider .sectionTitle {
-            color: #b91c1c;
-            border-left: 4px solid #b91c1c;
-            padding-left: 8px;
-            font-size: 13px;
-          }
-          .table-type-gider th {
-            background-color: #b91c1c !important;
-            color: #ffffff !important;
           }
           .table-type-gider td.money, .table-type-gider td.negative-money {
             color: #dc2626 !important;
             font-weight: 900 !important;
           }
           .table-type-gider .totalRow td {
-            background-color: #fee2e2 !important;
-            color: #991b1b !important;
+            background-color: #fef2f2 !important;
+            color: #dc2626 !important;
             font-weight: 900 !important;
           }
           .positive-money {
@@ -564,6 +557,10 @@ function buildPdfHtml({
           }
           .negative-money {
             color: #dc2626 !important;
+            font-weight: 900 !important;
+          }
+          .black-money, td.black-money, .totalRow td.black-money {
+            color: #0f172a !important;
             font-weight: 900 !important;
           }
           @media screen {

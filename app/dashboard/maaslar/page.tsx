@@ -567,7 +567,7 @@ export default function MaaslarPage() {
       ],
       tables: [
         {
-          title: "SOL TARAF — GELİR & KAZANÇLAR",
+          title: "GELİR & KAZANÇLAR ÖZETİ",
           type: "gelir",
           sideBySide: true,
           headers: ["GELİR KALEMİ", "TUTAR"],
@@ -581,7 +581,7 @@ export default function MaaslarPage() {
           ],
         },
         {
-          title: "SAĞ TARAF — GİDER & KESİNTİLER",
+          title: "GİDER & KESİNTİLER ÖZETİ",
           type: "gider",
           sideBySide: true,
           headers: ["GİDER KALEMİ", "TUTAR"],
@@ -590,7 +590,7 @@ export default function MaaslarPage() {
             ["Alınan Avanslar", `-${formatMoney(item.advanceTotal)} TL`],
             ["Bankaya Gönderilen Maaş", `-${formatMoney(item.bankayaGonderilen)} TL`],
             ["TOPLAM GİDER / KESİNTİ", `-${formatMoney(item.advanceTotal + item.bankayaGonderilen)} TL`],
-            [item.nakitOdemeTarihi ? `${formatDate(item.nakitOdemeTarihi)} Nakit Alınacak` : "Nakit Alınacak Net Kalan", `+${formatMoney(item.kalanNakit)} TL`],
+            [item.nakitOdemeTarihi ? `${formatDate(item.nakitOdemeTarihi)} Nakit Alınacak` : "Nakit Alınacak Net Kalan", `${formatMoney(item.kalanNakit)} TL`],
           ],
         },
         {
