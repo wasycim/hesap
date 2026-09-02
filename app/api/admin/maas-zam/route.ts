@@ -76,8 +76,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: zamError.message }, { status: 500 })
   }
 
-  // 2. Update personnel salary immediately in personeller table
-  if (target_type === "personel") {
+  // 2. Update personnel salary in personeller table if effectiveDate is today or earlier
+  const todayStr = new Date().toISOString().slice(0, 10)
+  if (target_type === "personel" && effectiveDate <= todayStr) {
     const { error: updateError } = await admin
       .from("personeller")
       .update({ aylik_maas: newSalary })

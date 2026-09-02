@@ -359,13 +359,18 @@ export default function MaaslarPage() {
   }
 
   const personelSummaries = useMemo(() => personeller.map(personel => {
+    const monthIndex = MONTHS.indexOf(month) + 1
+    const monthPrefix = `${year}-${String(monthIndex).padStart(2, "0")}`
+
+    // Check raise log for this personnel in selected month
+    const activeZam = maasZamlariList.find(z => z.personel_id === personel.id && z.yururluk_tarihi && z.yururluk_tarihi.startsWith(monthPrefix)) || null
+
     const bankaMaas = Number(personel.banka_maas || 0)
     const nakitMaas = Number(personel.nakit_maas !== undefined && personel.nakit_maas !== null ? personel.nakit_maas : (personel.aylik_maas || 0))
-    const baseSalary = Number(personel.aylik_maas || (bankaMaas + nakitMaas))
+    const baseSalary = activeZam ? Number(activeZam.yeni_maas) : Number(personel.aylik_maas || (bankaMaas + nakitMaas))
     const isSelectedForKargo = !kargoSeciliPersoneller || kargoSeciliPersoneller.includes(personel.id)
     let kargoHakedisAmount = 0
     if (isSelectedForKargo && kargoPrimAmount > 0) {
-      const monthIndex = MONTHS.indexOf(month) + 1
       const totalDaysInMonth = new Date(year, monthIndex, 0).getDate()
       const monthStartDate = `${year}-${String(monthIndex).padStart(2, "0")}-01`
       const monthEndDate = `${year}-${String(monthIndex).padStart(2, "0")}-${String(totalDaysInMonth).padStart(2, "0")}`
@@ -410,9 +415,6 @@ export default function MaaslarPage() {
         source: "manual",
       })
     }
-
-    const monthIndex = MONTHS.indexOf(month) + 1
-    const monthPrefix = `${year}-${String(monthIndex).padStart(2, "0")}`
 
     avansTalepleri
       .filter(req => req.durum === "onaylandi")
@@ -549,8 +551,9 @@ export default function MaaslarPage() {
       remaining: kalanNakit,
       kesintiler: kesintiDetails,
       kesintiTotal,
+      activeZam,
     }
-  }), [attendanceOvertime, corbaData, kargoPrimAmount, kargoSeciliPersoneller, month, maasOnaylari, overtimeApprovals, personeller, rows, year, kesintilerList])
+  }), [attendanceOvertime, corbaData, kargoPrimAmount, kargoSeciliPersoneller, month, maasOnaylari, overtimeApprovals, personeller, rows, year, kesintilerList, maasZamlariList])
 
   const ortakSummaries = useMemo(() => ortaklar.map(ortak => {
     const advances: Detail[] = []
@@ -645,8 +648,31 @@ export default function MaaslarPage() {
     }
   }
 
-  async function handleDeleteKesinti(id: string) {
-    if (!confirm("Bu kesintiyi silmek istediğinize emin misiniz?")) return
+  const [deleteModalState, setDeleteModalState] = useState<{
+    open: boolean
+    id: string
+    title: string
+    description: string
+  }>({
+    open: false,
+    id: "",
+    title: "Kesintiyi Sil",
+    description: "Bu kesintiyi silmek istediğinize emin misiniz?",
+  })
+
+  function handleDeleteKesinti(id: string) {
+    setDeleteModalState({
+      open: true,
+      id,
+      title: "Kesintiyi Sil",
+      description: "Bu kesinti kaydını silmek istediğinize emin misiniz? Yapılan işlem veritabanından silinecek ve kalan nakit tutarı güncellenecektir.",
+    })
+  }
+
+  async function executeDeleteKesinti() {
+    const id = deleteModalState.id
+    setDeleteModalState(prev => ({ ...prev, open: false }))
+    if (!id) return
     try {
       const res = await fetch(`/api/admin/maas-kesinti?id=${id}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Silinemedi.")
@@ -713,8 +739,8 @@ export default function MaaslarPage() {
   function openTaksitModal(personelId: string) {
     setTaksitPersonelId(personelId)
     setTaksitToplamBorcInput("")
-    setTaksitSayisiInput("5")
-    setTaksitAciklamaInput("Telefon Borcu")
+    setTaksitSayisiInput("")
+    setTaksitAciklamaInput("")
     setTaksitBaslangicTarihiInput(new Date().toISOString().split("T")[0])
     setTaksitModalOpen(true)
   }
@@ -754,8 +780,8 @@ export default function MaaslarPage() {
       toast.success("Borç taksitlendirmesi başlatıldı ve aylık kesintiler eklendi.")
       setTaksitModalOpen(false)
       setTaksitToplamBorcInput("")
-      setTaksitSayisiInput("5")
-      setTaksitAciklamaInput("Telefon Borcu")
+      setTaksitSayisiInput("")
+      setTaksitAciklamaInput("")
       loadData()
     } catch (err: any) {
       toast.error(err.message || "Hata oluştu.")
@@ -808,6 +834,7 @@ export default function MaaslarPage() {
       metrics: [
         // SOL TARAF — GELİR KUTUCUKLARI (YEŞİL RAKAMLAR)
         { label: "Net Maaş (Taban)", value: `+${formatMoney(item.baseSalary)} TL`, side: "left" as const, color: "green" as const },
+        ...(item.activeZam ? [{ label: "Maaş Zamlandı", value: `Eski: ${formatMoney(item.activeZam.eski_maas)} TL ➔ Yeni: ${formatMoney(item.activeZam.yeni_maas)} TL`, side: "left" as const, color: "green" as const }] : []),
         ...(item.kargoHakedisAmount > 0 ? [{ label: "Kargo Prim", value: `+${formatMoney(item.kargoHakedisAmount)} TL`, side: "left" as const, color: "green" as const }] : []),
         ...(item.corbaTotal > 0 ? [{ label: "Çorba Kazanç", value: `+${formatMoney(item.corbaTotal)} TL`, side: "left" as const, color: "green" as const }] : []),
         { label: "Mesai Ücreti", value: `+${formatMoney(item.mesaiKazanc)} TL`, side: "left" as const, color: "green" as const },
@@ -820,6 +847,16 @@ export default function MaaslarPage() {
         { label: item.nakitOdemeTarihi ? `${formatDate(item.nakitOdemeTarihi)} Nakit Alınacak` : "Nakit Alınacak Net", value: `${formatMoney(item.kalanNakit)} TL`, side: "right" as const, color: "black" as const },
       ],
       tables: [
+        ...(item.activeZam ? [{
+          title: "MAAŞ ZAM BİLGİSİ",
+          headers: ["Geçerlilik Tarihi", "Açıklama", "Eski Maaş ➔ Yeni Maaş"],
+          firstColumnWidth: "28%",
+          rows: [[
+            formatDate(item.activeZam.yururluk_tarihi),
+            item.activeZam.aciklama || "Maaş Zammı Uygulandı",
+            `${formatMoney(item.activeZam.eski_maas)} TL ➔ ${formatMoney(item.activeZam.yeni_maas)} TL (+%${item.activeZam.zam_orani} Zam)`,
+          ]],
+        }] : []),
         {
           title: "ALINAN AVANS DETAYI",
           headers: ["Tarih", "Açıklama", "Tutar"],
@@ -2246,6 +2283,36 @@ export default function MaaslarPage() {
               >
                 <CreditCard className="h-4 w-4" />
                 {taksitSubmitting ? "Kaydediliyor..." : "Taksitlendirmeyi Başlat"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* UYGULAMA İÇİ SİLME ONAY MODALI (Tarayıcı confirm yerine) */}
+        <Dialog open={deleteModalState.open} onOpenChange={(open) => setDeleteModalState(prev => ({ ...prev, open }))}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-red-600 dark:text-red-400">
+                <Scissors className="h-5 w-5" />
+                {deleteModalState.title}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="py-2 text-xs text-muted-foreground font-medium space-y-2">
+              <p>{deleteModalState.description}</p>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setDeleteModalState(prev => ({ ...prev, open: false }))}>
+                Vazgeç / İptal
+              </Button>
+              <Button
+                variant="destructive"
+                className="font-bold gap-1.5"
+                onClick={executeDeleteKesinti}
+              >
+                <Trash2 className="h-4 w-4" />
+                Evet, Sil
               </Button>
             </DialogFooter>
           </DialogContent>
