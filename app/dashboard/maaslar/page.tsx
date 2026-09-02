@@ -416,7 +416,7 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
   if (months > 0) parts.push(`${months} ay`)
   if (days > 0 || parts.length === 0) parts.push(`${days} gün`)
 
-  return `${parts.join(" ")}dür çalışıyor`
+  return istenCikisTarihi ? `${parts.join(" ")} çalıştı` : `${parts.join(" ")}dür çalışıyor`
 }
 
   const personelSummaries = useMemo(() => personeller.map(personel => {
