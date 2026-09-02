@@ -79,6 +79,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // Update existing maas_onaylari kalan_nakit if present in DB
+  const { data: targetOnay } = await admin
+    .from("maas_onaylari")
+    .select("*")
+    .eq("personel_id", personel_id)
+    .eq("sube_id", sube_id)
+    .eq("ay_yil", ay_yil)
+    .maybeSingle()
+
+  if (targetOnay) {
+    const updatedKalan = Math.max(0, Number(targetOnay.kalan_nakit || 0) - numericTutar)
+    await admin
+      .from("maas_onaylari")
+      .update({ kalan_nakit: updatedKalan })
+      .eq("id", targetOnay.id)
+  }
+
   return NextResponse.json({ ok: true, item: data })
 }
 
@@ -110,10 +127,36 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "id zorunludur." }, { status: 400 })
   }
 
+  // Fetch kesinti before deleting to update maas_onaylari
+  const { data: targetKesinti } = await admin
+    .from("maas_kesintileri")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle()
+
   const { error } = await admin.from("maas_kesintileri").delete().eq("id", id)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  if (targetKesinti) {
+    const deletedTutar = Number(targetKesinti.tutar || 0)
+    const { data: targetOnay } = await admin
+      .from("maas_onaylari")
+      .select("*")
+      .eq("personel_id", targetKesinti.personel_id)
+      .eq("sube_id", targetKesinti.sube_id)
+      .eq("ay_yil", targetKesinti.ay_yil)
+      .maybeSingle()
+
+    if (targetOnay) {
+      const updatedKalan = Number(targetOnay.kalan_nakit || 0) + deletedTutar
+      await admin
+        .from("maas_onaylari")
+        .update({ kalan_nakit: updatedKalan })
+        .eq("id", targetOnay.id)
+    }
   }
 
   return NextResponse.json({ ok: true })

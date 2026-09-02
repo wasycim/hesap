@@ -300,8 +300,13 @@ export default function MaaslarPage() {
     
     let allPersoneller = (personelRes.data || []).filter((p) => !isTestPersonnel(p))
 
+    const is5ABranch = Boolean(
+      currentSube.ad?.trim().toUpperCase().includes("5A") ||
+      currentSube.id === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981"
+    )
+
     // 14 No Şubesinden ÖMER KAHRİMAN Maaş Kartı Taşıması (5A Şubesi İstisnası)
-    if (currentSube.ad === "5A" || currentSube.id === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981") {
+    if (is5ABranch) {
       const { data: omerData } = await supabase
         .from("personeller")
         .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif, isten_cikis_tarihi")
@@ -448,7 +453,11 @@ export default function MaaslarPage() {
         }
       })
 
-    const isOmerIn5A = (currentSube?.ad === "5A" || currentSube?.id === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981") && normalizeName(personel.ad).includes("OMER KAHRIMAN")
+    const is5ABranch = Boolean(
+      currentSube?.ad?.trim().toUpperCase().includes("5A") ||
+      currentSube?.id === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981"
+    )
+    const isOmerIn5A = is5ABranch && normalizeName(personel.ad).includes("OMER KAHRIMAN")
     const targetGiderRows = isOmerIn5A ? omer14GiderRows : rows
 
     targetGiderRows.forEach(row => {
@@ -1961,6 +1970,10 @@ export default function MaaslarPage() {
                 <CheckCircle2 className="h-4 w-4" />
                 {savingApproval ? "Kaydediliyor..." : "Onayla ve Kaydet"}
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* ZAM MODALI (Yalnızca Yöneticiler) */}
         <Dialog open={zamModalOpen} onOpenChange={setZamModalOpen}>
           <DialogContent className="sm:max-w-md">
