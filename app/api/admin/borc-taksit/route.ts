@@ -160,10 +160,27 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "id zorunludur." }, { status: 400 })
   }
 
+  // 1. Fetch taksit record first
+  const { data: taksitItem } = await admin
+    .from("personel_borc_taksitleri")
+    .select("personel_id, aciklama")
+    .eq("id", id)
+    .maybeSingle()
+
+  // 2. Delete installment plan
   const { error } = await admin.from("personel_borc_taksitleri").delete().eq("id", id)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // 3. Delete matching maas_kesintileri entries
+  if (taksitItem?.aciklama) {
+    await admin
+      .from("maas_kesintileri")
+      .delete()
+      .eq("personel_id", taksitItem.personel_id)
+      .ilike("aciklama", `%${taksitItem.aciklama}%`)
   }
 
   return NextResponse.json({ ok: true })
