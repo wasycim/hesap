@@ -342,6 +342,26 @@ export default function MaaslarPage() {
       }
     })
 
+    if (is5ABranch) {
+      const { data: omerGider } = await supabase
+        .from("gider_kayitlari")
+        .select("tarih, personel_paylari, personel_mesai_detaylari, ortak_pilarim")
+        .eq("sube_id", "172cc1f6-3012-47d3-a707-36e6f77e97cf") // Branch 14 ID
+        .eq("ay_yil", ayYil)
+        .order("tarih", { ascending: true })
+
+      if (omerGider) {
+        omerGider.forEach(row => {
+          if (row.personel_paylari) {
+            Object.entries(row.personel_paylari).forEach(([k, v]) => { if (Number(v) > 0) usedPersonelIds.add(k) })
+          }
+          if (row.personel_mesai_detaylari) {
+            Object.entries(row.personel_mesai_detaylari).forEach(([k, v]) => { if (Number(v) > 0) usedPersonelIds.add(k) })
+          }
+        })
+      }
+    }
+
     ;(corbaRes.data || []).forEach(c => {
       if (Number(c.miktar) > 0) usedPersonelIds.add(c.personel_id)
     })
@@ -497,7 +517,11 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
       currentSube?.ad?.trim().toUpperCase().includes("5A") ||
       currentSube?.id === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981"
     )
-    const isOmerIn5A = is5ABranch && normalizeName(personel.ad).includes("OMER KAHRIMAN")
+    const isOmerIn5A = is5ABranch && (
+      personel.ad.toUpperCase().includes("ÖMER KAHRİMAN") ||
+      personel.ad.toUpperCase().includes("OMER KAHRIMAN") ||
+      personel.id === "78a15f68-edfd-493c-b8bd-5604acf599dd"
+    )
     const targetGiderRows = isOmerIn5A ? omer14GiderRows : rows
 
     targetGiderRows.forEach(row => {
