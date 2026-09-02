@@ -300,12 +300,21 @@ export default function MaaslarPage() {
     
     let allPersoneller = (personelRes.data || []).filter((p) => !isTestPersonnel(p))
 
+    const is14Branch = Boolean(
+      currentSube.ad?.trim().toUpperCase().includes("14") ||
+      currentSube.id === "172cc1f6-3012-47d3-a707-36e6f77e97cf"
+    )
+
+    // 14 No Şubesinden ÖMER KAHRİMAN Maaş Kartı Taşıması (14 No Şubesinde Görünmeyecek, 5A Şubesinde Görünecek)
+    if (is14Branch) {
+      allPersoneller = allPersoneller.filter(p => !normalizeName(p.ad).includes("OMER KAHRIMAN"))
+    }
+
     const is5ABranch = Boolean(
       currentSube.ad?.trim().toUpperCase().includes("5A") ||
       currentSube.id === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981"
     )
 
-    // 14 No Şubesinden ÖMER KAHRİMAN Maaş Kartı Taşıması (5A Şubesi İstisnası)
     if (is5ABranch) {
       const { data: omerData } = await supabase
         .from("personeller")
