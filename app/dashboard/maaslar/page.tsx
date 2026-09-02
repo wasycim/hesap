@@ -300,44 +300,22 @@ export default function MaaslarPage() {
     
     let allPersoneller = (personelRes.data || []).filter((p) => !isTestPersonnel(p))
 
-    const is14Branch = Boolean(
-      currentSube.ad?.trim().toUpperCase().includes("14") ||
-      currentSube.id === "172cc1f6-3012-47d3-a707-36e6f77e97cf"
-    )
-
-    // 14 No Şubesinden ÖMER KAHRİMAN Maaş Kartı Taşıması (14 No Şubesinde Görünmeyecek, 5A Şubesinde Görünecek)
-    if (is14Branch) {
-      allPersoneller = allPersoneller.filter(p => !normalizeName(p.ad).includes("OMER KAHRIMAN"))
-    }
-
     const is5ABranch = Boolean(
       currentSube.ad?.trim().toUpperCase().includes("5A") ||
       currentSube.id === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981"
     )
 
+    // ÖMER KAHRİMAN 5A Şubesinde görünecek, 14 No Şubesi avans ve mesaileri Branch 14 gider_kayitlari'ndan okunacak
     if (is5ABranch) {
-      const { data: omerData } = await supabase
-        .from("personeller")
-        .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif, isten_cikis_tarihi")
-        .ilike("ad", "%ÖMER KAHRİMAN%")
-        .maybeSingle()
+      const { data: omerGider } = await supabase
+        .from("gider_kayitlari")
+        .select("tarih, personel_paylari, personel_mesai_detaylari, ortak_pilarim")
+        .eq("sube_id", "172cc1f6-3012-47d3-a707-36e6f77e97cf") // Branch 14 ID
+        .eq("ay_yil", ayYil)
+        .order("tarih", { ascending: true })
 
-      if (omerData) {
-        setOmerPersonelRecord(omerData)
-        if (!allPersoneller.some(p => p.id === omerData.id)) {
-          allPersoneller = [omerData, ...allPersoneller]
-        }
-
-        const { data: omerGider } = await supabase
-          .from("gider_kayitlari")
-          .select("tarih, personel_paylari, personel_mesai_detaylari, ortak_pilarim")
-          .eq("sube_id", "172cc1f6-3012-47d3-a707-36e6f77e97cf") // Branch 14 ID
-          .eq("ay_yil", ayYil)
-          .order("tarih", { ascending: true })
-
-        if (omerGider) {
-          setOmer14GiderRows(omerGider)
-        }
+      if (omerGider) {
+        setOmer14GiderRows(omerGider)
       }
     }
     const usedPersonelIds = new Set<string>()
