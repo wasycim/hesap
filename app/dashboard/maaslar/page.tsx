@@ -834,7 +834,6 @@ export default function MaaslarPage() {
       metrics: [
         // SOL TARAF — GELİR KUTUCUKLARI (YEŞİL RAKAMLAR)
         { label: "Net Maaş (Taban)", value: `+${formatMoney(item.baseSalary)} TL`, side: "left" as const, color: "green" as const },
-        ...(item.activeZam ? [{ label: "Maaş Zamlandı", value: `Eski: ${formatMoney(item.activeZam.eski_maas)} TL ➔ Yeni: ${formatMoney(item.activeZam.yeni_maas)} TL`, side: "left" as const, color: "green" as const }] : []),
         ...(item.kargoHakedisAmount > 0 ? [{ label: "Kargo Prim", value: `+${formatMoney(item.kargoHakedisAmount)} TL`, side: "left" as const, color: "green" as const }] : []),
         ...(item.corbaTotal > 0 ? [{ label: "Çorba Kazanç", value: `+${formatMoney(item.corbaTotal)} TL`, side: "left" as const, color: "green" as const }] : []),
         { label: "Mesai Ücreti", value: `+${formatMoney(item.mesaiKazanc)} TL`, side: "left" as const, color: "green" as const },
@@ -847,16 +846,6 @@ export default function MaaslarPage() {
         { label: item.nakitOdemeTarihi ? `${formatDate(item.nakitOdemeTarihi)} Nakit Alınacak` : "Nakit Alınacak Net", value: `${formatMoney(item.kalanNakit)} TL`, side: "right" as const, color: "black" as const },
       ],
       tables: [
-        ...(item.activeZam ? [{
-          title: "MAAŞ ZAM BİLGİSİ",
-          headers: ["Geçerlilik Tarihi", "Açıklama", "Eski Maaş ➔ Yeni Maaş"],
-          firstColumnWidth: "28%",
-          rows: [[
-            formatDate(item.activeZam.yururluk_tarihi),
-            item.activeZam.aciklama || "Maaş Zammı Uygulandı",
-            `${formatMoney(item.activeZam.eski_maas)} TL ➔ ${formatMoney(item.activeZam.yeni_maas)} TL (+%${item.activeZam.zam_orani} Zam)`,
-          ]],
-        }] : []),
         {
           title: "ALINAN AVANS DETAYI",
           headers: ["Tarih", "Açıklama", "Tutar"],
@@ -885,6 +874,16 @@ export default function MaaslarPage() {
               `+${formatMoney(detail.amount)} TL`,
             ]),
         },
+        ...(item.activeZam ? [{
+          title: "MAAŞ ZAM BİLGİSİ",
+          headers: ["Geçerlilik Tarihi", "Açıklama", "Eski Maaş ➔ Yeni Maaş"],
+          firstColumnWidth: "28%",
+          rows: [[
+            formatDate(item.activeZam.yururluk_tarihi),
+            item.activeZam.aciklama || "Maaş Zammı Uygulandı",
+            `${formatMoney(item.activeZam.eski_maas)} TL ➔ ${formatMoney(item.activeZam.yeni_maas)} TL (+%${item.activeZam.zam_orani} Zam)`,
+          ]],
+        }] : []),
       ],
     })
   }
