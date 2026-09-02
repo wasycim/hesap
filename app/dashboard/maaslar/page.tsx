@@ -542,8 +542,8 @@ export default function MaaslarPage() {
     const onay = maasOnaylari[personel.id] || null
     const bankayaGonderilen = onay ? Number(onay.bankaya_gonderilen || 0) : 0
 
-    // Dynamic kalanNakit formula so deleting a kesinti instantly restores remaining cash!
-    const kalanNakit = Math.max(0, toplamKazanc - advanceTotal - bankayaGonderilen - kesintiTotal)
+    // Dynamic kalanNakit formula using totalHakedis (Maaş + Mesailer - Avans - Banka - Kesintiler)
+    const kalanNakit = Math.max(0, totalHakedis - advanceTotal - bankayaGonderilen - kesintiTotal)
     const nakitOdemeTarihi = onay ? onay.nakit_odeme_tarihi : null
 
     return {
