@@ -103,10 +103,15 @@ export async function POST(request: NextRequest) {
   // 2. Generate monthly maas_kesintileri records for each installment month!
   const kesintilerToInsert = []
   for (let i = 0; i < count; i++) {
-    const instDateObj = new Date(startYear, startMonth - 1 + i, startDay)
-    const instDateStr = `${instDateObj.getFullYear()}-${String(instDateObj.getMonth() + 1).padStart(2, "0")}-${String(instDateObj.getDate()).padStart(2, "0")}`
-    const instMonthName = MONTH_NAMES[instDateObj.getMonth()]
-    const instAyYil = `${instMonthName}-${instDateObj.getFullYear()}`
+    const totalMonthIndex = startMonth - 1 + i
+    const targetYear = startYear + Math.floor(totalMonthIndex / 12)
+    const targetMonthZero = ((totalMonthIndex % 12) + 12) % 12
+    const maxDays = new Date(targetYear, targetMonthZero + 1, 0).getDate()
+    const targetDay = Math.min(startDay, maxDays)
+
+    const instDateStr = `${targetYear}-${String(targetMonthZero + 1).padStart(2, "0")}-${String(targetDay).padStart(2, "0")}`
+    const instMonthName = MONTH_NAMES[targetMonthZero]
+    const instAyYil = `${instMonthName}-${targetYear}`
 
     kesintilerToInsert.push({
       personel_id,

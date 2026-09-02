@@ -306,7 +306,8 @@ export default function MaaslarPage() {
       currentSube.id === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981"
     )
 
-    // ÖMER KAHRİMAN 5A Şubesinde görünecek, 14 No Şubesi avans ve mesaileri Branch 14 gider_kayitlari'ndan okunacak
+    // ÖMER KAHRİMAN 5A Şubesinde görünecek, 14 No Şubesi avans, mesai ve çorbaları Branch 14'ten okunacak
+    let combinedCorbaData = corbaRes.data || []
     if (is5ABranch) {
       const { data: omerGider } = await supabase
         .from("gider_kayitlari")
@@ -317,6 +318,17 @@ export default function MaaslarPage() {
 
       if (omerGider) {
         setOmer14GiderRows(omerGider)
+      }
+
+      const { data: omer14Corba } = await supabase
+        .from("corbalar")
+        .select("tarih, personel_id, miktar")
+        .eq("sube_id", "172cc1f6-3012-47d3-a707-36e6f77e97cf") // Branch 14 ID
+        .eq("ay_yil", ayYil)
+        .order("tarih", { ascending: true })
+
+      if (omer14Corba && omer14Corba.length > 0) {
+        combinedCorbaData = [...combinedCorbaData, ...omer14Corba]
       }
     }
     const usedPersonelIds = new Set<string>()
@@ -355,7 +367,7 @@ export default function MaaslarPage() {
     setOvertimeApprovals(approvalsRes.ok ? (approvalsPayload?.items || []) : [])
     setKargoPrimAmount(kargoPrimRes.data ? Number(kargoPrimRes.data.personel_hakedis || 0) : 0)
     setKargoSeciliPersoneller(kargoPrimRes.data?.secili_personeller ? (kargoPrimRes.data.secili_personeller as string[]) : null)
-    setCorbaData(corbaRes.data || [])
+    setCorbaData(combinedCorbaData)
     setLoading(false)
   }
 

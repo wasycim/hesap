@@ -143,14 +143,31 @@ export default function CorbalarPage() {
     const monthIndex = MONTHS.indexOf(month) + 1
     const monthStartDate = `${year}-${String(monthIndex).padStart(2, "0")}-01`
 
-    if (personelData) {
-      setPersoneller(personelData.filter(p => {
-        if (isTestPersonnel(p)) return false
-        if (p.isten_cikis_tarihi && p.isten_cikis_tarihi < monthStartDate) return false
-        if (p.isten_cikis_tarihi && p.isten_cikis_tarihi >= monthStartDate) return true
-        return p.aktif
-      }))
+    const is5ABranch = Boolean(currentSube.ad?.trim().toUpperCase().includes("5A") || currentSube.id === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981")
+    const is14Branch = Boolean(currentSube.ad?.trim().toUpperCase().includes("14") || currentSube.id === "172cc1f6-3012-47d3-a707-36e6f77e97cf")
+
+    let activePersoneller = (personelData || []).filter(p => {
+      if (isTestPersonnel(p)) return false
+      if (p.isten_cikis_tarihi && p.isten_cikis_tarihi < monthStartDate) return false
+      if (p.isten_cikis_tarihi && p.isten_cikis_tarihi >= monthStartDate) return true
+      return p.aktif
+    })
+
+    if (is5ABranch) {
+      activePersoneller = activePersoneller.filter(p => !p.ad.toUpperCase().includes("ÖMER KAHRİMAN") && !p.ad.toUpperCase().includes("OMER KAHRIMAN"))
+    } else if (is14Branch) {
+      const { data: omerData } = await supabase
+        .from("personeller")
+        .select("*")
+        .ilike("ad", "%ÖMER KAHRİMAN%")
+        .maybeSingle()
+
+      if (omerData && !activePersoneller.some(p => p.id === omerData.id)) {
+        activePersoneller = [omerData, ...activePersoneller]
+      }
     }
+
+    setPersoneller(activePersoneller)
 
     // Çorba kayıtlarını çek
     const { data: corbaData } = await supabase

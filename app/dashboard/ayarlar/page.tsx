@@ -736,6 +736,7 @@ export default function AyarlarPage() {
                         <label className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 block mb-1">İşe Giriş Tarihi</label>
                         <ExitDatePicker
                           compact
+                          type="entry"
                           value={entryDateDrafts[personel.id] || ""}
                           onChange={(val) => setEntryDateDrafts(prev => ({ ...prev, [personel.id]: val }))}
                         />
