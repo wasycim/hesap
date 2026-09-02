@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Calendar as CalendarIcon, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, Edit3, FileText, HandCoins, Plus, Scissors, ShieldCheck, Trash2, Wallet, XCircle } from "lucide-react"
+import { Calendar as CalendarIcon, Calculator, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, CreditCard, Edit3, FileText, HandCoins, Plus, Scissors, ShieldCheck, Sparkles, Trash2, TrendingUp, Wallet, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { isTestPersonnel } from "@/lib/utils/test-personnel"
@@ -161,6 +161,31 @@ export default function MaaslarPage() {
   const [kesintiTarihInput, setKesintiTarihInput] = useState(new Date().toISOString().split("T")[0])
   const [kesintiSubmitting, setKesintiSubmitting] = useState(false)
 
+  // Zam (Maaş Zammı) State
+  const [zamModalOpen, setZamModalOpen] = useState(false)
+  const [zamTargetType, setZamTargetType] = useState<"personel" | "ortak">("personel")
+  const [zamTargetId, setZamTargetId] = useState("")
+  const [zamOraniInput, setZamOraniInput] = useState("")
+  const [zamYuvarlamaInput, setZamYuvarlamaInput] = useState("")
+  const [zamTarihInput, setZamTarihInput] = useState(new Date().toISOString().split("T")[0])
+  const [zamAciklamaInput, setZamAciklamaInput] = useState("")
+  const [zamSubmitting, setZamSubmitting] = useState(false)
+  const [maasZamlariList, setMaasZamlariList] = useState<any[]>([])
+
+  // Borç Taksitlendirme State
+  const [taksitModalOpen, setTaksitModalOpen] = useState(false)
+  const [taksitPersonelId, setTaksitPersonelId] = useState("")
+  const [taksitToplamBorcInput, setTaksitToplamBorcInput] = useState("")
+  const [taksitSayisiInput, setTaksitSayisiInput] = useState("5")
+  const [taksitAciklamaInput, setTaksitAciklamaInput] = useState("Telefon Borcu")
+  const [taksitBaslangicTarihiInput, setTaksitBaslangicTarihiInput] = useState(new Date().toISOString().split("T")[0])
+  const [taksitSubmitting, setTaksitSubmitting] = useState(false)
+  const [borcTaksitleriList, setBorcTaksitleriList] = useState<any[]>([])
+
+  // Ömer Kahriman (14 No Şubesi -> 5A Şubesi Kart Taşıma İstisnası)
+  const [omer14GiderRows, setOmer14GiderRows] = useState<GiderRow[]>([])
+  const [omerPersonelRecord, setOmerPersonelRecord] = useState<Personel | null>(null)
+
   const supabase = createClient()
   const { currentSube, isAdmin, loading: subeLoading } = useSube()
   const years = makeYearWindow(year)
@@ -194,7 +219,7 @@ export default function MaaslarPage() {
     const from = getMonthStartDate(month, year)
     const to = getMonthEndDate(month, year)
 
-    const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes, corbaRes, avansRes, maasOnayRes, kesintiRes] = await Promise.all([
+    const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes, corbaRes, avansRes, maasOnayRes, kesintiRes, maasZamRes, borcTaksitRes] = await Promise.all([
       supabase
         .from("personeller")
         .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif, isten_cikis_tarihi")
@@ -229,6 +254,8 @@ export default function MaaslarPage() {
       fetch("/api/admin/avans", { cache: "no-store" }),
       fetch(`/api/admin/maas-onay?${new URLSearchParams({ subeId: currentSube.id, ayYil }).toString()}`, { cache: "no-store" }),
       fetch(`/api/admin/maas-kesinti?${new URLSearchParams({ subeId: currentSube.id, ayYil }).toString()}`, { cache: "no-store" }),
+      fetch(`/api/admin/maas-zam?${new URLSearchParams({ subeId: currentSube.id }).toString()}`, { cache: "no-store" }),
+      fetch(`/api/admin/borc-taksit?${new URLSearchParams({ subeId: currentSube.id }).toString()}`, { cache: "no-store" }),
     ])
 
     const attendancePayload = await attendanceRes.json().catch(() => null) as AttendancePayload | null
@@ -236,6 +263,8 @@ export default function MaaslarPage() {
     const avansPayload = await avansRes.json().catch(() => null)
     const maasOnayPayload = await maasOnayRes?.json().catch(() => null)
     const kesintiPayload = await kesintiRes?.json().catch(() => null)
+    const maasZamPayload = await maasZamRes?.json().catch(() => null)
+    const borcTaksitPayload = await borcTaksitRes?.json().catch(() => null)
 
     if (avansPayload?.requests) {
       setAvansTalepleri(avansPayload.requests)
@@ -245,6 +274,18 @@ export default function MaaslarPage() {
       setKesintilerList(kesintiPayload.items)
     } else {
       setKesintilerList([])
+    }
+
+    if (maasZamPayload?.items) {
+      setMaasZamlariList(maasZamPayload.items)
+    } else {
+      setMaasZamlariList([])
+    }
+
+    if (borcTaksitPayload?.items) {
+      setBorcTaksitleriList(borcTaksitPayload.items)
+    } else {
+      setBorcTaksitleriList([])
     }
 
     if (maasOnayPayload?.items) {
@@ -257,7 +298,34 @@ export default function MaaslarPage() {
       setMaasOnaylari({})
     }
     
-    const allPersoneller = (personelRes.data || []).filter((p) => !isTestPersonnel(p))
+    let allPersoneller = (personelRes.data || []).filter((p) => !isTestPersonnel(p))
+
+    // 14 No Şubesinden ÖMER KAHRİMAN Maaş Kartı Taşıması (5A Şubesi İstisnası)
+    if (currentSube.ad === "5A" || currentSube.id === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981") {
+      const { data: omerData } = await supabase
+        .from("personeller")
+        .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif, isten_cikis_tarihi")
+        .ilike("ad", "%ÖMER KAHRİMAN%")
+        .maybeSingle()
+
+      if (omerData) {
+        setOmerPersonelRecord(omerData)
+        if (!allPersoneller.some(p => p.id === omerData.id)) {
+          allPersoneller = [omerData, ...allPersoneller]
+        }
+
+        const { data: omerGider } = await supabase
+          .from("gider_kayitlari")
+          .select("tarih, personel_paylari, personel_mesai_detaylari, ortak_pilarim")
+          .eq("sube_id", "172cc1f6-3012-47d3-a707-36e6f77e97cf") // Branch 14 ID
+          .eq("ay_yil", ayYil)
+          .order("tarih", { ascending: true })
+
+        if (omerGider) {
+          setOmer14GiderRows(omerGider)
+        }
+      }
+    }
     const usedPersonelIds = new Set<string>()
 
     ;(giderRes.data || []).forEach(row => {
@@ -380,7 +448,10 @@ export default function MaaslarPage() {
         }
       })
 
-    rows.forEach(row => {
+    const isOmerIn5A = (currentSube?.ad === "5A" || currentSube?.id === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981") && normalizeName(personel.ad).includes("OMER KAHRIMAN")
+    const targetGiderRows = isOmerIn5A ? omer14GiderRows : rows
+
+    targetGiderRows.forEach(row => {
       const advanceAmount = Number(row.personel_paylari?.[personel.id]) || 0
       if (advanceAmount > 0) {
         advances.push({ tarih: row.tarih, amount: advanceAmount, description: "Alınan avans" })
@@ -452,7 +523,9 @@ export default function MaaslarPage() {
 
     const onay = maasOnaylari[personel.id] || null
     const bankayaGonderilen = onay ? Number(onay.bankaya_gonderilen || 0) : 0
-    const kalanNakit = onay ? Number(onay.kalan_nakit || 0) : Math.max(0, remainingBeforeBank - bankayaGonderilen)
+
+    // Dynamic kalanNakit formula so deleting a kesinti instantly restores remaining cash!
+    const kalanNakit = Math.max(0, toplamKazanc - advanceTotal - bankayaGonderilen - kesintiTotal)
     const nakitOdemeTarihi = onay ? onay.nakit_odeme_tarihi : null
 
     return {
@@ -581,10 +654,117 @@ export default function MaaslarPage() {
     try {
       const res = await fetch(`/api/admin/maas-kesinti?id=${id}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Silinemedi.")
-      toast.success("Kesinti silindi.")
+      toast.success("Kesinti silindi ve kalan nakit güncellendi.")
       loadData()
     } catch (err: any) {
       toast.error(err.message || "Hata oluştu.")
+    }
+  }
+
+  async function handleSaveMaasZam() {
+    if (!currentSube || !zamTargetId || !zamYuvarlamaInput) {
+      toast.error("Lütfen hedef ve yeni maaş tutarını girin.")
+      return
+    }
+
+    const newSalary = Number(zamYuvarlamaInput)
+    if (isNaN(newSalary) || newSalary <= 0) {
+      toast.error("Geçerli bir yeni maaş tutarı giriniz.")
+      return
+    }
+
+    const currentTarget = zamTargetType === "personel" 
+      ? personeller.find(p => p.id === zamTargetId)
+      : ortaklar.find(o => o.id === zamTargetId)
+
+    const eskiMaas = currentTarget ? Number((currentTarget as any).aylik_maas || 0) : 0
+    const zamOrani = Number(zamOraniInput || 0)
+
+    setZamSubmitting(true)
+    try {
+      const res = await fetch("/api/admin/maas-zam", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target_type: zamTargetType,
+          target_id: zamTargetId,
+          sube_id: currentSube.id,
+          eski_maas: eskiMaas,
+          zam_orani: zamOrani,
+          yeni_maas: newSalary,
+          yururluk_tarihi: zamTarihInput,
+          aciklama: zamAciklamaInput || "Maaş Zammı",
+        }),
+      })
+
+      const payload = await res.json()
+      if (!res.ok) throw new Error(payload.error || "Maaş zammı kaydedilemedi.")
+
+      toast.success("Maaş zammı başarıyla uygulandı ve kaydedildi.")
+      setZamModalOpen(false)
+      setZamTargetId("")
+      setZamOraniInput("")
+      setZamYuvarlamaInput("")
+      setZamAciklamaInput("")
+      loadData()
+    } catch (err: any) {
+      toast.error(err.message || "Hata oluştu.")
+    } finally {
+      setZamSubmitting(false)
+    }
+  }
+
+  function openTaksitModal(personelId: string) {
+    setTaksitPersonelId(personelId)
+    setTaksitToplamBorcInput("")
+    setTaksitSayisiInput("5")
+    setTaksitAciklamaInput("Telefon Borcu")
+    setTaksitBaslangicTarihiInput(new Date().toISOString().split("T")[0])
+    setTaksitModalOpen(true)
+  }
+
+  async function handleSaveBorcTaksit() {
+    if (!currentSube || !taksitPersonelId || !taksitToplamBorcInput || !taksitSayisiInput) {
+      toast.error("Lütfen toplam borç ve taksit sayısını girin.")
+      return
+    }
+
+    const totalBorc = Number(taksitToplamBorcInput)
+    const count = Number(taksitSayisiInput)
+
+    if (isNaN(totalBorc) || totalBorc <= 0 || isNaN(count) || count < 1) {
+      toast.error("Geçerli borç tutarı ve taksit sayısı girin.")
+      return
+    }
+
+    setTaksitSubmitting(true)
+    try {
+      const res = await fetch("/api/admin/borc-taksit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          personel_id: taksitPersonelId,
+          sube_id: currentSube.id,
+          toplam_borc: totalBorc,
+          taksit_sayisi: count,
+          aciklama: taksitAciklamaInput || "Taksitli Borç",
+          baslangic_tarihi: taksitBaslangicTarihiInput,
+        }),
+      })
+
+      const payload = await res.json()
+      if (!res.ok) throw new Error(payload.error || "Taksitlendirme kaydedilemedi.")
+
+      toast.success("Borç taksitlendirmesi başlatıldı ve aylık kesintiler eklendi.")
+      setTaksitModalOpen(false)
+      setTaksitToplamBorcInput("")
+      setTaksitSayisiInput("5")
+      setTaksitAciklamaInput("Telefon Borcu")
+      loadData()
+    } catch (err: any) {
+      toast.error(err.message || "Hata oluştu.")
+    } finally {
+      setTaksitSubmitting(false)
     }
   }
 
@@ -894,6 +1074,20 @@ export default function MaaslarPage() {
           )}
         </div>
         <div className="grid grid-cols-[auto_1fr_0.8fr_auto] items-center gap-2 sm:flex">
+          {isManager && (
+            <Button
+              onClick={() => {
+                setZamTargetId("")
+                setZamOraniInput("")
+                setZamYuvarlamaInput("")
+                setZamModalOpen(true)
+              }}
+              className="col-span-full gap-2 border-emerald-400 bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-sm sm:col-span-1"
+            >
+              <TrendingUp className="h-4 w-4" />
+              Maaş Zammı Yap
+            </Button>
+          )}
           <Button
             onClick={() => setRequestModalOpen(true)}
             className="col-span-full gap-2 border-amber-400 bg-amber-400 text-amber-950 hover:bg-amber-300 font-bold shadow-sm sm:col-span-1"
@@ -1125,18 +1319,29 @@ export default function MaaslarPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {isManager && (
-                    <Button
-                      size="sm"
-                      onClick={() => openApproveModal(selectedPersonel.personel.id)}
-                      className={`gap-2 font-bold shadow-sm rounded-lg border transition-all ${
-                        selectedPersonel.isApproved
-                          ? "bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40 dark:hover:bg-emerald-500/30 border-emerald-600/30"
-                          : "bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-500 border-blue-500/30"
-                      }`}
-                    >
-                      <ShieldCheck className="h-4 w-4" />
-                      {selectedPersonel.isApproved ? "Maaş Onayını Düzenle" : "Maaş Onayla"}
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openTaksitModal(selectedPersonel.personel.id)}
+                        className="gap-1.5 border-purple-300 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/50 font-bold"
+                      >
+                        <CreditCard className="h-4 w-4" />
+                        Taksitlendir
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => openApproveModal(selectedPersonel.personel.id)}
+                        className={`gap-2 font-bold shadow-sm rounded-lg border transition-all ${
+                          selectedPersonel.isApproved
+                            ? "bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40 dark:hover:bg-emerald-500/30 border-emerald-600/30"
+                            : "bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-500 border-blue-500/30"
+                        }`}
+                      >
+                        <ShieldCheck className="h-4 w-4" />
+                        {selectedPersonel.isApproved ? "Maaş Onayını Düzenle" : "Maaş Onayla"}
+                      </Button>
+                    </>
                   )}
                   <Button variant="outline" size="sm" onClick={() => exportPersonelPdf(selectedPersonel)} className="gap-2">
                     <FileText className="h-4 w-4" />
@@ -1755,6 +1960,292 @@ export default function MaaslarPage() {
               >
                 <CheckCircle2 className="h-4 w-4" />
                 {savingApproval ? "Kaydediliyor..." : "Onayla ve Kaydet"}
+              </Button>
+        {/* ZAM MODALI (Yalnızca Yöneticiler) */}
+        <Dialog open={zamModalOpen} onOpenChange={setZamModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                <TrendingUp className="h-5 w-5" />
+                Maaş Zammı Yönetimi
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2 text-xs">
+              <div>
+                <label className="text-xs font-semibold block mb-1">Hedef Tipi *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant={zamTargetType === "personel" ? "default" : "outline"}
+                    className={zamTargetType === "personel" ? "bg-emerald-600 text-white font-bold h-9 text-xs" : "h-9 text-xs"}
+                    onClick={() => {
+                      setZamTargetType("personel")
+                      setZamTargetId("")
+                      setZamYuvarlamaInput("")
+                    }}
+                  >
+                    Personeller
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={zamTargetType === "ortak" ? "default" : "outline"}
+                    className={zamTargetType === "ortak" ? "bg-emerald-600 text-white font-bold h-9 text-xs" : "h-9 text-xs"}
+                    onClick={() => {
+                      setZamTargetType("ortak")
+                      setZamTargetId("")
+                      setZamYuvarlamaInput("")
+                    }}
+                  >
+                    Ortaklar
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold block mb-1">
+                  {zamTargetType === "personel" ? "Personel Seçin *" : "Ortak Seçin *"}
+                </label>
+                <Select
+                  value={zamTargetId}
+                  onValueChange={(val) => {
+                    setZamTargetId(val)
+                    const target = zamTargetType === "personel" ? personeller.find(p => p.id === val) : ortaklar.find(o => o.id === val)
+                    const currentSalary = target ? Number((target as any).aylik_maas || 0) : 0
+                    const percent = Number(zamOraniInput || 0)
+                    if (currentSalary > 0 && percent > 0) {
+                      const calc = currentSalary * (1 + percent / 100)
+                      setZamYuvarlamaInput(String(Math.round(calc)))
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full h-10 text-xs bg-background">
+                    <SelectValue placeholder="-- Seçiniz --" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {zamTargetType === "personel" ? (
+                      personeller.map(p => (
+                        <SelectItem key={p.id} value={p.id} className="text-xs">
+                          {p.ad} ({formatMoney(Number(p.aylik_maas || 0))} TL)
+                        </SelectItem>
+                      ))
+                    ) : (
+                      ortaklar.map(o => (
+                        <SelectItem key={o.id} value={o.id} className="text-xs">
+                          {o.ad}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {zamTargetId && (() => {
+                const target = zamTargetType === "personel" ? personeller.find(p => p.id === zamTargetId) : ortaklar.find(o => o.id === zamTargetId)
+                const currentSalary = target ? Number((target as any).aylik_maas || 0) : 0
+                const percent = Number(zamOraniInput || 0)
+                const calculatedNew = currentSalary > 0 && percent > 0 ? currentSalary * (1 + percent / 100) : currentSalary
+
+                return (
+                  <div className="space-y-3 border-t pt-3">
+                    <div className="flex justify-between items-center bg-slate-100 dark:bg-slate-900 p-2.5 rounded-lg">
+                      <span className="font-semibold text-muted-foreground">Mevcut Maaş:</span>
+                      <span className="font-bold text-foreground text-sm">{formatMoney(currentSalary)} TL</span>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold block mb-1">Zam Oranı (%) *</label>
+                      <Input
+                        type="number"
+                        min="1"
+                        placeholder="Örn: 30"
+                        value={zamOraniInput}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setZamOraniInput(val)
+                          const p = Number(val || 0)
+                          if (currentSalary > 0 && p > 0) {
+                            const calc = currentSalary * (1 + p / 100)
+                            setZamYuvarlamaInput(String(Math.round(calc)))
+                          }
+                        }}
+                        className="h-10 text-xs bg-background"
+                      />
+                    </div>
+
+                    {percent > 0 && (
+                      <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-lg space-y-1.5">
+                        <div className="flex justify-between text-emerald-800 dark:text-emerald-300">
+                          <span>Hesaplanan Ham Zamlı Maaş:</span>
+                          <span className="font-bold">{formatMoney(calculatedNew)} TL</span>
+                        </div>
+                        <p className="text-[11px] text-emerald-600 dark:text-emerald-400">
+                          Küsüratsız net tutar için aşağıdaki yuvarlama kutucuğunu istediğiniz rakama göre düzenleyebilirsiniz.
+                        </p>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="text-xs font-semibold block mb-1 text-emerald-700 dark:text-emerald-300">
+                        Yuvarlamak / Belirlemek İstediğiniz Yeni Net Maaş (₺) *
+                      </label>
+                      <Input
+                        type="number"
+                        min="1"
+                        placeholder="Örn: 20000 veya 36500"
+                        value={zamYuvarlamaInput}
+                        onChange={(e) => setZamYuvarlamaInput(e.target.value)}
+                        className="h-10 text-sm font-extrabold text-emerald-700 dark:text-emerald-300 bg-background"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold block mb-1">Zam Geçerlilik Tarihi *</label>
+                      <ModernDatePicker
+                        label=""
+                        value={zamTarihInput}
+                        onChange={setZamTarihInput}
+                        buttonClassName="w-full h-10 text-xs bg-background border-input rounded-md px-3"
+                      />
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setZamModalOpen(false)}>
+                Vazgeç
+              </Button>
+              <Button
+                onClick={handleSaveMaasZam}
+                disabled={zamSubmitting || !zamTargetId || !zamYuvarlamaInput}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2"
+              >
+                <TrendingUp className="h-4 w-4" />
+                {zamSubmitting ? "Kaydediliyor..." : "Zammı Onayla ve Güncelle"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* BORÇ TAKSİTLENDİRME MODALI */}
+        <Dialog open={taksitModalOpen} onOpenChange={setTaksitModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-lg font-bold text-purple-700 dark:text-purple-400">
+                <CreditCard className="h-5 w-5" />
+                Personel Borç Taksitlendirme
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2 text-xs">
+              {(() => {
+                const targetP = personeller.find(p => p.id === taksitPersonelId)
+                const totalAmount = Number(taksitToplamBorcInput || 0)
+                const count = Number(taksitSayisiInput || 1)
+                const monthlyInst = totalAmount > 0 && count > 0 ? Math.round((totalAmount / count) * 100) / 100 : 0
+
+                const startDate = taksitBaslangicTarihiInput ? new Date(taksitBaslangicTarihiInput) : new Date()
+                const endDateObj = new Date(startDate.getFullYear(), startDate.getMonth() + (count > 0 ? count - 1 : 0), startDate.getDate())
+                const endDateStr = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, "0")}-${String(endDateObj.getDate()).padStart(2, "0")}`
+
+                return (
+                  <>
+                    <div className="p-3 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 rounded-lg">
+                      <span className="font-bold text-purple-900 dark:text-purple-200 text-sm block mb-1">
+                        {targetP?.ad || "Personel"}
+                      </span>
+                      <p className="text-muted-foreground text-[11px]">
+                        Verilen kişisel borcu belirlediğiniz taksit sayısına bölerek her ayın maaşından otomatik kesinti olarak düşer.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold block mb-1 text-foreground">Toplam Borç Tutarı (₺) *</label>
+                      <Input
+                        type="number"
+                        min="1"
+                        placeholder="Örn: 100000"
+                        value={taksitToplamBorcInput}
+                        onChange={(e) => setTaksitToplamBorcInput(e.target.value)}
+                        className="h-10 text-sm font-bold bg-background"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold block mb-1 text-foreground">Borç Açıklaması *</label>
+                      <Input
+                        placeholder="Örn: Telefon Borcu, Ekipman Hasarı"
+                        value={taksitAciklamaInput}
+                        onChange={(e) => setTaksitAciklamaInput(e.target.value)}
+                        className="h-10 text-xs bg-background"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-semibold block mb-1 text-foreground">Taksit Sayısı (Ay) *</label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="36"
+                          placeholder="Örn: 5"
+                          value={taksitSayisiInput}
+                          onChange={(e) => setTaksitSayisiInput(e.target.value)}
+                          className="h-10 text-xs bg-background"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold block mb-1 text-foreground">Hesaplanan Aylık Taksit</label>
+                        <div className="h-10 px-3 bg-slate-100 dark:bg-slate-900 border rounded-md flex items-center font-extrabold text-purple-700 dark:text-purple-300">
+                          {formatMoney(monthlyInst)} TL / Ay
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold block mb-1 text-foreground">İlk Ödeme Tarihi (Taksit Başlangıcı) *</label>
+                      <ModernDatePicker
+                        label=""
+                        value={taksitBaslangicTarihiInput}
+                        onChange={setTaksitBaslangicTarihiInput}
+                        buttonClassName="w-full h-10 text-xs bg-background border-input rounded-md px-3"
+                      />
+                    </div>
+
+                    {totalAmount > 0 && count > 0 && (
+                      <div className="p-3 bg-slate-50 dark:bg-slate-900 border rounded-lg space-y-1 text-xs font-medium">
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>İlk Taksit Tarihi:</span>
+                          <span className="font-bold text-foreground">{formatDate(taksitBaslangicTarihiInput)}</span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Son Taksit Tarihi:</span>
+                          <span className="font-bold text-purple-700 dark:text-purple-300">{formatDate(endDateStr)}</span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground border-t pt-1">
+                          <span>Aylık Kesintiler:</span>
+                          <span className="font-extrabold text-foreground">{count} Ay boyunca her ay {formatMoney(monthlyInst)} TL</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setTaksitModalOpen(false)}>
+                Vazgeç
+              </Button>
+              <Button
+                onClick={handleSaveBorcTaksit}
+                disabled={taksitSubmitting || !taksitToplamBorcInput || !taksitSayisiInput}
+                className="bg-purple-700 hover:bg-purple-800 text-white font-bold gap-2"
+              >
+                <CreditCard className="h-4 w-4" />
+                {taksitSubmitting ? "Kaydediliyor..." : "Taksitlendirmeyi Başlat"}
               </Button>
             </DialogFooter>
           </DialogContent>
