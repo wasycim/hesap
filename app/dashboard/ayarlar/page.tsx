@@ -39,6 +39,7 @@ interface Personel {
   banka_maas?: number
   nakit_maas?: number
   saatlik_mesai_ucreti?: number
+  ise_giris_tarihi?: string | null
   isten_cikis_tarihi?: string | null
 }
 
@@ -81,6 +82,7 @@ export default function AyarlarPage() {
   const [netDrafts, setNetDrafts] = useState<Record<string, string>>({})
   const [bankaDrafts, setBankaDrafts] = useState<Record<string, string>>({})
   const [nakitDrafts, setNakitDrafts] = useState<Record<string, string>>({})
+  const [entryDateDrafts, setEntryDateDrafts] = useState<Record<string, string>>({})
   const [exitDateDrafts, setExitDateDrafts] = useState<Record<string, string>>({})
   const [savingSalaries, setSavingSalaries] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
@@ -139,6 +141,10 @@ export default function AyarlarPage() {
       setNakitDrafts(Object.fromEntries(personelRes.data.map(personel => [
         personel.id,
         String(Number(personel.nakit_maas !== undefined && personel.nakit_maas !== null ? personel.nakit_maas : (personel.aylik_maas || 0))),
+      ])))
+      setEntryDateDrafts(Object.fromEntries(personelRes.data.map(personel => [
+        personel.id,
+        personel.ise_giris_tarihi || "",
       ])))
       setExitDateDrafts(Object.fromEntries(personelRes.data.map(personel => [
         personel.id,
@@ -258,6 +264,7 @@ export default function AyarlarPage() {
 
     for (const personel of personeller) {
       const aylikMaas = Number(netDrafts[personel.id]) || 0
+      const iseGirisTarihi = entryDateDrafts[personel.id] ? entryDateDrafts[personel.id] : null
       const istenCikisTarihi = exitDateDrafts[personel.id] ? exitDateDrafts[personel.id] : null
       const isExited = Boolean(istenCikisTarihi && istenCikisTarihi <= todayStr)
       const isAktif = isExited ? false : personel.aktif
@@ -269,12 +276,13 @@ export default function AyarlarPage() {
           nakit_maas: aylikMaas,
           aylik_maas: aylikMaas,
           saatlik_mesai_ucreti: aylikMaas > 0 ? aylikMaas / 30 / 8 : 0,
+          ise_giris_tarihi: iseGirisTarihi,
           isten_cikis_tarihi: istenCikisTarihi,
           aktif: isAktif,
         })
         .eq("id", personel.id)
     }
-    toast.success("Personel maaş ve çıkış tarihleri kaydedildi.")
+    toast.success("Personel maaş, giriş ve çıkış tarihleri kaydedildi.")
     setSavingSalaries(false)
     loadData()
   }
@@ -707,7 +715,7 @@ export default function AyarlarPage() {
                         </button>
                       </div>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-3">
                       <div>
                         <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Personel Maaşı</label>
                         <div className="relative">
@@ -725,7 +733,15 @@ export default function AyarlarPage() {
                         </div>
                       </div>
                       <div>
-                        <label className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 block mb-1">İşten Çıkış Tarihi (İşten Ayrıldıysa)</label>
+                        <label className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 block mb-1">İşe Giriş Tarihi</label>
+                        <ExitDatePicker
+                          compact
+                          value={entryDateDrafts[personel.id] || ""}
+                          onChange={(val) => setEntryDateDrafts(prev => ({ ...prev, [personel.id]: val }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 block mb-1">İşten Çıkış Tarihi (Ayrıldıysa)</label>
                         <ExitDatePicker
                           compact
                           value={exitDateDrafts[personel.id] || ""}

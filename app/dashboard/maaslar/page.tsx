@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Calendar as CalendarIcon, Calculator, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, CreditCard, Edit3, FileText, HandCoins, Plus, Scissors, ShieldCheck, Sparkles, Trash2, TrendingUp, Wallet, XCircle } from "lucide-react"
+import { Calendar as CalendarIcon, CalendarDays, Calculator, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, CreditCard, Edit3, FileText, HandCoins, Plus, Scissors, ShieldCheck, Sparkles, Trash2, TrendingUp, Wallet, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { isTestPersonnel } from "@/lib/utils/test-personnel"
@@ -33,6 +33,7 @@ interface Personel {
   banka_maas?: number
   nakit_maas?: number
   saatlik_mesai_ucreti?: number
+  ise_giris_tarihi?: string | null
   isten_cikis_tarihi?: string | null
 }
 
@@ -222,7 +223,7 @@ export default function MaaslarPage() {
     const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes, corbaRes, avansRes, maasOnayRes, kesintiRes, maasZamRes, borcTaksitRes] = await Promise.all([
       supabase
         .from("personeller")
-        .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif, isten_cikis_tarihi")
+        .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif, ise_giris_tarihi, isten_cikis_tarihi")
         .eq("sube_id", currentSube.id)
         .order("sira", { ascending: true }),
       supabase
@@ -358,6 +359,34 @@ export default function MaaslarPage() {
     setLoading(false)
   }
 
+function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: string | null): string | null {
+  if (!iseGirisTarihi) return null
+  const start = new Date(iseGirisTarihi)
+  if (isNaN(start.getTime())) return null
+  const end = istenCikisTarihi ? new Date(istenCikisTarihi) : new Date()
+
+  let years = end.getFullYear() - start.getFullYear()
+  let months = end.getMonth() - start.getMonth()
+  let days = end.getDate() - start.getDate()
+
+  if (days < 0) {
+    months -= 1
+    const prevMonthEnd = new Date(end.getFullYear(), end.getMonth(), 0).getDate()
+    days += prevMonthEnd
+  }
+  if (months < 0) {
+    years -= 1
+    months += 12
+  }
+
+  const parts = []
+  if (years > 0) parts.push(`${years} yıl`)
+  if (months > 0) parts.push(`${months} ay`)
+  if (days > 0 || parts.length === 0) parts.push(`${days} gün`)
+
+  return `${parts.join(" ")}dür çalışıyor`
+}
+
   const personelSummaries = useMemo(() => personeller.map(personel => {
     const monthIndex = MONTHS.indexOf(month) + 1
     const monthPrefix = `${year}-${String(monthIndex).padStart(2, "0")}`
@@ -367,23 +396,33 @@ export default function MaaslarPage() {
 
     const bankaMaas = Number(personel.banka_maas || 0)
     const nakitMaas = Number(personel.nakit_maas !== undefined && personel.nakit_maas !== null ? personel.nakit_maas : (personel.aylik_maas || 0))
-    const baseSalary = activeZam ? Number(activeZam.yeni_maas) : Number(personel.aylik_maas || (bankaMaas + nakitMaas))
+    const rawBaseSalary = activeZam ? Number(activeZam.yeni_maas) : Number(personel.aylik_maas || (bankaMaas + nakitMaas))
+
+    // Pro-rata Calculation for Entry and Exit Dates
+    const totalDaysInMonth = new Date(year, monthIndex, 0).getDate()
+    const monthStartDate = `${year}-${String(monthIndex).padStart(2, "0")}-01`
+    const monthEndDate = `${year}-${String(monthIndex).padStart(2, "0")}-${String(totalDaysInMonth).padStart(2, "0")}`
+
+    let prorationRatio = 1
+    const entryInMonth = Boolean(personel.ise_giris_tarihi && personel.ise_giris_tarihi >= monthStartDate && personel.ise_giris_tarihi <= monthEndDate)
+    const exitInMonth = Boolean(personel.isten_cikis_tarihi && personel.isten_cikis_tarihi >= monthStartDate && personel.isten_cikis_tarihi <= monthEndDate)
+
+    if (entryInMonth || exitInMonth) {
+      const startDay = entryInMonth ? new Date(personel.ise_giris_tarihi!).getDate() : 1
+      const endDay = exitInMonth ? new Date(personel.isten_cikis_tarihi!).getDate() : totalDaysInMonth
+      const workedDays = Math.max(1, endDay - startDay + 1)
+      prorationRatio = Math.min(1, Math.max(0, workedDays / totalDaysInMonth))
+    }
+
+    const baseSalary = rawBaseSalary * prorationRatio
+
     const isSelectedForKargo = !kargoSeciliPersoneller || kargoSeciliPersoneller.includes(personel.id)
     let kargoHakedisAmount = 0
     if (isSelectedForKargo && kargoPrimAmount > 0) {
-      const totalDaysInMonth = new Date(year, monthIndex, 0).getDate()
-      const monthStartDate = `${year}-${String(monthIndex).padStart(2, "0")}-01`
-      const monthEndDate = `${year}-${String(monthIndex).padStart(2, "0")}-${String(totalDaysInMonth).padStart(2, "0")}`
-
-      if (personel.isten_cikis_tarihi && personel.isten_cikis_tarihi >= monthStartDate && personel.isten_cikis_tarihi <= monthEndDate) {
-        const exitDate = new Date(personel.isten_cikis_tarihi)
-        const exitDay = exitDate.getDate()
-        const ratio = Math.min(1, Math.max(0, exitDay / totalDaysInMonth))
-        kargoHakedisAmount = kargoPrimAmount * ratio
-      } else {
-        kargoHakedisAmount = kargoPrimAmount
-      }
+      kargoHakedisAmount = kargoPrimAmount * prorationRatio
     }
+
+    const seniorityText = formatSeniority(personel.ise_giris_tarihi, personel.isten_cikis_tarihi)
     const hourlyRate = Number(personel.saatlik_mesai_ucreti) || (baseSalary > 0 ? baseSalary / 30 / 8 : 0)
     const advances: Detail[] = []
     const overtime: OvertimeDetail[] = []
@@ -552,6 +591,7 @@ export default function MaaslarPage() {
       kesintiler: kesintiDetails,
       kesintiTotal,
       activeZam,
+      seniorityText,
     }
   }), [attendanceOvertime, corbaData, kargoPrimAmount, kargoSeciliPersoneller, month, maasOnaylari, overtimeApprovals, personeller, rows, year, kesintilerList, maasZamlariList])
 
@@ -833,6 +873,7 @@ export default function MaaslarPage() {
       orientation: "portrait",
       metrics: [
         // SOL TARAF — GELİR KUTUCUKLARI (YEŞİL RAKAMLAR)
+        ...(item.personel.ise_giris_tarihi ? [{ label: "İşe Giriş / Kıdem", value: `${formatDate(item.personel.ise_giris_tarihi)}${item.seniorityText ? ` (${item.seniorityText})` : ""}`, side: "left" as const, color: "green" as const }] : []),
         { label: "Net Maaş (Taban)", value: `+${formatMoney(item.baseSalary)} TL`, side: "left" as const, color: "green" as const },
         ...(item.kargoHakedisAmount > 0 ? [{ label: "Kargo Prim", value: `+${formatMoney(item.kargoHakedisAmount)} TL`, side: "left" as const, color: "green" as const }] : []),
         ...(item.corbaTotal > 0 ? [{ label: "Çorba Kazanç", value: `+${formatMoney(item.corbaTotal)} TL`, side: "left" as const, color: "green" as const }] : []),
@@ -1320,8 +1361,15 @@ export default function MaaslarPage() {
             <CardHeader className="pb-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <CardTitle className="text-lg font-bold">{selectedPersonel.personel.ad} Maaş Detayı</CardTitle>
+                    {selectedPersonel.personel.ise_giris_tarihi && (
+                      <Badge className="bg-sky-700 text-white font-bold text-xs px-2.5 py-1 flex items-center gap-1 shadow-sm">
+                        <CalendarDays className="w-3.5 h-3.5" />
+                        İşe Giriş: {formatDate(selectedPersonel.personel.ise_giris_tarihi)}
+                        {selectedPersonel.seniorityText ? ` · ${selectedPersonel.seniorityText}` : ""}
+                      </Badge>
+                    )}
                     {selectedPersonel.isApproved && selectedPersonel.nakitOdemeTarihi && (
                       <Badge className="bg-emerald-600 text-white font-bold text-xs px-2.5 py-1">
                         <CheckCircle2 className="w-3.5 h-3.5 mr-1" />

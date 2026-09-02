@@ -118,9 +118,29 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: fixedShiftRes.error.message }, { status: 500 })
   }
 
-  const allPersoneller = (personelRes.data || []).filter((p) => !isTestPersonnel(p))
+  const { data: subeData } = await admin.from("subeler").select("id, ad").eq("id", subeId).maybeSingle()
+  const subeAd = subeData?.ad || ""
+  const is5ABranch = Boolean(subeAd.trim().toUpperCase().includes("5A") || subeId === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981")
+  const is14Branch = Boolean(subeAd.trim().toUpperCase().includes("14") || subeId === "172cc1f6-3012-47d3-a707-36e6f77e97cf")
+
+  let personeller = (personelRes.data || []).filter((p) => !isTestPersonnel(p))
+
+  if (is5ABranch) {
+    personeller = personeller.filter(p => !p.ad.toUpperCase().includes("ÖMER KAHRİMAN") && !p.ad.toUpperCase().includes("OMER KAHRIMAN"))
+  } else if (is14Branch) {
+    const { data: omerData } = await admin
+      .from("personeller")
+      .select("*")
+      .ilike("ad", "%ÖMER KAHRİMAN%")
+      .maybeSingle()
+
+    if (omerData && !personeller.some(p => p.id === omerData.id)) {
+      personeller = [omerData, ...personeller]
+    }
+  }
+
   const monthFrom = range.from
-  const filteredPersoneller = allPersoneller.filter((p) => {
+  const filteredPersoneller = personeller.filter((p) => {
     if (p.isten_cikis_tarihi && p.isten_cikis_tarihi < monthFrom) return false
     return p.aktif || Boolean(p.isten_cikis_tarihi && p.isten_cikis_tarihi >= monthFrom)
   })

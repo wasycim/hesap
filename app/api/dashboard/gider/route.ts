@@ -116,7 +116,25 @@ export async function GET(request: NextRequest) {
     if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 })
   }
 
-  const allPersoneller = personelRes.data || []
+  let allPersoneller = personelRes.data || []
+
+  const is5ABranch = Boolean(sube.ad?.trim().toUpperCase().includes("5A") || sube.id === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981")
+  const is14Branch = Boolean(sube.ad?.trim().toUpperCase().includes("14") || sube.id === "172cc1f6-3012-47d3-a707-36e6f77e97cf")
+
+  if (is5ABranch) {
+    allPersoneller = allPersoneller.filter(p => !p.ad.toUpperCase().includes("ÖMER KAHRİMAN") && !p.ad.toUpperCase().includes("OMER KAHRIMAN"))
+  } else if (is14Branch) {
+    const { data: omerData } = await admin
+      .from("personeller")
+      .select("id, ad, aktif, isten_cikis_tarihi")
+      .ilike("ad", "%ÖMER KAHRİMAN%")
+      .maybeSingle()
+
+    if (omerData && !allPersoneller.some(p => p.id === omerData.id)) {
+      allPersoneller = [omerData, ...allPersoneller]
+    }
+  }
+
   const usedPersonelIds = new Set<string>()
 
   const rows = (giderRes.data || [])
