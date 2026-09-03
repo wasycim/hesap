@@ -294,6 +294,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   const { subeler, currentSube, setCurrentSube, isAdmin: subeIsAdmin, userSube } = useSube()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [kargoOpen, setKargoOpen] = useState(false)
+  const [personellerMenuOpen, setPersonellerMenuOpen] = useState(false)
   const [kargoFirmalar, setKargoFirmalar] = useState<KargoFirma[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [isDeveloper, setIsDeveloper] = useState(false)
@@ -338,6 +339,9 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   useEffect(() => {
     if (pathname.startsWith("/dashboard/kargo-cari") || pathname.startsWith("/dashboard/kargo-prim") || pathname.startsWith("/dashboard/web-komisyon")) {
       setKargoOpen(true)
+    }
+    if (pathname.startsWith("/dashboard/maaslar") || pathname.startsWith("/dashboard/personeller")) {
+      setPersonellerMenuOpen(true)
     }
   }, [pathname])
 
@@ -581,27 +585,88 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
             </li>
           )}
 
-          {canSeeMenu(maasMenuItem.key) && (() => {
-            const isActive = pathname === maasMenuItem.href
-            const Icon = maasMenuItem.icon
-            return (
-              <li key={maasMenuItem.href}>
-                <Link
-                  href={maasMenuItem.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={cn(
-                    "sidebar-menu-item group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
-                    isActive
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-                  )}
-                >
-                  <Icon className={cn("sidebar-menu-icon menu-icon-salary h-5 w-5", maasMenuItem.color)} />
-                  <span>{isAdmin ? "Maaşlar" : "Maaşım"}</span>
-                </Link>
-              </li>
-            )
-          })()}
+          {canSeeMenu(maasMenuItem.key) && (
+            <li key="personeller_category">
+              <button
+                type="button"
+                onClick={() => setPersonellerMenuOpen(!personellerMenuOpen)}
+                className={cn(
+                  "sidebar-menu-item group flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                  pathname.startsWith("/dashboard/personeller") || pathname.startsWith("/dashboard/maaslar")
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-bold"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <UserCog className="sidebar-menu-icon h-5 w-5 text-emerald-500" />
+                  <span>Personeller</span>
+                </div>
+                {personellerMenuOpen ? (
+                  <ChevronDown className="h-4 w-4 text-sidebar-foreground/60 transition-transform duration-200" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-sidebar-foreground/60 transition-transform duration-200" />
+                )}
+              </button>
+
+              {personellerMenuOpen && (
+                <div className="overflow-hidden transition-all duration-300 ease-in-out">
+                  <ul className="ml-4 mt-1 space-y-1 border-l border-sidebar-border/40 pl-3">
+                    <li>
+                      <Link
+                        href="/dashboard/maaslar"
+                        onClick={() => setMobileOpen(false)}
+                        className={cn(
+                          "flex items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium transition-all",
+                          pathname === "/dashboard/maaslar"
+                            ? "bg-sidebar-accent/80 font-bold text-sidebar-accent-foreground"
+                            : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                        )}
+                      >
+                        <WalletCards className="h-4 w-4 text-emerald-500" />
+                        <span>{isAdmin ? "Maaşlar" : "Maaşım"}</span>
+                      </Link>
+                    </li>
+
+                    {isAdmin && (
+                      <>
+                        <li>
+                          <Link
+                            href="/dashboard/personeller/bilgi"
+                            onClick={() => setMobileOpen(false)}
+                            className={cn(
+                              "flex items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium transition-all",
+                              pathname === "/dashboard/personeller/bilgi"
+                                ? "bg-sidebar-accent/80 font-bold text-sidebar-accent-foreground"
+                                : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                            )}
+                          >
+                            <FileSearch className="h-4 w-4 text-sky-500" />
+                            <span>Personel Bilgisi</span>
+                          </Link>
+                        </li>
+
+                        <li>
+                          <Link
+                            href="/dashboard/personeller/eski"
+                            onClick={() => setMobileOpen(false)}
+                            className={cn(
+                              "flex items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium transition-all",
+                              pathname === "/dashboard/personeller/eski"
+                                ? "bg-sidebar-accent/80 font-bold text-sidebar-accent-foreground"
+                                : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                            )}
+                          >
+                            <UserCog className="h-4 w-4 text-rose-500" />
+                            <span>Eski Personeller</span>
+                          </Link>
+                        </li>
+                      </>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </li>
+          )}
 
           {canSeeMenu("kargo_prim") && (
             <li key="/dashboard/kargo-prim">

@@ -162,6 +162,23 @@ export default function MaaslarPage() {
   const [kesintiTarihInput, setKesintiTarihInput] = useState(new Date().toISOString().split("T")[0])
   const [kesintiSubmitting, setKesintiSubmitting] = useState(false)
 
+  // İlave Ücret / Prim State
+  const [ilavelerList, setIlavelerList] = useState<any[]>([])
+  const [ilaveTutarInput, setIlaveTutarInput] = useState("")
+  const [ilaveAciklamaInput, setIlaveAciklamaInput] = useState("")
+  const [ilaveTarihInput, setIlaveTarihInput] = useState(new Date().toISOString().split("T")[0])
+  const [ilaveSubmitting, setIlaveSubmitting] = useState(false)
+
+  // Maaş Ayarları (Maaş Belirleme) Modal State
+  const [maasAyarlariModalOpen, setMaasAyarlariModalOpen] = useState(false)
+  const [maasAyariType, setMaasAyariType] = useState<"personel" | "ortak">("personel")
+  const [maasAyariTargetId, setMaasAyariTargetId] = useState("")
+  const [maasAyariTutarInput, setMaasAyariTutarInput] = useState("")
+  const [maasAyariSaving, setMaasAyariSaving] = useState(false)
+
+  // All Branch Gider Rows for Ortak Avans details
+  const [allBranchGiderRows, setAllBranchGiderRows] = useState<any[]>([])
+
   // Zam (Maaş Zammı) State
   const [zamModalOpen, setZamModalOpen] = useState(false)
   const [zamTargetType, setZamTargetType] = useState<"personel" | "ortak">("personel")
@@ -188,7 +205,7 @@ export default function MaaslarPage() {
   const [omerPersonelRecord, setOmerPersonelRecord] = useState<Personel | null>(null)
 
   const supabase = createClient()
-  const { currentSube, isAdmin, loading: subeLoading } = useSube()
+  const { currentSube, subeler, isAdmin, loading: subeLoading } = useSube()
   const years = makeYearWindow(year)
   const ayYil = `${month}-${year}`
 
@@ -220,7 +237,7 @@ export default function MaaslarPage() {
     const from = getMonthStartDate(month, year)
     const to = getMonthEndDate(month, year)
 
-    const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes, corbaRes, avansRes, maasOnayRes, kesintiRes, maasZamRes, borcTaksitRes] = await Promise.all([
+    const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes, corbaRes, avansRes, maasOnayRes, kesintiRes, maasZamRes, borcTaksitRes, ilaveRes, allGiderRes] = await Promise.all([
       supabase
         .from("personeller")
         .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif, ise_giris_tarihi, isten_cikis_tarihi")
@@ -228,7 +245,7 @@ export default function MaaslarPage() {
         .order("sira", { ascending: true }),
       supabase
         .from("ortaklar")
-        .select("id, ad")
+        .select("id, ad, aylik_maas")
         .eq("sube_id", currentSube.id)
         .eq("aktif", true)
         .order("sira", { ascending: true }),
@@ -257,6 +274,12 @@ export default function MaaslarPage() {
       fetch(`/api/admin/maas-kesinti?${new URLSearchParams({ subeId: currentSube.id, ayYil }).toString()}`, { cache: "no-store" }),
       fetch(`/api/admin/maas-zam?${new URLSearchParams({ subeId: currentSube.id }).toString()}`, { cache: "no-store" }),
       fetch(`/api/admin/borc-taksit?${new URLSearchParams({ subeId: currentSube.id }).toString()}`, { cache: "no-store" }),
+      fetch(`/api/admin/maas-ilave?${new URLSearchParams({ subeId: currentSube.id, ayYil }).toString()}`, { cache: "no-store" }),
+      supabase
+        .from("gider_kayitlari")
+        .select("tarih, sube_id, ortak_pilarim, personel_paylari")
+        .eq("ay_yil", ayYil)
+        .order("tarih", { ascending: true }),
     ])
 
     const attendancePayload = await attendanceRes.json().catch(() => null) as AttendancePayload | null
@@ -266,6 +289,19 @@ export default function MaaslarPage() {
     const kesintiPayload = await kesintiRes?.json().catch(() => null)
     const maasZamPayload = await maasZamRes?.json().catch(() => null)
     const borcTaksitPayload = await borcTaksitRes?.json().catch(() => null)
+    const ilavePayload = await ilaveRes?.json().catch(() => null)
+
+    if (ilavePayload?.items) {
+      setIlavelerList(ilavePayload.items)
+    } else {
+      setIlavelerList([])
+    }
+
+    if (allGiderRes?.data) {
+      setAllBranchGiderRows(allGiderRes.data)
+    } else {
+      setAllBranchGiderRows([])
+    }
 
     if (avansPayload?.requests) {
       setAvansTalepleri(avansPayload.requests)
@@ -581,16 +617,27 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
         })
       })
 
+    const ilaveDetails = ilavelerList
+      .filter(ilave => ilave.personel_id === personel.id)
+      .map(ilave => ({
+        id: ilave.id,
+        tarih: ilave.tarih,
+        amount: Number(ilave.tutar || 0),
+        aciklama: ilave.aciklama || "Maaş İlave Ücret / Ödül",
+      }))
+
+    const ilaveTotal = ilaveDetails.reduce((sum, item) => sum + item.amount, 0)
+
     const kesintiDetails = kesintilerList.filter(k => k.personel_id === personel.id)
     const kesintiTotal = kesintiDetails.reduce((sum, item) => sum + Number(item.tutar || 0), 0)
 
     overtime.sort((a, b) => a.tarih.localeCompare(b.tarih) || a.source.localeCompare(b.source))
     const advanceTotal = advances.reduce((sum, item) => sum + item.amount, 0)
-    const overtimeTotal = overtime.filter(item => !item.excludedFromTotal).reduce((sum, item) => sum + item.amount, 0)
+    const overtimeTotal = overtime.filter(item => !item.excludedFromTotal).reduce((sum, item) => sum + item.amount, 0) + ilaveTotal
     const mesaiKazanc = overtime
       .filter((item) => !item.description.includes("Kargo Hakediş"))
       .reduce((sum, item) => sum + item.amount, 0)
-    const toplamKazanc = baseSalary + kargoHakedisAmount + mesaiKazanc + corbaTotal
+    const toplamKazanc = baseSalary + overtimeTotal + kargoHakedisAmount + corbaTotal
     const totalHakedis = baseSalary + overtimeTotal
     const remainingBeforeBank = Math.max(0, totalHakedis - advanceTotal - kesintiTotal)
 
@@ -626,20 +673,35 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
       remaining: kalanNakit,
       kesintiler: kesintiDetails,
       kesintiTotal,
+      ilaveler: ilaveDetails,
+      ilaveTotal,
       activeZam,
       seniorityText,
     }
-  }), [attendanceOvertime, corbaData, kargoPrimAmount, kargoSeciliPersoneller, month, maasOnaylari, overtimeApprovals, personeller, rows, year, kesintilerList, maasZamlariList])
+  }), [attendanceOvertime, corbaData, kargoPrimAmount, kargoSeciliPersoneller, month, maasOnaylari, overtimeApprovals, personeller, rows, year, kesintilerList, ilavelerList, maasZamlariList])
 
   const ortakSummaries = useMemo(() => ortaklar.map(ortak => {
     const advances: Detail[] = []
-    rows.forEach(row => {
+    const subeMap = new Map(subeler.map(s => [s.id, s.ad]))
+
+    allBranchGiderRows.forEach(row => {
       const amount = Number(row.ortak_pilarim?.[ortak.id]) || 0
-      if (amount > 0) advances.push({ tarih: row.tarih, amount, description: "Ortak avansi" })
+      if (amount > 0) {
+        const subeAd = subeMap.get(row.sube_id) || "Şube"
+        advances.push({
+          tarih: row.tarih,
+          amount,
+          description: `${subeAd} Ortak Avansı`,
+        })
+      }
     })
+
     const total = advances.reduce((sum, item) => sum + item.amount, 0)
-    return { ortak, advances, total }
-  }), [ortaklar, rows])
+    const baseSalary = Number((ortak as any).aylik_maas || 0)
+    const kalanNakit = Math.max(0, baseSalary - total)
+
+    return { ortak, baseSalary, advances, total, kalanNakit }
+  }), [ortaklar, allBranchGiderRows, subeler])
 
   const isManager = currentUserProfile?.isManager ?? isAdmin
 
@@ -871,31 +933,32 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
       title: "Maaşlar Genel Raporu",
       subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
       orientation: "landscape",
-      metrics: [
-        { label: "Toplam Maaş", value: `${formatMoney(salaryTotals.baseSalary)} TL` },
-        { label: "Toplam Avans", value: `-${formatMoney(salaryTotals.advances)} TL` },
-        { label: "Toplam Mesai / Hakediş", value: `+${formatMoney(salaryTotals.overtime)} TL` },
-        { label: "Ortak Avans", value: `-${formatMoney(ortakTotal)} TL` },
-      ],
+      metrics: [],
       tables: [
         {
           title: "Personel Maaşları",
-          headers: ["Personel", "Net Maaş", "Bankaya Gönderilen", "Avans", "Ekstra/Prim", "Kalan Nakit"],
-          firstColumnWidth: "25%",
+          headers: ["Personel", "Net Maaş", "Ekstra/Prim", "Toplam Maliyet", "Avans", "Bankaya Gönderilen", "Kalan Nakit"],
+          firstColumnWidth: "18%",
           rows: personelSummaries.map(item => [
             item.personel.ad,
             `${formatMoney(item.baseSalary)} TL`,
-            `${formatMoney(item.bankayaGonderilen)} TL`,
-            `-${formatMoney(item.advanceTotal)} TL`,
             `+${formatMoney(item.overtimeTotal)} TL`,
+            `${formatMoney(item.baseSalary + item.overtimeTotal)} TL`,
+            `-${formatMoney(item.advanceTotal + item.kesintiTotal)} TL`,
+            `${formatMoney(item.bankayaGonderilen)} TL`,
             `${formatMoney(item.kalanNakit)} TL`,
           ]),
         },
         {
           title: "Ortaklar Pay",
-          headers: ["Ortak", "Alınan Avans"],
-          firstColumnWidth: "55%",
-          rows: ortakSummaries.map(item => [item.ortak.ad, `-${formatMoney(item.total)} TL`]),
+          headers: ["Ortak", "Net Maaş", "Alınan Avans", "Kalan Nakit"],
+          firstColumnWidth: "25%",
+          rows: ortakSummaries.map(item => [
+            item.ortak.ad,
+            `${formatMoney(item.baseSalary)} TL`,
+            `-${formatMoney(item.total)} TL`,
+            `${formatMoney(item.kalanNakit)} TL`,
+          ]),
         },
       ],
     })
@@ -909,7 +972,7 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
       orientation: "portrait",
       metrics: [
         // SOL TARAF — GELİR KUTUCUKLARI (YEŞİL RAKAMLAR)
-        ...(item.personel.ise_giris_tarihi ? [{ label: "İşe Giriş / Kıdem", value: `${formatDate(item.personel.ise_giris_tarihi)}${item.seniorityText ? ` (${item.seniorityText})` : ""}`, side: "left" as const, color: "green" as const }] : []),
+        ...(item.personel.ise_giris_tarihi ? [{ label: "İşe Giriş Tarihi", value: formatDate(item.personel.ise_giris_tarihi), side: "left" as const, color: "green" as const }] : []),
         { label: "Net Maaş (Taban)", value: `+${formatMoney(item.baseSalary)} TL`, side: "left" as const, color: "green" as const },
         ...(item.kargoHakedisAmount > 0 ? [{ label: "Kargo Prim", value: `+${formatMoney(item.kargoHakedisAmount)} TL`, side: "left" as const, color: "green" as const }] : []),
         ...(item.corbaTotal > 0 ? [{ label: "Çorba Kazanç", value: `+${formatMoney(item.corbaTotal)} TL`, side: "left" as const, color: "green" as const }] : []),
@@ -929,6 +992,16 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
           firstColumnWidth: "28%",
           rows: item.advances.map(detail => [formatDate(detail.tarih), detail.description, `-${formatMoney(detail.amount)} TL`]),
         },
+        ...(item.ilaveler && item.ilaveler.length > 0 ? [{
+          title: "İLAVE ÜCRETLER & PRİM / ÖDÜLLER",
+          headers: ["Tarih", "Açıklama", "Tutar"],
+          firstColumnWidth: "28%",
+          rows: item.ilaveler.map((detail: any) => [
+            formatDate(detail.tarih),
+            detail.aciklama,
+            `+${formatMoney(Number(detail.amount))} TL`,
+          ]),
+        }] : []),
         ...(item.kesintiler && item.kesintiler.length > 0 ? [{
           title: "KESİNTİLER DETAYI",
           headers: ["Tarih", "Açıklama", "Tutar"],
@@ -971,14 +1044,110 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
       title: `${item.ortak.ad} Ortak Pay Detayı`,
       subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
       orientation: "portrait",
-      metrics: [{ label: "Toplam Alınan Avans", value: `-${formatMoney(item.total)} TL` }],
+      metrics: [
+        { label: "Net Maaş", value: `${formatMoney(item.baseSalary)} TL`, side: "left" as const, color: "green" as const },
+        { label: "Toplam Alınan Avans", value: `-${formatMoney(item.total)} TL`, side: "right" as const, color: "red" as const },
+        { label: "Kalan Nakit", value: `${formatMoney(item.kalanNakit)} TL`, side: "right" as const, color: "black" as const },
+      ],
       tables: [{
-        title: "Ortak Avansları",
-        headers: ["Tarih", "Açıklama", "Tutar"],
+        title: "Ortak Avans Detayları (Şube Bazlı)",
+        headers: ["Tarih", "Açıklama / Şube", "Tutar"],
         firstColumnWidth: "28%",
         rows: item.advances.map(detail => [formatDate(detail.tarih), detail.description, `-${formatMoney(detail.amount)} TL`]),
       }],
     })
+  }
+
+  async function handleAddIlaveForPersonel(personelId: string) {
+    if (!currentSube) return
+    const tutar = Number(ilaveTutarInput)
+    if (!tutar || isNaN(tutar) || tutar <= 0) {
+      toast.error("Lütfen geçerli bir ilave ücret tutarı girin.")
+      return
+    }
+    if (!ilaveAciklamaInput.trim()) {
+      toast.error("Lütfen ilave ücret açıklamasını yazın.")
+      return
+    }
+
+    setIlaveSubmitting(true)
+    try {
+      const res = await fetch("/api/admin/maas-ilave", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sube_id: currentSube.id,
+          ay_yil: ayYil,
+          personel_id: personelId,
+          tutar,
+          aciklama: ilaveAciklamaInput.trim(),
+          tarih: ilaveTarihInput,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "İlave ücret kaydedilemedi.")
+
+      toast.success("Maaş ilave ücreti / prim başarıyla eklendi.")
+      setIlaveTutarInput("")
+      setIlaveAciklamaInput("")
+      loadData()
+    } catch (err: any) {
+      toast.error(err.message || "Hata oluştu.")
+    } finally {
+      setIlaveSubmitting(false)
+    }
+  }
+
+  async function handleDeleteIlave(id: string) {
+    try {
+      const res = await fetch(`/api/admin/maas-ilave?id=${id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json()
+        toast.error(data.error || "İlave ücret silinemedi.")
+        return
+      }
+      toast.success("İlave ücret kaydı silindi.")
+      loadData()
+    } catch {
+      toast.error("İşlem yapılırken hata oluştu.")
+    }
+  }
+
+  async function handleSaveMaasAyari() {
+    const tutar = Number(maasAyariTutarInput)
+    if (isNaN(tutar) || tutar < 0) {
+      toast.error("Lütfen geçerli bir maaş tutarı girin.")
+      return
+    }
+    if (!maasAyariTargetId) {
+      toast.error("Lütfen bir kişi seçin.")
+      return
+    }
+
+    setMaasAyariSaving(true)
+    try {
+      if (maasAyariType === "personel") {
+        const { error } = await supabase
+          .from("personeller")
+          .update({ aylik_maas: tutar })
+          .eq("id", maasAyariTargetId)
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from("ortaklar")
+          .update({ aylik_maas: tutar })
+          .eq("id", maasAyariTargetId)
+        if (error) throw error
+      }
+      toast.success("Net taban maaş tutarı başarıyla güncellendi.")
+      setMaasAyarlariModalOpen(false)
+      loadData()
+    } catch (err: any) {
+      toast.error(err.message || "Maaş güncellenirken hata oluştu.")
+    } finally {
+      setMaasAyariSaving(false)
+    }
   }
 
   const prevMonth = () => {
@@ -1184,18 +1353,31 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
         </div>
         <div className="grid grid-cols-[auto_1fr_0.8fr_auto] items-center gap-2 sm:flex">
           {isManager && (
-            <Button
-              onClick={() => {
-                setZamTargetId("")
-                setZamOraniInput("")
-                setZamYuvarlamaInput("")
-                setZamModalOpen(true)
-              }}
-              className="col-span-full gap-2 border-emerald-400 bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-sm sm:col-span-1"
-            >
-              <TrendingUp className="h-4 w-4" />
-              Maaş Zammı Yap
-            </Button>
+            <>
+              <Button
+                onClick={() => {
+                  setMaasAyariTargetId(personeller[0]?.id || "")
+                  setMaasAyariTutarInput(String(personeller[0]?.aylik_maas || ""))
+                  setMaasAyarlariModalOpen(true)
+                }}
+                className="col-span-full gap-2 border-emerald-400 bg-emerald-900 hover:bg-emerald-950 text-white font-bold shadow-sm sm:col-span-1"
+              >
+                <Calculator className="h-4 w-4" />
+                Maaş Ayarları
+              </Button>
+              <Button
+                onClick={() => {
+                  setZamTargetId("")
+                  setZamOraniInput("")
+                  setZamYuvarlamaInput("")
+                  setZamModalOpen(true)
+                }}
+                className="col-span-full gap-2 border-emerald-400 bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-sm sm:col-span-1"
+              >
+                <TrendingUp className="h-4 w-4" />
+                Maaş Zammı Yap
+              </Button>
+            </>
           )}
           <Button
             onClick={() => setRequestModalOpen(true)}
@@ -1583,6 +1765,114 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
                                     variant="ghost"
                                     className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
                                     onClick={() => handleDeleteKesinti(k.id)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </td>
+                              )}
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* İlave Ücretler & Ödüller Modülü (Seçili Personel İçin) */}
+              <div className="col-span-full border-t pt-4 mt-2">
+                <div className="rounded-xl border bg-emerald-50/40 dark:bg-emerald-950/20 p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                      <Sparkles className="h-4 w-4 text-emerald-600" />
+                      {selectedPersonel.personel.ad} — Maaş İlave Ücretleri & Prim / Ödüller ({selectedPersonel.ilaveler.length})
+                    </h4>
+                    {selectedPersonel.ilaveTotal > 0 && (
+                      <Badge className="bg-emerald-600 text-white font-extrabold text-xs">
+                        Toplam İlave: +{formatMoney(selectedPersonel.ilaveTotal)} TL
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Manager Add İlave Form */}
+                  {isManager && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end border-t pt-3 border-dashed">
+                      <div>
+                        <label className="text-xs font-semibold block mb-1 text-foreground">İlave / Ödül Tutarı (₺) *</label>
+                        <Input
+                          type="number"
+                          min="1"
+                          placeholder="Örn: 1000"
+                          value={ilaveTutarInput}
+                          onChange={(e) => setIlaveTutarInput(e.target.value)}
+                          className="w-full h-10 text-xs bg-background"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold block mb-1 text-foreground">İlave Açıklaması *</label>
+                        <Input
+                          placeholder="Örn: Pamukkale ödül"
+                          value={ilaveAciklamaInput}
+                          onChange={(e) => setIlaveAciklamaInput(e.target.value)}
+                          className="w-full h-10 text-xs bg-background"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold block mb-1 text-foreground">İlave Tarihi</label>
+                        <ModernDatePicker
+                          label=""
+                          value={ilaveTarihInput}
+                          onChange={(val) => setIlaveTarihInput(val)}
+                          buttonClassName="w-full h-10 text-xs bg-background border-input rounded-md px-3"
+                        />
+                      </div>
+                      <div className="sm:col-span-3 flex justify-end pt-1">
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5 font-bold"
+                          onClick={() => handleAddIlaveForPersonel(selectedPersonel.personel.id)}
+                          disabled={ilaveSubmitting || !ilaveTutarInput}
+                        >
+                          <Plus className="h-4 w-4" />
+                          {ilaveSubmitting ? "Kaydediliyor..." : `${selectedPersonel.personel.ad} İçin İlave Ücret / Ödül Kaydet`}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* İlave Ücretler Listesi Tablosu */}
+                  <div className="rounded-lg border overflow-hidden bg-background">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-slate-100 dark:bg-slate-800 text-muted-foreground uppercase font-semibold">
+                        <tr>
+                          <th className="px-4 py-2">Tarih</th>
+                          <th className="px-4 py-2">Açıklama</th>
+                          <th className="px-4 py-2 text-right">İlave Tutar</th>
+                          {isManager && <th className="px-4 py-2 text-right">İşlem</th>}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {selectedPersonel.ilaveler.length === 0 ? (
+                          <tr>
+                            <td colSpan={isManager ? 4 : 3} className="px-4 py-4 text-center text-muted-foreground italic">
+                              Bu ay için {selectedPersonel.personel.ad} adına eklenmiş ilave ücret / ödül bulunmuyor.
+                            </td>
+                          </tr>
+                        ) : (
+                          selectedPersonel.ilaveler.map((item: any) => (
+                            <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                              <td className="px-4 py-2.5 text-muted-foreground">{formatDate(item.tarih)}</td>
+                              <td className="px-4 py-2.5 font-medium">{item.aciklama}</td>
+                              <td className="px-4 py-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                                +{Number(item.tutar || item.amount).toLocaleString("tr-TR")} ₺
+                              </td>
+                              {isManager && (
+                                <td className="px-4 py-2.5 text-right">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
+                                    onClick={() => handleDeleteIlave(item.id)}
                                   >
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </Button>
@@ -2396,6 +2686,112 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
               >
                 <Trash2 className="h-4 w-4" />
                 Evet, Sil
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        {/* MAAŞ AYARLARI / BELİRLEME MODALI */}
+        <Dialog open={maasAyarlariModalOpen} onOpenChange={setMaasAyarlariModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-emerald-700 dark:text-emerald-400">
+                <Calculator className="h-5 w-5" />
+                Maaş Belirleme & Güncelleme
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2 text-xs">
+              <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-lg">
+                <Button
+                  type="button"
+                  variant={maasAyariType === "personel" ? "default" : "ghost"}
+                  onClick={() => {
+                    setMaasAyariType("personel")
+                    if (personeller.length > 0) {
+                      setMaasAyariTargetId(personeller[0].id)
+                      setMaasAyariTutarInput(String(personeller[0].aylik_maas || ""))
+                    }
+                  }}
+                  className="h-8 text-xs font-bold"
+                >
+                  Personel Maaşı
+                </Button>
+                <Button
+                  type="button"
+                  variant={maasAyariType === "ortak" ? "default" : "ghost"}
+                  onClick={() => {
+                    setMaasAyariType("ortak")
+                    if (ortaklar.length > 0) {
+                      setMaasAyariTargetId(ortaklar[0].id)
+                      setMaasAyariTutarInput(String((ortaklar[0] as any).aylik_maas || ""))
+                    }
+                  }}
+                  className="h-8 text-xs font-bold"
+                >
+                  Ortak Maaşı
+                </Button>
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-1">
+                  {maasAyariType === "personel" ? "Personel Seçin" : "Ortak Seçin"} *
+                </label>
+                <Select
+                  value={maasAyariTargetId}
+                  onValueChange={(val) => {
+                    setMaasAyariTargetId(val)
+                    if (maasAyariType === "personel") {
+                      const p = personeller.find(item => item.id === val)
+                      setMaasAyariTutarInput(String(p?.aylik_maas || ""))
+                    } else {
+                      const o = ortaklar.find(item => item.id === val)
+                      setMaasAyariTutarInput(String((o as any)?.aylik_maas || ""))
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-10 text-xs bg-background">
+                    <SelectValue placeholder="Kişi seçin..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {maasAyariType === "personel"
+                      ? personeller.map(p => (
+                          <SelectItem key={p.id} value={p.id} className="text-xs">
+                            {p.ad} (Mevcut: {formatMoney(Number(p.aylik_maas || 0))} TL)
+                          </SelectItem>
+                        ))
+                      : ortaklar.map(o => (
+                          <SelectItem key={o.id} value={o.id} className="text-xs">
+                            {o.ad} (Mevcut: {formatMoney(Number((o as any).aylik_maas || 0))} TL)
+                          </SelectItem>
+                        ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-1">Net Taban Maaş Tutarı (TL) *</label>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="Örn: 35000"
+                  value={maasAyariTutarInput}
+                  onChange={(e) => setMaasAyariTutarInput(e.target.value)}
+                  className="h-10 text-xs font-bold"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setMaasAyarlariModalOpen(false)}>
+                Vazgeç
+              </Button>
+              <Button
+                onClick={handleSaveMaasAyari}
+                disabled={maasAyariSaving || !maasAyariTargetId || !maasAyariTutarInput}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                {maasAyariSaving ? "Güncelleniyor..." : "Maaşı Güncelle & Kaydet"}
               </Button>
             </DialogFooter>
           </DialogContent>
