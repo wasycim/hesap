@@ -39,9 +39,43 @@ interface MaasOnayEntry {
 
 function formatDate(val?: string | null) {
   if (!val) return "-"
-  const [y, m, d] = val.split("-")
-  if (!y || !m || !d) return val
-  return `${d}.${m}.${y}`
+  try {
+    const clean = val.includes("T") ? val.split("T")[0] : val
+    if (clean.includes("-")) {
+      const parts = clean.split("-")
+      if (parts.length === 3) {
+        return `${parts[2]}.${parts[1]}.${parts[0]}`
+      }
+    }
+    const d = new Date(val)
+    if (!isNaN(d.getTime())) {
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, "0")
+      const day = String(d.getDate()).padStart(2, "0")
+      return `${day}.${month}.${year}`
+    }
+  } catch {
+    // fallback
+  }
+  return val
+}
+
+function parseDateForSort(val?: string | null): string {
+  if (!val) return ""
+  try {
+    const clean = val.includes("T") ? val.split("T")[0] : val
+    if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean
+    const d = new Date(val)
+    if (!isNaN(d.getTime())) {
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, "0")
+      const day = String(d.getDate()).padStart(2, "0")
+      return `${year}-${month}-${day}`
+    }
+  } catch {
+    // fallback
+  }
+  return String(val)
 }
 
 function formatMoney(amount: number) {
@@ -188,7 +222,7 @@ export default function EskiPersonellerPage() {
       })
     }
 
-    history.sort((a, b) => b.tarih.localeCompare(a.tarih))
+    history.sort((a, b) => parseDateForSort(b.tarih).localeCompare(parseDateForSort(a.tarih)))
     setAdvancesHistory(history)
     setTotalAdvanceSum(history.reduce((sum, h) => sum + h.tutar, 0))
 
