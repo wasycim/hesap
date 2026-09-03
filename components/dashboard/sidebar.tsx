@@ -76,8 +76,6 @@ const maasMenuItem = { key: "maaslar", title: "Maaşlar", href: "/dashboard/maas
 
 const adminMenuItems = [
   { key: "bildirim_gonder", title: "Bildirim Gonder", href: "/dashboard/bildirim-gonder", icon: BellPlus, color: "text-emerald-500" },
-  { title: "Şube Ciro Raporları", href: "/dashboard/sube-ciro-raporlari", icon: BarChart3, color: "text-emerald-500" },
-  { title: "Performans Analizi", href: "/dashboard/performans", icon: BarChart3, color: "text-indigo-500" },
   { title: "Sütun Ayarları", href: "/dashboard/sutun-ayarlar", icon: Columns3, color: "text-sky-500" },
   { title: "Görünüm Ayarları", href: "/dashboard/gorunum-ayarlar", icon: Eye, color: "text-indigo-500" },
   { title: "Genel Ayarlar", href: "/dashboard/ayarlar", icon: Settings, color: "text-gray-400" },

@@ -89,13 +89,33 @@ export default function LisanslarPage() {
     load()
   }
 
-  async function resetLicenses(scope: "revoked" | "all") {
+  const [confirmModal, setConfirmModal] = useState<{
+    open: boolean
+    scope: "revoked" | "all" | null
+    title: string
+    message: string
+  }>({
+    open: false,
+    scope: null,
+    title: "",
+    message: "",
+  })
+
+  function requestResetLicenses(scope: "revoked" | "all") {
+    const title = scope === "all" ? "Tüm Cihaz Lisanslarını Sıfırla" : "İptal Edilmiş Lisansları Temizle"
     const message = scope === "all"
       ? "Tüm lisanslı cihaz kayıtları silinecek. Cihazlar tekrar giriş yaptıkça yeniden kaydolur. Devam edilsin mi?"
       : "Sadece iptal edilmiş lisans kayıtları silinecek. Devam edilsin mi?"
 
-    if (!window.confirm(message)) return
+    setConfirmModal({
+      open: true,
+      scope,
+      title,
+      message,
+    })
+  }
 
+  async function executeResetLicenses(scope: "revoked" | "all") {
     setResetBusy(scope)
     const response = await fetch("/api/admin/device-licenses", {
       method: "DELETE",
@@ -178,11 +198,11 @@ export default function LisanslarPage() {
           <Button variant="outline" onClick={load} disabled={loading}>
             {loading ? "Yükleniyor..." : "Yenile"}
           </Button>
-          <Button variant="outline" onClick={() => resetLicenses("revoked")} disabled={Boolean(resetBusy)}>
+          <Button variant="outline" onClick={() => requestResetLicenses("revoked")} disabled={Boolean(resetBusy)}>
             <Trash2 className="mr-2 h-4 w-4" />
             {resetBusy === "revoked" ? "Temizleniyor..." : "İptalleri temizle"}
           </Button>
-          <Button variant="destructive" onClick={() => resetLicenses("all")} disabled={Boolean(resetBusy)}>
+          <Button variant="destructive" onClick={() => requestResetLicenses("all")} disabled={Boolean(resetBusy)}>
             <RefreshCcw className="mr-2 h-4 w-4" />
             {resetBusy === "all" ? "Sıfırlanıyor..." : "Tümünü sıfırla"}
           </Button>
@@ -285,6 +305,38 @@ export default function LisanslarPage() {
           )
         })}
       </section>
+
+      {confirmModal.open && (
+        <div data-unsaved-ignore="true" className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="animate-modal-pop w-full max-w-md rounded-xl border border-border bg-card p-6 text-card-foreground shadow-2xl">
+            <h2 className="mb-2 text-lg font-bold">{confirmModal.title}</h2>
+            <p className="mb-6 text-sm text-muted-foreground leading-relaxed">
+              {confirmModal.message}
+            </p>
+
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setConfirmModal({ open: false, scope: null, title: "", message: "" })}
+                className="px-4 py-2 text-sm font-medium"
+              >
+                Vazgeç
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  const scope = confirmModal.scope
+                  setConfirmModal({ open: false, scope: null, title: "", message: "" })
+                  if (scope) executeResetLicenses(scope)
+                }}
+                className="px-4 py-2 text-sm font-medium"
+              >
+                Onayla ve Devam Et
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
