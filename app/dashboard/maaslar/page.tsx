@@ -683,19 +683,53 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
   const ortakSummaries = useMemo(() => ortaklar.map(ortak => {
     const advances: Detail[] = []
     const subeMap = new Map(subeler.map(s => [s.id, s.ad]))
+    const oNameNorm = normalizeName(ortak.ad)
+    const isAdemYilmaz = oNameNorm.includes("ADEM YILMAZ")
 
     allBranchGiderRows.forEach(row => {
-      const amount = Number(row.ortak_pilarim?.[ortak.id]) || 0
-      if (amount > 0) {
-        const subeAd = subeMap.get(row.sube_id) || "Şube"
-        advances.push({
-          tarih: row.tarih,
-          amount,
-          description: `${subeAd} Ortak Avansı`,
+      // 1. Check ortak_pilarim
+      if (row.ortak_pilarim) {
+        Object.entries(row.ortak_pilarim).forEach(([k, v]) => {
+          const amount = Number(v) || 0
+          if (amount > 0) {
+            const kNorm = normalizeName(k)
+            const isMatch = k === ortak.id || kNorm === oNameNorm || (isAdemYilmaz && kNorm.includes("ADEM YILMAZ"))
+            if (isMatch) {
+              const subeAd = subeMap.get(row.sube_id) || "Şube"
+              advances.push({
+                tarih: row.tarih,
+                amount,
+                description: `${subeAd} Ortak Avansı`,
+              })
+            }
+          }
+        })
+      }
+
+      // 2. Check personel_paylari (especially for ADEM YILMAZ who is listed as personnel in Darıca Branch)
+      if (row.personel_paylari) {
+        Object.entries(row.personel_paylari).forEach(([k, v]) => {
+          const amount = Number(v) || 0
+          if (amount > 0) {
+            const kNorm = normalizeName(k)
+            const isMatch =
+              k === "360a0848-da6d-48bb-a1bc-ad6322a7e9f9" || // Darıca Personnel ID for Adem Yılmaz
+              (isAdemYilmaz && (k === ortak.id || kNorm.includes("ADEM YILMAZ")))
+
+            if (isMatch) {
+              const subeAd = subeMap.get(row.sube_id) || "Şube"
+              advances.push({
+                tarih: row.tarih,
+                amount,
+                description: `${subeAd} Şubesi Avansı (Darıca Kaydı)`,
+              })
+            }
+          }
         })
       }
     })
 
+    advances.sort((a, b) => a.tarih.localeCompare(b.tarih))
     const total = advances.reduce((sum, item) => sum + item.amount, 0)
     const baseSalary = Number((ortak as any).aylik_maas || 0)
     const kalanNakit = Math.max(0, baseSalary - total)
