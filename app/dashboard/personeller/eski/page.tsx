@@ -170,9 +170,27 @@ export default function EskiPersonellerPage() {
     const subeMap = new Map(subeList.map(s => [s.id, s.ad]))
     const pNameNorm = normalizeName(personel.ad)
 
-    // 1. Fetch all gider_kayitlari across all branches to extract advances taken by this personnel
-    const [giderRes, avansRes, onayRes, kesintiRes, ilaveRes, bilgiRes] = await Promise.all([
-      supabase.from("gider_kayitlari").select("*").order("tarih", { ascending: false }),
+    // 1. Fetch ALL gider_kayitlari across all branches using pagination to avoid Supabase 1000 row truncation
+    const fetchAllGider = async () => {
+      let allRows: any[] = []
+      let from = 0
+      const pageSize = 1000
+      while (true) {
+        const { data, error } = await supabase
+          .from("gider_kayitlari")
+          .select("id, sube_id, tarih, ay_yil, personel_paylari")
+          .order("tarih", { ascending: false })
+          .range(from, from + pageSize - 1)
+        if (error || !data || data.length === 0) break
+        allRows = allRows.concat(data)
+        if (data.length < pageSize) break
+        from += pageSize
+      }
+      return allRows
+    }
+
+    const [allGiderRows, avansRes, onayRes, kesintiRes, ilaveRes, bilgiRes] = await Promise.all([
+      fetchAllGider(),
       supabase.from("avans_talepleri").select("*").eq("durum", "onaylandi").order("created_at", { ascending: false }),
       supabase.from("maas_onaylari").select("*").eq("personel_id", personel.id).order("ay_yil", { ascending: false }),
       supabase.from("maas_kesintileri").select("*").eq("personel_id", personel.id).order("tarih", { ascending: false }),
@@ -182,8 +200,8 @@ export default function EskiPersonellerPage() {
 
     const history: AvansEntry[] = []
 
-    if (giderRes.data) {
-      giderRes.data.forEach(row => {
+    if (allGiderRows && allGiderRows.length > 0) {
+      allGiderRows.forEach(row => {
         if (row.personel_paylari) {
           Object.entries(row.personel_paylari).forEach(([k, v]) => {
             const val = Number(v)
