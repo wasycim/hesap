@@ -140,7 +140,7 @@ export default function EskiPersonellerPage() {
     if (selectedPersonel) {
       loadPersonelHistory(selectedPersonel)
     }
-  }, [selectedPersonel?.id])
+  }, [selectedPersonel?.id, subeler])
 
   async function loadExitedPersoneller() {
     setLoading(true)
@@ -163,7 +163,9 @@ export default function EskiPersonellerPage() {
   }
 
   async function loadPersonelHistory(personel: Personel) {
-    const subeMap = new Map(subeler.map(s => [s.id, s.ad]))
+    const { data: subeData } = await supabase.from("subeler").select("id, ad")
+    const subeList = subeData || subeler
+    const subeMap = new Map(subeList.map(s => [s.id, s.ad]))
     const pNameNorm = normalizeName(personel.ad)
 
     // 1. Fetch all gider_kayitlari across all branches to extract advances taken by this personnel
