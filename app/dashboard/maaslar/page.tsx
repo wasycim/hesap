@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Calendar as CalendarIcon, CalendarDays, Calculator, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, CreditCard, Edit3, FileText, HandCoins, Plus, Scissors, ShieldCheck, Sparkles, Trash2, TrendingUp, Wallet, XCircle } from "lucide-react"
+import { Calendar as CalendarIcon, CalendarDays, Calculator, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, CreditCard, Edit3, FileText, HandCoins, Plus, Scissors, ShieldCheck, Sparkles, Trash2, TrendingUp, Wallet, XCircle, Building2 } from "lucide-react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { isTestPersonnel } from "@/lib/utils/test-personnel"
@@ -203,6 +203,10 @@ export default function MaaslarPage() {
   // Ömer Kahriman (14 No Şubesi -> 5A Şubesi Kart Taşıma İstisnası)
   const [omer14GiderRows, setOmer14GiderRows] = useState<GiderRow[]>([])
   const [omerPersonelRecord, setOmerPersonelRecord] = useState<Personel | null>(null)
+
+  // Ortak Avans Filtreleme State
+  const [ortakSubeFilter, setOrtakSubeFilter] = useState<string>("all")
+  const [ortakSearchText, setOrtakSearchText] = useState<string>("")
 
   const supabase = createClient()
   const { currentSube, subeler, isAdmin, loading: subeLoading } = useSube()
@@ -681,24 +685,33 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
   }), [attendanceOvertime, corbaData, kargoPrimAmount, kargoSeciliPersoneller, month, maasOnaylari, overtimeApprovals, personeller, rows, year, kesintilerList, ilavelerList, maasZamlariList])
 
   const ortakSummaries = useMemo(() => ortaklar.map(ortak => {
-    const advances: Detail[] = []
+    const advances: (Detail & { subeAd: string; subeId: string })[] = []
     const subeMap = new Map(subeler.map(s => [s.id, s.ad]))
     const oNameNorm = normalizeName(ortak.ad)
-    const isAdemYilmaz = oNameNorm.includes("ADEM YILMAZ")
+
+    // Build strict set of matching IDs for this specific partner
+    const matchingOrtakIds = ortaklar.filter(o => normalizeName(o.ad) === oNameNorm).map(o => o.id)
+    const matchingPersonelIds = personeller.filter(p => normalizeName(p.ad) === oNameNorm).map(p => p.id)
+    const allMatchingIds = new Set([...matchingOrtakIds, ...matchingPersonelIds])
+
+    const branchTotals: Record<string, number> = {}
 
     allBranchGiderRows.forEach(row => {
+      const subeAd = subeMap.get(row.sube_id) || "Şube"
+
       // 1. Check ortak_pilarim
       if (row.ortak_pilarim) {
         Object.entries(row.ortak_pilarim).forEach(([k, v]) => {
           const amount = Number(v) || 0
           if (amount > 0) {
             const kNorm = normalizeName(k)
-            const isMatch = k === ortak.id || kNorm === oNameNorm || (isAdemYilmaz && kNorm.includes("ADEM YILMAZ"))
-            if (isMatch) {
-              const subeAd = subeMap.get(row.sube_id) || "Şube"
+            if (allMatchingIds.has(k) || kNorm === oNameNorm) {
+              branchTotals[subeAd] = (branchTotals[subeAd] || 0) + amount
               advances.push({
                 tarih: row.tarih,
                 amount,
+                subeAd,
+                subeId: row.sube_id,
                 description: `${subeAd} Ortak Avansı`,
               })
             }
@@ -706,22 +719,20 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
         })
       }
 
-      // 2. Check personel_paylari (especially for ADEM YILMAZ who is listed as personnel in Darıca Branch)
+      // 2. Check personel_paylari (for partners who also have personnel entries like Adem Yılmaz)
       if (row.personel_paylari) {
         Object.entries(row.personel_paylari).forEach(([k, v]) => {
           const amount = Number(v) || 0
           if (amount > 0) {
             const kNorm = normalizeName(k)
-            const isMatch =
-              k === "360a0848-da6d-48bb-a1bc-ad6322a7e9f9" || // Darıca Personnel ID for Adem Yılmaz
-              (isAdemYilmaz && (k === ortak.id || kNorm.includes("ADEM YILMAZ")))
-
-            if (isMatch) {
-              const subeAd = subeMap.get(row.sube_id) || "Şube"
+            if (allMatchingIds.has(k) || kNorm === oNameNorm) {
+              branchTotals[subeAd] = (branchTotals[subeAd] || 0) + amount
               advances.push({
                 tarih: row.tarih,
                 amount,
-                description: `${subeAd} Şubesi Avansı (Darıca Kaydı)`,
+                subeAd,
+                subeId: row.sube_id,
+                description: `${subeAd} Avansı (Personel Kaydı)`,
               })
             }
           }
@@ -734,8 +745,8 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
     const baseSalary = Number((ortak as any).aylik_maas || 0)
     const kalanNakit = Math.max(0, baseSalary - total)
 
-    return { ortak, baseSalary, advances, total, kalanNakit }
-  }), [ortaklar, allBranchGiderRows, subeler])
+    return { ortak, baseSalary, advances, total, kalanNakit, branchTotals }
+  }), [ortaklar, personeller, allBranchGiderRows, subeler])
 
   const isManager = currentUserProfile?.isManager ?? isAdmin
 
@@ -1074,6 +1085,11 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
 
   function exportOrtakPdf(item = selectedOrtak) {
     if (!item) return
+    const branchRows = Object.entries(item.branchTotals || {}).map(([subeAd, total]) => [
+      subeAd,
+      `-${formatMoney(total)} TL`,
+    ])
+
     openPdfReport({
       title: `${item.ortak.ad} Ortak Pay Detayı`,
       subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
@@ -1083,12 +1099,20 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
         { label: "Toplam Alınan Avans", value: `-${formatMoney(item.total)} TL`, side: "right" as const, color: "red" as const },
         { label: "Kalan Nakit", value: `${formatMoney(item.kalanNakit)} TL`, side: "right" as const, color: "black" as const },
       ],
-      tables: [{
-        title: "Ortak Avans Detayları (Şube Bazlı)",
-        headers: ["Tarih", "Açıklama / Şube", "Tutar"],
-        firstColumnWidth: "28%",
-        rows: item.advances.map(detail => [formatDate(detail.tarih), detail.description, `-${formatMoney(detail.amount)} TL`]),
-      }],
+      tables: [
+        ...(branchRows.length > 0 ? [{
+          title: "ŞUBE BAZLI AVANS DAĞILIMI ÖZETİ",
+          headers: ["Şube Adı", "Şube Avans Toplamı"],
+          firstColumnWidth: "50%",
+          rows: branchRows,
+        }] : []),
+        {
+          title: "ORTAK AVANS DETAYLARI (ŞUBE BAZLI KRONOLOJİK)",
+          headers: ["Tarih", "Açıklama / Şube", "Tutar"],
+          firstColumnWidth: "28%",
+          rows: item.advances.map(detail => [formatDate(detail.tarih), detail.description, `-${formatMoney(detail.amount)} TL`]),
+        },
+      ],
     })
   }
 
@@ -1999,20 +2023,145 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
                 ))}
               </div>
               {selectedOrtak && (
-                <div className="space-y-3">
-                  <div className="flex justify-end">
-                    <Button variant="outline" size="sm" onClick={() => exportOrtakPdf(selectedOrtak)} className="gap-2">
-                      <FileText className="h-4 w-4" />
-                      Ortak PDF
-                    </Button>
+                <div className="space-y-4 border-t pt-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border">
+                    <div>
+                      <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                        <Building2 className="h-5 w-5 text-emerald-600" />
+                        {selectedOrtak.ortak.ad} — Ortak Avans Detayları ve Şube Dağılımı
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Farklı şubelerden alınan tüm ortak avanslarını inceleyebilir ve şube bazında filtreleyebilirsiniz.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => exportOrtakPdf(selectedOrtak)} className="gap-2 font-bold text-xs border-emerald-500 text-emerald-700 hover:bg-emerald-50">
+                        <FileText className="h-4 w-4" />
+                        Ortak PDF Raporu
+                      </Button>
+                    </div>
                   </div>
-                  <DetailList
-                    title={`${selectedOrtak.ortak.ad} Ortak Avansları`}
-                    items={selectedOrtak.advances}
-                    empty="Ortak avansı yok."
-                    totalLabel="Toplam Ortak Avansı"
-                    variant="expense"
-                  />
+
+                  {/* Şube Bazlı Avans Özeti Rozetleri / Kartları */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div
+                      onClick={() => setOrtakSubeFilter("all")}
+                      className={`p-3 rounded-lg border cursor-pointer transition-all text-xs ${
+                        ortakSubeFilter === "all"
+                          ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 shadow-sm"
+                          : "bg-card hover:bg-slate-50 dark:hover:bg-slate-900"
+                      }`}
+                    >
+                      <span className="text-muted-foreground block font-semibold">Tüm Şubeler Toplamı</span>
+                      <span className="text-sm font-extrabold text-red-600 dark:text-red-400">
+                        -{formatMoney(selectedOrtak.total)} TL
+                      </span>
+                    </div>
+
+                    {Object.entries(selectedOrtak.branchTotals || {}).map(([subeAd, total]) => (
+                      <div
+                        key={subeAd}
+                        onClick={() => setOrtakSubeFilter(subeAd)}
+                        className={`p-3 rounded-lg border cursor-pointer transition-all text-xs ${
+                          ortakSubeFilter === subeAd
+                            ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 shadow-sm"
+                            : "bg-card hover:bg-slate-50 dark:hover:bg-slate-900"
+                        }`}
+                      >
+                        <span className="text-muted-foreground block font-semibold">{subeAd} Şubesi</span>
+                        <span className="text-sm font-extrabold text-red-600 dark:text-red-400">
+                          -{formatMoney(total)} TL
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Interaktif Filtreleme ve Arama Barı */}
+                  <div className="flex flex-col sm:flex-row items-center gap-3">
+                    <div className="w-full sm:w-64">
+                      <Input
+                        placeholder="Açıklama veya tarih ara..."
+                        value={ortakSearchText}
+                        onChange={(e) => setOrtakSearchText(e.target.value)}
+                        className="h-9 text-xs bg-background"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+                      <Button
+                        size="sm"
+                        variant={ortakSubeFilter === "all" ? "default" : "outline"}
+                        onClick={() => setOrtakSubeFilter("all")}
+                        className="h-8 text-xs px-2.5 font-bold"
+                      >
+                        Tüm Şubeler ({selectedOrtak.advances.length})
+                      </Button>
+                      {Object.keys(selectedOrtak.branchTotals || {}).map((subeAd) => (
+                        <Button
+                          key={subeAd}
+                          size="sm"
+                          variant={ortakSubeFilter === subeAd ? "default" : "outline"}
+                          onClick={() => setOrtakSubeFilter(subeAd)}
+                          className="h-8 text-xs px-2.5 font-bold"
+                        >
+                          {subeAd}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Avans Listesi Tablosu */}
+                  {(() => {
+                    const filteredAdvances = selectedOrtak.advances.filter(item => {
+                      if (ortakSubeFilter !== "all" && item.subeAd !== ortakSubeFilter) return false
+                      if (ortakSearchText.trim()) {
+                        const search = ortakSearchText.toLowerCase()
+                        const desc = item.description.toLowerCase()
+                        const tarih = item.tarih.toLowerCase()
+                        const sube = item.subeAd.toLowerCase()
+                        if (!desc.includes(search) && !tarih.includes(search) && !sube.includes(search)) return false
+                      }
+                      return true
+                    })
+
+                    return (
+                      <div className="rounded-xl border overflow-hidden bg-background shadow-sm">
+                        <table className="w-full text-xs text-left">
+                          <thead className="bg-slate-100 dark:bg-slate-800 text-muted-foreground uppercase font-bold">
+                            <tr>
+                              <th className="px-4 py-2.5">Tarih</th>
+                              <th className="px-4 py-2.5">Şube / Kaynak</th>
+                              <th className="px-4 py-2.5">Açıklama</th>
+                              <th className="px-4 py-2.5 text-right">Tutar</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {filteredAdvances.length === 0 ? (
+                              <tr>
+                                <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground italic">
+                                  Seçilen filtrelere uygun ortak avans kaydı bulunamadı.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredAdvances.map((item, idx) => (
+                                <tr key={`${item.tarih}-${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                                  <td className="px-4 py-2.5 font-semibold text-muted-foreground">{formatDate(item.tarih)}</td>
+                                  <td className="px-4 py-2.5">
+                                    <Badge variant="outline" className="text-[10px] font-bold bg-slate-50 dark:bg-slate-900">
+                                      {item.subeAd}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-4 py-2.5 font-medium">{item.description}</td>
+                                  <td className="px-4 py-2.5 text-right font-extrabold text-red-600 dark:text-red-400">
+                                    -{formatMoney(item.amount)} TL
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
             </CardContent>
