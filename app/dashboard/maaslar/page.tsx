@@ -104,7 +104,11 @@ function formatDurationFromMinutes(totalMinutes: number) {
 }
 
 function normalizeName(value: string | null | undefined) {
-  return String(value || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("tr-TR")
+  const str = String(value || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("tr-TR")
+  if (str.includes("FATMAGÜL KARAKAYA") || str.includes("FATMA GÜL KARAKAYA") || str.includes("FATMA GÜL DURANAY")) {
+    return "FATMA GÜL DURANAY"
+  }
+  return str
 }
 
 interface AvansTalebi {
