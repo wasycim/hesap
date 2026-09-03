@@ -249,8 +249,7 @@ export default function MaaslarPage() {
         .order("sira", { ascending: true }),
       supabase
         .from("ortaklar")
-        .select("id, ad, aylik_maas")
-        .eq("sube_id", currentSube.id)
+        .select("id, ad, aylik_maas, sube_id")
         .eq("aktif", true)
         .order("sira", { ascending: true }),
       supabase
@@ -421,7 +420,19 @@ export default function MaaslarPage() {
       const isExitedThisMonthOrLater = Boolean(p.isten_cikis_tarihi && p.isten_cikis_tarihi >= monthStartDate)
       return p.aktif || isExitedThisMonthOrLater || usedPersonelIds.has(p.id)
     }))
-    setOrtaklar(ortakRes.data || [])
+    const rawOrtaklar = ortakRes.data || []
+    const uniqueOrtaklar: Ortak[] = []
+    const seenOrtakNames = new Set<string>()
+
+    rawOrtaklar.forEach(o => {
+      const norm = normalizeName(o.ad)
+      if (!seenOrtakNames.has(norm)) {
+        seenOrtakNames.add(norm)
+        uniqueOrtaklar.push(o)
+      }
+    })
+
+    setOrtaklar(uniqueOrtaklar)
     setRows(giderRes.data || [])
     setAttendanceOvertime(attendanceRes.ok ? (attendancePayload?.details || []) : [])
     setOvertimeApprovals(approvalsRes.ok ? (approvalsPayload?.items || []) : [])
