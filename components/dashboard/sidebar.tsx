@@ -589,11 +589,11 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
             <li key="personeller_category">
               <button
                 type="button"
-                onClick={() => setPersonellerMenuOpen(!personellerMenuOpen)}
+                onClick={() => setPersonellerMenuOpen(prev => !prev)}
                 className={cn(
-                  "sidebar-menu-item group flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                  "sidebar-menu-item group flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                   pathname.startsWith("/dashboard/personeller") || pathname.startsWith("/dashboard/maaslar")
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-bold"
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 )}
               >
@@ -601,62 +601,58 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
                   <UserCog className="sidebar-menu-icon h-5 w-5 text-emerald-500" />
                   <span>Personeller</span>
                 </div>
-                {personellerMenuOpen ? (
-                  <ChevronDown className="h-4 w-4 text-sidebar-foreground/60 transition-transform duration-200" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 text-sidebar-foreground/60 transition-transform duration-200" />
-                )}
+                <ChevronDown className={cn("h-4 w-4 transition-transform duration-500", personellerMenuOpen ? "rotate-0" : "-rotate-90")} />
               </button>
 
               {personellerMenuOpen && (
-                <div className="overflow-hidden transition-all duration-300 ease-in-out">
-                  <ul className="ml-4 mt-1 space-y-1 border-l border-sidebar-border/40 pl-3">
-                    <li>
+                <div className="mt-1 overflow-hidden">
+                  <ul className="ml-4 mt-1 overflow-hidden border-l border-sidebar-border pl-4">
+                    <li className="sidebar-submenu-row-in" style={{ animationDelay: "80ms" }}>
                       <Link
                         href="/dashboard/maaslar"
                         onClick={() => setMobileOpen(false)}
                         className={cn(
-                          "flex items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium transition-all",
+                          "sidebar-menu-item group flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
                           pathname === "/dashboard/maaslar"
-                            ? "bg-sidebar-accent/80 font-bold text-sidebar-accent-foreground"
+                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
                             : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                         )}
                       >
-                        <WalletCards className="h-4 w-4 text-emerald-500" />
+                        <WalletCards className="sidebar-menu-icon h-4 w-4 text-emerald-500" />
                         <span>{isAdmin ? "Maaşlar" : "Maaşım"}</span>
                       </Link>
                     </li>
 
                     {isAdmin && (
                       <>
-                        <li>
+                        <li className="sidebar-submenu-row-in" style={{ animationDelay: "140ms" }}>
                           <Link
                             href="/dashboard/personeller/bilgi"
                             onClick={() => setMobileOpen(false)}
                             className={cn(
-                              "flex items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium transition-all",
+                              "sidebar-menu-item group flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
                               pathname === "/dashboard/personeller/bilgi"
-                                ? "bg-sidebar-accent/80 font-bold text-sidebar-accent-foreground"
+                                ? "bg-sidebar-accent text-sidebar-accent-foreground"
                                 : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                             )}
                           >
-                            <FileSearch className="h-4 w-4 text-sky-500" />
+                            <FileSearch className="sidebar-menu-icon h-4 w-4 text-sky-500" />
                             <span>Personel Bilgisi</span>
                           </Link>
                         </li>
 
-                        <li>
+                        <li className="sidebar-submenu-row-in" style={{ animationDelay: "200ms" }}>
                           <Link
                             href="/dashboard/personeller/eski"
                             onClick={() => setMobileOpen(false)}
                             className={cn(
-                              "flex items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium transition-all",
+                              "sidebar-menu-item group flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
                               pathname === "/dashboard/personeller/eski"
-                                ? "bg-sidebar-accent/80 font-bold text-sidebar-accent-foreground"
+                                ? "bg-sidebar-accent text-sidebar-accent-foreground"
                                 : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                             )}
                           >
-                            <UserCog className="h-4 w-4 text-rose-500" />
+                            <UserCog className="sidebar-menu-icon h-4 w-4 text-rose-500" />
                             <span>Eski Personeller</span>
                           </Link>
                         </li>

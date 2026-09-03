@@ -7,7 +7,7 @@ import { isTestPersonnel } from "@/lib/utils/test-personnel"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { CalendarDays, CreditCard, FileSearch, UserX, Wallet, ArrowLeft, Printer, AlertCircle } from "lucide-react"
+import { CalendarDays, CreditCard, FileSearch, UserX, Wallet, ArrowLeft, Printer, Sparkles, Scissors, CheckCircle2, Building2 } from "lucide-react"
 import { useSube } from "@/contexts/sube-context"
 import { openPdfReport } from "@/lib/pdf-report"
 import { useRouter } from "next/navigation"
@@ -29,6 +29,14 @@ interface AvansEntry {
   aciklama: string
 }
 
+interface MaasOnayEntry {
+  ay_yil: string
+  subeAd: string
+  bankaya_gonderilen: number
+  kalan_nakit: number
+  nakit_odeme_tarihi?: string | null
+}
+
 function formatDate(val?: string | null) {
   if (!val) return "-"
   const [y, m, d] = val.split("-")
@@ -38,6 +46,10 @@ function formatDate(val?: string | null) {
 
 function formatMoney(amount: number) {
   return amount.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function normalizeName(value: string | null | undefined) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("tr-TR")
 }
 
 function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: string | null): string {
@@ -75,8 +87,11 @@ export default function EskiPersonellerPage() {
   const [exitedPersoneller, setExitedPersoneller] = useState<Personel[]>([])
   const [selectedPersonel, setSelectedPersonel] = useState<Personel | null>(null)
   const [advancesHistory, setAdvancesHistory] = useState<AvansEntry[]>([])
+  const [maasOnayHistory, setMaasOnayHistory] = useState<MaasOnayEntry[]>([])
+  const [kesintilerHistory, setKesintilerHistory] = useState<any[]>([])
+  const [ilavelerHistory, setIlavelerHistory] = useState<any[]>([])
+  const [bilgiFormuData, setBilgiFormuData] = useState<any | null>(null)
   const [totalAdvanceSum, setTotalAdvanceSum] = useState<number>(0)
-  const [formAvailable, setFormAvailable] = useState<boolean>(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -110,35 +125,58 @@ export default function EskiPersonellerPage() {
   }
 
   async function loadPersonelHistory(personel: Personel) {
-    // 1. Fetch all gider_kayitlari across all branches to extract advances taken by this old personnel
-    const { data: giderKayitlari } = await supabase.from("gider_kayitlari").select("*").order("tarih", { ascending: false })
-    const { data: avansTalepleri } = await supabase.from("avans_talepleri").select("*").eq("durum", "onaylandi").order("created_at", { ascending: false })
-    const { data: bilgiFormu } = await supabase.from("personel_bilgi_formlari").select("id").eq("personel_id", personel.id).maybeSingle()
-
-    setFormAvailable(Boolean(bilgiFormu))
-
     const subeMap = new Map(subeler.map(s => [s.id, s.ad]))
+    const pNameNorm = normalizeName(personel.ad)
+
+    // 1. Fetch all gider_kayitlari across all branches to extract advances taken by this personnel
+    const [giderRes, avansRes, onayRes, kesintiRes, ilaveRes, bilgiRes] = await Promise.all([
+      supabase.from("gider_kayitlari").select("*").order("tarih", { ascending: false }),
+      supabase.from("avans_talepleri").select("*").eq("durum", "onaylandi").order("created_at", { ascending: false }),
+      supabase.from("maas_onaylari").select("*").eq("personel_id", personel.id).order("ay_yil", { ascending: false }),
+      supabase.from("maas_kesintileri").select("*").eq("personel_id", personel.id).order("tarih", { ascending: false }),
+      supabase.from("maas_ilaveleri").select("*").eq("personel_id", personel.id).order("tarih", { ascending: false }),
+      supabase.from("personel_bilgi_formlari").select("*").eq("personel_id", personel.id).maybeSingle(),
+    ])
+
     const history: AvansEntry[] = []
 
-    if (giderKayitlari) {
-      giderKayitlari.forEach(row => {
-        if (row.personel_paylari && Number(row.personel_paylari[personel.id]) > 0) {
-          history.push({
-            tarih: row.tarih,
-            subeAd: subeMap.get(row.sube_id) || "Şube",
-            tutar: Number(row.personel_paylari[personel.id]),
-            aciklama: "Gider Tablosu Avans Ödemesi",
+    if (giderRes.data) {
+      giderRes.data.forEach(row => {
+        if (row.personel_paylari) {
+          Object.entries(row.personel_paylari).forEach(([k, v]) => {
+            const val = Number(v)
+            if (val > 0) {
+              const kNorm = normalizeName(k)
+              const isMatch =
+                k === personel.id ||
+                kNorm === pNameNorm ||
+                (kNorm && pNameNorm && (kNorm.includes(pNameNorm) || pNameNorm.includes(kNorm)))
+
+              if (isMatch) {
+                history.push({
+                  tarih: row.tarih,
+                  subeAd: subeMap.get(row.sube_id) || "Şube",
+                  tutar: val,
+                  aciklama: `Gider Tablosu Avansı (${row.ay_yil || "Avans"})`,
+                })
+              }
+            }
           })
         }
       })
     }
 
-    if (avansTalepleri) {
-      avansTalepleri.forEach(req => {
-        if (req.tc_kimlik === personel.id || req.user_name?.toLowerCase().includes(personel.ad.toLowerCase())) {
+    if (avansRes.data) {
+      avansRes.data.forEach(req => {
+        const reqName = normalizeName(req.user_name)
+        const isMatch =
+          req.tc_kimlik === personel.id ||
+          (reqName && pNameNorm && (reqName === pNameNorm || reqName.includes(pNameNorm) || pNameNorm.includes(reqName)))
+
+        if (isMatch) {
           history.push({
             tarih: req.odeme_tarihi || (req.created_at ? req.created_at.split("T")[0] : ""),
-            subeAd: "Avans Sistemi",
+            subeAd: "Avans Talepleri Sistemi",
             tutar: Number(req.tutar || 0),
             aciklama: req.aciklama || "Onaylı Avans Talebi",
           })
@@ -149,6 +187,24 @@ export default function EskiPersonellerPage() {
     history.sort((a, b) => b.tarih.localeCompare(a.tarih))
     setAdvancesHistory(history)
     setTotalAdvanceSum(history.reduce((sum, h) => sum + h.tutar, 0))
+
+    if (onayRes.data) {
+      setMaasOnayHistory(
+        onayRes.data.map(item => ({
+          ay_yil: item.ay_yil,
+          subeAd: subeMap.get(item.sube_id) || "Şube",
+          bankaya_gonderilen: Number(item.bankaya_gonderilen || 0),
+          kalan_nakit: Number(item.kalan_nakit || 0),
+          nakit_odeme_tarihi: item.nakit_odeme_tarihi,
+        }))
+      )
+    } else {
+      setMaasOnayHistory([])
+    }
+
+    setKesintilerHistory(kesintiRes.data || [])
+    setIlavelerHistory(ilaveRes.data || [])
+    setBilgiFormuData(bilgiRes.data || null)
   }
 
   function exportHistoryPdf() {
@@ -156,7 +212,7 @@ export default function EskiPersonellerPage() {
 
     openPdfReport({
       title: `${selectedPersonel.ad} - Eski Personel Arşiv Raporu`,
-      subtitle: `${currentSube?.ad || ""} · İşten Ayrılan Personel Kaydı`,
+      subtitle: `${currentSube?.ad || ""} · İşten Ayrılan Personel Tüm Detayları`,
       orientation: "portrait",
       metrics: [
         { label: "İşe Giriş Tarihi", value: formatDate(selectedPersonel.ise_giris_tarihi), side: "left", color: "green" },
@@ -166,7 +222,7 @@ export default function EskiPersonellerPage() {
       ],
       tables: [
         {
-          title: "GEÇMİŞ AVANS VE ÖDEME GEÇMİŞİ",
+          title: "TÜM GEÇMİŞ AVANSLAR DETAYI",
           headers: ["Tarih", "Şube", "Açıklama", "Tutar"],
           firstColumnWidth: "22%",
           rows: advancesHistory.map(item => [
@@ -176,6 +232,18 @@ export default function EskiPersonellerPage() {
             `-${formatMoney(item.tutar)} TL`,
           ]),
         },
+        ...(maasOnayHistory.length > 0 ? [{
+          title: "GEÇMİŞ MAAŞ VE ÖDEME ONAYLARI",
+          headers: ["Dönem", "Şube", "Bankaya Gönderilen", "Ödenen Nakit", "Nakit Ödeme Tarihi"],
+          firstColumnWidth: "20%",
+          rows: maasOnayHistory.map(item => [
+            item.ay_yil,
+            item.subeAd,
+            `${formatMoney(item.bankaya_gonderilen)} TL`,
+            `${formatMoney(item.kalan_nakit)} TL`,
+            formatDate(item.nakit_odeme_tarihi),
+          ]),
+        }] : []),
       ],
     })
   }
@@ -190,17 +258,17 @@ export default function EskiPersonellerPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold">Eski Personeller Arşivi</h1>
-            <p className="text-xs text-muted-foreground">İşten ayrılan personellerin çalışma süresi, geçmiş avans ve bilgi formu kayıtları</p>
+            <p className="text-xs text-muted-foreground">İşten ayrılan personellerin çalışma süresi, geçmiş tüm avansları, maaş hakedişleri ve bilgi formları</p>
           </div>
         </div>
 
         {selectedPersonel && (
           <div className="flex items-center gap-2">
-            <Button onClick={exportHistoryPdf} variant="outline" className="h-10 text-xs gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300">
+            <Button onClick={exportHistoryPdf} variant="outline" className="h-10 text-xs gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 font-bold">
               <Printer className="w-4 h-4" /> Arşiv PDF İndir
             </Button>
-            <Button onClick={() => router.push(`/dashboard/personeller/bilgi`)} variant="outline" className="h-10 text-xs gap-1.5">
-              <FileSearch className="w-4 h-4" /> Bilgi Formu Düzenle
+            <Button onClick={() => router.push(`/dashboard/personeller/bilgi`)} variant="outline" className="h-10 text-xs gap-1.5 font-bold">
+              <FileSearch className="w-4 h-4 text-sky-500" /> Bilgi Formuna Git
             </Button>
           </div>
         )}
@@ -222,7 +290,7 @@ export default function EskiPersonellerPage() {
                 Kayıtlı eski/ayrılan personel bulunmuyor.
               </div>
             ) : (
-              <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-[650px] overflow-y-auto pr-1">
                 {exitedPersoneller.map(p => (
                   <div
                     key={p.id}
@@ -286,15 +354,15 @@ export default function EskiPersonellerPage() {
                 </Card>
               </div>
 
-              {/* Advances History Table */}
+              {/* SECTION 1: Advances History Table */}
               <Card className="border shadow-sm">
                 <CardHeader className="pb-3 border-b bg-muted/20 flex flex-row items-center justify-between">
                   <div>
                     <CardTitle className="text-sm font-bold flex items-center gap-2">
                       <Wallet className="w-4 h-4 text-rose-600" />
-                      Geçmiş Avans ve Ödeme Dökümü ({advancesHistory.length} İşlem)
+                      Tüm Geçmiş Avanslar Dökümü ({advancesHistory.length} İşlem)
                     </CardTitle>
-                    <CardDescription className="text-xs">Tüm şubelerden alınan avansların kronolojik dökümü</CardDescription>
+                    <CardDescription className="text-xs">Çalıştığı süre boyunca tüm şubelerden aldığı avanslar</CardDescription>
                   </div>
                   <div className="text-right">
                     <span className="text-[11px] font-semibold text-muted-foreground block">Toplam Avans</span>
@@ -303,23 +371,23 @@ export default function EskiPersonellerPage() {
                 </CardHeader>
                 <CardContent className="p-0">
                   {advancesHistory.length === 0 ? (
-                    <div className="text-center py-10 text-xs text-muted-foreground">
+                    <div className="text-center py-8 text-xs text-muted-foreground">
                       Bu personele ait geçmiş avans kaydı bulunamadı.
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
                       <table className="w-full text-left text-xs border-collapse">
-                        <thead>
-                          <tr className="border-b bg-muted/40 font-bold text-muted-foreground">
+                        <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 font-bold text-muted-foreground uppercase">
+                          <tr>
                             <th className="p-3">Tarih</th>
                             <th className="p-3">Kaynak / Şube</th>
                             <th className="p-3">Açıklama</th>
                             <th className="p-3 text-right">Tutar</th>
                           </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y">
                           {advancesHistory.map((item, idx) => (
-                            <tr key={idx} className="border-b hover:bg-muted/20 transition-colors">
+                            <tr key={idx} className="hover:bg-muted/20 transition-colors">
                               <td className="p-3 font-semibold">{formatDate(item.tarih)}</td>
                               <td className="p-3">
                                 <Badge variant="outline" className="text-[10px] font-semibold">
@@ -338,6 +406,81 @@ export default function EskiPersonellerPage() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* SECTION 2: Salary Payouts & Approvals History */}
+              <Card className="border shadow-sm">
+                <CardHeader className="pb-3 border-b bg-muted/20">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
+                    <CreditCard className="w-4 h-4 text-emerald-600" />
+                    Geçmiş Maaş Ödeme ve Onay Kayıtları ({maasOnayHistory.length} Dönem)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {maasOnayHistory.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-muted-foreground">
+                      Geçmiş dönem maaş onay kaydı bulunmuyor.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-100 dark:bg-slate-800 font-bold text-muted-foreground uppercase">
+                          <tr>
+                            <th className="p-3">Maaş Dönemi</th>
+                            <th className="p-3">Şube</th>
+                            <th className="p-3 text-right">Bankaya Gönderilen</th>
+                            <th className="p-3 text-right">Ödenen Nakit</th>
+                            <th className="p-3 text-right">Ödeme Tarihi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {maasOnayHistory.map((item, idx) => (
+                            <tr key={idx} className="hover:bg-muted/20 transition-colors">
+                              <td className="p-3 font-bold">{item.ay_yil}</td>
+                              <td className="p-3">{item.subeAd}</td>
+                              <td className="p-3 text-right font-semibold text-blue-600">{formatMoney(item.bankaya_gonderilen)} TL</td>
+                              <td className="p-3 text-right font-bold text-emerald-600">{formatMoney(item.kalan_nakit)} TL</td>
+                              <td className="p-3 text-right text-muted-foreground">{formatDate(item.nakit_odeme_tarihi)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* SECTION 3: Personel Bilgi Formu Quick Summary */}
+              {bilgiFormuData && (
+                <Card className="border border-sky-200 dark:border-sky-900 bg-sky-50/20 dark:bg-sky-950/10 shadow-sm">
+                  <CardHeader className="pb-3 border-b bg-sky-50/50 dark:bg-sky-900/20 flex flex-row items-center justify-between">
+                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-sky-900 dark:text-sky-200">
+                      <FileSearch className="w-4 h-4 text-sky-600" />
+                      Kayıtlı İş Talep ve Bilgi Formu Özeti
+                    </CardTitle>
+                    <Button onClick={() => router.push(`/dashboard/personeller/bilgi`)} variant="ghost" size="sm" className="h-7 text-xs text-sky-700 font-bold">
+                      Formun Tamamını Gör ➔
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <span className="text-muted-foreground block">T.C. Kimlik No:</span>
+                      <span className="font-bold text-foreground">{bilgiFormuData.tc_kimlik_no || "-"}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block">Cep Telefonu:</span>
+                      <span className="font-bold text-emerald-700 dark:text-emerald-300">{bilgiFormuData.cep_telefon || "-"}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block">Medeni Durum / Çocuk:</span>
+                      <span className="font-bold text-foreground">{bilgiFormuData.medeni_durumu || "-"} ({bilgiFormuData.cocuk_sayisi || "0"} çocuk)</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block">Talep Edilen Görev:</span>
+                      <span className="font-bold text-sky-700 dark:text-sky-300">{bilgiFormuData.talep_edilen_gorev || "-"}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </>
           ) : (
             <div className="text-center py-16 bg-card rounded-2xl border text-muted-foreground text-xs">
