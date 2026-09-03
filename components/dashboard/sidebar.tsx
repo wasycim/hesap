@@ -295,12 +295,43 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [kargoOpen, setKargoOpen] = useState(false)
   const [personellerMenuOpen, setPersonellerMenuOpen] = useState(false)
+  const [finansMenuOpen, setFinansMenuOpen] = useState(false)
+  const [raporlarMenuOpen, setRaporlarMenuOpen] = useState(false)
+  const [ayarlarMenuOpen, setAyarlarMenuOpen] = useState(false)
+  const [gelistiriciMenuOpen, setGelistiriciMenuOpen] = useState(false)
   const [kargoFirmalar, setKargoFirmalar] = useState<KargoFirma[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [isDeveloper, setIsDeveloper] = useState(false)
   const [subeMenuOpen, setSubeMenuOpen] = useState(false)
   const [menuVisibility, setMenuVisibility] = useState<Record<string, boolean>>({})
   const [userPermissions, setUserPermissions] = useState<Record<string, boolean> | null>(null)
+
+  useEffect(() => {
+    if (pathname.startsWith("/dashboard/kargo-cari")) setKargoOpen(true)
+    if (pathname.startsWith("/dashboard/personeller") || pathname.startsWith("/dashboard/maaslar")) setPersonellerMenuOpen(true)
+    if (pathname.startsWith("/dashboard/14-no-hesap") || pathname.startsWith("/dashboard/kargo-prim") || pathname.startsWith("/dashboard/web-komisyon")) setFinansMenuOpen(true)
+    if (pathname.startsWith("/dashboard/sube-ciro-raporlari") || pathname.startsWith("/dashboard/performans")) setRaporlarMenuOpen(true)
+    if (
+      pathname.startsWith("/dashboard/bildirim-gonder") ||
+      pathname.startsWith("/dashboard/sutun-ayarlar") ||
+      pathname.startsWith("/dashboard/gorunum-ayarlar") ||
+      pathname.startsWith("/dashboard/ayarlar") ||
+      pathname.startsWith("/dashboard/guvenlik-ayarlar") ||
+      pathname.startsWith("/dashboard/mail-islemleri") ||
+      pathname.startsWith("/dashboard/admin-ayarlar")
+    ) {
+      setAyarlarMenuOpen(true)
+    }
+    if (
+      pathname.startsWith("/dashboard/lisanslar") ||
+      pathname.startsWith("/dashboard/operasyon") ||
+      pathname.startsWith("/dashboard/backup-islemleri") ||
+      pathname.startsWith("/dashboard/gelismis-log") ||
+      pathname.startsWith("/dashboard/sistem-sagligi")
+    ) {
+      setGelistiriciMenuOpen(true)
+    }
+  }, [pathname])
 
   useEffect(() => {
     checkAdminStatus()
@@ -567,24 +598,7 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
             </li>
           )}
 
-          {canSeeMenu("on_dort_no") && (
-            <li>
-              <Link
-                href="/dashboard/14-no-hesap"
-                onClick={() => setMobileOpen(false)}
-                className={cn(
-                  "sidebar-menu-item group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
-                  pathname.startsWith("/dashboard/14-no-hesap")
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-                )}
-              >
-                <Landmark className="sidebar-menu-icon menu-icon-bank h-5 w-5 text-lime-500" />
-                <span>Alt Şube Hesapları</span>
-              </Link>
-            </li>
-          )}
-
+          {/* 1. PERSONELLER KATEGORİSİ */}
           {canSeeMenu(maasMenuItem.key) && (
             <li key="personeller_category">
               <button
@@ -664,82 +678,269 @@ export function DashboardSidebar({ userEmail, displayName }: SidebarProps) {
             </li>
           )}
 
-          {canSeeMenu("kargo_prim") && (
-            <li key="/dashboard/kargo-prim">
-              <Link
-                href="/dashboard/kargo-prim"
-                onClick={() => setMobileOpen(false)}
+          {/* 2. FİNANS & GELİRLER KATEGORİSİ */}
+          {(canSeeMenu("on_dort_no") || canSeeMenu("kargo_prim") || canSeeMenu("web_komisyon")) && (
+            <li key="finans_category">
+              <button
+                type="button"
+                onClick={() => setFinansMenuOpen(prev => !prev)}
                 className={cn(
-                  "sidebar-menu-item group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
-                  pathname === "/dashboard/kargo-prim"
+                  "sidebar-menu-item group flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                  pathname.startsWith("/dashboard/14-no-hesap") || pathname.startsWith("/dashboard/kargo-prim") || pathname.startsWith("/dashboard/web-komisyon")
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 )}
               >
-                <Coins className="sidebar-menu-icon menu-icon-sway h-5 w-5 text-emerald-500" />
-                <span>Kargo Prim</span>
-              </Link>
+                <div className="flex items-center gap-3">
+                  <Coins className="sidebar-menu-icon h-5 w-5 text-amber-500" />
+                  <span>Finans & Gelirler</span>
+                </div>
+                <ChevronDown className={cn("h-4 w-4 transition-transform duration-500", finansMenuOpen ? "rotate-0" : "-rotate-90")} />
+              </button>
+
+              {finansMenuOpen && (
+                <div className="mt-1 overflow-hidden">
+                  <ul className="ml-4 mt-1 overflow-hidden border-l border-sidebar-border pl-4">
+                    {canSeeMenu("on_dort_no") && (
+                      <li className="sidebar-submenu-row-in" style={{ animationDelay: "80ms" }}>
+                        <Link
+                          href="/dashboard/14-no-hesap"
+                          onClick={() => setMobileOpen(false)}
+                          className={cn(
+                            "sidebar-menu-item group flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                            pathname.startsWith("/dashboard/14-no-hesap")
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                          )}
+                        >
+                          <Landmark className="sidebar-menu-icon h-4 w-4 text-lime-500" />
+                          <span>Alt Şube Hesapları</span>
+                        </Link>
+                      </li>
+                    )}
+
+                    {canSeeMenu("kargo_prim") && (
+                      <li className="sidebar-submenu-row-in" style={{ animationDelay: "140ms" }}>
+                        <Link
+                          href="/dashboard/kargo-prim"
+                          onClick={() => setMobileOpen(false)}
+                          className={cn(
+                            "sidebar-menu-item group flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                            pathname === "/dashboard/kargo-prim"
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                          )}
+                        >
+                          <Coins className="sidebar-menu-icon h-4 w-4 text-emerald-500" />
+                          <span>Kargo Prim</span>
+                        </Link>
+                      </li>
+                    )}
+
+                    {canSeeMenu("web_komisyon") && (
+                      <li className="sidebar-submenu-row-in" style={{ animationDelay: "200ms" }}>
+                        <Link
+                          href="/dashboard/web-komisyon"
+                          onClick={() => setMobileOpen(false)}
+                          className={cn(
+                            "sidebar-menu-item group flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                            pathname === "/dashboard/web-komisyon"
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                          )}
+                        >
+                          <Globe className="sidebar-menu-icon h-4 w-4 text-emerald-500 transition-transform duration-700 group-hover:rotate-[360deg]" />
+                          <span>Web Komisyon</span>
+                        </Link>
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
             </li>
           )}
 
-          {canSeeMenu("web_komisyon") && (
-            <li key="/dashboard/web-komisyon">
-              <Link
-                href="/dashboard/web-komisyon"
-                onClick={() => setMobileOpen(false)}
+          {/* 3. RAPORLAR & ANALİZ KATEGORİSİ */}
+          {(canSeeMenu("sube_ciro_raporlari") || canSeeMenu("performans")) && (
+            <li key="raporlar_category">
+              <button
+                type="button"
+                onClick={() => setRaporlarMenuOpen(prev => !prev)}
                 className={cn(
-                  "sidebar-menu-item group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
-                  pathname === "/dashboard/web-komisyon"
+                  "sidebar-menu-item group flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                  pathname.startsWith("/dashboard/sube-ciro-raporlari") || pathname.startsWith("/dashboard/performans")
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 )}
               >
-                <Globe className="sidebar-menu-icon h-5 w-5 text-emerald-500 transition-transform duration-700 group-hover:rotate-[360deg]" />
-                <span>Web Komisyon</span>
-              </Link>
+                <div className="flex items-center gap-3">
+                  <BarChart3 className="sidebar-menu-icon h-5 w-5 text-indigo-500" />
+                  <span>Raporlar & Analiz</span>
+                </div>
+                <ChevronDown className={cn("h-4 w-4 transition-transform duration-500", raporlarMenuOpen ? "rotate-0" : "-rotate-90")} />
+              </button>
+
+              {raporlarMenuOpen && (
+                <div className="mt-1 overflow-hidden">
+                  <ul className="ml-4 mt-1 overflow-hidden border-l border-sidebar-border pl-4">
+                    {canSeeMenu("sube_ciro_raporlari") && (
+                      <li className="sidebar-submenu-row-in" style={{ animationDelay: "80ms" }}>
+                        <Link
+                          href="/dashboard/sube-ciro-raporlari"
+                          onClick={() => setMobileOpen(false)}
+                          className={cn(
+                            "sidebar-menu-item group flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                            pathname === "/dashboard/sube-ciro-raporlari"
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                          )}
+                        >
+                          <BarChart3 className="sidebar-menu-icon h-4 w-4 text-emerald-500" />
+                          <span>Şube Ciro Raporları</span>
+                        </Link>
+                      </li>
+                    )}
+
+                    {canSeeMenu("performans") && (
+                      <li className="sidebar-submenu-row-in" style={{ animationDelay: "140ms" }}>
+                        <Link
+                          href="/dashboard/performans"
+                          onClick={() => setMobileOpen(false)}
+                          className={cn(
+                            "sidebar-menu-item group flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                            pathname === "/dashboard/performans"
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                          )}
+                        >
+                          <BarChart3 className="sidebar-menu-icon h-4 w-4 text-indigo-500" />
+                          <span>Performans Analizi</span>
+                        </Link>
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
             </li>
           )}
 
-          {adminMenuItems.filter((item) => canSeeMenu(permissionKeyByHref[item.href] || (item as any).key || item.href) && (isDeveloper || !developerOnlyHrefs.has(item.href))).map((item) => {
-            const isActive = pathname === item.href
+          {/* 4. SİSTEM & AYARLAR KATEGORİSİ */}
+          {(() => {
+            const visibleAdminItems = adminMenuItems.filter(
+              item => canSeeMenu(permissionKeyByHref[item.href] || (item as any).key || item.href) && !developerOnlyHrefs.has(item.href)
+            )
+            if (visibleAdminItems.length === 0) return null
+
+            const isAyarlarActive = visibleAdminItems.some(item => pathname === item.href)
+
             return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  onClick={() => setMobileOpen(false)}
+              <li key="ayarlar_category">
+                <button
+                  type="button"
+                  onClick={() => setAyarlarMenuOpen(prev => !prev)}
                   className={cn(
-                    "sidebar-menu-item group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
-                    isActive
+                    "sidebar-menu-item group flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                    isAyarlarActive
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                   )}
                 >
-                  <item.icon className={cn("sidebar-menu-icon h-5 w-5", getMenuIconMotion(item.href), item.color)} />
-                  <span>{item.title}</span>
-                </Link>
+                  <div className="flex items-center gap-3">
+                    <Settings className="sidebar-menu-icon h-5 w-5 text-cyan-500" />
+                    <span>Sistem & Ayarlar</span>
+                  </div>
+                  <ChevronDown className={cn("h-4 w-4 transition-transform duration-500", ayarlarMenuOpen ? "rotate-0" : "-rotate-90")} />
+                </button>
+
+                {ayarlarMenuOpen && (
+                  <div className="mt-1 overflow-hidden">
+                    <ul className="ml-4 mt-1 overflow-hidden border-l border-sidebar-border pl-4">
+                      {visibleAdminItems.map((item, index) => {
+                        const isActive = pathname === item.href
+                        return (
+                          <li key={item.href} className="sidebar-submenu-row-in" style={{ animationDelay: `${80 + index * 40}ms` }}>
+                            <Link
+                              href={item.href}
+                              onClick={() => setMobileOpen(false)}
+                              className={cn(
+                                "sidebar-menu-item group flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                                isActive
+                                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                              )}
+                            >
+                              <item.icon className={cn("sidebar-menu-icon h-4 w-4", getMenuIconMotion(item.href), item.color)} />
+                              <span>{item.title}</span>
+                            </Link>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                )}
               </li>
             )
-          })}
-          {developerMenuItems.filter((item) => canSeeMenu(permissionKeyByHref[item.href] || item.href)).map((item) => {
-            const isActive = pathname === item.href
+          })()}
+
+          {/* 5. GELİŞTİRİCİ & BAKIM KATEGORİSİ */}
+          {(() => {
+            const devItems = [
+              ...developerMenuItems,
+              ...adminMenuItems.filter(item => developerOnlyHrefs.has(item.href)),
+            ].filter(item => isDeveloper || canSeeMenu(permissionKeyByHref[item.href] || item.href))
+
+            if (!isDeveloper || devItems.length === 0) return null
+
+            const isDevActive = devItems.some(item => pathname === item.href)
+
             return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  onClick={() => setMobileOpen(false)}
+              <li key="developer_category">
+                <button
+                  type="button"
+                  onClick={() => setGelistiriciMenuOpen(prev => !prev)}
                   className={cn(
-                    "sidebar-menu-item group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
-                    isActive
+                    "sidebar-menu-item group flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                    isDevActive
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                   )}
                 >
-                  <item.icon className={cn("sidebar-menu-icon h-5 w-5", getMenuIconMotion(item.href), item.color)} />
-                  <span>{item.title}</span>
-                </Link>
+                  <div className="flex items-center gap-3">
+                    <Wrench className="sidebar-menu-icon h-5 w-5 text-violet-500" />
+                    <span>Geliştirici & Bakım</span>
+                  </div>
+                  <ChevronDown className={cn("h-4 w-4 transition-transform duration-500", gelistiriciMenuOpen ? "rotate-0" : "-rotate-90")} />
+                </button>
+
+                {gelistiriciMenuOpen && (
+                  <div className="mt-1 overflow-hidden">
+                    <ul className="ml-4 mt-1 overflow-hidden border-l border-sidebar-border pl-4">
+                      {devItems.map((item, index) => {
+                        const isActive = pathname === item.href
+                        return (
+                          <li key={item.href} className="sidebar-submenu-row-in" style={{ animationDelay: `${80 + index * 40}ms` }}>
+                            <Link
+                              href={item.href}
+                              onClick={() => setMobileOpen(false)}
+                              className={cn(
+                                "sidebar-menu-item group flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                                isActive
+                                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                              )}
+                            >
+                              <item.icon className={cn("sidebar-menu-icon h-4 w-4", getMenuIconMotion(item.href), item.color)} />
+                              <span>{item.title}</span>
+                            </Link>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                )}
               </li>
             )
-          })}
+          })()}
         </ul>
       </nav>
 
