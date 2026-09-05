@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   if (personelId) {
     query = query.eq("personel_id", personelId)
-  } else if (subeId) {
+  } else if (subeId && subeId !== "all") {
     query = query.eq("sube_id", subeId)
   }
 

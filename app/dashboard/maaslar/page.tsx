@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Calendar as CalendarIcon, CalendarDays, Calculator, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, CreditCard, Edit3, FileText, HandCoins, Plus, Scissors, ShieldCheck, Sparkles, Trash2, TrendingUp, Wallet, XCircle, Building2 } from "lucide-react"
+import { Calendar as CalendarIcon, CalendarDays, Calculator, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, CreditCard, Edit3, FileText, HandCoins, Plus, Scissors, ShieldCheck, Sparkles, Trash2, TrendingUp, Wallet, XCircle, Building2, Eye, Search, CalendarClock } from "lucide-react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { isTestPersonnel } from "@/lib/utils/test-personnel"
@@ -203,6 +203,13 @@ export default function MaaslarPage() {
   const [taksitBaslangicTarihiInput, setTaksitBaslangicTarihiInput] = useState(new Date().toISOString().split("T")[0])
   const [taksitSubmitting, setTaksitSubmitting] = useState(false)
   const [borcTaksitleriList, setBorcTaksitleriList] = useState<any[]>([])
+  const [allBranchPersoneller, setAllBranchPersoneller] = useState<any[]>([])
+  const [selectedTaksitDetail, setSelectedTaksitDetail] = useState<any | null>(null)
+  const [taksitDeleteConfirm, setTaksitDeleteConfirm] = useState<{ open: boolean; item: any | null }>({ open: false, item: null })
+  const [taksitSearch, setTaksitSearch] = useState("")
+  const [taksitSubeFilter, setTaksitSubeFilter] = useState("all")
+  const [taksitStatusFilter, setTaksitStatusFilter] = useState<"all" | "active" | "completed">("all")
+  const [deletingTaksit, setDeletingTaksit] = useState(false)
 
   // Ömer Kahriman (14 No Şubesi -> 5A Şubesi Kart Taşıma İstisnası)
   const [omer14GiderRows, setOmer14GiderRows] = useState<GiderRow[]>([])
@@ -283,7 +290,7 @@ export default function MaaslarPage() {
       fetch(`/api/admin/maas-onay?${new URLSearchParams({ subeId: currentSube.id, ayYil }).toString()}`, { cache: "no-store" }),
       fetch(`/api/admin/maas-kesinti?${new URLSearchParams({ subeId: currentSube.id, ayYil }).toString()}`, { cache: "no-store" }),
       fetch(`/api/admin/maas-zam?${new URLSearchParams({ subeId: currentSube.id }).toString()}`, { cache: "no-store" }),
-      fetch(`/api/admin/borc-taksit?${new URLSearchParams({ subeId: currentSube.id }).toString()}`, { cache: "no-store" }),
+      fetch(`/api/admin/borc-taksit?subeId=all`, { cache: "no-store" }),
       fetch(`/api/admin/maas-ilave?${new URLSearchParams({ subeId: currentSube.id, ayYil }).toString()}`, { cache: "no-store" }),
       supabase
         .from("gider_kayitlari")
@@ -300,6 +307,12 @@ export default function MaaslarPage() {
     const maasZamPayload = await maasZamRes?.json().catch(() => null)
     const borcTaksitPayload = await borcTaksitRes?.json().catch(() => null)
     const ilavePayload = await ilaveRes?.json().catch(() => null)
+
+    if (allBranchPersonelRes?.data) {
+      setAllBranchPersoneller(allBranchPersonelRes.data)
+    } else {
+      setAllBranchPersoneller([])
+    }
 
     if (ilavePayload?.items) {
       setIlavelerList(ilavePayload.items)
@@ -982,18 +995,123 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
     }
   }
 
-  function openTaksitModal(personelId: string) {
-    setTaksitPersonelId(personelId)
+  function openTaksitModal(personelId?: string) {
+    setTaksitPersonelId(personelId || "")
     setTaksitToplamBorcInput("")
-    setTaksitSayisiInput("")
-    setTaksitAciklamaInput("")
+    setTaksitSayisiInput("5")
+    setTaksitAciklamaInput("Telefon Borcu")
     setTaksitBaslangicTarihiInput(new Date().toISOString().split("T")[0])
     setTaksitModalOpen(true)
   }
 
+  function computeTaksitProgress(item: any, viewingYear?: number, viewingMonthName?: string) {
+    const totalDebt = Number(item.toplam_borc || 0)
+    const totalCount = Math.max(1, Number(item.taksit_sayisi || 1))
+    const monthlyAmount = Number(item.aylik_taksit || (totalDebt / totalCount))
+
+    // Parse start date
+    const startDateStr = item.baslangic_tarihi ? String(item.baslangic_tarihi).slice(0, 10) : new Date().toISOString().slice(0, 10)
+    const [startYear, startMonth, startDay] = startDateStr.split("-").map(Number)
+
+    // Current real-world calendar
+    const now = new Date()
+    const currentNowYearMonth = now.getFullYear() * 12 + now.getMonth() // 0-indexed month
+
+    const schedule: Array<{
+      index: number
+      ayYil: string
+      tarih: string
+      tutar: number
+      status: "paid" | "current" | "pending"
+      statusLabel: string
+    }> = []
+
+    let paidCount = 0
+
+    for (let i = 0; i < totalCount; i++) {
+      const totalMonthIndex = (startMonth - 1) + i
+      const targetYear = startYear + Math.floor(totalMonthIndex / 12)
+      const targetMonthZero = ((totalMonthIndex % 12) + 12) % 12
+      const maxDays = new Date(targetYear, targetMonthZero + 1, 0).getDate()
+      const targetDay = Math.min(startDay || 1, maxDays)
+
+      const instDateStr = `${targetYear}-${String(targetMonthZero + 1).padStart(2, "0")}-${String(targetDay).padStart(2, "0")}`
+      const instMonthName = MONTHS[targetMonthZero] || `Ay ${targetMonthZero + 1}`
+      const instAyYil = `${instMonthName}-${targetYear}`
+
+      const itemYearMonth = targetYear * 12 + targetMonthZero
+
+      let status: "paid" | "current" | "pending" = "pending"
+      let statusLabel = "Bekliyor"
+
+      if (itemYearMonth < currentNowYearMonth) {
+        status = "paid"
+        statusLabel = "Kesildi (Ödendi)"
+        paidCount++
+      } else if (itemYearMonth === currentNowYearMonth) {
+        status = "current"
+        statusLabel = "Bu Ay Kesiliyor"
+        paidCount++
+      } else {
+        status = "pending"
+        statusLabel = "Kalan Taksit"
+      }
+
+      schedule.push({
+        index: i + 1,
+        ayYil: instAyYil,
+        tarih: instDateStr,
+        tutar: monthlyAmount,
+        status,
+        statusLabel,
+      })
+    }
+
+    paidCount = Math.min(totalCount, Math.max(0, paidCount))
+    const remainingCount = Math.max(0, totalCount - paidCount)
+    const paidAmount = Math.min(totalDebt, Math.round(paidCount * monthlyAmount * 100) / 100)
+    const remainingAmount = Math.max(0, Math.round((totalDebt - paidAmount) * 100) / 100)
+    const percent = Math.min(100, Math.round((paidCount / totalCount) * 100))
+    const isCompleted = remainingCount === 0 || remainingAmount <= 0
+
+    return {
+      totalDebt,
+      totalCount,
+      monthlyAmount,
+      paidCount,
+      remainingCount,
+      paidAmount,
+      remainingAmount,
+      percent,
+      isCompleted,
+      schedule,
+      startDateStr,
+      endDateStr: item.bitis_tarihi || schedule[schedule.length - 1]?.tarih || startDateStr,
+    }
+  }
+
+  async function handleDeleteTaksit(item: any) {
+    if (!item?.id) return
+    setDeletingTaksit(true)
+    try {
+      const res = await fetch(`/api/admin/borc-taksit?id=${encodeURIComponent(item.id)}`, {
+        method: "DELETE",
+      })
+      const payload = await res.json()
+      if (!res.ok) throw new Error(payload.error || "Taksitlendirme silinemedi.")
+      toast.success("Taksitlendirme planı ve ilgili kesintiler başarıyla silindi.")
+      setTaksitDeleteConfirm({ open: false, item: null })
+      loadData()
+    } catch (err: any) {
+      toast.error(err.message || "Silinirken hata oluştu.")
+    } finally {
+      setDeletingTaksit(false)
+    }
+  }
+
   async function handleSaveBorcTaksit() {
-    if (!currentSube || !taksitPersonelId || !taksitToplamBorcInput || !taksitSayisiInput) {
-      toast.error("Lütfen toplam borç ve taksit sayısını girin.")
+    if (!taksitPersonelId || !taksitToplamBorcInput || !taksitSayisiInput) {
+      toast.error("Lütfen personel, toplam borç ve taksit sayısını girin.")
       return
     }
 
@@ -1005,6 +1123,14 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
       return
     }
 
+    const targetPersonel = allBranchPersoneller.find(p => p.id === taksitPersonelId) || personeller.find(p => p.id === taksitPersonelId)
+    const subeIdToUse = targetPersonel?.sube_id || currentSube?.id
+
+    if (!subeIdToUse) {
+      toast.error("Personelin şubesi bulunamadı.")
+      return
+    }
+
     setTaksitSubmitting(true)
     try {
       const res = await fetch("/api/admin/borc-taksit", {
@@ -1012,7 +1138,7 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           personel_id: taksitPersonelId,
-          sube_id: currentSube.id,
+          sube_id: subeIdToUse,
           toplam_borc: totalBorc,
           taksit_sayisi: count,
           aciklama: taksitAciklamaInput || "Taksitli Borç",
@@ -1025,9 +1151,10 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
 
       toast.success("Borç taksitlendirmesi başlatıldı ve aylık kesintiler eklendi.")
       setTaksitModalOpen(false)
+      setTaksitPersonelId("")
       setTaksitToplamBorcInput("")
-      setTaksitSayisiInput("")
-      setTaksitAciklamaInput("")
+      setTaksitSayisiInput("5")
+      setTaksitAciklamaInput("Telefon Borcu")
       loadData()
     } catch (err: any) {
       toast.error(err.message || "Hata oluştu.")
@@ -2380,6 +2507,287 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
             </CardContent>
           </Card>
         )}
+
+        {/* Personel Borç & Taksitlendirme Takibi Tablosu */}
+        {isManager && (
+          <Card className="mt-8 border-border shadow-sm">
+            {(() => {
+              const filteredTaksitList = borcTaksitleriList.filter((item) => {
+                if (taksitSubeFilter !== "all" && item.sube_id !== taksitSubeFilter) {
+                  return false
+                }
+                const progress = computeTaksitProgress(item, year, month)
+                if (taksitStatusFilter === "active" && progress.isCompleted) {
+                  return false
+                }
+                if (taksitStatusFilter === "completed" && !progress.isCompleted) {
+                  return false
+                }
+                if (taksitSearch.trim()) {
+                  const q = taksitSearch.trim().toLowerCase()
+                  const pName = (item.personel?.ad || allBranchPersoneller.find(p => p.id === item.personel_id)?.ad || "").toLowerCase()
+                  const desc = (item.aciklama || "").toLowerCase()
+                  if (!pName.includes(q) && !desc.includes(q)) {
+                    return false
+                  }
+                }
+                return true
+              })
+
+              let totalBorcSum = 0
+              let totalPaidSum = 0
+              let totalRemainingSum = 0
+              let activeCount = 0
+
+              for (const item of filteredTaksitList) {
+                const prog = computeTaksitProgress(item, year, month)
+                totalBorcSum += prog.totalDebt
+                totalPaidSum += prog.paidAmount
+                totalRemainingSum += prog.remainingAmount
+                if (!prog.isCompleted) activeCount++
+              }
+
+              return (
+                <>
+                  <CardHeader className="pb-4 border-b bg-gradient-to-r from-purple-500/5 via-transparent to-purple-500/5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2 text-lg font-bold text-purple-950 dark:text-purple-200">
+                          <CreditCard className="h-5 w-5 text-purple-600" />
+                          Personel Borç & Taksitlendirme Takibi
+                        </CardTitle>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Personele verilen taksitli borçların aylık maaş kesintilerini, kaç ay kaldığını ve kalan bakiye özetini takip edin.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className="text-xs font-bold border-purple-300 text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40">
+                          Toplam {filteredTaksitList.length} Plan
+                        </Badge>
+                        <Button
+                          size="sm"
+                          onClick={() => openTaksitModal()}
+                          className="bg-purple-700 hover:bg-purple-800 text-white font-bold gap-1.5 shadow-sm text-xs"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Yeni Taksitlendirme Yap
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* KPI Özet Kartları */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+                      <div className="p-3 bg-card border rounded-xl shadow-xs">
+                        <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Toplam Taksitli Borç</div>
+                        <div className="text-lg font-black text-foreground mt-0.5">{formatMoney(totalBorcSum)} TL</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">{filteredTaksitList.length} taksit kaydı</div>
+                      </div>
+                      <div className="p-3 bg-card border rounded-xl shadow-xs">
+                        <div className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Kesilen / Tahsil Edilen</div>
+                        <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-0.5">{formatMoney(totalPaidSum)} TL</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">Maaşlardan kesildi</div>
+                      </div>
+                      <div className="p-3 bg-card border rounded-xl shadow-xs">
+                        <div className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Kalan Toplam Borç</div>
+                        <div className="text-lg font-black text-amber-600 dark:text-amber-400 mt-0.5">{formatMoney(totalRemainingSum)} TL</div>
+                        <div className="text-[10px] text-amber-700 dark:text-amber-300 font-medium mt-0.5">Kalan borç bakiyesi</div>
+                      </div>
+                      <div className="p-3 bg-card border rounded-xl shadow-xs">
+                        <div className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Aktif Taksit Sayısı</div>
+                        <div className="text-lg font-black text-purple-700 dark:text-purple-300 mt-0.5">{activeCount} Plan</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">{filteredTaksitList.length - activeCount} plan tamamlandı</div>
+                      </div>
+                    </div>
+
+                    {/* Filtreleme ve Arama */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-3 pt-3 border-t">
+                      <div>
+                        <label className="text-[11px] font-bold text-muted-foreground block mb-1">Şube Filtresi</label>
+                        <Select value={taksitSubeFilter} onValueChange={setTaksitSubeFilter}>
+                          <SelectTrigger className="h-8 text-xs bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Tüm Şubeler</SelectItem>
+                            {subeler.map(s => (
+                              <SelectItem key={s.id} value={s.id}>{s.ad}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-muted-foreground block mb-1">Durum Filtresi</label>
+                        <Select value={taksitStatusFilter} onValueChange={(val: any) => setTaksitStatusFilter(val)}>
+                          <SelectTrigger className="h-8 text-xs bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Tümü (Aktif & Bitenler)</SelectItem>
+                            <SelectItem value="active">Devam Edenler (Kalan Ayı Olanlar)</SelectItem>
+                            <SelectItem value="completed">Tamamlananlar (Borcu Bitenler)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-muted-foreground block mb-1">Personel veya Borç Ara</label>
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            placeholder="İsim veya borç açıklaması..."
+                            value={taksitSearch}
+                            onChange={(e) => setTaksitSearch(e.target.value)}
+                            className="h-8 text-xs pl-8 bg-background"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="p-0">
+                    {filteredTaksitList.length === 0 ? (
+                      <div className="p-8 text-center text-muted-foreground">
+                        <CreditCard className="h-10 w-10 mx-auto text-muted-foreground/40 mb-2" />
+                        <p className="font-semibold text-sm">Taksitlendirilmiş borç kaydı bulunamadı</p>
+                        <p className="text-xs mt-1 text-muted-foreground/80">
+                          {taksitSearch || taksitSubeFilter !== "all" || taksitStatusFilter !== "all"
+                            ? "Filtre kriterlerinize uygun sonuç bulunamadı."
+                            : "Personele henüz bir taksitli borç tanımlanmamış. 'Yeni Taksitlendirme Yap' butonundan ekleyebilirsiniz."}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs text-left">
+                          <thead className="bg-muted/40 text-muted-foreground font-semibold border-b">
+                            <tr>
+                              <th className="py-3 px-4">Personel & Şube</th>
+                              <th className="py-3 px-3">Borç Açıklaması</th>
+                              <th className="py-3 px-3 text-right">Toplam Borç</th>
+                              <th className="py-3 px-3 text-right">Aylık Kesinti</th>
+                              <th className="py-3 px-3">Taksit Durumu (Kaç Ay Kaldı)</th>
+                              <th className="py-3 px-3 text-right">Kalan Borç (Ne Kadar Kaldı)</th>
+                              <th className="py-3 px-3 text-center">Tarih Aralığı</th>
+                              <th className="py-3 px-3 text-center">Durum</th>
+                              <th className="py-3 px-3 text-right">İşlemler</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {filteredTaksitList.map((item) => {
+                              const progress = computeTaksitProgress(item, year, month)
+                              const personName = item.personel?.ad || allBranchPersoneller.find(p => p.id === item.personel_id)?.ad || "Personel"
+                              const subeName = subeler.find(s => s.id === item.sube_id)?.ad || "Şube"
+
+                              return (
+                                <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="py-3 px-4">
+                                    <div className="font-bold text-foreground text-sm">{personName}</div>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                      <Badge variant="outline" className="text-[10px] py-0 px-1 font-semibold">{subeName}</Badge>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-3">
+                                    <div className="font-medium text-foreground">{item.aciklama || "Taksitli Borç"}</div>
+                                    <div className="text-[10px] text-muted-foreground">Oluşturulma: {formatDate(item.created_at || progress.startDateStr)}</div>
+                                  </td>
+                                  <td className="py-3 px-3 text-right font-extrabold text-sm text-foreground">
+                                    {formatMoney(progress.totalDebt)} TL
+                                  </td>
+                                  <td className="py-3 px-3 text-right font-bold text-purple-700 dark:text-purple-300">
+                                    {formatMoney(progress.monthlyAmount)} TL <span className="text-[10px] font-normal text-muted-foreground">/ ay</span>
+                                  </td>
+                                  <td className="py-3 px-3 min-w-[160px]">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="text-[11px] font-extrabold text-foreground">
+                                        {progress.isCompleted ? (
+                                          <span className="text-emerald-600 dark:text-emerald-400">Tamamı Kesildi</span>
+                                        ) : (
+                                          <span className="text-amber-600 dark:text-amber-400 font-bold">{progress.remainingCount} Ay Kaldı</span>
+                                        )}
+                                      </span>
+                                      <span className="text-[10px] text-muted-foreground font-semibold">
+                                        {progress.paidCount} / {progress.totalCount} Ay
+                                      </span>
+                                    </div>
+                                    <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                                      <div
+                                        className={`h-full transition-all duration-300 ${
+                                          progress.isCompleted ? "bg-emerald-500" : "bg-purple-600"
+                                        }`}
+                                        style={{ width: `${progress.percent}%` }}
+                                      />
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-3 text-right">
+                                    {progress.isCompleted ? (
+                                      <div>
+                                        <span className="font-bold text-emerald-600 dark:text-emerald-400">0,00 TL</span>
+                                        <div className="text-[10px] text-muted-foreground">Borç kapandı</div>
+                                      </div>
+                                    ) : (
+                                      <div>
+                                        <span className="font-black text-sm text-amber-600 dark:text-amber-400">
+                                          {formatMoney(progress.remainingAmount)} TL Kaldı
+                                        </span>
+                                        <div className="text-[10px] text-muted-foreground">
+                                          {formatMoney(progress.paidAmount)} TL Kesildi
+                                        </div>
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-3 text-center text-[11px] text-muted-foreground whitespace-nowrap">
+                                    <div>{formatDate(progress.startDateStr)}</div>
+                                    <div className="text-[10px] text-muted-foreground/70">&darr;</div>
+                                    <div>{formatDate(progress.endDateStr)}</div>
+                                  </td>
+                                  <td className="py-3 px-3 text-center whitespace-nowrap">
+                                    {progress.isCompleted ? (
+                                      <Badge variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 text-[10px] font-semibold py-0.5">
+                                        <CheckCircle2 className="h-3 w-3 mr-1" /> Tamamlandı
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="border-blue-500 text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 text-[10px] font-semibold py-0.5">
+                                        <Clock className="h-3 w-3 mr-1" /> Devam Ediyor
+                                      </Badge>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-3 text-right whitespace-nowrap">
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setSelectedTaksitDetail(item)}
+                                        className="h-7 px-2 text-xs font-semibold gap-1 hover:border-purple-300 hover:text-purple-700"
+                                        title="Taksit Takvimini ve Kesinti Planını Gör"
+                                      >
+                                        <Eye className="h-3.5 w-3.5" />
+                                        Takvim
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => setTaksitDeleteConfirm({ open: true, item })}
+                                        className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
+                                        title="Taksit Planını Sil"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </CardContent>
+                </>
+              )
+            })()}
+          </Card>
+        )}
+
         {/* Avans Talepleri Geçmişi ve Yönetimi Tablosu */}
         {isManager && (
           <Card className="mt-8 border-border shadow-sm">
@@ -2947,7 +3355,8 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
 
             <div className="space-y-4 py-2 text-xs">
               {(() => {
-                const targetP = personeller.find(p => p.id === taksitPersonelId)
+                const availablePersoneller = (allBranchPersoneller.length > 0 ? allBranchPersoneller : personeller)
+                const targetP = availablePersoneller.find(p => p.id === taksitPersonelId)
                 const totalAmount = Number(taksitToplamBorcInput || 0)
                 const count = Number(taksitSayisiInput || 1)
                 const monthlyInst = totalAmount > 0 && count > 0 ? Math.round((totalAmount / count) * 100) / 100 : 0
@@ -2958,14 +3367,46 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
 
                 return (
                   <>
-                    <div className="p-3 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 rounded-lg">
-                      <span className="font-bold text-purple-900 dark:text-purple-200 text-sm block mb-1">
-                        {targetP?.ad || "Personel"}
-                      </span>
-                      <p className="text-muted-foreground text-[11px]">
-                        Verilen kişisel borcu belirlediğiniz taksit sayısına bölerek her ayın maaşından otomatik kesinti olarak düşer.
-                      </p>
-                    </div>
+                    {targetP ? (
+                      <div className="p-3 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 rounded-lg flex items-center justify-between">
+                        <div>
+                          <span className="font-bold text-purple-900 dark:text-purple-200 text-sm block">
+                            {targetP.ad}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">
+                            {subeler.find(s => s.id === targetP.sube_id)?.ad || currentSube?.ad || "Şube"}
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs text-purple-700 hover:text-purple-900"
+                          onClick={() => setTaksitPersonelId("")}
+                        >
+                          Değiştir
+                        </Button>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="text-xs font-semibold block mb-1 text-foreground">Personel Seçiniz *</label>
+                        <Select value={taksitPersonelId} onValueChange={setTaksitPersonelId}>
+                          <SelectTrigger className="h-10 text-xs bg-background">
+                            <SelectValue placeholder="Taksitlendirilecek personeli seçin..." />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60">
+                            {availablePersoneller.map(p => {
+                              const sName = subeler.find(s => s.id === p.sube_id)?.ad
+                              return (
+                                <SelectItem key={p.id} value={p.id} className="text-xs">
+                                  {p.ad} {sName ? `(${sName})` : ""}
+                                </SelectItem>
+                              )
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
 
                     <div>
                       <label className="text-xs font-semibold block mb-1 text-foreground">Toplam Borç Tutarı (₺) *</label>
@@ -3047,11 +3488,192 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
               </Button>
               <Button
                 onClick={handleSaveBorcTaksit}
-                disabled={taksitSubmitting || !taksitToplamBorcInput || !taksitSayisiInput}
+                disabled={taksitSubmitting || !taksitPersonelId || !taksitToplamBorcInput || !taksitSayisiInput}
                 className="bg-purple-700 hover:bg-purple-800 text-white font-bold gap-2"
               >
                 <CreditCard className="h-4 w-4" />
                 {taksitSubmitting ? "Kaydediliyor..." : "Taksitlendirmeyi Başlat"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* TAKSİT DETAYI & TAKVİMİ MODALI */}
+        <Dialog open={Boolean(selectedTaksitDetail)} onOpenChange={(open) => { if (!open) setSelectedTaksitDetail(null) }}>
+          <DialogContent className="sm:max-w-xl max-h-[88vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-lg font-bold text-purple-700 dark:text-purple-400">
+                <CalendarDays className="h-5 w-5" />
+                Taksit Takvimi ve Kesinti Detayı
+              </DialogTitle>
+            </DialogHeader>
+
+            {selectedTaksitDetail && (() => {
+              const progress = computeTaksitProgress(selectedTaksitDetail, year, month)
+              const personName = selectedTaksitDetail.personel?.ad || allBranchPersoneller.find(p => p.id === selectedTaksitDetail.personel_id)?.ad || "Personel"
+              const subeName = subeler.find(s => s.id === selectedTaksitDetail.sube_id)?.ad || "Şube"
+
+              return (
+                <div className="space-y-4 overflow-y-auto pr-1">
+                  {/* Top Info Banner */}
+                  <div className="p-3.5 bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-xl">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-extrabold text-base text-foreground">{personName}</span>
+                          <Badge variant="outline" className="text-[11px] font-semibold">{subeName}</Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5 font-medium">
+                          {selectedTaksitDetail.aciklama || "Taksitli Borç"} &bull; Başlangıç: {formatDate(progress.startDateStr)}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-muted-foreground font-medium">Toplam Borç</div>
+                        <div className="text-lg font-black text-purple-700 dark:text-purple-300">
+                          {formatMoney(progress.totalDebt)} TL
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick summary metrics */}
+                    <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-purple-200/60 dark:border-purple-800/60 text-center">
+                      <div className="bg-background/80 p-2 rounded-lg border border-purple-100 dark:border-purple-900/50">
+                        <div className="text-[10px] text-muted-foreground font-semibold uppercase">Kesilen Tutar</div>
+                        <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{formatMoney(progress.paidAmount)} TL</div>
+                        <div className="text-[10px] text-muted-foreground">{progress.paidCount} / {progress.totalCount} Ay Kesildi</div>
+                      </div>
+                      <div className="bg-background/80 p-2 rounded-lg border border-purple-100 dark:border-purple-900/50">
+                        <div className="text-[10px] text-muted-foreground font-semibold uppercase">Kalan Borç</div>
+                        <div className="text-xs font-bold text-amber-600 dark:text-amber-400">{formatMoney(progress.remainingAmount)} TL</div>
+                        <div className="text-[10px] text-amber-700 dark:text-amber-300 font-bold">{progress.remainingCount} Ay Kaldı</div>
+                      </div>
+                      <div className="bg-background/80 p-2 rounded-lg border border-purple-100 dark:border-purple-900/50">
+                        <div className="text-[10px] text-muted-foreground font-semibold uppercase">Aylık Kesinti</div>
+                        <div className="text-xs font-bold text-foreground">{formatMoney(progress.monthlyAmount)} TL</div>
+                        <div className="text-[10px] text-muted-foreground">Her Ay Maaştan</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Schedule List */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Aylık Maaş Kesinti Takvimi</h4>
+                      <span className="text-[11px] text-muted-foreground font-medium">Toplam {progress.schedule.length} Taksit</span>
+                    </div>
+
+                    <div className="space-y-1.5 border rounded-lg p-2 bg-card">
+                      {progress.schedule.map((inst) => {
+                        const isCurrentViewingMonth = inst.ayYil === `${month}-${year}`
+                        return (
+                          <div
+                            key={inst.index}
+                            className={`flex items-center justify-between p-2.5 rounded-md border text-xs transition-colors ${
+                              inst.status === "paid"
+                                ? "bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-800/40"
+                                : inst.status === "current"
+                                ? "bg-blue-50/60 dark:bg-blue-950/30 border-blue-300 dark:border-blue-700"
+                                : "bg-muted/20 border-border"
+                            } ${isCurrentViewingMonth ? "ring-2 ring-purple-500/50" : ""}`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] ${
+                                inst.status === "paid"
+                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200"
+                                  : inst.status === "current"
+                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200"
+                                  : "bg-muted text-muted-foreground"
+                              }`}>
+                                {inst.index}
+                              </span>
+                              <div>
+                                <div className="font-bold flex items-center gap-1.5">
+                                  <span>{inst.ayYil} Dönemi</span>
+                                  {isCurrentViewingMonth && (
+                                    <Badge variant="secondary" className="text-[9px] py-0 px-1 bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-200">
+                                      Şu an Görüntülenen Ay
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground font-medium">
+                                  Planlanan Kesinti Tarihi: {formatDate(inst.tarih)}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <span className="font-extrabold text-sm">{formatMoney(inst.tutar)} TL</span>
+                              <Badge
+                                variant={inst.status === "paid" ? "outline" : inst.status === "current" ? "default" : "secondary"}
+                                className={`text-[10px] font-semibold py-0.5 ${
+                                  inst.status === "paid"
+                                    ? "border-emerald-500 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40"
+                                    : inst.status === "current"
+                                    ? "bg-blue-600 text-white"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {inst.status === "paid" ? (
+                                  <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Kesildi</span>
+                                ) : inst.status === "current" ? (
+                                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Bu Ay Kesiliyor</span>
+                                ) : (
+                                  <span>Kalan Taksit</span>
+                                )}
+                              </Badge>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+
+            <DialogFooter className="pt-2 border-t mt-2">
+              <Button variant="outline" onClick={() => setSelectedTaksitDetail(null)}>
+                Kapat
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* TAKSİT SİLME ONAY MODALI */}
+        <Dialog open={taksitDeleteConfirm.open} onOpenChange={(open) => setTaksitDeleteConfirm(prev => ({ ...prev, open }))}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-red-600 dark:text-red-400">
+                <Trash2 className="h-5 w-5" />
+                Taksitlendirme Planını Sil
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="py-2 text-xs text-muted-foreground font-medium space-y-2">
+              <p>
+                <span className="font-bold text-foreground">
+                  {taksitDeleteConfirm.item?.personel?.ad || allBranchPersoneller.find(p => p.id === taksitDeleteConfirm.item?.personel_id)?.ad || "Personel"}
+                </span>{" "}
+                adlı personele ait{" "}
+                <span className="font-bold text-foreground">{taksitDeleteConfirm.item?.aciklama || "borç"}</span> başlıklı taksitlendirme planını silmek istediğinize emin misiniz?
+              </p>
+              <p className="text-amber-600 dark:text-amber-400">
+                Bu işlem taksit planını ve bu taksite ait gelecekteki maaş kesintilerini kaldıracaktır.
+              </p>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setTaksitDeleteConfirm({ open: false, item: null })}>
+                Vazgeç / İptal
+              </Button>
+              <Button
+                variant="destructive"
+                className="font-bold gap-1.5"
+                disabled={deletingTaksit}
+                onClick={() => handleDeleteTaksit(taksitDeleteConfirm.item)}
+              >
+                <Trash2 className="h-4 w-4" />
+                {deletingTaksit ? "Siliniyor..." : "Evet, Taksiti Sil"}
               </Button>
             </DialogFooter>
           </DialogContent>
