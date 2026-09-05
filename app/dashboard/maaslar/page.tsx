@@ -245,12 +245,15 @@ export default function MaaslarPage() {
     const from = getMonthStartDate(month, year)
     const to = getMonthEndDate(month, year)
 
-    const [personelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes, corbaRes, avansRes, maasOnayRes, kesintiRes, maasZamRes, borcTaksitRes, ilaveRes, allGiderRes] = await Promise.all([
+    const [personelRes, allBranchPersonelRes, ortakRes, giderRes, attendanceRes, approvalsRes, kargoPrimRes, corbaRes, avansRes, maasOnayRes, kesintiRes, maasZamRes, borcTaksitRes, ilaveRes, allGiderRes] = await Promise.all([
       supabase
         .from("personeller")
         .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif, ise_giris_tarihi, isten_cikis_tarihi")
         .eq("sube_id", currentSube.id)
         .order("sira", { ascending: true }),
+      supabase
+        .from("personeller")
+        .select("id, ad, aylik_maas, sube_id"),
       supabase
         .from("ortaklar")
         .select("id, ad, aylik_maas, sube_id")
@@ -285,7 +288,7 @@ export default function MaaslarPage() {
       supabase
         .from("gider_kayitlari")
         .select("tarih, sube_id, ortak_pilarim, personel_paylari")
-        .eq("ay_yil", ayYil)
+        .or(`ay_yil.eq.${ayYil},and(tarih.gte.${from},tarih.lte.${to})`)
         .order("tarih", { ascending: true }),
     ])
 
@@ -425,15 +428,54 @@ export default function MaaslarPage() {
       return p.aktif || isExitedThisMonthOrLater || usedPersonelIds.has(p.id)
     }))
     const rawOrtaklar = ortakRes.data || []
-    const uniqueOrtaklar: Ortak[] = []
-    const seenOrtakNames = new Set<string>()
+    const allBranchPersonelList = allBranchPersonelRes?.data || []
+
+    const ortakMap = new Map<string, {
+      ids: string[]
+      ad: string
+      aylik_maas: number
+      sube_ids: string[]
+      primaryId: string
+    }>()
 
     rawOrtaklar.forEach(o => {
       const norm = normalizeName(o.ad)
-      if (!seenOrtakNames.has(norm)) {
-        seenOrtakNames.add(norm)
-        uniqueOrtaklar.push(o)
+      if (!ortakMap.has(norm)) {
+        ortakMap.set(norm, {
+          ids: [o.id],
+          ad: o.ad,
+          aylik_maas: Number(o.aylik_maas || 0),
+          sube_ids: o.sube_id ? [o.sube_id] : [],
+          primaryId: o.id,
+        })
+      } else {
+        const existing = ortakMap.get(norm)!
+        existing.ids.push(o.id)
+        if (o.sube_id) existing.sube_ids.push(o.sube_id)
+        if (Number(o.aylik_maas || 0) > existing.aylik_maas) {
+          existing.aylik_maas = Number(o.aylik_maas || 0)
+        }
       }
+    })
+
+    const uniqueOrtaklar: (Ortak & { aylik_maas: number; allMatchingIds: string[] })[] = []
+
+    ortakMap.forEach((val, norm) => {
+      const matchingPersoneller = allBranchPersonelList.filter(p => normalizeName(p.ad) === norm)
+      const matchingPersonelIds = matchingPersoneller.map(p => p.id)
+
+      let finalSalary = val.aylik_maas
+      if (finalSalary <= 0) {
+        const personSalary = Math.max(0, ...matchingPersoneller.map(p => Number(p.aylik_maas || 0)))
+        if (personSalary > 0) finalSalary = personSalary
+      }
+
+      uniqueOrtaklar.push({
+        id: val.primaryId,
+        ad: val.ad,
+        aylik_maas: finalSalary,
+        allMatchingIds: Array.from(new Set([...val.ids, ...matchingPersonelIds])),
+      } as any)
     })
 
     setOrtaklar(uniqueOrtaklar)
@@ -705,14 +747,16 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
     const oNameNorm = normalizeName(ortak.ad)
 
     // Build strict set of matching IDs for this specific partner
-    const matchingOrtakIds = ortaklar.filter(o => normalizeName(o.ad) === oNameNorm).map(o => o.id)
-    const matchingPersonelIds = personeller.filter(p => normalizeName(p.ad) === oNameNorm).map(p => p.id)
-    const allMatchingIds = new Set([...matchingOrtakIds, ...matchingPersonelIds])
+    const allMatchingIds = new Set((ortak as any).allMatchingIds || [ortak.id])
 
+    // Initialize all branches with 0 so EVERY SINGLE branch in the system is always visible!
     const branchTotals: Record<string, number> = {}
+    subeler.forEach(s => {
+      branchTotals[s.ad] = 0
+    })
 
     allBranchGiderRows.forEach(row => {
-      const subeAd = subeMap.get(row.sube_id) || "Şube"
+      const subeAd = subeMap.get(row.sube_id) || "Bilinmeyen"
 
       // 1. Check ortak_pilarim
       if (row.ortak_pilarim) {
@@ -758,10 +802,10 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
     advances.sort((a, b) => a.tarih.localeCompare(b.tarih))
     const total = advances.reduce((sum, item) => sum + item.amount, 0)
     const baseSalary = Number((ortak as any).aylik_maas || 0)
-    const kalanNakit = Math.max(0, baseSalary - total)
+    const kalanNakit = baseSalary - total
 
     return { ortak, baseSalary, advances, total, kalanNakit, branchTotals }
-  }), [ortaklar, personeller, allBranchGiderRows, subeler])
+  }), [ortaklar, allBranchGiderRows, subeler])
 
   const isManager = currentUserProfile?.isManager ?? isAdmin
 
@@ -804,7 +848,11 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
     overtime: acc.overtime + item.overtimeTotal,
     remaining: acc.remaining + item.remaining,
   }), { baseSalary: 0, advances: 0, overtime: 0, remaining: 0 }), [visiblePersonelSummaries])
-  const ortakTotal = useMemo(() => visibleOrtakSummaries.reduce((sum, item) => sum + item.total, 0), [visibleOrtakSummaries])
+  const ortakTotals = useMemo(() => visibleOrtakSummaries.reduce((acc, item) => ({
+    baseSalary: acc.baseSalary + item.baseSalary,
+    total: acc.total + item.total,
+    kalanNakit: acc.kalanNakit + item.kalanNakit,
+  }), { baseSalary: 0, total: 0, kalanNakit: 0 }), [visibleOrtakSummaries])
 
   async function handleAddKesintiForPersonel(personelId: string) {
     if (!currentSube || !personelId || !kesintiTutarInput) {
@@ -1100,9 +1148,9 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
 
   function exportOrtakPdf(item = selectedOrtak) {
     if (!item) return
-    const branchRows = Object.entries(item.branchTotals || {}).map(([subeAd, total]) => [
-      subeAd,
-      `-${formatMoney(total)} TL`,
+    const branchRows = subeler.map(s => [
+      `${s.ad} Şubesi`,
+      `-${formatMoney(item.branchTotals?.[s.ad] || 0)} TL`,
     ])
 
     openPdfReport({
@@ -1112,15 +1160,15 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
       metrics: [
         { label: "Net Maaş", value: `${formatMoney(item.baseSalary)} TL`, side: "left" as const, color: "green" as const },
         { label: "Toplam Alınan Avans", value: `-${formatMoney(item.total)} TL`, side: "right" as const, color: "red" as const },
-        { label: "Kalan Nakit", value: `${formatMoney(item.kalanNakit)} TL`, side: "right" as const, color: "black" as const },
+        { label: "Kalan Nakit", value: `${formatMoney(item.kalanNakit)} TL`, side: "right" as const, color: item.kalanNakit >= 0 ? "black" as const : "red" as const },
       ],
       tables: [
-        ...(branchRows.length > 0 ? [{
-          title: "ŞUBE BAZLI AVANS DAĞILIMI ÖZETİ",
+        {
+          title: "ŞUBE BAZLI AVANS DAĞILIMI ÖZETİ (TÜM ŞUBELER)",
           headers: ["Şube Adı", "Şube Avans Toplamı"],
           firstColumnWidth: "50%",
           rows: branchRows,
-        }] : []),
+        },
         {
           title: "ORTAK AVANS DETAYLARI (ŞUBE BAZLI KRONOLOJİK)",
           headers: ["Tarih", "Açıklama / Şube", "Tutar"],
@@ -1207,11 +1255,25 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
           .eq("id", maasAyariTargetId)
         if (error) throw error
       } else {
-        const { error } = await supabase
-          .from("ortaklar")
-          .update({ aylik_maas: tutar })
-          .eq("id", maasAyariTargetId)
-        if (error) throw error
+        const targetOrtak = ortaklar.find(o => o.id === maasAyariTargetId)
+        if (targetOrtak) {
+          const matchingIds = (targetOrtak as any).allMatchingIds || [targetOrtak.id]
+          const { error } = await supabase
+            .from("ortaklar")
+            .update({ aylik_maas: tutar })
+            .in("id", matchingIds)
+          if (error) throw error
+          await supabase
+            .from("personeller")
+            .update({ aylik_maas: tutar })
+            .in("id", matchingIds)
+        } else {
+          const { error } = await supabase
+            .from("ortaklar")
+            .update({ aylik_maas: tutar })
+            .eq("id", maasAyariTargetId)
+          if (error) throw error
+        }
       }
       toast.success("Net taban maaş tutarı başarıyla güncellendi.")
       setMaasAyarlariModalOpen(false)
@@ -2020,79 +2082,212 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
 
         {/* Partners Section */}
         {isManager && visibleOrtakSummaries.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Ortaklar Pay</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-4 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-4">
-                {visibleOrtakSummaries.map(item => (
-                  <button
-                    key={item.ortak.id}
-                    onClick={() => setSelectedOrtakId(item.ortak.id)}
-                    className="rounded-lg border border-red-200 bg-red-50 p-4 text-left transition hover:border-red-400 dark:border-red-500/30 dark:bg-red-500/15"
+          <Card className="border-border shadow-sm">
+            <CardHeader className="pb-3 border-b bg-muted/20">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <Building2 className="h-5 w-5 text-emerald-600" />
+                  <div>
+                    <CardTitle className="text-base font-bold text-foreground">Ortaklar Pay & Maaş Takibi</CardTitle>
+                    <CardDescription className="text-xs text-muted-foreground">
+                      Tüm şubelerden çekilen ortak avansları ortak taban maaşından otomatik düşülerek net kalan hesaplanır.
+                    </CardDescription>
+                  </div>
+                  <Badge variant="outline" className="text-xs font-semibold text-muted-foreground ml-1">
+                    {visibleOrtakSummaries.length} Ortak
+                  </Badge>
+                </div>
+
+                {/* KPI Overview Pills */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[11px]">
+                    <span className="text-muted-foreground">Toplam Maaş: </span>
+                    <span className="font-bold text-emerald-700 dark:text-emerald-300">{formatMoney(ortakTotals.baseSalary)} TL</span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-md bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-[11px]">
+                    <span className="text-muted-foreground">Toplam Avans: </span>
+                    <span className="font-bold text-rose-700 dark:text-rose-300">-{formatMoney(ortakTotals.total)} TL</span>
+                  </div>
+                  <div className={`px-2.5 py-1 rounded-md border text-[11px] ${
+                    ortakTotals.kalanNakit >= 0
+                      ? "bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-bold"
+                      : "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 font-bold"
+                  }`}>
+                    <span>Toplam Kalan: </span>
+                    <span>{formatMoney(ortakTotals.kalanNakit)} TL</span>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setMaasAyariType("ortak")
+                      if (ortaklar.length > 0) {
+                        setMaasAyariTargetId(ortaklar[0].id)
+                        setMaasAyariTutarInput(String((ortaklar[0] as any).aylik_maas || ""))
+                      }
+                      setMaasAyarlariModalOpen(true)
+                    }}
+                    className="h-8 text-xs font-semibold gap-1.5 border-emerald-500/50 hover:bg-emerald-50 text-emerald-700 dark:text-emerald-300"
                   >
-                    <p className="truncate text-xs font-semibold uppercase text-red-700 dark:text-red-100">{item.ortak.ad}</p>
-                    <p className="mt-1 text-xl font-bold text-red-700 dark:text-red-100">-{formatMoney(item.total)} TL</p>
-                  </button>
-                ))}
+                    <Calculator className="h-3.5 w-3.5 text-emerald-600" />
+                    Ortak Maaşı Ayarla
+                  </Button>
+                </div>
               </div>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {/* Partner Cards Grid */}
+              <div className="mb-6 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-4">
+                {visibleOrtakSummaries.map(item => {
+                  const isSelected = selectedOrtak?.ortak.id === item.ortak.id
+                  const hasRemaining = item.kalanNakit >= 0
+                  return (
+                    <div
+                      key={item.ortak.id}
+                      onClick={() => setSelectedOrtakId(item.ortak.id)}
+                      className={`cursor-pointer rounded-xl border p-4 text-left transition-all duration-200 shadow-sm ${
+                        isSelected
+                          ? "border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-500/40 dark:border-emerald-500 dark:bg-emerald-950/40"
+                          : hasRemaining
+                          ? "border-slate-200 bg-card hover:border-emerald-300 hover:shadow-md dark:border-slate-800"
+                          : "border-rose-200 bg-rose-50/50 hover:border-rose-400 hover:shadow-md dark:border-rose-900/40 dark:bg-rose-950/20"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1 mb-2">
+                        <p className="truncate text-xs font-black uppercase tracking-wide text-foreground">{item.ortak.ad}</p>
+                        <Badge className={`text-[10px] px-1.5 py-0 font-bold ${
+                          hasRemaining
+                            ? "bg-emerald-600 text-white"
+                            : "bg-rose-600 text-white"
+                        }`}>
+                          {hasRemaining ? "Kalan Var" : "Avans Aşıldı"}
+                        </Badge>
+                      </div>
+
+                      {/* Main Big Remaining Amount */}
+                      <div className="mb-3">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                          Kalan Net Maaş:
+                        </span>
+                        <p className={`text-2xl font-black ${
+                          hasRemaining
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-rose-600 dark:text-rose-400"
+                        }`}>
+                          {formatMoney(item.kalanNakit)} TL
+                        </p>
+                      </div>
+
+                      {/* Details breakdown */}
+                      <div className="space-y-1.5 text-xs border-t pt-2.5 border-border">
+                        <div className="flex justify-between items-center text-muted-foreground">
+                          <span className="font-medium">Net Taban Maaş:</span>
+                          <span className="font-bold text-foreground">{formatMoney(item.baseSalary)} TL</span>
+                        </div>
+                        <div className="flex justify-between items-center text-muted-foreground">
+                          <span className="font-medium">Çekilen Avans (Tüm Şubeler):</span>
+                          <span className="font-bold text-rose-600 dark:text-rose-400">-{formatMoney(item.total)} TL</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
               {selectedOrtak && (
-                <div className="space-y-4 border-t pt-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border">
+                <div className="space-y-4 border-t pt-5">
+                  {/* Selected Partner Banner */}
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border">
                     <div>
-                      <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                      <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
                         <Building2 className="h-5 w-5 text-emerald-600" />
-                        {selectedOrtak.ortak.ad} — Ortak Avans Detayları ve Şube Dağılımı
+                        {selectedOrtak.ortak.ad} — Şube Bazlı Maaş ve Avans Detayı
                       </h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Farklı şubelerden alınan tüm ortak avanslarını inceleyebilir ve şube bazında filtreleyebilirsiniz.
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Ortak taban maaşından tüm şubelerden çekilen avanslar kronolojik olarak düşülmüş ve aşağıda şube bazında listelenmiştir.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => exportOrtakPdf(selectedOrtak)} className="gap-2 font-bold text-xs border-emerald-500 text-emerald-700 hover:bg-emerald-50">
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-3 bg-white dark:bg-slate-800 px-3.5 py-2 rounded-lg border shadow-xs">
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Net Maaş</span>
+                          <span className="text-sm font-extrabold text-foreground">{formatMoney(selectedOrtak.baseSalary)} TL</span>
+                        </div>
+                        <div className="h-6 w-px bg-border" />
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Toplam Avans</span>
+                          <span className="text-sm font-extrabold text-rose-600">-{formatMoney(selectedOrtak.total)} TL</span>
+                        </div>
+                        <div className="h-6 w-px bg-border" />
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Kalan Nakit</span>
+                          <span className={`text-sm font-black ${selectedOrtak.kalanNakit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                            {formatMoney(selectedOrtak.kalanNakit)} TL
+                          </span>
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => exportOrtakPdf(selectedOrtak)}
+                        className="gap-1.5 font-bold text-xs border-emerald-500 text-emerald-700 hover:bg-emerald-50 h-9"
+                      >
                         <FileText className="h-4 w-4" />
                         Ortak PDF Raporu
                       </Button>
                     </div>
                   </div>
 
-                  {/* Şube Bazlı Avans Özeti Rozetleri / Kartları */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    <div
-                      onClick={() => setOrtakSubeFilter("all")}
-                      className={`p-3 rounded-lg border cursor-pointer transition-all text-xs ${
-                        ortakSubeFilter === "all"
-                          ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 shadow-sm"
-                          : "bg-card hover:bg-slate-50 dark:hover:bg-slate-900"
-                      }`}
-                    >
-                      <span className="text-muted-foreground block font-semibold">Tüm Şubeler Toplamı</span>
-                      <span className="text-sm font-extrabold text-red-600 dark:text-red-400">
-                        -{formatMoney(selectedOrtak.total)} TL
-                      </span>
-                    </div>
-
-                    {Object.entries(selectedOrtak.branchTotals || {}).map(([subeAd, total]) => (
+                  {/* Şube Bazlı Avans Özeti Rozetleri / Kartları - TÜM ŞUBELER EKSİKSİZ */}
+                  <div>
+                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide block mb-2">
+                      Şube Dağılımı (Tüm Şubeler)
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                      {/* Tüm Şubeler Toplamı */}
                       <div
-                        key={subeAd}
-                        onClick={() => setOrtakSubeFilter(subeAd)}
+                        onClick={() => setOrtakSubeFilter("all")}
                         className={`p-3 rounded-lg border cursor-pointer transition-all text-xs ${
-                          ortakSubeFilter === subeAd
-                            ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 shadow-sm"
+                          ortakSubeFilter === "all"
+                            ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 shadow-sm ring-1 ring-emerald-500"
                             : "bg-card hover:bg-slate-50 dark:hover:bg-slate-900"
                         }`}
                       >
-                        <span className="text-muted-foreground block font-semibold">{subeAd} Şubesi</span>
-                        <span className="text-sm font-extrabold text-red-600 dark:text-red-400">
-                          -{formatMoney(total)} TL
+                        <span className="text-muted-foreground block font-semibold">Tüm Şubeler Toplamı</span>
+                        <span className="text-sm font-extrabold text-rose-600 dark:text-rose-400">
+                          -{formatMoney(selectedOrtak.total)} TL
                         </span>
                       </div>
-                    ))}
+
+                      {/* Sistemdeki Her Bir Şube (Çarşı, Darıca, 14, 5A vb.) */}
+                      {subeler.map((sube) => {
+                        const total = selectedOrtak.branchTotals?.[sube.ad] || 0
+                        const isFiltered = ortakSubeFilter === sube.ad
+                        return (
+                          <div
+                            key={sube.id}
+                            onClick={() => setOrtakSubeFilter(sube.ad)}
+                            className={`p-3 rounded-lg border cursor-pointer transition-all text-xs ${
+                              isFiltered
+                                ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 shadow-sm ring-1 ring-emerald-500"
+                                : "bg-card hover:bg-slate-50 dark:hover:bg-slate-900"
+                            }`}
+                          >
+                            <span className="text-muted-foreground block font-semibold">{sube.ad} Şubesi</span>
+                            <span className={`text-sm font-extrabold ${total > 0 ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground"}`}>
+                              {total > 0 ? `-${formatMoney(total)} TL` : "0,00 TL"}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
 
                   {/* Interaktif Filtreleme ve Arama Barı */}
-                  <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
                     <div className="w-full sm:w-64">
                       <Input
                         placeholder="Açıklama veya tarih ara..."
@@ -2110,17 +2305,20 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
                       >
                         Tüm Şubeler ({selectedOrtak.advances.length})
                       </Button>
-                      {Object.keys(selectedOrtak.branchTotals || {}).map((subeAd) => (
-                        <Button
-                          key={subeAd}
-                          size="sm"
-                          variant={ortakSubeFilter === subeAd ? "default" : "outline"}
-                          onClick={() => setOrtakSubeFilter(subeAd)}
-                          className="h-8 text-xs px-2.5 font-bold"
-                        >
-                          {subeAd}
-                        </Button>
-                      ))}
+                      {subeler.map((sube) => {
+                        const count = selectedOrtak.advances.filter(a => a.subeAd === sube.ad).length
+                        return (
+                          <Button
+                            key={sube.id}
+                            size="sm"
+                            variant={ortakSubeFilter === sube.ad ? "default" : "outline"}
+                            onClick={() => setOrtakSubeFilter(sube.ad)}
+                            className="h-8 text-xs px-2.5 font-bold"
+                          >
+                            {sube.ad} ({count})
+                          </Button>
+                        )
+                      })}
                     </div>
                   </div>
 
