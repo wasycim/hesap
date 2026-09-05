@@ -108,38 +108,11 @@ function getShiftTheme(shift?: ShiftOption | null) {
 }
 
 export function buildVardiyaHtml(options: VardiyaPdfOptions, orientation: "landscape" | "portrait" = "landscape"): string {
-  const { subeAd, rangeTitle, rangeLabel, days, personeller, shiftOptions, getAssignment, shiftById } = options
+  const { subeAd, rangeTitle, rangeLabel, days, personeller, getAssignment, shiftById } = options
   const isWeeklyOrLess = days.length <= 7
   const isMediumRange = days.length > 7 && days.length <= 14
   const printDateStr = format(new Date(), "dd.MM.yyyy HH:mm")
-
-  // Calculate daily shift counts for footer
-  const dailyStats: Array<{
-    day: Date
-    shiftsCount: Record<string, number>
-    totalWorking: number
-    totalLeave: number
-  }> = days.map((day) => {
-    const shiftsCount: Record<string, number> = {}
-    let totalWorking = 0
-    let totalLeave = 0
-
-    for (const p of personeller) {
-      const shiftId = getAssignment(day, p.id)
-      const shift = shiftId ? shiftById.get(shiftId) : null
-      if (shift) {
-        shiftsCount[shift.id] = (shiftsCount[shift.id] || 0) + 1
-        const theme = getShiftTheme(shift)
-        if (theme.isLeave) {
-          totalLeave++
-        } else {
-          totalWorking++
-        }
-      }
-    }
-
-    return { day, shiftsCount, totalWorking, totalLeave }
-  })
+  const origin = typeof window !== "undefined" ? window.location.origin : ""
 
   // Calculate person summary stats
   const personStats: Record<string, { worked: number; leave: number }> = {}
@@ -157,9 +130,6 @@ export function buildVardiyaHtml(options: VardiyaPdfOptions, orientation: "lands
     }
     personStats[p.id] = { worked, leave }
   }
-
-  // Active shift types to show in legend & footer
-  const uniqueShiftOptions = shiftOptions.filter((opt, idx, arr) => arr.findIndex((x) => x.id === opt.id) === idx)
 
   return `<!doctype html>
 <html lang="tr">
@@ -270,18 +240,21 @@ export function buildVardiyaHtml(options: VardiyaPdfOptions, orientation: "lands
       align-items: center;
       gap: 12px;
     }
-    .logo-badge {
+    .logo-wrap {
       width: 44px;
       height: 44px;
       border-radius: 10px;
-      background: #0f766e;
-      color: #ffffff;
+      background: #0f172a;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 900;
-      font-size: 18px;
-      box-shadow: 0 2px 6px rgba(15, 118, 110, 0.3);
+      padding: 5px;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15);
+    }
+    .report-logo {
+      max-width: 34px;
+      max-height: 34px;
+      object-fit: contain;
     }
     .header-title h1 {
       font-size: 18px;
@@ -316,46 +289,6 @@ export function buildVardiyaHtml(options: VardiyaPdfOptions, orientation: "lands
       color: #64748b;
       margin-top: 3px;
       font-weight: 500;
-    }
-
-    /* LEGEND STRIP */
-    .legend-strip {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 6px;
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 6px 10px;
-      margin-bottom: 9px;
-    }
-    .legend-title {
-      font-weight: 800;
-      font-size: 10px;
-      color: #475569;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      margin-right: 4px;
-    }
-    .legend-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      border-radius: 5px;
-      padding: 2px 7px;
-      font-size: 9.5px;
-      font-weight: 700;
-      border-width: 1px;
-      border-style: solid;
-      line-height: 1.3;
-    }
-    .legend-badge .short-tag {
-      font-weight: 900;
-    }
-    .legend-badge .hours-tag {
-      font-weight: 600;
-      opacity: 0.9;
     }
 
     /* MAIN TABLE */
@@ -512,75 +445,6 @@ export function buildVardiyaHtml(options: VardiyaPdfOptions, orientation: "lands
       font-weight: 700;
       font-size: 11px;
     }
-
-    /* Table Footer Summary Rows */
-    table.schedule-table tfoot tr.stat-row {
-      background: #f8fafc;
-      font-size: 9px;
-    }
-    table.schedule-table tfoot tr.stat-row td {
-      border-top: 1px solid #cbd5e1;
-      padding: 3px 2px;
-    }
-    table.schedule-table tfoot tr.stat-row .stat-label {
-      text-align: right;
-      padding-right: 8px;
-      font-weight: 700;
-      color: #475569;
-    }
-    table.schedule-table tfoot tr.stat-total {
-      background: #e2e8f0;
-      font-size: 9.5px;
-      font-weight: 900;
-      color: #0f172a;
-    }
-    table.schedule-table tfoot tr.stat-total td {
-      border-top: 2px solid #64748b;
-      padding: 4px 2px;
-    }
-    table.schedule-table tfoot tr.stat-total .stat-label {
-      text-align: right;
-      padding-right: 8px;
-      font-weight: 900;
-      color: #0f172a;
-      letter-spacing: 0.02em;
-    }
-
-    /* SIGNATURES & FOOTER */
-    .signatures-section {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 16px;
-      margin-top: 10px;
-      padding-top: 8px;
-      border-top: 1px dashed #cbd5e1;
-    }
-    .sig-box {
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
-      background: #ffffff;
-      padding: 8px 10px;
-      font-size: 9.5px;
-    }
-    .sig-title {
-      font-weight: 800;
-      color: #334155;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-      margin-bottom: 16px;
-    }
-    .sig-line {
-      color: #94a3b8;
-      font-weight: 500;
-      font-size: 9px;
-    }
-    .footer-note {
-      margin-top: 6px;
-      font-size: 8px;
-      color: #94a3b8;
-      text-align: center;
-      line-height: 1.3;
-    }
   </style>
 </head>
 <body>
@@ -597,7 +461,9 @@ export function buildVardiyaHtml(options: VardiyaPdfOptions, orientation: "lands
     <!-- HEADER -->
     <header class="report-header">
       <div class="brand-area">
-        <div class="logo-badge">V</div>
+        <div class="logo-wrap">
+          <img class="report-logo" src="${origin}/iconw.png" alt="Logo" />
+        </div>
         <div class="header-title">
           <h1>${escapeHtml(subeAd)} &bull; VARDİYA PLANI</h1>
           <div class="subtitle">${escapeHtml(rangeTitle)} &bull; ${escapeHtml(rangeLabel)}</div>
@@ -608,21 +474,6 @@ export function buildVardiyaHtml(options: VardiyaPdfOptions, orientation: "lands
         <div class="date-text">Düzenleme: ${escapeHtml(printDateStr)}</div>
       </div>
     </header>
-
-    <!-- LEGEND -->
-    <div class="legend-strip">
-      <span class="legend-title">Vardiya Saatleri Rehberi:</span>
-      ${uniqueShiftOptions.map((shift) => {
-        const theme = getShiftTheme(shift)
-        return `
-          <div class="legend-badge" style="background: ${theme.bg}; border-color: ${theme.border}; color: ${theme.text};">
-            <span class="short-tag">${escapeHtml(shift.short)}:</span>
-            <span>${escapeHtml(shift.label)}</span>
-            ${shift.time !== "-" ? `<span class="hours-tag">(${escapeHtml(shift.time)})</span>` : ""}
-          </div>
-        `
-      }).join("")}
-    </div>
 
     <!-- MAIN TABLE -->
     <div class="table-wrapper">
@@ -697,52 +548,7 @@ export function buildVardiyaHtml(options: VardiyaPdfOptions, orientation: "lands
             `
           }).join("")}
         </tbody>
-
-        <!-- DAILY COVERAGE FOOTER -->
-        <tfoot>
-          ${uniqueShiftOptions.map((opt) => {
-            const theme = getShiftTheme(opt)
-            return `
-              <tr class="stat-row">
-                <td colspan="2" class="stat-label">
-                  <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${theme.border}; margin-right:4px;"></span>
-                  ${escapeHtml(opt.label)} (${escapeHtml(opt.time !== "-" ? opt.time : "İzin")})
-                </td>
-                ${dailyStats.map((st) => {
-                  const count = st.shiftsCount[opt.id] || 0
-                  return `<td style="font-weight:${count > 0 ? "800" : "500"}; color:${count > 0 ? theme.text : "#94a3b8"};">${count > 0 ? count : "-"}</td>`
-                }).join("")}
-                <td style="color:#64748b;">-</td>
-              </tr>
-            `
-          }).join("")}
-          <tr class="stat-total">
-            <td colspan="2" class="stat-label">GÜNLÜK TOPLAM ÇALIŞAN PERSONEL:</td>
-            ${dailyStats.map((st) => `<td>${st.totalWorking}</td>`).join("")}
-            <td>-</td>
-          </tr>
-        </tfoot>
       </table>
-    </div>
-
-    <!-- SIGNATURES -->
-    <div class="signatures-section">
-      <div class="sig-box">
-        <div class="sig-title">Hazırlayan (Şube Sorumlusu)</div>
-        <div class="sig-line">İmza: .....................................................</div>
-      </div>
-      <div class="sig-box">
-        <div class="sig-title">Onaylayan (İşletme Müdürü)</div>
-        <div class="sig-line">İmza: .....................................................</div>
-      </div>
-      <div class="sig-box">
-        <div class="sig-title">Yürürlük & Onay Tarihi</div>
-        <div class="sig-line">Tarih: ..... / ..... / 2026</div>
-      </div>
-    </div>
-
-    <div class="footer-note">
-      * Personelin vardiya saatinden en az 10 dakika önce şubede hazır bulunması gerekmektedir. Vardiya değişiklikleri yalnızca şube yöneticisi bilgisi ve onayı ile gerçekleştirilebilir.
     </div>
   </div>
 
@@ -769,7 +575,9 @@ export function openVardiyaPdf(options: VardiyaPdfOptions) {
     <div class="vardiya-picker-backdrop">
       <div class="vardiya-picker-panel" role="dialog" aria-modal="true">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-          <div style="width: 38px; height: 38px; border-radius: 10px; background: #0f766e; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 16px;">V</div>
+          <div style="width: 38px; height: 38px; border-radius: 10px; background: #0f172a; display: flex; align-items: center; justify-content: center; padding: 6px; box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15); flex-shrink: 0;">
+            <img src="/iconw.png" alt="Logo" style="max-width: 26px; max-height: 26px; object-fit: contain;" />
+          </div>
           <div>
             <h2 style="margin: 0; font-size: 17px; font-weight: 800; color: #0f172a;">Vardiya Planı Yazdır / PDF İndir</h2>
             <div style="font-size: 12px; color: #64748b;">${escapeHtml(options.subeAd)} &bull; ${escapeHtml(options.rangeLabel)}</div>
@@ -777,7 +585,7 @@ export function openVardiyaPdf(options: VardiyaPdfOptions) {
         </div>
 
         <p style="margin: 8px 0 16px; color: #475569; font-size: 13px; line-height: 1.45;">
-          Vardiya saatleri, renk kodları ve nöbetçi özetleriyle hazırlanmış A4 formatında profesyonel çizelge oluşturulacak.
+          Vardiya saatleri ve personel çalışma çizelgesiyle hazırlanmış temiz A4 formatında plan oluşturulacak.
         </p>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
