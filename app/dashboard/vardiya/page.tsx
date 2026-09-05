@@ -15,6 +15,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { createClient } from "@/lib/supabase/client"
 import { useSube } from "@/contexts/sube-context"
 import { openPdfReport } from "@/lib/pdf-report"
+import { openVardiyaPdf } from "@/lib/vardiya-pdf-report"
 
 type Personel = {
   id: string
@@ -309,30 +310,15 @@ export default function VardiyaPage() {
   }
 
   function exportPdf() {
-    openPdfReport({
-      title: "Vardiya Plani",
-      subtitle: `${currentSube?.ad || "Sube"} - ${selectedRange.label}`,
-      orientation: "landscape",
-      metrics: [
-        { label: "Personel", value: String(personeller.length) },
-        { label: "Gun", value: String(days.length) },
-        { label: "Vardiya Tipi", value: String(shiftOptions.length) },
-      ],
-      tables: [
-        {
-          title: selectedRange.title,
-          firstColumnWidth: "18%",
-          headers: ["Personel", "Sabit", ...days.map((day) => format(day, "d"))],
-          rows: personeller.map((personel) => [
-            personel.ad,
-            shiftById.get(rangeBulkShifts[personel.id] || "")?.label || "-",
-            ...days.map((day) => {
-              const shift = shiftById.get(getAssignment(day, personel.id))
-              return shift ? shift.short : "-"
-            }),
-          ]),
-        },
-      ],
+    openVardiyaPdf({
+      subeAd: currentSube?.ad || "Şube",
+      rangeTitle: selectedRange.title,
+      rangeLabel: selectedRange.label,
+      days,
+      personeller,
+      shiftOptions,
+      getAssignment,
+      shiftById,
     })
   }
 
