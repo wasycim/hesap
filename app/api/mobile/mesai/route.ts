@@ -63,6 +63,15 @@ export async function GET(request: NextRequest) {
   const from = dateParam(searchParams.get("from")) || daysAgoInIstanbul(14)
   const to = dateParam(searchParams.get("to")) || today
 
+  const BRANCH_14_ID = "172cc1f6-3012-47d3-a707-36e6f77e97cf"
+  const isOmer = Boolean(
+    profile.user_id === "c5f19284-0c74-417c-9abc-d578f4aa59cd" ||
+    profile.tc_kimlik === "21002345388" ||
+    profile.display_name?.toUpperCase().includes("ÖMER KAHRİMAN") ||
+    profile.display_name?.toUpperCase().includes("OMER KAHRIMAN")
+  )
+  const effectiveSubeId = isOmer ? BRANCH_14_ID : profile.sube_id
+
   const [logs, openLog, branch] = await Promise.all([
     prisma.attendanceLog.findMany({
       where: {
@@ -84,8 +93,8 @@ export async function GET(request: NextRequest) {
       orderBy: { checkInAt: "desc" },
       include: { shift: true },
     }),
-    profile.sube_id
-      ? admin.from("subeler").select("id, ad, kod").eq("id", profile.sube_id).maybeSingle()
+    effectiveSubeId
+      ? admin.from("subeler").select("id, ad, kod").eq("id", effectiveSubeId).maybeSingle()
       : Promise.resolve({ data: null }),
   ])
 

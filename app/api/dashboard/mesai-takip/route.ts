@@ -165,10 +165,42 @@ async function getDashboardAccess(request: NextRequest) {
   }
 }
 
+const BRANCH_14_ID = "172cc1f6-3012-47d3-a707-36e6f77e97cf"
+const BRANCH_5A_ID = "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981"
+const OMER_TC = "21002345388"
+const OMER_USER_ID = "c5f19284-0c74-417c-9abc-d578f4aa59cd"
+const OMER_PERSONEL_ID = "78a15f68-edfd-493c-b8bd-5604acf599dd"
+
+function isOmerPerson(item: {
+  id?: string | number | null
+  ad?: string | null
+  name?: string | null
+  display_name?: string | null
+  tc_kimlik?: string | null
+  tcKimlik?: string | null
+  user_id?: string | null
+} | null | undefined): boolean {
+  if (!item) return false
+  if (item.id && String(item.id) === OMER_PERSONEL_ID) return true
+  if (item.user_id && String(item.user_id) === OMER_USER_ID) return true
+  if (item.tc_kimlik && String(item.tc_kimlik) === OMER_TC) return true
+  if (item.tcKimlik && String(item.tcKimlik) === OMER_TC) return true
+  const name = normalizeName(item.ad || item.name || item.display_name)
+  return name.includes("ÖMER KAHRİMAN") || name.includes("OMER KAHRIMAN")
+}
+
 export async function GET(request: NextRequest) {
   const access = await getDashboardAccess(request)
   if (!access.user || !access.profile) {
     return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
+  }
+
+  // Ömer Kahriman için vardiya ve mesai takip şubesi daima 14 No
+  if (access.profile && isOmerPerson(access.profile)) {
+    access.profile = {
+      ...access.profile,
+      sube_id: BRANCH_14_ID,
+    }
   }
 
   const searchParams = request.nextUrl.searchParams
@@ -188,7 +220,7 @@ export async function GET(request: NextRequest) {
 
   if (subeId !== "all") personelQuery = personelQuery.eq("sube_id", subeId)
 
-  const [{ data: branches, error: branchError }, { data: personeller, error: personelError }, { data: profiles, error: profileError }] = await Promise.all([
+  const [{ data: branches, error: branchError }, { data: rawPersoneller, error: personelError }, { data: rawProfiles, error: profileError }] = await Promise.all([
     admin.from("subeler").select("id, ad, kod").eq("aktif", true).order("ad"),
     personelQuery,
     admin.from("user_profiles").select("user_id, display_name, tc_kimlik, sube_id, is_admin"),
@@ -198,9 +230,39 @@ export async function GET(request: NextRequest) {
   if (personelError) return NextResponse.json({ error: personelError.message }, { status: 500 })
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
 
+  let personeller = rawPersoneller || []
+  if (subeId === BRANCH_5A_ID) {
+    personeller = personeller.filter((p) => !isOmerPerson(p))
+  } else if (subeId === BRANCH_14_ID) {
+    if (!personeller.some((p) => isOmerPerson(p))) {
+      const { data: omerPersonel } = await admin
+        .from("personeller")
+        .select("id, ad, sube_id, aktif, sira, sabit_vardiya")
+        .eq("id", OMER_PERSONEL_ID)
+        .maybeSingle()
+      if (omerPersonel && omerPersonel.aktif) {
+        personeller = [omerPersonel, ...personeller]
+      }
+    }
+  }
+
+  personeller = personeller.map((personel) => {
+    if (isOmerPerson(personel)) {
+      return { ...personel, sube_id: BRANCH_14_ID }
+    }
+    return personel
+  })
+
+  const profiles = (rawProfiles || []).map((profile) => {
+    if (isOmerPerson(profile)) {
+      return { ...profile, sube_id: BRANCH_14_ID }
+    }
+    return profile
+  })
+
   const visiblePersoneller = (access.isAdmin
-    ? (personeller || [])
-    : (personeller || []).filter((personel) => normalizeName(personel.ad) === normalizeName(access.profile?.display_name))
+    ? personeller
+    : personeller.filter((personel) => normalizeName(personel.ad) === normalizeName(access.profile?.display_name))
   ).filter((personel) => !isTestPersonnel(personel))
   const branchById = new Map((branches || []).map((branch) => [branch.id, branch]))
   const branchIds = new Set(visiblePersoneller.map((personel) => personel.sube_id))
@@ -267,7 +329,7 @@ export async function GET(request: NextRequest) {
     summaryByKey.set(summaryKey, {
       personelId: personel.id,
       name: personel.ad,
-      tcKimlik: profile?.tc_kimlik || null,
+      tcKimlik: profile?.tc_kimlik || (isOmerPerson(personel) ? OMER_TC : null),
       branch,
       logCount: 0,
       openCount: 0,
@@ -345,13 +407,19 @@ export async function GET(request: NextRequest) {
     const meta = personelMetaBySummaryKey.get(summaryKey)
     if (!meta?.subeId || !meta.personelId) return savedShift
 
+    const isOmer = meta.personelId === OMER_PERSONEL_ID || isOmerPerson({ id: meta.personelId })
     const date = workDateKey(workDate)
-    const plannedCode = plannedShiftByKey.get(`${meta.subeId}:${meta.personelId}:${date}`)
+    let plannedCode = plannedShiftByKey.get(`${meta.subeId}:${meta.personelId}:${date}`)
+    if (plannedCode === undefined && isOmer) {
+      plannedCode = plannedShiftByKey.get(`${BRANCH_14_ID}:${meta.personelId}:${date}`) ??
+                    plannedShiftByKey.get(`${BRANCH_5A_ID}:${meta.personelId}:${date}`)
+    }
     const code = String(plannedCode !== undefined ? plannedCode : meta.sabitVardiya || "").trim()
 
     if (code === "I") return null
     if (code) {
-      const dashboardShift = shiftCatalogByBranch.get(meta.subeId)?.find((shift) => shift.code === code)
+      const shiftCatalog = shiftCatalogByBranch.get(meta.subeId) || (isOmer ? shiftCatalogByBranch.get(BRANCH_14_ID) : undefined)
+      const dashboardShift = shiftCatalog?.find((shift) => shift.code === code)
       if (dashboardShift) {
         return {
           id: dashboardShift.code,

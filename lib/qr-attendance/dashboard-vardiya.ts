@@ -135,16 +135,32 @@ export async function findDashboardPersonelForAttendanceUser(user: { name: strin
     .maybeSingle()
 
   if (profileError) throw new Error(profileError.message)
-  const subeId = profile?.sube_id
+  let subeId = profile?.sube_id
+  const targetName = normalizeName(profile?.display_name || user.name)
+
+  const BRANCH_14_ID = "172cc1f6-3012-47d3-a707-36e6f77e97cf"
+  const isOmer = Boolean(
+    user.tcKimlik === "21002345388" ||
+    targetName.includes("ÖMER KAHRİMAN") ||
+    targetName.includes("OMER KAHRIMAN")
+  )
+
+  if (isOmer) {
+    subeId = BRANCH_14_ID
+  }
+
   if (!subeId) return null
 
-  const targetName = normalizeName(profile.display_name || user.name)
-  const { data: personeller, error: personelError } = await admin
+  let personelQuery = admin
     .from("personeller")
     .select("id, ad, sube_id, sabit_vardiya")
-    .eq("sube_id", subeId)
     .eq("aktif", true)
 
+  if (!isOmer) {
+    personelQuery = personelQuery.eq("sube_id", subeId)
+  }
+
+  const { data: personeller, error: personelError } = await personelQuery
   if (personelError) throw new Error(personelError.message)
 
   const personel = (personeller || []).find((row) => normalizeName(row.ad) === targetName)

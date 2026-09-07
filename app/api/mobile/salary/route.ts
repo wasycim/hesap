@@ -109,7 +109,12 @@ export async function GET(request: NextRequest) {
     if (globalMatch) {
       personel = globalMatch
       subeId = globalMatch.sube_id
-      if (profile.sube_id !== globalMatch.sube_id) {
+      const isOmer =
+        globalMatch.id === "78a15f68-edfd-493c-b8bd-5604acf599dd" ||
+        normalizeName(globalMatch.ad).includes("ÖMER KAHRİMAN") ||
+        normalizeName(globalMatch.ad).includes("OMER KAHRIMAN")
+
+      if (profile.sube_id !== globalMatch.sube_id && !isOmer) {
         await admin.from("user_profiles").update({ sube_id: globalMatch.sube_id }).eq("user_id", user.id)
       }
     }
