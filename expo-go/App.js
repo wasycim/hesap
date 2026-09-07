@@ -1639,27 +1639,45 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
 
   if (!data) return <EmptyState title="Vardiya verisi bekleniyor" text="Günün vardiya planları yükleniyor..." />
 
-  const { currentUserShift, sameShiftPeers, allShifts, weeklyGrid, weekDays, availableShifts, isAdmin, date } = data
+  if (data.error) {
+    return <EmptyState title="Vardiya Yüklenemedi" text={String(data.error)} />
+  }
+
+  const currentUserShift = data.currentUserShift || null
+  const sameShiftPeers = Array.isArray(data.sameShiftPeers) ? data.sameShiftPeers : []
+  const allShifts = Array.isArray(data.allShifts) ? data.allShifts : []
+  const weeklyGrid = Array.isArray(data.weeklyGrid) ? data.weeklyGrid : []
+  const weekDays = Array.isArray(data.weekDays) ? data.weekDays : []
+  const availableShifts = Array.isArray(data.availableShifts) ? data.availableShifts : []
+  const isAdmin = Boolean(data.isAdmin)
+  const date = data.date || new Date().toISOString().slice(0, 10)
 
   const activeDate = selectedDayDate || date
-  const activeWeekDay = (weekDays || []).find((w) => w.date === activeDate) || weekDays?.[0]
+  const activeWeekDay = weekDays.find((w) => w?.date === activeDate) || weekDays[0] || {
+    date: activeDate,
+    shortDay: "Gün",
+    longDay: "Seçili Gün",
+  }
   const isToday = activeDate === date
 
   // 1. Identify logged-in user in weeklyGrid
   const currentUserRow = useMemo(() => {
-    return (weeklyGrid || []).find(
-      (p) =>
-        p.isCurrentUser ||
-        (data.currentUser?.id && p.personelId === data.currentUser.id) ||
-        (currentUserShift?.personelId && p.personelId === currentUserShift.personelId) ||
-        (currentUserShift?.name && p.name === currentUserShift.name)
+    if (!weeklyGrid.length) return null
+    return (
+      weeklyGrid.find(
+        (p) =>
+          p?.isCurrentUser ||
+          (data.currentUser?.id && p?.personelId === data.currentUser.id) ||
+          (currentUserShift?.personelId && p?.personelId === currentUserShift.personelId) ||
+          (currentUserShift?.name && p?.name === currentUserShift.name)
+      ) || null
     )
   }, [weeklyGrid, data.currentUser, currentUserShift])
 
   // 2. Active shift for activeDate
   const activeUserShift = useMemo(() => {
-    if (currentUserRow?.weeklyDays) {
-      const dayShift = currentUserRow.weeklyDays.find((d) => d.date === activeDate)
+    if (currentUserRow?.weeklyDays && Array.isArray(currentUserRow.weeklyDays)) {
+      const dayShift = currentUserRow.weeklyDays.find((d) => d?.date === activeDate)
       if (dayShift) return dayShift
     }
     if (activeDate === date && currentUserShift) {
@@ -1671,15 +1689,15 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
   // 3. Colleagues working the same shift on activeDate
   const peersForActiveDate = useMemo(() => {
     if (!activeUserShift?.shiftCode) {
-      return activeDate === date ? (sameShiftPeers || []) : []
+      return isToday ? sameShiftPeers : []
     }
-    if (weeklyGrid && weeklyGrid.length > 0) {
+    if (weeklyGrid.length > 0) {
       return weeklyGrid
-        .filter((p) => p.personelId !== currentUserRow?.personelId && !p.isCurrentUser)
+        .filter((p) => p && p.personelId !== currentUserRow?.personelId && !p.isCurrentUser)
         .map((p) => {
-          const d = p.weeklyDays?.find((x) => x.date === activeDate)
+          const d = Array.isArray(p.weeklyDays) ? p.weeklyDays.find((x) => x?.date === activeDate) : null
           return {
-            name: p.name,
+            name: p.name || "Personel",
             shiftCode: d?.shiftCode,
             shortCode: d?.shortCode,
             label: d?.label,
@@ -1689,8 +1707,8 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
         })
         .filter((p) => p.shiftCode && p.shiftCode === activeUserShift.shiftCode)
     }
-    return activeDate === date ? (sameShiftPeers || []) : []
-  }, [weeklyGrid, currentUserRow, activeUserShift, activeDate, date, sameShiftPeers])
+    return isToday ? sameShiftPeers : []
+  }, [weeklyGrid, currentUserRow, activeUserShift, activeDate, isToday, sameShiftPeers])
 
   async function handleAssign() {
     if (!selectedPersonel || !selectedShift) {
@@ -1716,12 +1734,14 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
     }
   }
 
+  const eyebrowText = isToday
+    ? "BUGÜNKÜ VARDİYANIZ"
+    : `${String(activeWeekDay?.longDay || "SEÇİLİ GÜN").toUpperCase()} VARDİYANIZ`
+
   return (
     <View>
       <View style={styles.heroCard}>
-        <Text style={styles.heroEyebrow}>
-          {isToday ? "BUGÜNKÜ VARDİYANIZ" : `${(activeWeekDay?.longDay || "SEÇİLİ GÜN").toLocaleUpperCase("tr-TR")} VARDİYANIZ`}
-        </Text>
+        <Text style={styles.heroEyebrow}>{eyebrowText}</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 6, flexWrap: "nowrap" }}>
           <View style={{ backgroundColor: activeUserShift?.color || "#f59e0b", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}>
             <Text style={{ color: "#ffffff", fontWeight: "900", fontSize: 15 }}>
@@ -1739,13 +1759,17 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
 
       <Text style={styles.sectionTitle}>Haftalık Gün Seçimi</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 6 }}>
-        {(weekDays || []).map((wd) => {
+        {weekDays.map((wd) => {
+          if (!wd) return null
           const isActive = wd.date === activeDate
           const isTodayItem = wd.date === date
-          const userDayShift = currentUserRow?.weeklyDays?.find((d) => d.date === wd.date)
+          const userDayShift = Array.isArray(currentUserRow?.weeklyDays)
+            ? currentUserRow.weeklyDays.find((d) => d?.date === wd.date)
+            : null
+          const dateSub = wd.date && typeof wd.date === "string" ? wd.date.slice(5) : ""
           return (
             <TouchableOpacity
-              key={wd.date}
+              key={wd.date || Math.random().toString()}
               style={[
                 styles.selectChip,
                 isActive && styles.selectChipActive,
@@ -1755,15 +1779,17 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
             >
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                 <Text style={[styles.selectChipText, isActive && styles.selectChipTextActive, { textAlign: "center" }]} numberOfLines={1}>
-                  {wd.shortDay}
+                  {wd.shortDay || "Gün"}
                 </Text>
-                {isTodayItem && (
+                {isTodayItem ? (
                   <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: isActive ? "#ffffff" : "#10b981" }} />
-                )}
+                ) : null}
               </View>
-              <Text style={[{ fontSize: 10, color: "#64748b", marginTop: 2, textAlign: "center" }, isActive && { color: "#e2e8f0" }]} numberOfLines={1}>
-                {wd.date.slice(5)}
-              </Text>
+              {dateSub ? (
+                <Text style={[{ fontSize: 10, color: "#64748b", marginTop: 2, textAlign: "center" }, isActive && { color: "#e2e8f0" }]} numberOfLines={1}>
+                  {dateSub}
+                </Text>
+              ) : null}
               <View
                 style={{
                   backgroundColor: userDayShift?.color || (isActive ? "rgba(255,255,255,0.25)" : "#e2e8f0"),
@@ -1794,24 +1820,25 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
       <DetailSection
         title={`${activeWeekDay?.longDay || "Seçili Gün"} Aynı Vardiyadaki Arkadaşlar (${peersForActiveDate.length})`}
         empty={`${activeWeekDay?.longDay || "Bu günde"} aynı vardiyada personel bulunmuyor.`}
-        rows={(peersForActiveDate || []).map((peer) => ({
-          title: peer.name,
+        rows={peersForActiveDate.map((peer) => ({
+          title: peer.name || "Personel",
           meta: peer.hours || peer.label || "Aynı vardiya",
-          amount: peer.shortCode || peer.shiftCode,
+          amount: peer.shortCode || peer.shiftCode || "—",
           positive: true,
         }))}
       />
 
-      {currentUserRow?.weeklyDays && currentUserRow.weeklyDays.length > 0 && (
+      {currentUserRow?.weeklyDays && currentUserRow.weeklyDays.length > 0 ? (
         <View style={{ marginTop: 16 }}>
           <Text style={styles.sectionTitle}>Tüm Haftalık Programım</Text>
           <View style={[styles.infoCard, { padding: 10 }]}>
-            {currentUserRow.weeklyDays.map((d) => {
+            {currentUserRow.weeklyDays.map((d, dIdx) => {
+              if (!d) return null
               const isSelected = d.date === activeDate
               const isTodayRow = d.date === date
               return (
                 <TouchableOpacity
-                  key={d.date}
+                  key={d.date || `day-${dIdx}`}
                   activeOpacity={0.7}
                   onPress={() => setSelectedDayDate(d.date)}
                   style={[
@@ -1844,12 +1871,12 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
                     </View>
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                        <Text style={{ fontSize: 14, fontWeight: "800", color: "#1e293b" }}>{d.longDay}</Text>
-                        {isTodayRow && (
+                        <Text style={{ fontSize: 14, fontWeight: "800", color: "#1e293b" }}>{d.longDay || d.shortDay || "Gün"}</Text>
+                        {isTodayRow ? (
                           <View style={{ backgroundColor: "#10b981", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
                             <Text style={{ color: "#ffffff", fontSize: 9, fontWeight: "900" }}>BUGÜN</Text>
                           </View>
-                        )}
+                        ) : null}
                       </View>
                       <Text style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
                         {formatDate(d.date)}{d.hours ? ` · Saatler: ${d.hours}` : ""}
@@ -1866,47 +1893,51 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
                     }}
                     numberOfLines={1}
                   >
-                    {d.label}
+                    {d.label || "Vardiya Yok"}
                   </Text>
                 </TouchableOpacity>
               )
             })}
           </View>
         </View>
-      )}
+      ) : null}
 
-      {isAdmin && weeklyGrid && weeklyGrid.length > 0 ? (
+      {isAdmin && weeklyGrid.length > 0 ? (
         <View style={{ marginTop: 20 }}>
           <Text style={styles.sectionTitle}>Haftalık Şube Vardiya Çizelgesi</Text>
-          {(weeklyGrid || []).map((p) => (
-            <View key={p.personelId} style={[styles.infoCard, { marginBottom: 10 }]}>
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                <Text style={styles.infoTitle} numberOfLines={1}>{p.name}</Text>
-                {p.isCurrentUser && (
-                  <View style={{ backgroundColor: "rgba(16,185,129,0.15)", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
-                    <Text style={{ color: "#059669", fontSize: 10, fontWeight: "900" }}>Siz</Text>
-                  </View>
-                )}
-              </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginTop: 8 }}>
-                {p.weeklyDays.map((d) => (
-                  <TouchableOpacity
-                    key={d.date}
-                    onPress={() => setSelectedDayDate(d.date)}
-                    style={[
-                      { padding: 8, borderRadius: 8, backgroundColor: "#f1f5f9", alignItems: "center", minWidth: 64, borderWidth: 1, borderColor: "#e2e8f0" },
-                      d.date === activeDate && { backgroundColor: "rgba(16,185,129,0.15)", borderWidth: 1.5, borderColor: "#10b981" },
-                    ]}
-                  >
-                    <Text style={{ fontSize: 11, fontWeight: "900", color: "#334155" }} numberOfLines={1}>{d.shortDay}</Text>
-                    <View style={{ backgroundColor: d.color || "#0284c7", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginTop: 4 }}>
-                      <Text style={{ fontSize: 12, fontWeight: "900", color: "#ffffff" }} numberOfLines={1}>{d.shortCode || d.shiftCode}</Text>
+          {weeklyGrid.map((p) => {
+            if (!p) return null
+            const daysList = Array.isArray(p.weeklyDays) ? p.weeklyDays : []
+            return (
+              <View key={p.personelId || Math.random().toString()} style={[styles.infoCard, { marginBottom: 10 }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <Text style={styles.infoTitle} numberOfLines={1}>{p.name || "Personel"}</Text>
+                  {p.isCurrentUser ? (
+                    <View style={{ backgroundColor: "rgba(16,185,129,0.15)", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                      <Text style={{ color: "#059669", fontSize: 10, fontWeight: "900" }}>Siz</Text>
                     </View>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          ))}
+                  ) : null}
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginTop: 8 }}>
+                  {daysList.map((d, dIdx) => (
+                    <TouchableOpacity
+                      key={d?.date || `grid-${p.personelId}-${dIdx}`}
+                      onPress={() => setSelectedDayDate(d?.date)}
+                      style={[
+                        { padding: 8, borderRadius: 8, backgroundColor: "#f1f5f9", alignItems: "center", minWidth: 64, borderWidth: 1, borderColor: "#e2e8f0" },
+                        d?.date === activeDate && { backgroundColor: "rgba(16,185,129,0.15)", borderWidth: 1.5, borderColor: "#10b981" },
+                      ]}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: "900", color: "#334155" }} numberOfLines={1}>{d?.shortDay || "—"}</Text>
+                      <View style={{ backgroundColor: d?.color || "#0284c7", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginTop: 4 }}>
+                        <Text style={{ fontSize: 12, fontWeight: "900", color: "#ffffff" }} numberOfLines={1}>{d?.shortCode || d?.shiftCode || "—"}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )
+          })}
 
           <View style={[styles.infoCard, { marginTop: 16 }]}>
             <Text style={styles.infoTitle}>Yönetici Haftalık Vardiya Atama</Text>
@@ -1916,12 +1947,12 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
               {allShifts.map((p) => (
                 <TouchableOpacity
-                  key={p.personelId}
+                  key={p.personelId || Math.random().toString()}
                   style={[styles.selectChip, selectedPersonel === p.personelId && styles.selectChipActive, { maxWidth: "100%" }]}
                   onPress={() => setSelectedPersonel(p.personelId)}
                 >
                   <Text style={[styles.selectChipText, selectedPersonel === p.personelId && styles.selectChipTextActive]} numberOfLines={1} adjustsFontSizeToFit>
-                    {p.name}
+                    {p.name || "Personel"}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -1929,7 +1960,7 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
 
             <Text style={[styles.infoTitle, { marginTop: 12, fontSize: 13 }]}>2. Vardiya Seçin (3 Harf Kodlu):</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
-              {(availableShifts || []).map((s) => (
+              {availableShifts.map((s) => (
                 <TouchableOpacity
                   key={s.code}
                   style={[
@@ -1940,10 +1971,10 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
                   onPress={() => setSelectedShift(s.code)}
                 >
                   <View style={{ backgroundColor: s.color || "#0284c7", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                    <Text style={{ fontSize: 10, fontWeight: "900", color: "#ffffff" }}>{s.shortCode}</Text>
+                    <Text style={{ fontSize: 10, fontWeight: "900", color: "#ffffff" }}>{s.shortCode || "—"}</Text>
                   </View>
                   <Text style={[styles.selectChipText, selectedShift === s.code && styles.selectChipTextActive]} numberOfLines={1} adjustsFontSizeToFit>
-                    {s.label}
+                    {s.label || s.code}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -2207,16 +2238,17 @@ function MiniMetric({ label, value, positive, negative }) {
 }
 
 function DetailSection({ title, rows, empty }) {
+  const list = Array.isArray(rows) ? rows : []
   return (
     <View style={styles.detailSection}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      {rows.length ? rows.map((row, index) => (
-        <View style={styles.detailRow} key={`${row.title}-${index}`}>
+      {list.length ? list.map((row, index) => (
+        <View style={styles.detailRow} key={`${row?.title || "row"}-${index}`}>
           <View style={styles.detailTextWrap}>
-            <Text style={styles.detailTitle} numberOfLines={2}>{row.title}</Text>
-            <Text style={styles.detailMeta} numberOfLines={2}>{row.meta}</Text>
+            <Text style={styles.detailTitle} numberOfLines={2}>{row?.title || ""}</Text>
+            <Text style={styles.detailMeta} numberOfLines={2}>{row?.meta || ""}</Text>
           </View>
-          <Text style={[styles.detailAmount, row.positive && styles.positiveText, row.negative && styles.negativeText]} numberOfLines={1} adjustsFontSizeToFit>{row.amount}</Text>
+          <Text style={[styles.detailAmount, row?.positive && styles.positiveText, row?.negative && styles.negativeText]} numberOfLines={1} adjustsFontSizeToFit>{row?.amount || ""}</Text>
         </View>
       )) : <Text style={styles.emptyText}>{empty}</Text>}
     </View>
