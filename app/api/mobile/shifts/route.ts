@@ -10,8 +10,17 @@ function dateKey(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul" }).format(date)
 }
 
-function getShiftDetails(shiftCode: string, customShifts: any[], fixedShifts: any[]) {
-  const code = String(shiftCode || "S").trim().toLocaleUpperCase("tr-TR")
+function getShiftDetails(shiftCode: string | null | undefined, customShifts: any[], fixedShifts: any[]) {
+  if (!shiftCode || shiftCode === "NONE" || shiftCode === "-" || String(shiftCode).trim() === "") {
+    return {
+      shortCode: "—",
+      label: "Vardiya Belirlenmedi",
+      hours: "",
+      color: "#94a3b8", // Slate Gray
+    }
+  }
+
+  const code = String(shiftCode).trim().toLocaleUpperCase("tr-TR")
   const custom = (customShifts || []).find((s) => s.id === shiftCode || String(s.simge).toLocaleUpperCase("tr-TR") === code)
   const fixed = (fixedShifts || []).find((s) => s.kod === code || String(s.simge).toLocaleUpperCase("tr-TR") === code)
 
@@ -141,19 +150,36 @@ export async function GET(request: NextRequest) {
 
   const isAdmin = Boolean(profile.is_admin || profile.is_developer)
 
+  const is5AOr14 = subeId === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981" || subeId === "172cc1f6-3012-47d3-a707-36e6f77e97cf"
+  const planBranchIds = is5AOr14
+    ? ["b63cce3d-2d0a-4d99-a9ec-25e2de4a6981", "172cc1f6-3012-47d3-a707-36e6f77e97cf"]
+    : [subeId]
+
   const [
     { data: branch },
-    { data: personeller },
+    { data: rawPersoneller },
     { data: plans },
     { data: customShifts },
     { data: fixedShifts }
   ] = await Promise.all([
     admin.from("subeler").select("id, ad, kod").eq("id", subeId).maybeSingle(),
     admin.from("personeller").select("id, ad, sabit_vardiya, sira, aktif").eq("sube_id", subeId).eq("aktif", true).order("sira"),
-    admin.from("vardiya_planlari").select("id, personel_id, tarih, vardiya, notlar").eq("sube_id", subeId).in("tarih", weekDateKeys),
+    admin.from("vardiya_planlari").select("id, personel_id, tarih, vardiya, notlar, sube_id").in("sube_id", planBranchIds).in("tarih", weekDateKeys),
     admin.from("vardiya_tanimlari").select("id, ad, simge, baslangic, bitis, aktif, sira").eq("sube_id", subeId).eq("aktif", true).order("sira"),
     admin.from("vardiya_sabit_ayarlari").select("kod, ad, simge, baslangic, bitis, aktif").eq("aktif", true),
   ])
+
+  let personeller = rawPersoneller || []
+  if (is5AOr14 && !personeller.some((p) => p.ad.toUpperCase().includes("ÖMER KAHRİMAN") || p.ad.toUpperCase().includes("OMER KAHRIMAN"))) {
+    const { data: omerData } = await admin
+      .from("personeller")
+      .select("id, ad, sabit_vardiya, sira, aktif")
+      .ilike("ad", "%ÖMER KAHRİMAN%")
+      .maybeSingle()
+    if (omerData) {
+      personeller = [omerData, ...personeller]
+    }
+  }
 
   let currentPersonel = (personeller || []).find((p) => p.id === profile.tc_kimlik)
   if (!currentPersonel) {
@@ -173,13 +199,13 @@ export async function GET(request: NextRequest) {
     const isCurrentUser = p.id === currentPersonel?.id
     const days = weekDays.map((wd) => {
       const plan = planMap.get(`${p.id}:${wd.date}`)
-      const shiftCode = plan?.vardiya || p.sabit_vardiya || "S"
+      const shiftCode = (plan?.vardiya && plan.vardiya.trim()) ? plan.vardiya : (p.sabit_vardiya || "")
       const { shortCode, label, hours, color } = getShiftDetails(shiftCode, customShifts || [], fixedShifts || [])
       return {
         date: wd.date,
         shortDay: wd.shortDay,
         longDay: wd.longDay,
-        shiftCode,
+        shiftCode: shiftCode || null,
         shortCode,
         label,
         hours,
@@ -212,8 +238,9 @@ export async function GET(request: NextRequest) {
   }))
 
   const currentUserShift = shiftListForSelectedDate.find((s) => s.isCurrentUser) || null
-  const sameShiftPeers = currentUserShift
-    ? shiftListForSelectedDate.filter((s) => s.shiftCode === currentUserShift.shiftCode && !s.isCurrentUser)
+  const hasCurrentUserShift = Boolean(currentUserShift?.shiftCode && currentUserShift.shiftCode !== "NONE")
+  const sameShiftPeers = hasCurrentUserShift
+    ? shiftListForSelectedDate.filter((s) => s.shiftCode && s.shiftCode === currentUserShift!.shiftCode && !s.isCurrentUser)
     : []
 
   const availableShifts = [
@@ -223,6 +250,7 @@ export async function GET(request: NextRequest) {
     { code: "I", shortCode: "İZN", label: "İzinli", color: "#64748b" },
     { code: "OFF", shortCode: "OFF", label: "Haftalık Off", color: "#10b981" },
     { code: "G", shortCode: "GEC", label: "Gece Vardiyası", color: "#8b5cf6" },
+    { code: "NONE", shortCode: "—", label: "Vardiya Yok / Belirlenmedi", color: "#94a3b8" },
     ...(customShifts || []).map((s) => ({
       code: s.id,
       shortCode: String(s.simge || s.ad || "ÖZL").slice(0, 3).toLocaleUpperCase("tr-TR"),
@@ -263,8 +291,19 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}))
   const { personelId, date, shiftCode, notes } = body
 
-  if (!personelId || !date || !shiftCode) {
+  if (!personelId || !date || shiftCode === undefined) {
     return NextResponse.json({ error: "Personel, tarih ve vardiya seçimi zorunludur." }, { status: 400 })
+  }
+
+  if (shiftCode === "NONE" || shiftCode === "DELETE" || shiftCode === "" || shiftCode === "-") {
+    const { error } = await admin
+      .from("vardiya_planlari")
+      .delete()
+      .eq("personel_id", personelId)
+      .eq("tarih", date)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true, message: "Vardiya kaydı silindi." })
   }
 
   const payload = {
