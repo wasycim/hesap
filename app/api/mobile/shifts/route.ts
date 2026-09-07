@@ -121,7 +121,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Personel profili bulunamadı." }, { status: 404 })
   }
 
-  let subeId = profile.sube_id as string | null
+  const BRANCH_14_ID = "172cc1f6-3012-47d3-a707-36e6f77e97cf"
+  const BRANCH_5A_ID = "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981"
+
+  const isOmerUser = Boolean(
+    profile.user_id === "c5f19284-0c74-417c-9abc-d578f4aa59cd" ||
+    normalizeName(profile.display_name).includes("ÖMER KAHRİMAN") ||
+    normalizeName(profile.display_name).includes("OMER KAHRIMAN")
+  )
+
+  let subeId = isOmerUser ? BRANCH_14_ID : (profile.sube_id as string | null)
 
   if (!subeId) {
     const uName = profile.display_name?.trim() || ""
@@ -139,7 +148,7 @@ export async function GET(request: NextRequest) {
       subeId = firstBranch?.id || null
     }
 
-    if (subeId) {
+    if (subeId && !isOmerUser) {
       await admin.from("user_profiles").update({ sube_id: subeId }).eq("user_id", user.id)
     }
   }
@@ -150,9 +159,9 @@ export async function GET(request: NextRequest) {
 
   const isAdmin = Boolean(profile.is_admin || profile.is_developer)
 
-  const is5AOr14 = subeId === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981" || subeId === "172cc1f6-3012-47d3-a707-36e6f77e97cf"
+  const is5AOr14 = subeId === BRANCH_5A_ID || subeId === BRANCH_14_ID
   const planBranchIds = is5AOr14
-    ? ["b63cce3d-2d0a-4d99-a9ec-25e2de4a6981", "172cc1f6-3012-47d3-a707-36e6f77e97cf"]
+    ? [BRANCH_5A_ID, BRANCH_14_ID]
     : [subeId]
 
   const [
@@ -170,13 +179,17 @@ export async function GET(request: NextRequest) {
   ])
 
   let personeller = rawPersoneller || []
-  if (is5AOr14 && !personeller.some((p) => p.ad.toUpperCase().includes("ÖMER KAHRİMAN") || p.ad.toUpperCase().includes("OMER KAHRIMAN"))) {
+  if (subeId === BRANCH_5A_ID) {
+    personeller = personeller.filter(
+      (p) => !p.ad.toUpperCase().includes("ÖMER KAHRİMAN") && !p.ad.toUpperCase().includes("OMER KAHRIMAN")
+    )
+  } else if (subeId === BRANCH_14_ID) {
     const { data: omerData } = await admin
       .from("personeller")
       .select("id, ad, sabit_vardiya, sira, aktif")
       .ilike("ad", "%ÖMER KAHRİMAN%")
       .maybeSingle()
-    if (omerData) {
+    if (omerData && !personeller.some((p) => p.id === omerData.id)) {
       personeller = [omerData, ...personeller]
     }
   }
@@ -306,8 +319,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, message: "Vardiya kaydı silindi." })
   }
 
+  const BRANCH_14_ID = "172cc1f6-3012-47d3-a707-36e6f77e97cf"
+  const isTargetOmer = personelId === "78a15f68-edfd-493c-b8bd-5604acf599dd"
+
   const payload = {
-    sube_id: profile.sube_id,
+    sube_id: isTargetOmer ? BRANCH_14_ID : profile.sube_id,
     personel_id: personelId,
     tarih: date,
     vardiya: shiftCode,

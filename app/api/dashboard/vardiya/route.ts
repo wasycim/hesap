@@ -128,7 +128,9 @@ export async function GET(request: NextRequest) {
 
   let personeller = (personelRes.data || []).filter((p) => !isTestPersonnel(p))
 
-  if (is14Branch) {
+  if (is5ABranch) {
+    personeller = personeller.filter(p => !p.ad.toUpperCase().includes("ÖMER KAHRİMAN") && !p.ad.toUpperCase().includes("OMER KAHRIMAN"))
+  } else if (is14Branch) {
     const { data: omerData } = await admin
       .from("personeller")
       .select("*")
