@@ -77,10 +77,15 @@ function formatDate(value) {
 }
 
 function monthLabel(month, year) {
-  return new Date(year, month - 1, 1).toLocaleDateString("tr-TR", {
-    month: "long",
-    year: "numeric",
-  })
+  try {
+    return new Date(year, month - 1, 1).toLocaleDateString("tr-TR", {
+      month: "long",
+      year: "numeric",
+    })
+  } catch (e) {
+    const months = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
+    return `${months[Math.max(0, (month - 1) % 12)] || ""} ${year}`
+  }
 }
 
 function dateKey(date = new Date()) {
@@ -193,6 +198,37 @@ async function readJson(response) {
     throw error
   }
   return payload
+}
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
+  }
+  componentDidCatch(error, errorInfo) {
+    console.warn("ErrorBoundary caught:", error, errorInfo)
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorBoxText}>
+            Vardiya ekranı yüklenirken bir sorun oluştu.
+          </Text>
+          <TouchableOpacity
+            style={[styles.primaryButton, { marginTop: 12 }]}
+            onPress={() => this.setState({ hasError: false, error: null })}
+          >
+            <Text style={styles.primaryText}>Yeniden Dene</Text>
+          </TouchableOpacity>
+        </View>
+      )
+    }
+    return this.props.children
+  }
 }
 
 export default function App() {
@@ -904,7 +940,11 @@ export default function App() {
           />
         ) : null}
         {screen === "attendance" ? <AttendanceScreen data={attendance} onOpenScanner={openScanner} /> : null}
-        {screen === "shifts" ? <ShiftsScreen data={shifts} onRequestReload={loadShifts} requestJson={requestJson} /> : null}
+        {screen === "shifts" ? (
+          <ErrorBoundary>
+            <ShiftsScreen data={shifts} onRequestReload={loadShifts} requestJson={requestJson} />
+          </ErrorBoundary>
+        ) : null}
         {screen === "tracking" ? <TrackingScreen data={tracking} onRequestBranchFilter={(subeId) => loadTracking(subeId)} /> : null}
         {screen === "notifications" ? (
           <NotificationsScreen
@@ -1661,54 +1701,48 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
   const isToday = activeDate === date
 
   // 1. Identify logged-in user in weeklyGrid
-  const currentUserRow = useMemo(() => {
-    if (!weeklyGrid.length) return null
-    return (
-      weeklyGrid.find(
+  const currentUserRow = weeklyGrid.length
+    ? weeklyGrid.find(
         (p) =>
           p?.isCurrentUser ||
-          (data.currentUser?.id && p?.personelId === data.currentUser.id) ||
+          (data?.currentUser?.id && p?.personelId === data.currentUser.id) ||
           (currentUserShift?.personelId && p?.personelId === currentUserShift.personelId) ||
           (currentUserShift?.name && p?.name === currentUserShift.name)
       ) || null
-    )
-  }, [weeklyGrid, data.currentUser, currentUserShift])
+    : null
 
   // 2. Active shift for activeDate
-  const activeUserShift = useMemo(() => {
-    if (currentUserRow?.weeklyDays && Array.isArray(currentUserRow.weeklyDays)) {
-      const dayShift = currentUserRow.weeklyDays.find((d) => d?.date === activeDate)
-      if (dayShift) return dayShift
-    }
-    if (activeDate === date && currentUserShift) {
-      return currentUserShift
-    }
-    return currentUserShift || null
-  }, [currentUserRow, activeDate, date, currentUserShift])
+  let activeUserShift = null
+  if (currentUserRow?.weeklyDays && Array.isArray(currentUserRow.weeklyDays)) {
+    const dayShift = currentUserRow.weeklyDays.find((d) => d?.date === activeDate)
+    if (dayShift) activeUserShift = dayShift
+  }
+  if (!activeUserShift) {
+    activeUserShift = (activeDate === date && currentUserShift) ? currentUserShift : (currentUserShift || null)
+  }
 
   // 3. Colleagues working the same shift on activeDate
-  const peersForActiveDate = useMemo(() => {
-    if (!activeUserShift?.shiftCode) {
-      return isToday ? sameShiftPeers : []
-    }
-    if (weeklyGrid.length > 0) {
-      return weeklyGrid
-        .filter((p) => p && p.personelId !== currentUserRow?.personelId && !p.isCurrentUser)
-        .map((p) => {
-          const d = Array.isArray(p.weeklyDays) ? p.weeklyDays.find((x) => x?.date === activeDate) : null
-          return {
-            name: p.name || "Personel",
-            shiftCode: d?.shiftCode,
-            shortCode: d?.shortCode,
-            label: d?.label,
-            hours: d?.hours,
-            color: d?.color,
-          }
-        })
-        .filter((p) => p.shiftCode && p.shiftCode === activeUserShift.shiftCode)
-    }
-    return isToday ? sameShiftPeers : []
-  }, [weeklyGrid, currentUserRow, activeUserShift, activeDate, isToday, sameShiftPeers])
+  let peersForActiveDate = []
+  if (!activeUserShift?.shiftCode) {
+    peersForActiveDate = isToday ? sameShiftPeers : []
+  } else if (weeklyGrid.length > 0) {
+    peersForActiveDate = weeklyGrid
+      .filter((p) => p && p.personelId !== currentUserRow?.personelId && !p.isCurrentUser)
+      .map((p) => {
+        const d = Array.isArray(p.weeklyDays) ? p.weeklyDays.find((x) => x?.date === activeDate) : null
+        return {
+          name: p.name || "Personel",
+          shiftCode: d?.shiftCode,
+          shortCode: d?.shortCode,
+          label: d?.label,
+          hours: d?.hours,
+          color: d?.color,
+        }
+      })
+      .filter((p) => p.shiftCode && p.shiftCode === activeUserShift.shiftCode)
+  } else {
+    peersForActiveDate = isToday ? sameShiftPeers : []
+  }
 
   async function handleAssign() {
     if (!selectedPersonel || !selectedShift) {
