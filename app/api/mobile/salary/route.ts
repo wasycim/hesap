@@ -60,10 +60,9 @@ export async function GET(request: NextRequest) {
 
   const isManager = Boolean(profile.is_admin || profile.is_developer)
 
-  const { data: branch } = await admin.from("subeler").select("id, ad, kod").eq("id", subeId).maybeSingle()
   let { data: candidates, error: personelError } = await admin
     .from("personeller")
-    .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif, isten_cikis_tarihi")
+    .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif, isten_cikis_tarihi, sube_id")
     .eq("sube_id", subeId)
 
   if (personelError) return NextResponse.json({ error: personelError.message }, { status: 500 })
@@ -75,7 +74,7 @@ export async function GET(request: NextRequest) {
     personel = (candidates || []).find((item) => item.id === requestedPersonelId)
   }
 
-  // 2. Multi-level matching for current user
+  // 2. Multi-level matching for current user within designated branch
   if (!personel) {
     personel = (candidates || []).find((item) => item.id === profile.tc_kimlik)
   }
@@ -89,16 +88,41 @@ export async function GET(request: NextRequest) {
       return pName.includes(uName) || uName.includes(pName)
     })
   }
+
+  // 2b. Global search across all branches if still not found (handles transferred personnel like Ömer Kahriman)
+  if (!personel && !isManager) {
+    const { data: allBranchCandidates } = await admin
+      .from("personeller")
+      .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif, isten_cikis_tarihi, sube_id")
+
+    const globalMatch = (allBranchCandidates || []).find((item) => {
+      const pName = normalizeName(item.ad)
+      const uName = normalizeName(profile.display_name)
+      return (
+        item.id === profile.tc_kimlik ||
+        pName === uName ||
+        pName.includes(uName) ||
+        uName.includes(pName)
+      )
+    })
+
+    if (globalMatch) {
+      personel = globalMatch
+      subeId = globalMatch.sube_id
+      if (profile.sube_id !== globalMatch.sube_id) {
+        await admin.from("user_profiles").update({ sube_id: globalMatch.sube_id }).eq("user_id", user.id)
+      }
+    }
+  }
+
   if (!personel && isManager && candidates?.length) {
     personel = candidates[0]
   }
 
   // 3. Eğer personel kaydı hiç bulunamazsa, kullanıcı adı ile otomatik personel kaydı oluştur
   if (!personel) {
-    const newPersonelId = profile.tc_kimlik || `p_${Date.now()}`
     const newPersonelName = profile.display_name?.trim() || "Yeni Personel"
     const { data: createdPersonel } = await admin.from("personeller").insert({
-      id: newPersonelId,
       ad: newPersonelName,
       sube_id: subeId,
       aylik_maas: 0,
@@ -120,9 +144,23 @@ export async function GET(request: NextRequest) {
     }, { status: 404 })
   }
 
+  const effectiveSubeId = personel.sube_id || subeId
+  const { data: branch } = await admin.from("subeler").select("id, ad, kod").eq("id", effectiveSubeId).maybeSingle()
+
   const MONTHS_TR = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
   const monthName = MONTHS_TR[month - 1] || ""
   const ayYil = `${monthName}-${year}`
+
+  // Ömer Kahriman 5A Şubesinde maaş alırken avans ve çorba kayıtları 14 No Şubesi'nden (172cc1f6-3012-47d3-a707-36e6f77e97cf) okunur
+  const branch14Id = "172cc1f6-3012-47d3-a707-36e6f77e97cf"
+  const isOmerKahriman =
+    personel.id === "78a15f68-edfd-493c-b8bd-5604acf599dd" ||
+    normalizeName(personel.ad).includes("ÖMER KAHRİMAN") ||
+    normalizeName(personel.ad).includes("OMER KAHRIMAN")
+
+  const expenseBranchIds = isOmerKahriman
+    ? Array.from(new Set([effectiveSubeId, branch14Id]))
+    : [effectiveSubeId]
 
   const [
     { data: rows, error: rowsError },
@@ -135,7 +173,7 @@ export async function GET(request: NextRequest) {
     admin
       .from("gider_kayitlari")
       .select("tarih, personel_paylari, personel_mesai_detaylari")
-      .eq("sube_id", profile.sube_id)
+      .in("sube_id", expenseBranchIds)
       .gte("tarih", start)
       .lte("tarih", end)
       .order("tarih"),
@@ -150,29 +188,41 @@ export async function GET(request: NextRequest) {
     admin
       .from("kargo_prim_kayitlari")
       .select("personel_hakedis, secili_personeller")
-      .eq("sube_id", profile.sube_id)
+      .eq("sube_id", effectiveSubeId)
       .eq("ay_yil", ayYil)
       .maybeSingle(),
     admin
       .from("corbalar")
       .select("tarih, miktar")
-      .eq("sube_id", profile.sube_id)
+      .in("sube_id", expenseBranchIds)
       .eq("ay_yil", ayYil)
       .eq("personel_id", personel.id)
       .order("tarih"),
     admin
       .from("avans_talepleri")
       .select("id, tutar, user_id, user_name, tc_kimlik, odeme_tarihi, created_at, durum")
-      .eq("sube_id", profile.sube_id)
+      .in("sube_id", expenseBranchIds)
       .eq("durum", "onaylandi"),
     admin
       .from("maas_onaylari")
       .select("bankaya_gonderilen, kalan_nakit, nakit_odeme_tarihi")
-      .eq("sube_id", profile.sube_id)
+      .eq("sube_id", effectiveSubeId)
       .eq("ay_yil", ayYil)
       .eq("personel_id", personel.id)
       .maybeSingle(),
   ])
+
+  let finalMaasOnayiData = maasOnayiData
+  if (!finalMaasOnayiData && isOmerKahriman) {
+    const { data: fallbackMaasOnayi } = await admin
+      .from("maas_onaylari")
+      .select("bankaya_gonderilen, kalan_nakit, nakit_odeme_tarihi")
+      .eq("sube_id", branch14Id)
+      .eq("ay_yil", ayYil)
+      .eq("personel_id", personel.id)
+      .maybeSingle()
+    if (fallbackMaasOnayi) finalMaasOnayiData = fallbackMaasOnayi
+  }
 
   const bankaMaas = Number(personel.banka_maas || 0)
   const nakitMaas = Number(personel.nakit_maas !== undefined && personel.nakit_maas !== null ? personel.nakit_maas : (personel.aylik_maas || 0))
@@ -240,10 +290,11 @@ export async function GET(request: NextRequest) {
     const payments = (row.personel_paylari || {}) as Record<string, unknown>
     const manualOvertime = (row.personel_mesai_detaylari || {}) as Record<string, unknown>
     const advanceAmount = Number(payments[personel.id] || 0)
-    if (advanceAmount > 0) advances.push({ date: row.tarih, amount: advanceAmount, description: "Alınan avans" })
+    const rowDateStr = typeof row.tarih === "string" ? row.tarih.slice(0, 10) : new Date(row.tarih).toISOString().slice(0, 10)
+    if (advanceAmount > 0) advances.push({ date: rowDateStr, amount: advanceAmount, description: "Alınan avans" })
     const manualAmount = Number(manualOvertime[personel.id] || 0)
     if (manualAmount > 0) overtime.push({
-      date: row.tarih,
+      date: rowDateStr,
       amount: manualAmount,
       description: "Gider kaydındaki manuel mesai tutarı (Maaşa eklenmez)",
       minutes: 0,
@@ -293,10 +344,10 @@ export async function GET(request: NextRequest) {
       advanceTotal,
       overtimeTotal,
       remaining: baseSalary + overtimeTotal - advanceTotal,
-      maasOnayi: maasOnayiData ? {
-        bankayaGonderilen: Number(maasOnayiData.bankaya_gonderilen || 0),
-        kalanNakit: Number(maasOnayiData.kalan_nakit || 0),
-        nakitOdemeTarihi: maasOnayiData.nakit_odeme_tarihi || null,
+      maasOnayi: finalMaasOnayiData ? {
+        bankayaGonderilen: Number(finalMaasOnayiData.bankaya_gonderilen || 0),
+        kalanNakit: Number(finalMaasOnayiData.kalan_nakit || 0),
+        nakitOdemeTarihi: finalMaasOnayiData.nakit_odeme_tarihi || null,
       } : null,
       advances: advances.sort((a, b) => a.date.localeCompare(b.date)),
       overtime: overtime.sort((a, b) => a.date.localeCompare(b.date)),
