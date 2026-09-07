@@ -1156,12 +1156,9 @@ function SalaryScreen({ data, period, onPrev, onNext, onShare, onRequestReload, 
             <Text style={styles.salaryHeroValue}>{formatMoney(data.remaining)}</Text>
             <Text style={styles.salaryHeroSub}>{data.personel?.name || "Personel"} · {data.branch?.ad || "Şube"}</Text>
             
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
-              <TouchableOpacity style={styles.pdfButton} onPress={onShare}>
-                <Text style={styles.pdfButtonText}>📄 PDF İndir</Text>
-              </TouchableOpacity>
+            <View style={{ marginTop: 14 }}>
               <TouchableOpacity
-                style={[styles.pdfButton, { backgroundColor: "#f59e0b" }]}
+                style={[styles.pdfButton, { backgroundColor: "#f59e0b", width: "100%" }]}
                 onPress={() => { setModalError(""); setModalOpen(true); }}
               >
                 <Text style={[styles.pdfButtonText, { color: "#ffffff" }]}>💰 Avans İste</Text>

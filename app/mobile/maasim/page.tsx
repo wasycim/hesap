@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { ChevronLeft, ChevronRight, Clock3, FileUp, Loader2, MinusCircle, WalletCards, Users } from "lucide-react"
-import { openPdfReport, isIOSPlatform } from "@/lib/pdf-report"
+import { ChevronLeft, ChevronRight, Clock3, Loader2, MinusCircle, WalletCards, Sparkles } from "lucide-react"
 
 type Salary = {
   period: { month: number; year: number }
@@ -10,6 +9,10 @@ type Salary = {
   personel: { id: string; name: string }
   isManager?: boolean
   baseSalary: number
+  bankaMaas?: number
+  nakitMaas?: number
+  corbaTotal?: number
+  corbaDetails?: Array<{ date: string; amount: number; description: string }>
   hourlyRate: number
   advanceTotal: number
   overtimeTotal: number
@@ -24,11 +27,6 @@ export default function MobileSalaryPage() {
   const [data, setData] = useState<Salary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isIOS, setIsIOS] = useState(false)
-
-  useEffect(() => {
-    setIsIOS(isIOSPlatform())
-  }, [])
 
   const loadSalaryData = useCallback(async () => {
     setLoading(true)
@@ -57,40 +55,6 @@ export default function MobileSalaryPage() {
     setPeriod({ month: date.getMonth() + 1, year: date.getFullYear() })
   }
 
-  function sharePdf() {
-    if (!data) return
-    openPdfReport({
-      title: `${data.personel.name} Maaş Detayı`,
-      subtitle: `${data.branch?.ad || ""} · ${monthLabel(data.period.month, data.period.year)}`,
-      orientation: "portrait",
-      skipOrientationPicker: true,
-      archive: false,
-      metrics: [
-        { label: "Aylık Maaş", value: formatMoney(data.baseSalary) },
-        { label: "Toplam Mesai", value: `+${formatMoney(data.overtimeTotal)}` },
-        { label: "Toplam Avans", value: `-${formatMoney(data.advanceTotal)}` },
-        { label: "Net Kalan", value: formatMoney(data.remaining) },
-      ],
-      tables: [
-        {
-          title: "Alınan Avanslar",
-          headers: ["Tarih", "Açıklama", "Tutar"],
-          rows: data.advances.map((item) => [formatDate(item.date), item.description, `-${formatMoney(item.amount)}`]),
-        },
-        {
-          title: "Onaylı Mesailer",
-          headers: ["Tarih", "Açıklama", "Süre", "Tutar"],
-          rows: data.overtime.map((item) => [
-            formatDate(item.date),
-            item.description,
-            item.minutes ? formatMinutes(item.minutes) : "-",
-            `+${formatMoney(item.amount)}`,
-          ]),
-        },
-      ],
-    })
-  }
-
   return (
     <div className="ios-page space-y-4">
       <header className="ios-large-header ios-header-row">
@@ -99,12 +63,6 @@ export default function MobileSalaryPage() {
           <h1>{data?.isManager ? "Maaş & Bordro Yönetimi" : "Maaşım"}</h1>
           <p>{data?.isManager ? "Personellerin ve yöneticinin maaş bordrosu" : "Yalnızca size ait maaş ve onaylı avans/mesai bilgileri"}</p>
         </div>
-        {!isIOS && (
-          <button type="button" className="ios-share-button" onClick={sharePdf} disabled={!data}>
-            <FileUp className="h-5 w-5" />
-            <span>PDF</span>
-          </button>
-        )}
       </header>
 
       <div className="ios-period-picker">
@@ -134,8 +92,17 @@ export default function MobileSalaryPage() {
           </section>
           <section className="ios-salary-metrics">
             <SalaryMetric label="Aylık maaş" value={data.baseSalary} icon={WalletCards} />
+            {Number(data.bankaMaas) > 0 ? (
+              <SalaryMetric label="Banka maaş" value={data.bankaMaas || 0} icon={WalletCards} />
+            ) : null}
+            {Number(data.nakitMaas) > 0 ? (
+              <SalaryMetric label="Nakit maaş" value={data.nakitMaas || 0} icon={WalletCards} />
+            ) : null}
             <SalaryMetric label="Onaylı mesai" value={data.overtimeTotal} icon={Clock3} positive />
             <SalaryMetric label="Alınan avans" value={data.advanceTotal} icon={MinusCircle} negative />
+            {Number(data.corbaTotal) > 0 ? (
+              <SalaryMetric label="Çorba kazanılan" value={data.corbaTotal || 0} icon={Sparkles} positive />
+            ) : null}
           </section>
           <DetailSection
             title="Alınan Avanslar"
@@ -152,6 +119,18 @@ export default function MobileSalaryPage() {
               sign: 1,
             }))}
           />
+          {data.corbaDetails && data.corbaDetails.length > 0 ? (
+            <DetailSection
+              title="Çorba Kazanılan Detayları"
+              empty="Bu ay çorba kaydı yok."
+              rows={data.corbaDetails.map((item) => ({
+                date: item.date,
+                amount: item.amount,
+                meta: item.description,
+                sign: 1,
+              }))}
+            />
+          ) : null}
         </>
       ) : null}
     </div>
