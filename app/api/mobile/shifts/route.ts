@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
 
   const { data: profile, error: profileError } = await admin
     .from("user_profiles")
-    .select("user_id, sube_id, display_name, is_admin, is_developer, dashboard_access")
+    .select("user_id, sube_id, display_name, is_admin, is_developer, dashboard_access, tc_kimlik")
     .eq("user_id", user.id)
     .maybeSingle()
 
@@ -155,7 +155,17 @@ export async function GET(request: NextRequest) {
     admin.from("vardiya_sabit_ayarlari").select("kod, ad, simge, baslangic, bitis, aktif").eq("aktif", true),
   ])
 
-  const currentPersonel = (personeller || []).find((p) => normalizeName(p.ad) === normalizeName(profile.display_name))
+  let currentPersonel = (personeller || []).find((p) => p.id === profile.tc_kimlik)
+  if (!currentPersonel) {
+    currentPersonel = (personeller || []).find((p) => normalizeName(p.ad) === normalizeName(profile.display_name))
+  }
+  if (!currentPersonel) {
+    currentPersonel = (personeller || []).find((p) => {
+      const pName = normalizeName(p.ad)
+      const uName = normalizeName(profile.display_name)
+      return pName.includes(uName) || uName.includes(pName)
+    })
+  }
   const planMap = new Map((plans || []).map((p) => [`${p.personel_id}:${p.tarih}`, p]))
 
   // Build Weekly Shift Grid per personnel
