@@ -12,8 +12,15 @@ export async function GET(request: NextRequest) {
   }
 
   const admin = createAdminClient()
-  let query = admin.from("maas_kesintileri").select("*, personel:personeller(id, ad)").eq("sube_id", subeId)
-  
+  let query = admin
+    .from("maas_kesintileri")
+    .select("*, personel:personeller(id, ad), ortak:ortaklar(id, ad)")
+
+  if (subeId !== "all") {
+    // Return kesintiler for this branch OR any ortak kesintileri (since partners are company-wide)
+    query = query.or(`sube_id.eq.${subeId},target_type.eq.ortak`)
+  }
+
   if (ayYil) {
     query = query.eq("ay_yil", ayYil)
   }
@@ -49,10 +56,22 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { sube_id, ay_yil, personel_id, tutar, aciklama, tarih } = body
+  const {
+    sube_id,
+    ay_yil,
+    personel_id,
+    ortak_id,
+    ortak_ad,
+    target_type = "personel",
+    tutar,
+    aciklama,
+    tarih,
+  } = body
 
-  if (!sube_id || !ay_yil || !personel_id || tutar === undefined) {
-    return NextResponse.json({ error: "sube_id, ay_yil, personel_id ve tutar zorunludur." }, { status: 400 })
+  const isOrtak = target_type === "ortak" || Boolean(ortak_id)
+
+  if (!sube_id || !ay_yil || (!isOrtak && !personel_id) || (isOrtak && !ortak_id && !ortak_ad) || tutar === undefined) {
+    return NextResponse.json({ error: "sube_id, ay_yil, hedef kişi ve tutar zorunludur." }, { status: 400 })
   }
 
   const numericTutar = Number(tutar)
@@ -67,33 +86,38 @@ export async function POST(request: NextRequest) {
     .insert({
       sube_id,
       ay_yil,
-      personel_id,
+      target_type: isOrtak ? "ortak" : "personel",
+      personel_id: isOrtak ? null : personel_id,
+      ortak_id: isOrtak ? (ortak_id || null) : null,
+      ortak_ad: isOrtak ? (ortak_ad || null) : null,
       tutar: numericTutar,
-      aciklama: String(aciklama || "Maaş Kesintisi").trim(),
+      aciklama: String(aciklama || (isOrtak ? "Ortak Maaş Kesintisi" : "Maaş Kesintisi")).trim(),
       tarih: recordDate,
     })
-    .select()
+    .select("*, personel:personeller(id, ad), ortak:ortaklar(id, ad)")
     .single()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Update existing maas_onaylari kalan_nakit if present in DB
-  const { data: targetOnay } = await admin
-    .from("maas_onaylari")
-    .select("*")
-    .eq("personel_id", personel_id)
-    .eq("sube_id", sube_id)
-    .eq("ay_yil", ay_yil)
-    .maybeSingle()
-
-  if (targetOnay) {
-    const updatedKalan = Math.max(0, Number(targetOnay.kalan_nakit || 0) - numericTutar)
-    await admin
+  // Update existing maas_onaylari kalan_nakit only for personnel
+  if (!isOrtak && personel_id) {
+    const { data: targetOnay } = await admin
       .from("maas_onaylari")
-      .update({ kalan_nakit: updatedKalan })
-      .eq("id", targetOnay.id)
+      .select("*")
+      .eq("personel_id", personel_id)
+      .eq("sube_id", sube_id)
+      .eq("ay_yil", ay_yil)
+      .maybeSingle()
+
+    if (targetOnay) {
+      const updatedKalan = Math.max(0, Number(targetOnay.kalan_nakit || 0) - numericTutar)
+      await admin
+        .from("maas_onaylari")
+        .update({ kalan_nakit: updatedKalan })
+        .eq("id", targetOnay.id)
+    }
   }
 
   return NextResponse.json({ ok: true, item: data })
@@ -127,7 +151,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "id zorunludur." }, { status: 400 })
   }
 
-  // Fetch kesinti before deleting to update maas_onaylari
+  // Fetch kesinti before deleting to update maas_onaylari if personnel
   const { data: targetKesinti } = await admin
     .from("maas_kesintileri")
     .select("*")
@@ -140,7 +164,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  if (targetKesinti) {
+  if (targetKesinti && targetKesinti.target_type !== "ortak" && targetKesinti.personel_id) {
     const deletedTutar = Number(targetKesinti.tutar || 0)
     const { data: targetOnay } = await admin
       .from("maas_onaylari")

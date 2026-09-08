@@ -813,12 +813,34 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
     })
 
     advances.sort((a, b) => a.tarih.localeCompare(b.tarih))
+
+    // Partner kesintileri (Ortaklar için kesintiler)
+    const partnerKesintiler = kesintilerList.filter(k => {
+      if (k.target_type === "ortak") {
+        if (k.ortak_id && allMatchingIds.has(k.ortak_id)) return true
+        if (k.ortak_ad && normalizeName(k.ortak_ad) === oNameNorm) return true
+        return false
+      }
+      if (k.personel_id && allMatchingIds.has(k.personel_id)) return true
+      return false
+    })
+
+    const kesintiTotal = partnerKesintiler.reduce((sum, item) => sum + Number(item.tutar || 0), 0)
     const total = advances.reduce((sum, item) => sum + item.amount, 0)
     const baseSalary = Number((ortak as any).aylik_maas || 0)
-    const kalanNakit = baseSalary - total
+    const kalanNakit = baseSalary - total - kesintiTotal
 
-    return { ortak, baseSalary, advances, total, kalanNakit, branchTotals }
-  }), [ortaklar, allBranchGiderRows, subeler])
+    return {
+      ortak,
+      baseSalary,
+      advances,
+      total,
+      kesintiler: partnerKesintiler,
+      kesintiTotal,
+      kalanNakit,
+      branchTotals,
+    }
+  }), [ortaklar, allBranchGiderRows, subeler, kesintilerList])
 
   const isManager = currentUserProfile?.isManager ?? isAdmin
 
@@ -864,8 +886,51 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
   const ortakTotals = useMemo(() => visibleOrtakSummaries.reduce((acc, item) => ({
     baseSalary: acc.baseSalary + item.baseSalary,
     total: acc.total + item.total,
+    kesintiTotal: acc.kesintiTotal + item.kesintiTotal,
     kalanNakit: acc.kalanNakit + item.kalanNakit,
-  }), { baseSalary: 0, total: 0, kalanNakit: 0 }), [visibleOrtakSummaries])
+  }), { baseSalary: 0, total: 0, kesintiTotal: 0, kalanNakit: 0 }), [visibleOrtakSummaries])
+
+  async function handleAddKesintiForOrtak(targetOrtak: any) {
+    if (!currentSube || !targetOrtak || !kesintiTutarInput) {
+      toast.error("Lütfen kesinti tutarını giriniz.")
+      return
+    }
+    const val = Number(kesintiTutarInput)
+    if (isNaN(val) || val <= 0) {
+      toast.error("Geçerli bir kesinti tutarı girin.")
+      return
+    }
+
+    setKesintiSubmitting(true)
+    try {
+      const res = await fetch("/api/admin/maas-kesinti", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sube_id: currentSube.id,
+          ay_yil: ayYil,
+          target_type: "ortak",
+          ortak_id: targetOrtak.id,
+          ortak_ad: targetOrtak.ad,
+          tutar: val,
+          aciklama: kesintiAciklamaInput || "Ortak Maaş Kesintisi",
+          tarih: kesintiTarihInput || new Date().toISOString().split("T")[0],
+        }),
+      })
+
+      const payload = await res.json()
+      if (!res.ok) throw new Error(payload.error || "Kesinti kaydedilemedi.")
+
+      toast.success("Ortak kesintisi başarıyla kaydedildi.")
+      setKesintiTutarInput("")
+      setKesintiAciklamaInput("")
+      loadData()
+    } catch (err: any) {
+      toast.error(err.message || "Hata oluştu.")
+    } finally {
+      setKesintiSubmitting(false)
+    }
+  }
 
   async function handleAddKesintiForPersonel(personelId: string) {
     if (!currentSube || !personelId || !kesintiTutarInput) {
@@ -1186,12 +1251,13 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
         },
         {
           title: "Ortaklar Pay",
-          headers: ["Ortak", "Net Maaş", "Alınan Avans", "Kalan Nakit"],
+          headers: ["Ortak", "Net Maaş", "Alınan Avans", "Kesinti", "Kalan Nakit"],
           firstColumnWidth: "25%",
           rows: ortakSummaries.map(item => [
             item.ortak.ad,
             `${formatMoney(item.baseSalary)} TL`,
             `-${formatMoney(item.total)} TL`,
+            item.kesintiTotal > 0 ? `-${formatMoney(item.kesintiTotal)} TL` : "0,00 TL",
             `${formatMoney(item.kalanNakit)} TL`,
           ]),
         },
@@ -1287,6 +1353,7 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
       metrics: [
         { label: "Net Maaş", value: `${formatMoney(item.baseSalary)} TL`, side: "left" as const, color: "green" as const },
         { label: "Toplam Alınan Avans", value: `-${formatMoney(item.total)} TL`, side: "right" as const, color: "red" as const },
+        ...(item.kesintiTotal > 0 ? [{ label: "Yapılan Kesintiler", value: `-${formatMoney(item.kesintiTotal)} TL`, side: "right" as const, color: "red" as const }] : []),
         { label: "Kalan Nakit", value: `${formatMoney(item.kalanNakit)} TL`, side: "right" as const, color: item.kalanNakit >= 0 ? "black" as const : "red" as const },
       ],
       tables: [
@@ -1302,6 +1369,12 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
           firstColumnWidth: "28%",
           rows: item.advances.map(detail => [formatDate(detail.tarih), detail.description, `-${formatMoney(detail.amount)} TL`]),
         },
+        ...(item.kesintiler && item.kesintiler.length > 0 ? [{
+          title: "ORTAK KESİNTİ DETAYLARI",
+          headers: ["Tarih", "Açıklama", "Tutar"],
+          firstColumnWidth: "28%",
+          rows: item.kesintiler.map((k: any) => [formatDate(k.tarih), k.aciklama || "Ortak Maaş Kesintisi", `-${formatMoney(Number(k.tutar || 0))} TL`]),
+        }] : []),
       ],
     })
   }
@@ -2235,6 +2308,12 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
                     <span className="text-muted-foreground">Toplam Avans: </span>
                     <span className="font-bold text-rose-700 dark:text-rose-300">-{formatMoney(ortakTotals.total)} TL</span>
                   </div>
+                  {ortakTotals.kesintiTotal > 0 && (
+                    <div className="px-2.5 py-1 rounded-md bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-[11px]">
+                      <span className="text-muted-foreground">Toplam Kesinti: </span>
+                      <span className="font-bold text-red-700 dark:text-red-300">-{formatMoney(ortakTotals.kesintiTotal)} TL</span>
+                    </div>
+                  )}
                   <div className={`px-2.5 py-1 rounded-md border text-[11px] ${
                     ortakTotals.kalanNakit >= 0
                       ? "bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-bold"
@@ -2316,6 +2395,12 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
                           <span className="font-medium">Çekilen Avans (Tüm Şubeler):</span>
                           <span className="font-bold text-rose-600 dark:text-rose-400">-{formatMoney(item.total)} TL</span>
                         </div>
+                        {item.kesintiTotal > 0 && (
+                          <div className="flex justify-between items-center text-muted-foreground">
+                            <span className="font-medium">Toplam Kesinti:</span>
+                            <span className="font-bold text-red-600 dark:text-red-400">-{formatMoney(item.kesintiTotal)} TL</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )
@@ -2347,6 +2432,15 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
                           <span className="text-[10px] uppercase font-bold text-muted-foreground block">Toplam Avans</span>
                           <span className="text-sm font-extrabold text-rose-600">-{formatMoney(selectedOrtak.total)} TL</span>
                         </div>
+                        {selectedOrtak.kesintiTotal > 0 && (
+                          <>
+                            <div className="h-6 w-px bg-border" />
+                            <div className="text-right">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground block">Toplam Kesinti</span>
+                              <span className="text-sm font-extrabold text-red-600">-{formatMoney(selectedOrtak.kesintiTotal)} TL</span>
+                            </div>
+                          </>
+                        )}
                         <div className="h-6 w-px bg-border" />
                         <div className="text-right">
                           <span className="text-[10px] uppercase font-bold text-muted-foreground block">Kalan Nakit</span>
@@ -2502,6 +2596,112 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
                       </div>
                     )
                   })()}
+
+                  {/* Kesintiler & Kesinti Ekleme Modülü (Seçili Ortak İçin) */}
+                  <div className="rounded-xl border bg-slate-50/50 dark:bg-slate-900/30 p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                        <Scissors className="h-4 w-4" />
+                        {selectedOrtak.ortak.ad} — Maaş Kesintileri ({selectedOrtak.kesintiler.length})
+                      </h4>
+                      {selectedOrtak.kesintiTotal > 0 && (
+                        <Badge variant="destructive" className="font-extrabold text-xs">
+                          Toplam Kesinti: -{formatMoney(selectedOrtak.kesintiTotal)} TL
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Manager Add Kesinti Form for Partner */}
+                    {isManager && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end border-t pt-3 border-dashed">
+                        <div>
+                          <label className="text-xs font-semibold block mb-1 text-foreground">Kesinti Tutarı (₺) *</label>
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="Örn: 1000"
+                            value={kesintiTutarInput}
+                            onChange={(e) => setKesintiTutarInput(e.target.value)}
+                            className="w-full h-10 text-xs bg-background"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold block mb-1 text-foreground">Kesinti Açıklaması *</label>
+                          <Input
+                            placeholder="Örn: Ortak özel harcama / kesinti"
+                            value={kesintiAciklamaInput}
+                            onChange={(e) => setKesintiAciklamaInput(e.target.value)}
+                            className="w-full h-10 text-xs bg-background"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold block mb-1 text-foreground">Kesinti Tarihi</label>
+                          <ModernDatePicker
+                            label=""
+                            value={kesintiTarihInput}
+                            onChange={(val) => setKesintiTarihInput(val)}
+                            buttonClassName="w-full h-10 text-xs bg-background border-input rounded-md px-3"
+                          />
+                        </div>
+                        <div className="sm:col-span-3 flex justify-end pt-1">
+                          <Button
+                            size="sm"
+                            className="bg-red-600 hover:bg-red-700 text-white text-xs gap-1.5 font-bold"
+                            onClick={() => handleAddKesintiForOrtak(selectedOrtak.ortak as any)}
+                            disabled={kesintiSubmitting || !kesintiTutarInput}
+                          >
+                            <Plus className="h-4 w-4" />
+                            {kesintiSubmitting ? "Kaydediliyor..." : `${selectedOrtak.ortak.ad} İçin Kesintiyi Kaydet`}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Kesintiler Listesi Tablosu */}
+                    <div className="rounded-lg border overflow-hidden bg-background">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-slate-100 dark:bg-slate-800 text-muted-foreground uppercase font-semibold">
+                          <tr>
+                            <th className="px-4 py-2">Tarih</th>
+                            <th className="px-4 py-2">Açıklama</th>
+                            <th className="px-4 py-2 text-right">Kesinti Tutarı</th>
+                            {isManager && <th className="px-4 py-2 text-right">İşlem</th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {selectedOrtak.kesintiler.length === 0 ? (
+                            <tr>
+                              <td colSpan={isManager ? 4 : 3} className="px-4 py-4 text-center text-muted-foreground italic">
+                                Bu ay için {selectedOrtak.ortak.ad} adına eklenmiş kesinti bulunmuyor.
+                              </td>
+                            </tr>
+                          ) : (
+                            selectedOrtak.kesintiler.map((kesinti: any) => (
+                              <tr key={kesinti.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                                <td className="px-4 py-2.5 font-medium">{formatDate(kesinti.tarih)}</td>
+                                <td className="px-4 py-2.5 font-semibold">{kesinti.aciklama}</td>
+                                <td className="px-4 py-2.5 text-right font-extrabold text-red-600 dark:text-red-400">
+                                  -{formatMoney(Number(kesinti.tutar || 0))} TL
+                                </td>
+                                {isManager && (
+                                  <td className="px-4 py-2.5 text-right">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 w-7 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                      onClick={() => handleDeleteKesinti(kesinti.id)}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </td>
+                                )}
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
               )}
             </CardContent>
