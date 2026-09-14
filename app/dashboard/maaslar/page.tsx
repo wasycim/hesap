@@ -1229,37 +1229,82 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
   }
 
   function exportGeneralPdf() {
+    const totalPersonelBaseSalary = personelSummaries.reduce((sum, item) => sum + Number(item.baseSalary || 0), 0)
+    const totalPersonelOvertime = personelSummaries.reduce((sum, item) => sum + Number(item.overtimeTotal || 0), 0)
+    const totalPersonelMaliyet = totalPersonelBaseSalary + totalPersonelOvertime
+    const totalPersonelAdvanceAndKesinti = personelSummaries.reduce((sum, item) => sum + Number((item.advanceTotal || 0) + (item.kesintiTotal || 0)), 0)
+    const totalPersonelBankayaGonderilen = personelSummaries.reduce((sum, item) => sum + Number(item.bankayaGonderilen || 0), 0)
+    const totalPersonelKalanNakit = personelSummaries.reduce((sum, item) => sum + Number(item.kalanNakit || 0), 0)
+
+    const personelRows = personelSummaries.map(item => [
+      item.personel.ad,
+      `${formatMoney(item.baseSalary)} TL`,
+      `+${formatMoney(item.overtimeTotal)} TL`,
+      `${formatMoney(item.baseSalary + item.overtimeTotal)} TL`,
+      `-${formatMoney(item.advanceTotal + item.kesintiTotal)} TL`,
+      `${formatMoney(item.bankayaGonderilen)} TL`,
+      `${formatMoney(item.kalanNakit)} TL`,
+    ])
+
+    if (personelSummaries.length > 0) {
+      personelRows.push([
+        "TOPLAM",
+        `${formatMoney(totalPersonelBaseSalary)} TL`,
+        `+${formatMoney(totalPersonelOvertime)} TL`,
+        `${formatMoney(totalPersonelMaliyet)} TL`,
+        `-${formatMoney(totalPersonelAdvanceAndKesinti)} TL`,
+        `${formatMoney(totalPersonelBankayaGonderilen)} TL`,
+        `${formatMoney(totalPersonelKalanNakit)} TL`,
+      ])
+    }
+
+    const totalOrtakBaseSalary = ortakSummaries.reduce((sum, item) => sum + Number(item.baseSalary || 0), 0)
+    const totalOrtakAvans = ortakSummaries.reduce((sum, item) => sum + Number(item.total || 0), 0)
+    const totalOrtakKesinti = ortakSummaries.reduce((sum, item) => sum + Number(item.kesintiTotal || 0), 0)
+    const totalOrtakKalanNakit = ortakSummaries.reduce((sum, item) => sum + Number(item.kalanNakit || 0), 0)
+
+    const ortakRows = ortakSummaries.map(item => [
+      item.ortak.ad,
+      `${formatMoney(item.baseSalary)} TL`,
+      `-${formatMoney(item.total)} TL`,
+      item.kesintiTotal > 0 ? `-${formatMoney(item.kesintiTotal)} TL` : "0,00 TL",
+      `${formatMoney(item.kalanNakit)} TL`,
+    ])
+
+    if (ortakSummaries.length > 0) {
+      ortakRows.push([
+        "TOPLAM",
+        `${formatMoney(totalOrtakBaseSalary)} TL`,
+        `-${formatMoney(totalOrtakAvans)} TL`,
+        totalOrtakKesinti > 0 ? `-${formatMoney(totalOrtakKesinti)} TL` : "0,00 TL",
+        `${formatMoney(totalOrtakKalanNakit)} TL`,
+      ])
+    }
+
     openPdfReport({
       title: "Maaşlar Genel Raporu",
       subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
       orientation: "landscape",
-      metrics: [],
+      metrics: [
+        { label: "Personel Sayısı", value: `${personelSummaries.length} Kişi`, side: "left" as const, color: "neutral" as const },
+        { label: "Toplam Personel Maliyeti", value: `${formatMoney(totalPersonelMaliyet)} TL`, side: "left" as const, color: "neutral" as const },
+        { label: "Personel Kalan Nakit", value: `${formatMoney(totalPersonelKalanNakit)} TL`, side: "left" as const, color: "green" as const },
+        { label: "Ortak Sayısı", value: `${ortakSummaries.length} Ortak`, side: "right" as const, color: "neutral" as const },
+        { label: "Ortaklar Maaş Hakedişi", value: `${formatMoney(totalOrtakBaseSalary)} TL`, side: "right" as const, color: "neutral" as const },
+        { label: "Ortaklar Kalan Nakit", value: `${formatMoney(totalOrtakKalanNakit)} TL`, side: "right" as const, color: "green" as const },
+      ],
       tables: [
         {
           title: "Personel Maaşları",
           headers: ["Personel", "Net Maaş", "Ekstra/Prim", "Toplam Maliyet", "Avans", "Bankaya Gönderilen", "Kalan Nakit"],
           firstColumnWidth: "18%",
-          rows: personelSummaries.map(item => [
-            item.personel.ad,
-            `${formatMoney(item.baseSalary)} TL`,
-            `+${formatMoney(item.overtimeTotal)} TL`,
-            `${formatMoney(item.baseSalary + item.overtimeTotal)} TL`,
-            `-${formatMoney(item.advanceTotal + item.kesintiTotal)} TL`,
-            `${formatMoney(item.bankayaGonderilen)} TL`,
-            `${formatMoney(item.kalanNakit)} TL`,
-          ]),
+          rows: personelRows,
         },
         {
           title: "Ortaklar Pay",
           headers: ["Ortak", "Net Maaş", "Alınan Avans", "Kesinti", "Kalan Nakit"],
           firstColumnWidth: "25%",
-          rows: ortakSummaries.map(item => [
-            item.ortak.ad,
-            `${formatMoney(item.baseSalary)} TL`,
-            `-${formatMoney(item.total)} TL`,
-            item.kesintiTotal > 0 ? `-${formatMoney(item.kesintiTotal)} TL` : "0,00 TL",
-            `${formatMoney(item.kalanNakit)} TL`,
-          ]),
+          rows: ortakRows,
         },
       ],
     })
