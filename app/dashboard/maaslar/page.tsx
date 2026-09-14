@@ -1285,14 +1285,7 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
       title: "Maaşlar Genel Raporu",
       subtitle: `${currentSube?.ad || ""} - ${month} ${year}`,
       orientation: "landscape",
-      metrics: [
-        { label: "Personel Sayısı", value: `${personelSummaries.length} Kişi`, side: "left" as const, color: "neutral" as const },
-        { label: "Toplam Personel Maliyeti", value: `${formatMoney(totalPersonelMaliyet)} TL`, side: "left" as const, color: "neutral" as const },
-        { label: "Personel Kalan Nakit", value: `${formatMoney(totalPersonelKalanNakit)} TL`, side: "left" as const, color: "green" as const },
-        { label: "Ortak Sayısı", value: `${ortakSummaries.length} Ortak`, side: "right" as const, color: "neutral" as const },
-        { label: "Ortaklar Maaş Hakedişi", value: `${formatMoney(totalOrtakBaseSalary)} TL`, side: "right" as const, color: "neutral" as const },
-        { label: "Ortaklar Kalan Nakit", value: `${formatMoney(totalOrtakKalanNakit)} TL`, side: "right" as const, color: "green" as const },
-      ],
+      metrics: [],
       tables: [
         {
           title: "Personel Maaşları",
