@@ -74,6 +74,9 @@ interface WebKomisyonItem {
 
 type Period = "daily" | "weekly" | "monthly" | "custom"
 
+export const ISTISNA_EL_BILETI_ID = "istisna_el_bileti"
+export const ISTISNA_ELDEN_KOMISYON_ID = "istisna_elden_komisyon"
+
 const VARDIYA_SIRASI: Record<string, number> = { S: 0, A: 1, "": 2 }
 
 const COLOR_MAP: Record<string, string> = {
@@ -351,16 +354,66 @@ export default function SubeCiroRaporlariPage() {
     setLoading(false)
   }
 
-  const firmaMap = useMemo(() => new Map(firmalar.map((firma) => [firma.id, firma])), [firmalar])
+  const onDortSube = useMemo(() => {
+    return subeler.find((s) => {
+      const normAd = s.ad.toLocaleLowerCase("tr-TR").replace(/\s+/g, "")
+      const normKod = (s.kod || "").toLocaleLowerCase("tr-TR").replace(/\s+/g, "")
+      return normKod === "14" || normAd === "14" || normAd.includes("14no") || normAd.includes("14numara")
+    })
+  }, [subeler])
+
+  const allFirmalar = useMemo(() => {
+    const list = [...firmalar]
+    const shouldInclude14Exceptions = Boolean(
+      onDortSube && (selectedSubeId === "all" || selectedSubeId === onDortSube.id)
+    )
+
+    if (onDortSube && shouldInclude14Exceptions) {
+      if (!list.some((f) => f.id === ISTISNA_EL_BILETI_ID)) {
+        list.push({
+          id: ISTISNA_EL_BILETI_ID,
+          sube_id: onDortSube.id,
+          ad: "EL BİLETİ",
+          komisyon_orani: 20,
+          color: "bg-blue-600",
+        })
+      }
+      if (!list.some((f) => f.id === ISTISNA_ELDEN_KOMISYON_ID)) {
+        list.push({
+          id: ISTISNA_ELDEN_KOMISYON_ID,
+          sube_id: onDortSube.id,
+          ad: "ELDEN KOMİSYON",
+          komisyon_orani: 0,
+          color: "bg-emerald-600",
+        })
+      }
+    }
+    return list
+  }, [firmalar, onDortSube, selectedSubeId])
+
+  useEffect(() => {
+    if (
+      selectedFirmaId.startsWith("istisna_") &&
+      selectedSubeId !== "all" &&
+      onDortSube &&
+      selectedSubeId !== onDortSube.id
+    ) {
+      setSelectedFirmaId("all")
+    }
+  }, [selectedSubeId, selectedFirmaId, onDortSube])
+
+  const firmaMap = useMemo(() => new Map(allFirmalar.map((firma) => [firma.id, firma])), [allFirmalar])
 
   const filteredFirmalar = useMemo(
-    () => (selectedFirmaId === "all" ? firmalar : firmalar.filter((firma) => firma.id === selectedFirmaId)),
-    [firmalar, selectedFirmaId]
+    () => (selectedFirmaId === "all" ? allFirmalar : allFirmalar.filter((firma) => firma.id === selectedFirmaId)),
+    [allFirmalar, selectedFirmaId]
   )
 
   const reportRows = useMemo(() => {
-    return rows.flatMap((row) =>
-      filteredFirmalar
+    return rows.flatMap((row) => {
+      // 1. Standart tanımlı firmalar
+      const standardRows = filteredFirmalar
+        .filter((f) => !f.id.startsWith("istisna_"))
         .map((firma) => {
           const satis = Number(row.custom_values?.[`firma_${firma.id}`]) || 0
           const oran = Number(firma.komisyon_orani) || 0
@@ -374,8 +427,65 @@ export default function SubeCiroRaporlariPage() {
           }
         })
         .filter((item) => item.satis > 0)
-    )
-  }, [rows, filteredFirmalar])
+
+      // 2. 14 No Şube Özel İstisnaları (EL BİLETİ sabit %20 & ELDEN KOMİSYON %0)
+      const exceptionRows: typeof standardRows = []
+      const isCurrentRow14 = Boolean(onDortSube && row.sube_id === onDortSube.id)
+
+      if (isCurrentRow14) {
+        // İstisna 1: EL BİLETİ (Sabit %20 Komisyon)
+        const canIncludeElBileti = selectedFirmaId === "all" || selectedFirmaId === ISTISNA_EL_BILETI_ID
+        if (canIncludeElBileti) {
+          let elBiletiSatis = Number(row.custom_values?.["custom_el_bileti_1779253838281"]) || 0
+          if (!elBiletiSatis && row.custom_values) {
+            const key = Object.keys(row.custom_values).find(
+              (k) => k.toLowerCase().includes("el_bileti") || k.toLowerCase().includes("el_bilet")
+            )
+            if (key) elBiletiSatis = Number(row.custom_values[key]) || 0
+          }
+
+          if (elBiletiSatis > 0) {
+            exceptionRows.push({
+              sube_id: row.sube_id,
+              firma_id: ISTISNA_EL_BILETI_ID,
+              tarih: row.tarih,
+              vardiya: row.vardiya,
+              satis: elBiletiSatis,
+              komisyon: (elBiletiSatis * 20) / 100,
+            })
+          }
+        }
+
+        // İstisna 2: ELDEN KOMİSYON (%0 Komisyon)
+        const canIncludeEldenKomisyon = selectedFirmaId === "all" || selectedFirmaId === ISTISNA_ELDEN_KOMISYON_ID
+        if (canIncludeEldenKomisyon) {
+          let eldenKomisyonSatis = Number(row.custom_values?.["custom_eldem_komisyon_1779253880185"]) || 0
+          if (!eldenKomisyonSatis && row.custom_values) {
+            const key = Object.keys(row.custom_values).find(
+              (k) =>
+                k.toLowerCase().includes("eldem_komisyon") ||
+                k.toLowerCase().includes("elden_komisyon") ||
+                k.toLowerCase().includes("elden_kom")
+            )
+            if (key) eldenKomisyonSatis = Number(row.custom_values[key]) || 0
+          }
+
+          if (eldenKomisyonSatis > 0) {
+            exceptionRows.push({
+              sube_id: row.sube_id,
+              firma_id: ISTISNA_ELDEN_KOMISYON_ID,
+              tarih: row.tarih,
+              vardiya: row.vardiya,
+              satis: eldenKomisyonSatis,
+              komisyon: 0,
+            })
+          }
+        }
+      }
+
+      return [...standardRows, ...exceptionRows]
+    })
+  }, [rows, filteredFirmalar, onDortSube, selectedFirmaId])
 
   const totals = useMemo(
     () =>
@@ -791,7 +901,7 @@ export default function SubeCiroRaporlariPage() {
               <SelectTrigger className="font-semibold"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tüm Firmalar</SelectItem>
-                {firmalar.map((firma) => (
+                {allFirmalar.map((firma) => (
                   <SelectItem key={firma.id} value={firma.id}>
                     {firma.ad}
                   </SelectItem>
@@ -801,7 +911,7 @@ export default function SubeCiroRaporlariPage() {
           </div>
 
           {/* Quick Firma Filter Badges */}
-          {firmalar.length > 0 && (
+          {allFirmalar.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 pt-3 border-t text-xs">
               <span className="text-muted-foreground font-bold mr-1 flex items-center gap-1">
                 <Sparkles className="h-3.5 w-3.5 text-amber-500" /> Hızlı Filtre:
@@ -815,9 +925,9 @@ export default function SubeCiroRaporlariPage() {
                     : "bg-muted hover:bg-muted/80 text-muted-foreground"
                 }`}
               >
-                Tüm Firmalar ({firmalar.length})
+                Tüm Firmalar ({allFirmalar.length})
               </button>
-              {firmalar.map((firma, idx) => {
+              {allFirmalar.map((firma, idx) => {
                 const hex = getFirmaHexColor(firma.color, idx)
                 const isSelected = selectedFirmaId === firma.id
                 return (
@@ -929,7 +1039,7 @@ export default function SubeCiroRaporlariPage() {
                 <Store className="h-4 w-4 shrink-0 text-amber-600" />
                 {selectedSubeId === "all" ? "Tüm Şubeler Toplamı" : subeler.find((s) => s.id === selectedSubeId)?.ad || "Şube"}
               </p>
-              <p className="text-xs font-medium text-muted-foreground">{firmalar.length} Firma Tanımlı</p>
+              <p className="text-xs font-medium text-muted-foreground">{allFirmalar.length} Firma Tanımlı</p>
             </div>
             <div className="grid h-14 w-14 place-items-center rounded-2xl bg-amber-500/10 text-amber-600 shadow-sm">
               <Building2 className="h-7 w-7" />
