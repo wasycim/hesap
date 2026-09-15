@@ -68,6 +68,8 @@ type AttendanceDetail = {
   workDate: string
   overtimeMinutes: number
   payableOvertimeMinutes?: number
+  approvedPayableOvertimeMinutes?: number
+  approvalStatus?: "pending" | "approved" | "rejected" | null
 }
 
 type OvertimeApproval = {
@@ -570,7 +572,7 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
     const overtime: OvertimeDetail[] = []
     const approvalByLogId = new Map(
       overtimeApprovals
-        .filter((item) => item.attendance_log_id && item.status === "approved")
+        .filter((item) => item.attendance_log_id)
         .map((item) => [Number(item.attendance_log_id), item]),
     )
 
@@ -656,11 +658,17 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
     })
 
     attendanceOvertime
-      .filter(detail => detail.personelId === personel.id && (detail.payableOvertimeMinutes ?? detail.overtimeMinutes) > 0)
+      .filter(detail => detail.personelId === personel.id)
       .forEach(detail => {
         const approval = approvalByLogId.get(Number(detail.id))
-        if (approval && approval.status === "rejected") return
-        const payableMinutes = Number(approval?.payable_minutes) || detail.payableOvertimeMinutes || detail.overtimeMinutes
+        // Mesai takip kaydı maaşa SADECE yönetici tarafından onaylandığında (approved) dahil edilir.
+        // Reddedilmiş (rejected), bekleyen (pending) veya onaylanmamış hiçbir mesai maaşa yansıtılamaz.
+        const isApproved = approval ? approval.status === "approved" : detail.approvalStatus === "approved"
+        if (!isApproved) return
+
+        const payableMinutes = Number(approval ? approval.payable_minutes : (detail.approvedPayableOvertimeMinutes ?? 0))
+        if (payableMinutes <= 0) return
+
         const hours = payableMinutes / 60
         overtime.push({
           tarih: detail.workDate,

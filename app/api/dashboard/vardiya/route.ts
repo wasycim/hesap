@@ -234,6 +234,27 @@ export async function POST(request: NextRequest) {
   ))
 
   const admin = createAdminClient()
+  const targetPersonelIds = Array.from(new Set(validAssignments.map((a) => a.personel_id)))
+  if (targetPersonelIds.length > 0) {
+    const { data: targetPersoneller } = await admin
+      .from("personeller")
+      .select("id, ad, isten_cikis_tarihi")
+      .in("id", targetPersonelIds)
+
+    const personelMap = new Map((targetPersoneller || []).map((p) => [p.id, p]))
+
+    for (const assignment of validAssignments) {
+      if (!assignment.vardiya.trim()) continue
+      const p = personelMap.get(assignment.personel_id)
+      if (p?.isten_cikis_tarihi && assignment.tarih > p.isten_cikis_tarihi) {
+        return NextResponse.json(
+          { error: `${p.ad} adlı personel ${p.isten_cikis_tarihi} tarihinde işten ayrıldığı için bu tarihten sonrasına (${assignment.tarih}) vardiya atanamaz.` },
+          { status: 400 },
+        )
+      }
+    }
+  }
+
   const rowsToUpsert = validAssignments
     .filter((assignment) => assignment.vardiya.trim())
     .map((assignment) => ({

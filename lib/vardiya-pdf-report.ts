@@ -14,7 +14,7 @@ export interface VardiyaPdfOptions {
   rangeTitle: string
   rangeLabel: string
   days: Date[]
-  personeller: Array<{ id: string; ad: string }>
+  personeller: Array<{ id: string; ad: string; isten_cikis_tarihi?: string | null }>
   shiftOptions: ShiftOption[]
   getAssignment: (day: Date, personelId: string) => string | undefined
   shiftById: Map<string, ShiftOption>
@@ -504,6 +504,18 @@ export function buildVardiyaHtml(options: VardiyaPdfOptions, orientation: "lands
                 <td class="cell-num">${idx + 1}</td>
                 <td class="cell-person" title="${escapeHtml(p.ad)}">${escapeHtml(p.ad)}</td>
                 ${days.map((day) => {
+                  const dKey = format(day, "yyyy-MM-dd")
+                  const isExited = Boolean(p.isten_cikis_tarihi && dKey > p.isten_cikis_tarihi)
+                  if (isExited) {
+                    return `
+                      <td>
+                        <div class="shift-card" style="background: #fef2f2; border-color: #fca5a5; color: #dc2626; font-weight: 800; padding: 2px;">
+                          <span class="title" style="color: #dc2626; font-size: 8px; font-weight: 900;">AYRILDI</span>
+                        </div>
+                      </td>
+                    `
+                  }
+
                   const shiftId = getAssignment(day, p.id)
                   const shift = shiftId ? shiftById.get(shiftId) : null
                   const theme = getShiftTheme(shift)

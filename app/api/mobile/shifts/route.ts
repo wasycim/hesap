@@ -21,6 +21,14 @@ function getShiftDetails(shiftCode: string | null | undefined, customShifts: any
   }
 
   const code = String(shiftCode).trim().toLocaleUpperCase("tr-TR")
+  if (code === "AYRILDI" || code === "AYR") {
+    return {
+      shortCode: "AYR",
+      label: "Ayrıldı (İşten Çıkış)",
+      hours: "-",
+      color: "#ef4444",
+    }
+  }
   const custom = (customShifts || []).find((s) => s.id === shiftCode || String(s.simge).toLocaleUpperCase("tr-TR") === code)
   const fixed = (fixedShifts || []).find((s) => s.kod === code || String(s.simge).toLocaleUpperCase("tr-TR") === code)
 
@@ -82,10 +90,10 @@ function getWeekDates(centerDateStr: string) {
   monday.setDate(date.getDate() + diffToMonday)
 
   const days = []
-  const shortNames = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
-  const longNames = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+  const shortNames = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz", "Pzt (+1)"]
+  const longNames = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "Gelecek Pazartesi"]
 
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 8; i++) {
     const d = new Date(monday)
     d.setDate(monday.getDate() + i)
     const key = dateKey(d)
@@ -94,6 +102,7 @@ function getWeekDates(centerDateStr: string) {
       shortDay: shortNames[i],
       longDay: longNames[i],
       dayIndex: i,
+      isNextWeek: i === 7,
     })
   }
   return days
@@ -172,7 +181,7 @@ export async function GET(request: NextRequest) {
     { data: fixedShifts }
   ] = await Promise.all([
     admin.from("subeler").select("id, ad, kod").eq("id", subeId).maybeSingle(),
-    admin.from("personeller").select("id, ad, sabit_vardiya, sira, aktif").eq("sube_id", subeId).eq("aktif", true).order("sira"),
+    admin.from("personeller").select("id, ad, sabit_vardiya, sira, aktif, isten_cikis_tarihi").eq("sube_id", subeId).eq("aktif", true).order("sira"),
     admin.from("vardiya_planlari").select("id, personel_id, tarih, vardiya, notlar, sube_id").in("sube_id", planBranchIds).in("tarih", weekDateKeys),
     admin.from("vardiya_tanimlari").select("id, ad, simge, baslangic, bitis, aktif, sira").eq("sube_id", subeId).eq("aktif", true).order("sira"),
     admin.from("vardiya_sabit_ayarlari").select("kod, ad, simge, baslangic, bitis, aktif").eq("aktif", true),
@@ -186,7 +195,7 @@ export async function GET(request: NextRequest) {
   } else if (subeId === BRANCH_14_ID) {
     const { data: omerData } = await admin
       .from("personeller")
-      .select("id, ad, sabit_vardiya, sira, aktif")
+      .select("id, ad, sabit_vardiya, sira, aktif, isten_cikis_tarihi")
       .ilike("ad", "%ÖMER KAHRİMAN%")
       .maybeSingle()
     if (omerData && !personeller.some((p) => p.id === omerData.id)) {
@@ -211,6 +220,20 @@ export async function GET(request: NextRequest) {
   const weeklyShiftGrid = (personeller || []).map((p) => {
     const isCurrentUser = p.id === currentPersonel?.id
     const days = weekDays.map((wd) => {
+      if (p.isten_cikis_tarihi && wd.date > p.isten_cikis_tarihi) {
+        return {
+          date: wd.date,
+          shortDay: wd.shortDay,
+          longDay: wd.longDay,
+          shiftCode: "AYRILDI",
+          shortCode: "AYR",
+          label: "Ayrıldı",
+          hours: "-",
+          color: "#ef4444",
+          notes: "İşten ayrıldı",
+          isExited: true,
+        }
+      }
       const plan = planMap.get(`${p.id}:${wd.date}`)
       const shiftCode = (plan?.vardiya && plan.vardiya.trim()) ? plan.vardiya : (p.sabit_vardiya || "")
       const { shortCode, label, hours, color } = getShiftDetails(shiftCode, customShifts || [], fixedShifts || [])
@@ -224,6 +247,7 @@ export async function GET(request: NextRequest) {
         hours,
         color,
         notes: plan?.notlar || null,
+        isExited: false,
       }
     })
 
@@ -272,6 +296,12 @@ export async function GET(request: NextRequest) {
     })),
   ]
 
+  const currentUserRow = weeklyShiftGrid.find((p) => p.isCurrentUser) || null
+  const nextMondayDay = weekDays.find((w) => w.isNextWeek)
+  const currentUserNextMondayShift = nextMondayDay && currentUserRow?.weeklyDays
+    ? currentUserRow.weeklyDays.find((d: any) => d.date === nextMondayDay.date) || null
+    : null
+
   return NextResponse.json({
     date: selectedDate,
     weekDays,
@@ -279,6 +309,8 @@ export async function GET(request: NextRequest) {
     isAdmin,
     currentUser: currentPersonel ? { id: currentPersonel.id, name: currentPersonel.ad } : null,
     currentUserShift,
+    nextMondayDate: nextMondayDay?.date || null,
+    nextMondayShift: currentUserNextMondayShift,
     sameShiftPeers,
     allShifts: isAdmin ? shiftListForSelectedDate : [],
     weeklyGrid: weeklyShiftGrid,
@@ -317,6 +349,19 @@ export async function POST(request: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ success: true, message: "Vardiya kaydı silindi." })
+  }
+
+  const { data: targetPersonel } = await admin
+    .from("personeller")
+    .select("id, ad, isten_cikis_tarihi")
+    .eq("id", personelId)
+    .maybeSingle()
+
+  if (targetPersonel?.isten_cikis_tarihi && date > targetPersonel.isten_cikis_tarihi) {
+    return NextResponse.json(
+      { error: `${targetPersonel.ad} adlı personel ${targetPersonel.isten_cikis_tarihi} tarihinde işten ayrıldığı için bu tarihten sonrasına (${date}) vardiya atanamaz.` },
+      { status: 400 },
+    )
   }
 
   const BRANCH_14_ID = "172cc1f6-3012-47d3-a707-36e6f77e97cf"

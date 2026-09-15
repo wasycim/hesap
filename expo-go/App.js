@@ -468,12 +468,13 @@ export default function App() {
     }
   }, [clearSession, requestJson, session])
 
-  const loadShifts = useCallback(async () => {
+  const loadShifts = useCallback(async (targetDate) => {
     if (!session) return
     setLoading(true)
     setError("")
     try {
-      setShifts(await requestJson("/api/mobile/shifts"))
+      const query = targetDate ? `?date=${encodeURIComponent(targetDate)}` : ""
+      setShifts(await requestJson(`/api/mobile/shifts${query}`))
     } catch (reason) {
       if (reason.status === 401) await clearSession()
       setError(reason.message || "Vardiya bilgisi yüklenemedi.")
@@ -1749,6 +1750,12 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
       Alert.alert("Eksik Seçim", "Lütfen bir personel ve vardiya seçin.")
       return
     }
+    const targetPersonelObj = weeklyGrid.find((p) => p?.personelId === selectedPersonel)
+    const targetDayObj = targetPersonelObj?.weeklyDays?.find((d) => d?.date === activeDate)
+    if (targetDayObj?.isExited) {
+      Alert.alert("Hata", "Bu personel işten ayrıldığı için çıkış tarihinden sonrasına vardiya atanamaz.")
+      return
+    }
     setAssigning(true)
     try {
       await requestJson("/api/mobile/shifts", {
@@ -1760,7 +1767,7 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
         }),
       })
       Alert.alert("Başarılı", `${activeWeekDay?.shortDay || "Seçili"} gün için vardiya atandı.`)
-      if (onRequestReload) onRequestReload()
+      if (onRequestReload) onRequestReload(activeDate)
     } catch (err) {
       Alert.alert("Hata", err.message || "Vardiya atanamadı.")
     } finally {
@@ -1774,24 +1781,108 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
 
   return (
     <View>
-      <View style={styles.heroCard}>
+      <View style={[styles.heroCard, activeUserShift?.isExited && { borderColor: "#ef4444" }]}>
         <Text style={styles.heroEyebrow}>{eyebrowText}</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 6, flexWrap: "nowrap" }}>
-          <View style={{ backgroundColor: activeUserShift?.color || "#f59e0b", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}>
+          <View style={{ backgroundColor: activeUserShift?.isExited ? "#ef4444" : (activeUserShift?.color || "#f59e0b"), paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}>
             <Text style={{ color: "#ffffff", fontWeight: "900", fontSize: 15 }}>
-              {activeUserShift?.shortCode || "—"}
+              {activeUserShift?.isExited ? "AYRILDI" : (activeUserShift?.shortCode || "—")}
             </Text>
           </View>
-          <Text style={[styles.heroTitle, { marginTop: 0, flex: 1, flexShrink: 1 }]} numberOfLines={1} adjustsFontSizeToFit>
-            {activeUserShift ? activeUserShift.label : "Vardiya Yok"}
+          <Text style={[styles.heroTitle, { marginTop: 0, flex: 1, flexShrink: 1 }, activeUserShift?.isExited && { color: "#ef4444" }]} numberOfLines={1} adjustsFontSizeToFit>
+            {activeUserShift?.isExited ? "İşten Ayrıldı" : (activeUserShift ? activeUserShift.label : "Vardiya Yok")}
           </Text>
         </View>
         <Text style={styles.heroSub} numberOfLines={1} adjustsFontSizeToFit>
-          {`${activeWeekDay?.longDay || ""} (${formatDate(activeDate)})`}{activeUserShift?.hours ? ` · Saatler: ${activeUserShift.hours}` : ""}
+          {`${activeWeekDay?.longDay || ""} (${formatDate(activeDate)})`}{activeUserShift?.isExited ? " · Çıkış yaptığı için çalışamaz" : (activeUserShift?.hours ? ` · Saatler: ${activeUserShift.hours}` : "")}
         </Text>
       </View>
 
-      <Text style={styles.sectionTitle}>Haftalık Gün Seçimi</Text>
+      {/* Gelecek Pazartesi Vardiya Bilgilendirme Kutusu (Pazar günü veya her an erişim) */}
+      {data?.nextMondayDate && data?.nextMondayShift ? (
+        <View style={{
+          backgroundColor: "#1e1b4b",
+          borderRadius: 12,
+          padding: 12,
+          marginTop: 10,
+          borderWidth: 1,
+          borderColor: "#4338ca",
+        }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text style={{ color: "#a5b4fc", fontSize: 11, fontWeight: "800", textTransform: "uppercase" }}>
+                📅 Gelecek Pazartesi ({formatDate(data.nextMondayDate)})
+              </Text>
+              <Text style={{ color: "#ffffff", fontSize: 14, fontWeight: "900", marginTop: 2 }} numberOfLines={1}>
+                {data.nextMondayShift.label || "Vardiya Yok"}
+              </Text>
+              {data.nextMondayShift.hours ? (
+                <Text style={{ color: "#c7d2fe", fontSize: 11, marginTop: 1 }}>
+                  Saatler: {data.nextMondayShift.hours}
+                </Text>
+              ) : null}
+            </View>
+            <TouchableOpacity
+              onPress={() => setSelectedDayDate(data.nextMondayDate)}
+              style={{
+                backgroundColor: activeDate === data.nextMondayDate ? "#10b981" : "#6366f1",
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 8,
+              }}
+            >
+              <Text style={{ color: "#ffffff", fontSize: 12, fontWeight: "800" }}>
+                {activeDate === data.nextMondayDate ? "Seçildi ✓" : "Pzt'ye Bak →"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
+
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, marginBottom: 2 }}>
+        <Text style={[styles.sectionTitle, { marginTop: 0 }]}>Haftalık Gün Seçimi</Text>
+        <View style={{ flexDirection: "row", gap: 5 }}>
+          <TouchableOpacity
+            onPress={() => {
+              if (weekDays[0]?.date) {
+                const prev = new Date(weekDays[0].date)
+                prev.setDate(prev.getDate() - 7)
+                const prevStr = prev.toISOString().slice(0, 10)
+                setSelectedDayDate(prevStr)
+                if (onRequestReload) onRequestReload(prevStr)
+              }
+            }}
+            style={{ backgroundColor: "#334155", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
+          >
+            <Text style={{ color: "#ffffff", fontSize: 11, fontWeight: "700" }}>← Önceki</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              const todayStr = new Date().toISOString().slice(0, 10)
+              setSelectedDayDate(todayStr)
+              if (onRequestReload) onRequestReload(todayStr)
+            }}
+            style={{ backgroundColor: "#1e293b", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: "#475569" }}
+          >
+            <Text style={{ color: "#cbd5e1", fontSize: 11, fontWeight: "700" }}>Bu Hafta</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              if (weekDays[0]?.date) {
+                const next = new Date(weekDays[0].date)
+                next.setDate(next.getDate() + 7)
+                const nextStr = next.toISOString().slice(0, 10)
+                setSelectedDayDate(nextStr)
+                if (onRequestReload) onRequestReload(nextStr)
+              }
+            }}
+            style={{ backgroundColor: "#334155", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
+          >
+            <Text style={{ color: "#ffffff", fontSize: 11, fontWeight: "700" }}>Sonraki →</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 6 }}>
         {weekDays.map((wd) => {
           if (!wd) return null
@@ -1826,7 +1917,7 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
               ) : null}
               <View
                 style={{
-                  backgroundColor: userDayShift?.color || (isActive ? "rgba(255,255,255,0.25)" : "#e2e8f0"),
+                  backgroundColor: userDayShift?.isExited ? "#ef4444" : (userDayShift?.color || (isActive ? "rgba(255,255,255,0.25)" : "#e2e8f0")),
                   paddingHorizontal: 6,
                   paddingVertical: 2,
                   borderRadius: 5,
@@ -1839,11 +1930,11 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
                   style={{
                     fontSize: 10,
                     fontWeight: "900",
-                    color: userDayShift?.color ? "#ffffff" : (isActive ? "#ffffff" : "#64748b"),
+                    color: userDayShift?.isExited ? "#ffffff" : (userDayShift?.color ? "#ffffff" : (isActive ? "#ffffff" : "#64748b")),
                   }}
                   numberOfLines={1}
                 >
-                  {userDayShift?.shortCode || "—"}
+                  {userDayShift?.isExited ? "AYR" : (userDayShift?.shortCode || "—")}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -1979,17 +2070,32 @@ function ShiftsScreen({ data, onRequestReload, requestJson }) {
 
             <Text style={[styles.infoTitle, { marginTop: 12, fontSize: 13 }]}>1. Personel Seçin:</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
-              {allShifts.map((p) => (
-                <TouchableOpacity
-                  key={p.personelId || Math.random().toString()}
-                  style={[styles.selectChip, selectedPersonel === p.personelId && styles.selectChipActive, { maxWidth: "100%" }]}
-                  onPress={() => setSelectedPersonel(p.personelId)}
-                >
-                  <Text style={[styles.selectChipText, selectedPersonel === p.personelId && styles.selectChipTextActive]} numberOfLines={1} adjustsFontSizeToFit>
-                    {p.name || "Personel"}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {allShifts.map((p) => {
+                const targetObj = weeklyGrid.find((x) => x.personelId === p.personelId)
+                const isExitedToday = Boolean(targetObj?.weeklyDays?.find((d) => d.date === activeDate)?.isExited)
+                return (
+                  <TouchableOpacity
+                    key={p.personelId || Math.random().toString()}
+                    style={[
+                      styles.selectChip,
+                      selectedPersonel === p.personelId && styles.selectChipActive,
+                      isExitedToday && { opacity: 0.6, borderColor: "#fca5a5", backgroundColor: "#fef2f2" },
+                      { maxWidth: "100%" },
+                    ]}
+                    onPress={() => {
+                      if (isExitedToday) {
+                        Alert.alert("Ayrılmış Personel", `${p.name} bu tarihte şirketten ayrıldığı için vardiya atanamaz.`)
+                        return
+                      }
+                      setSelectedPersonel(p.personelId)
+                    }}
+                  >
+                    <Text style={[styles.selectChipText, selectedPersonel === p.personelId && styles.selectChipTextActive, isExitedToday && { color: "#dc2626", fontWeight: "800" }]} numberOfLines={1} adjustsFontSizeToFit>
+                      {p.name || "Personel"}{isExitedToday ? " (AYRILDI)" : ""}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              })}
             </View>
 
             <Text style={[styles.infoTitle, { marginTop: 12, fontSize: 13 }]}>2. Vardiya Seçin (3 Harf Kodlu):</Text>

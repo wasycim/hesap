@@ -23,6 +23,7 @@ type Personel = {
   aktif: boolean
   sira: number
   sabit_vardiya?: string | null
+  isten_cikis_tarihi?: string | null
 }
 
 type Assignment = {
@@ -268,15 +269,26 @@ export default function VardiyaPage() {
   }
 
   function setAssignment(day: Date, personelId: string, vardiya: string) {
-    const key = `${dateKey(day)}__${personelId}`
+    const dKey = dateKey(day)
+    const personel = personeller.find((p) => p.id === personelId)
+    if (personel?.isten_cikis_tarihi && dKey > personel.isten_cikis_tarihi) {
+      toast.error(`${personel.ad} adlı personel ${personel.isten_cikis_tarihi} tarihinde ayrıldığı için bu tarihe vardiya atanamaz.`)
+      return
+    }
+    const key = `${dKey}__${personelId}`
     setDirtyAssignments((current) => ({ ...current, [key]: vardiya }))
   }
 
   function applyBulkShift(personelId: string, vardiya: string) {
+    const personel = personeller.find((p) => p.id === personelId)
     setDirtyAssignments((current) => {
       const next = { ...current }
       for (const day of days) {
-        next[`${dateKey(day)}__${personelId}`] = vardiya
+        const dKey = dateKey(day)
+        if (personel?.isten_cikis_tarihi && dKey > personel.isten_cikis_tarihi) {
+          continue
+        }
+        next[`${dKey}__${personelId}`] = vardiya
       }
       return next
     })
@@ -539,10 +551,24 @@ export default function VardiyaPage() {
                       </Select>
                     </td>
                     {days.map((day) => {
+                      const dKey = dateKey(day)
+                      const isExited = Boolean(personel.isten_cikis_tarihi && dKey > personel.isten_cikis_tarihi)
+                      if (isExited) {
+                        return (
+                          <td key={dKey} className="border-b border-r p-1 bg-red-50/60 dark:bg-red-950/30">
+                            <div
+                              title={`${personel.ad} ${personel.isten_cikis_tarihi} tarihinde işten ayrıldı`}
+                              className="flex h-7 w-full select-none items-center justify-center rounded border border-red-300 bg-red-100 px-1 text-[10px] font-black tracking-wider text-red-700 shadow-xs dark:border-red-900/70 dark:bg-red-950/80 dark:text-red-300"
+                            >
+                              AYRILDI
+                            </div>
+                          </td>
+                        )
+                      }
                       const value = getAssignment(day, personel.id)
                       const shift = shiftById.get(value)
                       return (
-                        <td key={dateKey(day)} className="border-b border-r p-1">
+                        <td key={dKey} className="border-b border-r p-1">
                           <Select value={value || "none"} onValueChange={(next) => setAssignment(day, personel.id, next === "none" ? "" : next)} disabled={!isAdmin}>
                             <SelectTrigger
                               aria-label={`${personel.ad} ${dayLabel(day)} vardiyasi`}
