@@ -433,11 +433,6 @@ export default function VardiyaPage() {
 
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="hidden sm:inline-flex">{personeller.length} personel</Badge>
-            {isExceptionUser && !isAdmin && (
-              <Badge variant="outline" className="border-amber-400 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/20 dark:text-amber-200 font-semibold">
-                Özel İstisna: ÇETİN ESER (Vardiya Ayarlama Yetkisi)
-              </Badge>
-            )}
             <div className="flex flex-wrap items-center gap-1.5 rounded-xl border bg-card/90 p-1 shadow-sm">
               <Tabs value={filterMode} onValueChange={(value) => setFilterMode(value as FilterMode)}>
                 <TabsList className="h-9 rounded-lg bg-muted/60 p-1">
@@ -651,9 +646,7 @@ export default function VardiyaPage() {
           ))}
           <span className="ml-auto hidden sm:inline">
             {canEditShifts
-              ? isExceptionUser && !isAdmin
-                ? "ÇETİN ESER özel istisnası aktif: Kullanıcıların vardiyalarını ayarlayabilirsiniz."
-                : "Sabit sütunu sadece seçili tarih aralığındaki tüm günleri doldurur."
+              ? "Sabit sütunu sadece seçili tarih aralığındaki tüm günleri doldurur."
               : "Salt okunur: vardiyaları görebilir, değiştiremezsiniz."}
           </span>
         </div>
