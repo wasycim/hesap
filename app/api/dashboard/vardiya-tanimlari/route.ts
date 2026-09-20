@@ -2,19 +2,38 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 
+function normalizeName(value: string | null | undefined) {
+  return String(value || "")
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .replace(/[^a-z0-9çğıöşü]/g, "")
+}
+
+function isCetinEserUser(displayName: string | null | undefined, email?: string | null): boolean {
+  if (email && email.toLowerCase().includes("cetin")) return true
+  if (!displayName) return false
+  const norm = normalizeName(displayName)
+  return norm === "çetineser" || norm === "cetineser" || norm.includes("cetineser") || norm.includes("çetineser")
+}
+
 async function requireDashboardAdmin() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) return { user: null, isAdmin: false }
+  if (!user) return { user: null, isAdmin: false, canEditShifts: false }
 
-  const { data: profile } = await supabase
+  const admin = createAdminClient()
+  const { data: profile } = await admin
     .from("user_profiles")
-    .select("is_admin")
+    .select("is_admin, is_developer, display_name, email")
     .eq("user_id", user.id)
-    .single()
+    .maybeSingle()
 
-  return { user, isAdmin: Boolean(profile?.is_admin) }
+  const isAdmin = Boolean(profile?.is_admin || profile?.is_developer)
+  const isExceptionUser = isCetinEserUser(profile?.display_name, profile?.email || user.email)
+  const canEditShifts = isAdmin || isExceptionUser
+
+  return { user, isAdmin, canEditShifts }
 }
 
 function isTime(value: unknown) {
@@ -44,9 +63,9 @@ async function getFixedShifts(admin: ReturnType<typeof createAdminClient>, subeI
 }
 
 export async function GET(request: NextRequest) {
-  const { isAdmin } = await requireDashboardAdmin()
+  const { canEditShifts } = await requireDashboardAdmin()
 
-  if (!isAdmin) {
+  if (!canEditShifts) {
     return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
   }
 
@@ -74,9 +93,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { user, isAdmin } = await requireDashboardAdmin()
+  const { user, canEditShifts } = await requireDashboardAdmin()
 
-  if (!user || !isAdmin) {
+  if (!user || !canEditShifts) {
     return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
   }
 

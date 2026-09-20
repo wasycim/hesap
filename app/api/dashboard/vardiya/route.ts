@@ -18,19 +18,38 @@ const defaultFixedShifts = [
   { kod: "I", ad: "İzin", simge: "İ", baslangic: null, bitis: null, aktif: true },
 ]
 
+function normalizeName(value: string | null | undefined) {
+  return String(value || "")
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .replace(/[^a-z0-9çğıöşü]/g, "")
+}
+
+export function isCetinEserUser(displayName: string | null | undefined, email?: string | null): boolean {
+  if (email && email.toLowerCase().includes("cetin")) return true
+  if (!displayName) return false
+  const norm = normalizeName(displayName)
+  return norm === "çetineser" || norm === "cetineser" || norm.includes("cetineser") || norm.includes("çetineser")
+}
+
 async function requireDashboardAdmin() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) return { user: null, isAdmin: false, profile: null }
+  if (!user) return { user: null, isAdmin: false, canEditShifts: false, profile: null, isExceptionUser: false }
 
-  const { data: profile } = await supabase
+  const admin = createAdminClient()
+  const { data: profile } = await admin
     .from("user_profiles")
-    .select("is_admin, is_developer, sube_id")
+    .select("is_admin, is_developer, sube_id, display_name, email")
     .eq("user_id", user.id)
-    .single()
+    .maybeSingle()
 
-  return { user, isAdmin: Boolean(profile?.is_admin || profile?.is_developer), profile }
+  const isAdmin = Boolean(profile?.is_admin || profile?.is_developer)
+  const isExceptionUser = isCetinEserUser(profile?.display_name, profile?.email || user.email)
+  const canEditShifts = isAdmin || isExceptionUser
+
+  return { user, isAdmin, canEditShifts, profile, isExceptionUser }
 }
 
 function monthRange(month: string) {
@@ -57,7 +76,7 @@ function dateRange(from: string | null, to: string | null) {
 }
 
 export async function GET(request: NextRequest) {
-  const { user, isAdmin, profile } = await requireDashboardAdmin()
+  const { user, isAdmin, canEditShifts, profile, isExceptionUser } = await requireDashboardAdmin()
 
 
   if (!user) {
@@ -65,7 +84,7 @@ export async function GET(request: NextRequest) {
   }
 
   const requestedSubeId = request.nextUrl.searchParams.get("subeId")
-  const subeId = isAdmin ? requestedSubeId : profile?.sube_id
+  const subeId = canEditShifts ? (requestedSubeId || profile?.sube_id) : profile?.sube_id
   const month = request.nextUrl.searchParams.get("month")
   const range = dateRange(
     request.nextUrl.searchParams.get("from"),
@@ -186,14 +205,16 @@ export async function GET(request: NextRequest) {
     conflicts,
     fixedShiftDefinitions,
     shiftDefinitions: shiftRes.data || [],
-    readOnly: !isAdmin,
+    readOnly: !canEditShifts,
+    canEditShifts,
+    isExceptionUser,
   })
 }
 
 export async function POST(request: NextRequest) {
-  const { user, isAdmin } = await requireDashboardAdmin()
+  const { user, canEditShifts } = await requireDashboardAdmin()
 
-  if (!user || !isAdmin) {
+  if (!user || !canEditShifts) {
     return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
   }
 

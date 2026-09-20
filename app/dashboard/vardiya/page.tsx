@@ -134,10 +134,26 @@ function shortName(name: string) {
     .toLocaleUpperCase("tr-TR")
 }
 
+function normalizeName(value: string | null | undefined) {
+  return String(value || "")
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .replace(/[^a-z0-9çğıöşü]/g, "")
+}
+
+function isCetinEserUser(displayName: string | null | undefined, email?: string | null): boolean {
+  if (email && email.toLowerCase().includes("cetin")) return true
+  if (!displayName) return false
+  const norm = normalizeName(displayName)
+  return norm === "çetineser" || norm === "cetineser" || norm.includes("cetineser") || norm.includes("çetineser")
+}
+
 export default function VardiyaPage() {
   const supabase = createClient()
   const { currentSube } = useSube()
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
+  const [canEditShifts, setCanEditShifts] = useState<boolean>(false)
+  const [isExceptionUser, setIsExceptionUser] = useState<boolean>(false)
   const [filterMode, setFilterMode] = useState<FilterMode>("month")
   const [anchorDate, setAnchorDate] = useState(() => dateKey(new Date()))
   const [customFrom, setCustomFrom] = useState(() => dateKey(startOfMonth(new Date())))
@@ -212,16 +228,22 @@ export default function VardiyaPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         setIsAdmin(false)
+        setCanEditShifts(false)
+        setIsExceptionUser(false)
         return
       }
 
       const { data } = await supabase
         .from("user_profiles")
-        .select("is_admin, is_developer")
+        .select("is_admin, is_developer, display_name, email")
         .eq("user_id", user.id)
-        .single()
+        .maybeSingle()
 
-      setIsAdmin(Boolean(data?.is_admin || data?.is_developer))
+      const admin = Boolean(data?.is_admin || data?.is_developer)
+      const cetin = isCetinEserUser(data?.display_name, data?.email || user.email)
+      setIsAdmin(admin)
+      setIsExceptionUser(cetin)
+      setCanEditShifts(admin || cetin)
     }
 
     checkAdmin()
@@ -229,7 +251,7 @@ export default function VardiyaPage() {
 
   useEffect(() => {
     if (currentSube && isAdmin !== null) loadSchedule()
-  }, [currentSube?.id, selectedRange.from, selectedRange.to, isAdmin])
+  }, [currentSube?.id, selectedRange.from, selectedRange.to, isAdmin, canEditShifts])
 
   async function loadSchedule() {
     if (!currentSube) return
@@ -259,6 +281,14 @@ export default function VardiyaPage() {
       `${assignment.tarih}__${assignment.personel_id}`,
       assignment.vardiya,
     ])))
+    if (payload.canEditShifts !== undefined) {
+      setCanEditShifts(Boolean(payload.canEditShifts))
+    } else if (payload.readOnly !== undefined) {
+      setCanEditShifts(!payload.readOnly)
+    }
+    if (payload.isExceptionUser !== undefined) {
+      setIsExceptionUser(Boolean(payload.isExceptionUser))
+    }
     setDirtyAssignments({})
     setLoading(false)
   }
@@ -403,6 +433,11 @@ export default function VardiyaPage() {
 
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="hidden sm:inline-flex">{personeller.length} personel</Badge>
+            {isExceptionUser && !isAdmin && (
+              <Badge variant="outline" className="border-amber-400 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/20 dark:text-amber-200 font-semibold">
+                Özel İstisna: ÇETİN ESER (Vardiya Ayarlama Yetkisi)
+              </Badge>
+            )}
             <div className="flex flex-wrap items-center gap-1.5 rounded-xl border bg-card/90 p-1 shadow-sm">
               <Tabs value={filterMode} onValueChange={(value) => setFilterMode(value as FilterMode)}>
                 <TabsList className="h-9 rounded-lg bg-muted/60 p-1">
@@ -498,7 +533,7 @@ export default function VardiyaPage() {
               <FileText className="h-3.5 w-3.5" />
               PDF
             </Button>
-            <Button type="button" size="sm" className="h-8 gap-2" onClick={saveSchedule} disabled={!isAdmin || saving || !hasChanges}>
+            <Button type="button" size="sm" className="h-8 gap-2" onClick={saveSchedule} disabled={!canEditShifts || saving || !hasChanges}>
               <Save className="h-3.5 w-3.5" />
               {saving ? "Kaydediliyor" : "Kaydet"}
             </Button>
@@ -538,7 +573,7 @@ export default function VardiyaPage() {
                       <span className="block truncate" title={personel.ad}>{personel.ad}</span>
                     </td>
                     <td className="border-b border-r px-1 py-1">
-                      <Select value={rangeBulkShifts[personel.id] || "none"} onValueChange={(next) => applyBulkShift(personel.id, next === "none" ? "" : next)} disabled={!isAdmin}>
+                      <Select value={rangeBulkShifts[personel.id] || "none"} onValueChange={(next) => applyBulkShift(personel.id, next === "none" ? "" : next)} disabled={!canEditShifts}>
                         <SelectTrigger className="h-7 w-full px-2 text-[11px]">
                           <SelectValue placeholder="-" />
                         </SelectTrigger>
@@ -569,7 +604,7 @@ export default function VardiyaPage() {
                       const shift = shiftById.get(value)
                       return (
                         <td key={dKey} className="border-b border-r p-1">
-                          <Select value={value || "none"} onValueChange={(next) => setAssignment(day, personel.id, next === "none" ? "" : next)} disabled={!isAdmin}>
+                          <Select value={value || "none"} onValueChange={(next) => setAssignment(day, personel.id, next === "none" ? "" : next)} disabled={!canEditShifts}>
                             <SelectTrigger
                               aria-label={`${personel.ad} ${dayLabel(day)} vardiyasi`}
                               className={`h-7 w-full justify-center px-1 text-[11px] font-semibold ${shift?.className || ""}`}
@@ -614,7 +649,13 @@ export default function VardiyaPage() {
               {shift.short} · {shift.label} {shift.time !== "-" ? shift.time : ""}
             </span>
           ))}
-          <span className="ml-auto hidden sm:inline">{isAdmin ? "Sabit sütunu sadece seçili tarih aralığındaki tüm günleri doldurur." : "Salt okunur: vardiyaları görebilir, değiştiremezsiniz."}</span>
+          <span className="ml-auto hidden sm:inline">
+            {canEditShifts
+              ? isExceptionUser && !isAdmin
+                ? "ÇETİN ESER özel istisnası aktif: Kullanıcıların vardiyalarını ayarlayabilirsiniz."
+                : "Sabit sütunu sadece seçili tarih aralığındaki tüm günleri doldurur."
+              : "Salt okunur: vardiyaları görebilir, değiştiremezsiniz."}
+          </span>
         </div>
       </div>
     </div>
