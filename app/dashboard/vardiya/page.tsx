@@ -142,10 +142,14 @@ function normalizeName(value: string | null | undefined) {
 }
 
 function isCetinEserUser(displayName: string | null | undefined, email?: string | null): boolean {
-  if (email && email.toLowerCase().includes("cetin")) return true
-  if (!displayName) return false
-  const norm = normalizeName(displayName)
-  return norm === "çetineser" || norm === "cetineser" || norm.includes("cetineser") || norm.includes("çetineser")
+  const normName = normalizeName(displayName)
+  const normEmail = String(email || "").trim().toLowerCase()
+
+  const isExactName = normName === "çetineser" || normName === "cetineser"
+  const isFullComboName = (normName.includes("çetin") || normName.includes("cetin")) && normName.includes("eser")
+  const isExactEmail = normEmail.startsWith("cetin.eser") || normEmail.startsWith("cetineser") || normEmail.includes("cetin.eser") || normEmail.includes("cetineser")
+
+  return isExactName || isFullComboName || isExactEmail
 }
 
 export default function VardiyaPage() {
@@ -235,12 +239,13 @@ export default function VardiyaPage() {
 
       const { data } = await supabase
         .from("user_profiles")
-        .select("is_admin, is_developer, display_name, email")
+        .select("is_admin, is_developer, display_name, email, dashboard_access")
         .eq("user_id", user.id)
         .maybeSingle()
 
-      const admin = Boolean(data?.is_admin || data?.is_developer)
-      const cetin = isCetinEserUser(data?.display_name, data?.email || user.email)
+      const hasAccess = data?.dashboard_access !== false
+      const admin = Boolean(hasAccess && (data?.is_admin || data?.is_developer))
+      const cetin = Boolean(hasAccess && isCetinEserUser(data?.display_name, data?.email || user.email))
       setIsAdmin(admin)
       setIsExceptionUser(cetin)
       setCanEditShifts(admin || cetin)

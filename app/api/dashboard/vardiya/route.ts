@@ -26,10 +26,14 @@ function normalizeName(value: string | null | undefined) {
 }
 
 export function isCetinEserUser(displayName: string | null | undefined, email?: string | null): boolean {
-  if (email && email.toLowerCase().includes("cetin")) return true
-  if (!displayName) return false
-  const norm = normalizeName(displayName)
-  return norm === "çetineser" || norm === "cetineser" || norm.includes("cetineser") || norm.includes("çetineser")
+  const normName = normalizeName(displayName)
+  const normEmail = String(email || "").trim().toLowerCase()
+
+  const isExactName = normName === "çetineser" || normName === "cetineser"
+  const isFullComboName = (normName.includes("çetin") || normName.includes("cetin")) && normName.includes("eser")
+  const isExactEmail = normEmail.startsWith("cetin.eser") || normEmail.startsWith("cetineser") || normEmail.includes("cetin.eser") || normEmail.includes("cetineser")
+
+  return isExactName || isFullComboName || isExactEmail
 }
 
 async function requireDashboardAdmin() {
@@ -41,12 +45,13 @@ async function requireDashboardAdmin() {
   const admin = createAdminClient()
   const { data: profile } = await admin
     .from("user_profiles")
-    .select("is_admin, is_developer, sube_id, display_name, email")
+    .select("is_admin, is_developer, sube_id, display_name, email, dashboard_access")
     .eq("user_id", user.id)
     .maybeSingle()
 
-  const isAdmin = Boolean(profile?.is_admin || profile?.is_developer)
-  const isExceptionUser = isCetinEserUser(profile?.display_name, profile?.email || user.email)
+  const hasAccess = profile?.dashboard_access !== false
+  const isAdmin = Boolean(hasAccess && (profile?.is_admin || profile?.is_developer))
+  const isExceptionUser = Boolean(hasAccess && isCetinEserUser(profile?.display_name, profile?.email || user.email))
   const canEditShifts = isAdmin || isExceptionUser
 
   return { user, isAdmin, canEditShifts, profile, isExceptionUser }
