@@ -362,9 +362,41 @@ export default function MaaslarPage() {
     
     let allPersoneller = (personelRes.data || []).filter((p) => !isTestPersonnel(p))
 
+    // Non-manager global personnel lookup: Ensure logged-in user always finds their own personnel record regardless of selected branch
+    const userNormName = normalizeName(displayName)
+    if (!isManager && userNormName) {
+      const isOmerUser = userNormName.includes("OMER") && userNormName.includes("KAHRIMAN")
+      const userInCurrentList = allPersoneller.some(p => {
+        const pNorm = normalizeName(p.ad)
+        if (isOmerUser && pNorm.includes("OMER") && pNorm.includes("KAHRIMAN")) return true
+        return pNorm === userNormName || pNorm.includes(userNormName) || userNormName.includes(pNorm)
+      })
+
+      if (!userInCurrentList && allBranchPersonelRes?.data) {
+        const globalMatch = allBranchPersonelRes.data.find(p => {
+          const pNorm = normalizeName(p.ad)
+          if (isOmerUser && pNorm.includes("OMER") && pNorm.includes("KAHRIMAN")) return true
+          return pNorm === userNormName || pNorm.includes(userNormName) || userNormName.includes(pNorm)
+        })
+
+        if (globalMatch) {
+          const { data: fullMatch } = await supabase
+            .from("personeller")
+            .select("id, ad, aylik_maas, banka_maas, nakit_maas, saatlik_mesai_ucreti, aktif, ise_giris_tarihi, isten_cikis_tarihi")
+            .eq("id", globalMatch.id)
+            .maybeSingle()
+
+          if (fullMatch && !isTestPersonnel(fullMatch)) {
+            allPersoneller.push(fullMatch)
+          }
+        }
+      }
+    }
+
     const is5ABranch = Boolean(
       currentSube.ad?.trim().toUpperCase().includes("5A") ||
-      currentSube.id === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981"
+      currentSube.id === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981" ||
+      (userNormName.includes("OMER") && userNormName.includes("KAHRIMAN"))
     )
 
     // ÖMER KAHRİMAN 5A Şubesinde görünecek, 14 No Şubesi avans, mesai ve çorbaları Branch 14'ten okunacak
@@ -856,9 +888,15 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
     if (isManager) return personelSummaries
     const rawDisplayName = currentUserProfile?.displayName || ""
     const myName = normalizeName(rawDisplayName)
-    if (!myName) return personelSummaries.slice(0, 1)
+    if (!myName) return []
 
-    let matched = personelSummaries.filter(item => normalizeName(item.personel.ad) === myName)
+    const isOmerUser = myName.includes("OMER") && myName.includes("KAHRIMAN")
+
+    let matched = personelSummaries.filter(item => {
+      const pName = normalizeName(item.personel.ad)
+      if (isOmerUser && pName.includes("OMER") && pName.includes("KAHRIMAN")) return true
+      return pName === myName
+    })
 
     if (matched.length === 0) {
       matched = personelSummaries.filter(item => {
@@ -875,7 +913,7 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
       })
     }
 
-    return matched.length > 0 ? matched : (personelSummaries[0] ? [personelSummaries[0]] : [])
+    return matched
   }, [isManager, currentUserProfile?.displayName, personelSummaries])
 
   const visibleOrtakSummaries = useMemo(() => {
