@@ -779,31 +779,49 @@ export function openVardiyaPdf(options: VardiyaPdfOptions) {
             <img src="/iconw.png" alt="Logo" style="max-width: 26px; max-height: 26px; object-fit: contain;" />
           </div>
           <div>
-            <h2 style="margin: 0; font-size: 17px; font-weight: 800; color: #0f172a;">Vardiya Planı PDF İndir</h2>
+            <h2 style="margin: 0; font-size: 17px; font-weight: 800; color: #0f172a;">Vardiya Planı PDF İndir / Yazdır</h2>
             <div style="font-size: 12px; color: #64748b;">${escapeHtml(options.subeAd)} &bull; ${escapeHtml(options.rangeLabel)}</div>
           </div>
         </div>
 
         <p style="margin: 8px 0 16px; color: #475569; font-size: 13px; line-height: 1.45;">
-          Vardiya planını A4 formatında temiz ve resmi PDF dosyası olarak indirin.
+          Vardiya planını A4 formatında PDF olarak indirebilir veya yazıcı önizlemesiyle yazdırabilirsiniz.
         </p>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-          <button type="button" data-orientation="landscape" data-action="download" class="btn-landscape" style="min-height: 64px; cursor: pointer; border: 2px solid #0f766e; border-radius: 12px; background: #ecfdf5; color: #065f46; font: inherit; text-align: left; padding: 12px 14px;">
-            <div style="font-size: 13.5px; font-weight: 900; display: flex; align-items: center; gap: 6px;">
+          <button type="button" data-orientation="landscape" data-action="download" class="btn-landscape" style="min-height: 60px; cursor: pointer; border: 2px solid #0f766e; border-radius: 12px; background: #ecfdf5; color: #065f46; font: inherit; text-align: left; padding: 10px 12px;">
+            <div style="font-size: 13px; font-weight: 900; display: flex; align-items: center; gap: 6px;">
               <span>📄 Yatay PDF İndir (Önerilen)</span>
             </div>
-            <div style="font-size: 11px; color: #047857; margin-top: 4px; font-weight: 600;">
+            <div style="font-size: 10.5px; color: #047857; margin-top: 3px; font-weight: 600;">
               A4 yatay formatta PDF indir
             </div>
           </button>
 
-          <button type="button" data-orientation="portrait" data-action="download" class="btn-portrait" style="min-height: 64px; cursor: pointer; border: 1.5px solid #cbd5e1; border-radius: 12px; background: #f8fafc; color: #0f172a; font: inherit; text-align: left; padding: 12px 14px;">
-            <div style="font-size: 13.5px; font-weight: 800;">
+          <button type="button" data-orientation="portrait" data-action="download" class="btn-portrait" style="min-height: 60px; cursor: pointer; border: 1.5px solid #cbd5e1; border-radius: 12px; background: #f8fafc; color: #0f172a; font: inherit; text-align: left; padding: 10px 12px;">
+            <div style="font-size: 13px; font-weight: 800;">
               <span>📋 Dikey PDF İndir</span>
             </div>
-            <div style="font-size: 11px; color: #64748b; margin-top: 4px; font-weight: 600;">
+            <div style="font-size: 10.5px; color: #64748b; margin-top: 3px; font-weight: 600;">
               A4 dikey formatta PDF indir
+            </div>
+          </button>
+
+          <button type="button" data-orientation="landscape" data-action="print" style="min-height: 54px; cursor: pointer; border: 1.5px solid #cbd5e1; border-radius: 12px; background: #ffffff; color: #334155; font: inherit; text-align: left; padding: 10px 12px;">
+            <div style="font-size: 12.5px; font-weight: 800;">
+              <span>🖨️ Yatay Yazdır</span>
+            </div>
+            <div style="font-size: 10px; color: #64748b; margin-top: 2px; font-weight: 600;">
+              Yazıcı / Önizleme aç
+            </div>
+          </button>
+
+          <button type="button" data-orientation="portrait" data-action="print" style="min-height: 54px; cursor: pointer; border: 1.5px solid #cbd5e1; border-radius: 12px; background: #ffffff; color: #334155; font: inherit; text-align: left; padding: 10px 12px;">
+            <div style="font-size: 12.5px; font-weight: 800;">
+              <span>🖨️ Dikey Yazdır</span>
+            </div>
+            <div style="font-size: 10px; color: #64748b; margin-top: 2px; font-weight: 600;">
+              Yazıcı / Önizleme aç
             </div>
           </button>
 

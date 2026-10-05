@@ -530,9 +530,9 @@ export default function VardiyaPage() {
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-            <Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex h-8 gap-2" onClick={() => exportPdf("download")} disabled={!personeller.length}>
+            <Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex h-8 gap-2" onClick={() => exportPdf()} disabled={!personeller.length}>
               <FileText className="h-3.5 w-3.5" />
-              PDF İndir
+              PDF / Yazdır
             </Button>
             <Button type="button" size="sm" className="h-8 gap-2" onClick={saveSchedule} disabled={!canEditShifts || saving || !hasChanges}>
               <Save className="h-3.5 w-3.5" />
