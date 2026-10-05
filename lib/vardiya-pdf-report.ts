@@ -583,21 +583,115 @@ export function buildVardiyaHtml(
 </html>`
 }
 
-export function downloadVardiyaFile(options: VardiyaPdfOptions, orientation: "landscape" | "portrait" = "landscape") {
-  const html = buildVardiyaHtml(options, orientation, true)
-  const title = `${options.subeAd} - Vardiya Planı (${options.rangeLabel})`
+async function getHtml2Pdf(): Promise<any> {
+  if (typeof window === "undefined") return null
+  if ((window as any).html2pdf) return (window as any).html2pdf
+
+  return new Promise((resolve, reject) => {
+    const existing = document.getElementById("html2pdf-script") as HTMLScriptElement | null
+    if (existing) {
+      if ((window as any).html2pdf) {
+        resolve((window as any).html2pdf)
+        return
+      }
+      existing.addEventListener("load", () => resolve((window as any).html2pdf))
+      existing.addEventListener("error", reject)
+      return
+    }
+
+    const script = document.createElement("script")
+    script.id = "html2pdf-script"
+    script.src = "/html2pdf.bundle.min.js"
+    script.onload = () => resolve((window as any).html2pdf)
+    script.onerror = () => {
+      const cdnScript = document.createElement("script")
+      cdnScript.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
+      cdnScript.onload = () => resolve((window as any).html2pdf)
+      cdnScript.onerror = reject
+      document.head.appendChild(cdnScript)
+    }
+    document.head.appendChild(script)
+  })
+}
+
+export async function downloadVardiyaFile(options: VardiyaPdfOptions, orientation: "landscape" | "portrait" = "landscape") {
+  const safeTitle = `${options.subeAd}_Vardiya_${options.rangeLabel}`.replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ_-]/g, "_")
+  const fullHtml = buildVardiyaHtml(options, orientation, false)
 
   const desktopBridge = (typeof window !== "undefined" && (window as any).hesapDesktop)
   if (desktopBridge?.savePdfReport) {
-    void desktopBridge.savePdfReport({ title, orientation, html })
+    void desktopBridge.savePdfReport({ title: `${options.subeAd} - Vardiya Planı (${options.rangeLabel})`, orientation, html: fullHtml })
     return
   }
 
-  const printWindow = window.open("", "_blank")
-  if (printWindow) {
-    printWindow.document.open()
-    printWindow.document.write(html)
-    printWindow.document.close()
+  try {
+    const html2pdf = await getHtml2Pdf()
+    if (!html2pdf) throw new Error("html2pdf not available")
+
+    // Create a container element inside a hidden div
+    const container = document.createElement("div")
+    container.style.position = "fixed"
+    container.style.left = "-99999px"
+    container.style.top = "0"
+    container.style.zIndex = "-9999"
+    container.style.width = orientation === "landscape" ? "297mm" : "210mm"
+    container.style.background = "#ffffff"
+    container.style.padding = "0"
+    container.style.margin = "0"
+
+    const parser = new DOMParser()
+    const parsedDoc = parser.parseFromString(fullHtml, "text/html")
+
+    const styles = parsedDoc.querySelectorAll("style")
+    styles.forEach((s) => container.appendChild(s.cloneNode(true)))
+
+    const paper = parsedDoc.querySelector(".paper") as HTMLElement | null
+    if (!paper) throw new Error("Paper element not found")
+
+    paper.style.boxShadow = "none"
+    paper.style.borderRadius = "0"
+    paper.style.margin = "0"
+    paper.style.width = "100%"
+    paper.style.padding = "10mm 12mm"
+    paper.style.background = "#ffffff"
+
+    // Hide any buttons inside paper
+    paper.querySelectorAll(".no-print").forEach((el) => ((el as HTMLElement).style.display = "none"))
+
+    container.appendChild(paper)
+    document.body.appendChild(container)
+
+    await new Promise((res) => setTimeout(res, 250))
+
+    const opt = {
+      margin: 0,
+      filename: `${safeTitle}.pdf`,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        letterRendering: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+        windowWidth: orientation === "landscape" ? 1200 : 850,
+      },
+      jsPDF: {
+        unit: "mm",
+        format: "a4",
+        orientation: orientation,
+      },
+    }
+
+    await html2pdf().set(opt).from(paper).save()
+    container.remove()
+  } catch (error) {
+    console.error("html2pdf error, fallback to print window:", error)
+    const printWindow = window.open("", "_blank")
+    if (printWindow) {
+      printWindow.document.open()
+      printWindow.document.write(fullHtml.replace("</body>", `<script>window.addEventListener("load", () => setTimeout(() => window.print(), 350));</script></body>`))
+      printWindow.document.close()
+    }
   }
 }
 
