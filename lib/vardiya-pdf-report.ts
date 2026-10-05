@@ -583,185 +583,28 @@ export function buildVardiyaHtml(
 </html>`
 }
 
-async function getPdfMake() {
-  const [pdfMakeModule, fontModule] = await Promise.all([
-    import("pdfmake/build/pdfmake"),
-    import("pdfmake/build/vfs_fonts"),
-  ])
-  const pdfMake = (pdfMakeModule.default || pdfMakeModule) as any
-  const fontBundle = fontModule as unknown as { default?: Record<string, string>; vfs?: Record<string, string>; pdfMake?: { vfs?: Record<string, string> } }
-  const virtualFonts = fontBundle.default || fontBundle.vfs || fontBundle.pdfMake?.vfs || {}
-  if (typeof pdfMake.addVirtualFileSystem === "function") pdfMake.addVirtualFileSystem(virtualFonts)
-  else pdfMake.vfs = virtualFonts
-  return pdfMake
-}
+export function downloadVardiyaFile(options: VardiyaPdfOptions, orientation: "landscape" | "portrait" = "landscape") {
+  const html = buildVardiyaHtml(options, orientation, true)
+  const title = `${options.subeAd} - Vardiya Planı (${options.rangeLabel})`
 
-export async function downloadVardiyaFile(options: VardiyaPdfOptions, orientation: "landscape" | "portrait" = "landscape") {
-  const { subeAd, rangeTitle, rangeLabel, days, personeller, getAssignment, shiftById } = options
-
-  // Calculate person summary stats
-  const personStats: Record<string, { worked: number; leave: number }> = {}
-  for (const p of personeller) {
-    let worked = 0
-    let leave = 0
-    for (const day of days) {
-      const shiftId = getAssignment(day, p.id)
-      const shift = shiftId ? shiftById.get(shiftId) : null
-      if (shift) {
-        const theme = getShiftTheme(shift)
-        if (theme.isLeave) leave++
-        else worked++
-      }
-    }
-    personStats[p.id] = { worked, leave }
+  const desktopBridge = (typeof window !== "undefined" && (window as any).hesapDesktop)
+  if (desktopBridge?.savePdfReport) {
+    void desktopBridge.savePdfReport({ title, orientation, html })
+    return
   }
 
-  const isWeeklyOrLess = days.length <= 7
-  const printDateStr = format(new Date(), "dd.MM.yyyy HH:mm")
-
-  const docDefinition: any = {
-    pageSize: "A4",
-    pageOrientation: orientation,
-    pageMargins: orientation === "landscape" ? [18, 18, 18, 18] : [14, 14, 14, 14],
-    defaultStyle: {
-      font: "Roboto",
-      fontSize: 8,
-      color: "#0f172a",
-    },
-    content: [
-      {
-        columns: [
-          {
-            width: "*",
-            stack: [
-              { text: `${subeAd.toLocaleUpperCase("tr-TR")} - VARDİYA PLANI`, fontSize: 13, bold: true, color: "#0f172a" },
-              { text: `${rangeTitle} · ${rangeLabel}`, fontSize: 9, color: "#475569", margin: [0, 2, 0, 0] },
-            ],
-          },
-          {
-            width: "auto",
-            stack: [
-              { text: `${subeAd} · ${personeller.length} PERSONEL`, fontSize: 8, bold: true, color: "#0f766e", alignment: "right" },
-              { text: `Düzenleme: ${printDateStr}`, fontSize: 7.5, color: "#64748b", alignment: "right", margin: [0, 2, 0, 0] },
-            ],
-          },
-        ],
-        margin: [0, 0, 0, 10],
-      },
-      {
-        table: {
-          headerRows: 1,
-          dontBreakRows: true,
-          widths: ["auto", "auto", ...days.map(() => "*"), "auto"],
-          body: [
-            [
-              { text: "#", bold: true, fontSize: 8, alignment: "center", fillColor: "#0f172a", color: "#ffffff" },
-              { text: "Personel Adı", bold: true, fontSize: 8, alignment: "left", fillColor: "#0f172a", color: "#ffffff" },
-              ...days.map((day) => {
-                const isWeekend = getDay(day) === 0 || getDay(day) === 6
-                const dayNum = format(day, "d")
-                const dayName = format(day, "EEE", { locale: tr })
-                return {
-                  text: `${dayNum}\n${dayName}`,
-                  bold: true,
-                  fontSize: 7,
-                  alignment: "center",
-                  fillColor: isWeekend ? "#881337" : "#0f172a",
-                  color: isWeekend ? "#ffe4e6" : "#ffffff",
-                }
-              }),
-              { text: "İcmal", bold: true, fontSize: 8, alignment: "center", fillColor: "#1e293b", color: "#ffffff" },
-            ],
-            ...personeller.map((p, idx) => {
-              const stats = personStats[p.id] || { worked: 0, leave: 0 }
-              return [
-                { text: String(idx + 1), fontSize: 7.5, alignment: "center", bold: true, color: "#64748b" },
-                { text: p.ad, fontSize: 7.5, bold: true, color: "#0f172a" },
-                ...days.map((day) => {
-                  const dKey = format(day, "yyyy-MM-dd")
-                  const isExited = Boolean(p.isten_cikis_tarihi && dKey > p.isten_cikis_tarihi)
-                  if (isExited) {
-                    return {
-                      text: "AYRILDI",
-                      fontSize: 6,
-                      bold: true,
-                      color: "#dc2626",
-                      fillColor: "#fef2f2",
-                      alignment: "center",
-                    }
-                  }
-                  const shiftId = getAssignment(day, p.id)
-                  const shift = shiftId ? shiftById.get(shiftId) : null
-                  if (!shift) {
-                    return { text: "-", fontSize: 7.5, color: "#cbd5e1", alignment: "center" }
-                  }
-
-                  const theme = getShiftTheme(shift)
-                  const cellText = isWeeklyOrLess
-                    ? `${shift.label}\n${shift.time !== "-" ? shift.time : "İzin"}`
-                    : shift.short
-
-                  return {
-                    text: cellText,
-                    fontSize: isWeeklyOrLess ? 6.5 : 7,
-                    bold: true,
-                    color: theme.text,
-                    fillColor: theme.bg,
-                    alignment: "center",
-                  }
-                }),
-                {
-                  text: `${stats.worked}G / ${stats.leave}İ`,
-                  fontSize: 6.5,
-                  bold: true,
-                  alignment: "center",
-                  color: "#047857",
-                },
-              ]
-            }),
-          ],
-        },
-        layout: {
-          hLineWidth: () => 0.5,
-          vLineWidth: () => 0.5,
-          hLineColor: () => "#cbd5e1",
-          vLineColor: () => "#cbd5e1",
-          paddingLeft: () => 2,
-          paddingRight: () => 2,
-          paddingTop: () => 2,
-          paddingBottom: () => 2,
-        },
-      },
-    ],
-    footer: (currentPage: number, pageCount: number) => ({
-      text: `Sayfa ${currentPage} / ${pageCount}`,
-      alignment: "center",
-      color: "#94a3b8",
-      fontSize: 7,
-      margin: [0, 6, 0, 0],
-    }),
+  const printWindow = window.open("", "_blank")
+  if (printWindow) {
+    printWindow.document.open()
+    printWindow.document.write(html)
+    printWindow.document.close()
   }
-
-  const pdfMake = await getPdfMake()
-  const safeTitle = `${subeAd}_Vardiya_${rangeLabel}`.replace(/[^a-zA-Z0-9_-]/g, "_")
-  pdfMake.createPdf(docDefinition).download(`${safeTitle}.pdf`)
 }
 
 export function openVardiyaPdf(options: VardiyaPdfOptions) {
   if (options.skipPicker) {
     const orientation = options.orientation || "landscape"
-    const action = options.action || "download"
-    if (action === "print") {
-      const html = buildVardiyaHtml(options, orientation, true)
-      const printWindow = window.open("", "_blank")
-      if (printWindow) {
-        printWindow.document.open()
-        printWindow.document.write(html)
-        printWindow.document.close()
-      }
-    } else {
-      void downloadVardiyaFile(options, orientation)
-    }
+    downloadVardiyaFile(options, orientation)
     return
   }
 
