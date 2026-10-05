@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { addDays, endOfMonth, endOfWeek, format, getDay, parseISO, startOfMonth, startOfWeek } from "date-fns"
 import { tr } from "date-fns/locale"
 import { toast } from "sonner"
-import { CalendarDays, ChevronLeft, ChevronRight, FileText, Save, Sparkles } from "lucide-react"
+import { CalendarDays, ChevronLeft, ChevronRight, Download, FileText, Printer, Save, Sparkles } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -356,7 +356,7 @@ export default function VardiyaPage() {
     await loadSchedule()
   }
 
-  function exportPdf() {
+  function exportPdf(action: "print" | "download" = "print") {
     openVardiyaPdf({
       subeAd: currentSube?.ad || "Şube",
       rangeTitle: selectedRange.title,
@@ -366,6 +366,7 @@ export default function VardiyaPage() {
       shiftOptions,
       getAssignment,
       shiftById,
+      action,
     })
   }
 
@@ -529,9 +530,13 @@ export default function VardiyaPage() {
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-            <Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex h-8 gap-2" onClick={exportPdf} disabled={!personeller.length}>
-              <FileText className="h-3.5 w-3.5" />
-              PDF
+            <Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex h-8 gap-2 border-emerald-600/30 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300" onClick={() => exportPdf("download")} disabled={!personeller.length}>
+              <Download className="h-3.5 w-3.5" />
+              İndir
+            </Button>
+            <Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex h-8 gap-2" onClick={() => exportPdf("print")} disabled={!personeller.length}>
+              <Printer className="h-3.5 w-3.5" />
+              Yazdır
             </Button>
             <Button type="button" size="sm" className="h-8 gap-2" onClick={saveSchedule} disabled={!canEditShifts || saving || !hasChanges}>
               <Save className="h-3.5 w-3.5" />

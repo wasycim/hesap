@@ -18,6 +18,9 @@ export interface VardiyaPdfOptions {
   shiftOptions: ShiftOption[]
   getAssignment: (day: Date, personelId: string) => string | undefined
   shiftById: Map<string, ShiftOption>
+  orientation?: "landscape" | "portrait"
+  action?: "print" | "download"
+  skipPicker?: boolean
 }
 
 function escapeHtml(val: any): string {
@@ -107,7 +110,11 @@ function getShiftTheme(shift?: ShiftOption | null) {
   }
 }
 
-export function buildVardiyaHtml(options: VardiyaPdfOptions, orientation: "landscape" | "portrait" = "landscape"): string {
+export function buildVardiyaHtml(
+  options: VardiyaPdfOptions,
+  orientation: "landscape" | "portrait" = "landscape",
+  autoPrint: boolean = true
+): string {
   const { subeAd, rangeTitle, rangeLabel, days, personeller, getAssignment, shiftById } = options
   const isWeeklyOrLess = days.length <= 7
   const isMediumRange = days.length > 7 && days.length <= 14
@@ -564,20 +571,59 @@ export function buildVardiyaHtml(options: VardiyaPdfOptions, orientation: "lands
     </div>
   </div>
 
+  ${autoPrint ? `
   <script>
     window.addEventListener("load", function() {
-      // Auto trigger print preview after rendering
       setTimeout(function() {
         window.print();
       }, 400);
     });
-  </script>
+  </script>` : ""}
 </body>
 </html>`
 }
 
+export function downloadVardiyaFile(options: VardiyaPdfOptions, orientation: "landscape" | "portrait" = "landscape") {
+  const html = buildVardiyaHtml(options, orientation, false)
+  const title = `${options.subeAd} - Vardiya Planı (${options.rangeLabel})`
+
+  const desktopBridge = (typeof window !== "undefined" && (window as any).hesapDesktop)
+  if (desktopBridge?.savePdfReport) {
+    void desktopBridge.savePdfReport({ title, orientation, html })
+    return
+  }
+
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  const safeTitle = `${options.subeAd}_Vardiya_${options.rangeLabel}`.replace(/[^a-zA-Z0-9_-]/g, "_")
+  a.download = `${safeTitle}.html`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 export function openVardiyaPdf(options: VardiyaPdfOptions) {
-  // Show picker modal for orientation
+  if (options.skipPicker) {
+    const orientation = options.orientation || "landscape"
+    const action = options.action || "print"
+    if (action === "download") {
+      downloadVardiyaFile(options, orientation)
+    } else {
+      const html = buildVardiyaHtml(options, orientation, true)
+      const printWindow = window.open("", "_blank")
+      if (printWindow) {
+        printWindow.document.open()
+        printWindow.document.write(html)
+        printWindow.document.close()
+      }
+    }
+    return
+  }
+
+  // Show picker modal for orientation and action
   const existing = document.getElementById("vardiya-pdf-picker")
   if (existing) existing.remove()
 
@@ -591,31 +637,49 @@ export function openVardiyaPdf(options: VardiyaPdfOptions) {
             <img src="/iconw.png" alt="Logo" style="max-width: 26px; max-height: 26px; object-fit: contain;" />
           </div>
           <div>
-            <h2 style="margin: 0; font-size: 17px; font-weight: 800; color: #0f172a;">Vardiya Planı Yazdır / PDF İndir</h2>
+            <h2 style="margin: 0; font-size: 17px; font-weight: 800; color: #0f172a;">Vardiya Planı Yazdır / İndir</h2>
             <div style="font-size: 12px; color: #64748b;">${escapeHtml(options.subeAd)} &bull; ${escapeHtml(options.rangeLabel)}</div>
           </div>
         </div>
 
         <p style="margin: 8px 0 16px; color: #475569; font-size: 13px; line-height: 1.45;">
-          Vardiya saatleri ve personel çalışma çizelgesiyle hazırlanmış temiz A4 formatında plan oluşturulacak.
+          Vardiya planını direkt bilgisayarınıza indirebilir veya yazıcı önizlemesiyle A4 formatında yazdırabilirsiniz.
         </p>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-          <button type="button" data-orientation="landscape" class="btn-landscape" style="min-height: 64px; cursor: pointer; border: 2px solid #0f766e; border-radius: 12px; background: #ecfdf5; color: #065f46; font: inherit; text-align: left; padding: 12px 14px;">
-            <div style="font-size: 14px; font-weight: 900; display: flex; align-items: center; gap: 6px;">
-              <span>📄 Yatay A4 (Önerilen)</span>
+          <button type="button" data-orientation="landscape" data-action="download" class="btn-landscape" style="min-height: 60px; cursor: pointer; border: 2px solid #0f766e; border-radius: 12px; background: #ecfdf5; color: #065f46; font: inherit; text-align: left; padding: 10px 12px;">
+            <div style="font-size: 13px; font-weight: 900; display: flex; align-items: center; gap: 6px;">
+              <span>📥 Yatay İndir (Önerilen)</span>
             </div>
-            <div style="font-size: 11px; color: #047857; margin-top: 4px; font-weight: 600;">
-              Haftalık tüm günler ve saatler geniş net görünür
+            <div style="font-size: 10.5px; color: #047857; margin-top: 3px; font-weight: 600;">
+              Yatay A4 dosya olarak kaydet
             </div>
           </button>
 
-          <button type="button" data-orientation="portrait" class="btn-portrait" style="min-height: 64px; cursor: pointer; border: 1.5px solid #cbd5e1; border-radius: 12px; background: #f8fafc; color: #0f172a; font: inherit; text-align: left; padding: 12px 14px;">
-            <div style="font-size: 14px; font-weight: 800;">
-              <span>📋 Dikey A4</span>
+          <button type="button" data-orientation="portrait" data-action="download" class="btn-portrait" style="min-height: 60px; cursor: pointer; border: 1.5px solid #cbd5e1; border-radius: 12px; background: #f8fafc; color: #0f172a; font: inherit; text-align: left; padding: 10px 12px;">
+            <div style="font-size: 13px; font-weight: 800;">
+              <span>📥 Dikey İndir</span>
             </div>
-            <div style="font-size: 11px; color: #64748b; margin-top: 4px; font-weight: 600;">
-              Daha az gün veya kompakt dikey liste
+            <div style="font-size: 10.5px; color: #64748b; margin-top: 3px; font-weight: 600;">
+              Dikey A4 dosya olarak kaydet
+            </div>
+          </button>
+
+          <button type="button" data-orientation="landscape" data-action="print" style="min-height: 54px; cursor: pointer; border: 1.5px solid #cbd5e1; border-radius: 12px; background: #ffffff; color: #334155; font: inherit; text-align: left; padding: 10px 12px;">
+            <div style="font-size: 12.5px; font-weight: 800;">
+              <span>🖨️ Yatay Yazdır</span>
+            </div>
+            <div style="font-size: 10px; color: #64748b; margin-top: 2px; font-weight: 600;">
+              Yazıcı / Önizleme aç
+            </div>
+          </button>
+
+          <button type="button" data-orientation="portrait" data-action="print" style="min-height: 54px; cursor: pointer; border: 1.5px solid #cbd5e1; border-radius: 12px; background: #ffffff; color: #334155; font: inherit; text-align: left; padding: 10px 12px;">
+            <div style="font-size: 12.5px; font-weight: 800;">
+              <span>🖨️ Dikey Yazdır</span>
+            </div>
+            <div style="font-size: 10px; color: #64748b; margin-top: 2px; font-weight: 600;">
+              Yazıcı / Önizleme aç
             </div>
           </button>
 
@@ -631,7 +695,7 @@ export function openVardiyaPdf(options: VardiyaPdfOptions) {
   style.textContent = `
     #vardiya-pdf-picker { position: fixed; inset: 0; z-index: 10000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     #vardiya-pdf-picker .vardiya-picker-backdrop { display: flex; min-height: 100%; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); padding: 20px; }
-    #vardiya-pdf-picker .vardiya-picker-panel { width: min(500px, 100%); border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 16px; background: #fff; box-shadow: 0 25px 60px rgba(15, 23, 42, 0.35); padding: 20px; }
+    #vardiya-pdf-picker .vardiya-picker-panel { width: min(520px, 100%); border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 16px; background: #fff; box-shadow: 0 25px 60px rgba(15, 23, 42, 0.35); padding: 20px; }
     #vardiya-pdf-picker button:hover { filter: brightness(0.97); }
   `
 
@@ -645,13 +709,19 @@ export function openVardiyaPdf(options: VardiyaPdfOptions) {
 
     overlay.remove()
     const orientation = button.dataset.orientation as "landscape" | "portrait" | undefined
+    const action = (button.dataset.action as "print" | "download" | undefined) || options.action || "print"
+
     if (orientation) {
-      const html = buildVardiyaHtml(options, orientation)
-      const printWindow = window.open("", "_blank")
-      if (printWindow) {
-        printWindow.document.open()
-        printWindow.document.write(html)
-        printWindow.document.close()
+      if (action === "download") {
+        downloadVardiyaFile(options, orientation)
+      } else {
+        const html = buildVardiyaHtml(options, orientation, true)
+        const printWindow = window.open("", "_blank")
+        if (printWindow) {
+          printWindow.document.open()
+          printWindow.document.write(html)
+          printWindow.document.close()
+        }
       }
     }
   })
