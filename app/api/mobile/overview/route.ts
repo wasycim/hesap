@@ -1,0 +1,51 @@
+import { NextRequest, NextResponse } from "next/server"
+import { createAdminClient } from "@/lib/supabase/admin"
+import { getLocalDateString } from "@/lib/date-navigation"
+import { getRequestAuthUser } from "@/lib/mobile-auth"
+
+export async function GET(request: NextRequest) {
+  const user = await getRequestAuthUser(request)
+  if (!user) return NextResponse.json({ error: "Oturum bulunamadı." }, { status: 401 })
+
+  const admin = createAdminClient()
+  const { data: profile, error: profileError } = await admin
+    .from("user_profiles")
+    .select("sube_id, display_name, dashboard_access, is_admin, is_developer")
+    .eq("user_id", user.id)
+    .maybeSingle()
+  if (!profile) return NextResponse.json({ error: "Kullanıcı profili bulunamadı." }, { status: 404 })
+
+  let subeId = profile.sube_id as string | null
+  if (!subeId) {
+    const { data: firstBranch } = await admin.from("subeler").select("id").eq("aktif", true).order("ad").limit(1).maybeSingle()
+    subeId = firstBranch?.id || null
+  }
+  if (!subeId) return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 })
+
+  const today = getLocalDateString()
+  const [{ data: branch }, { data: gelir, error: gelirError }, { data: gider, error: giderError }] = await Promise.all([
+    admin.from("subeler").select("id, ad, kod").eq("id", subeId).maybeSingle(),
+    admin.from("gelir_kayitlari").select("toplam").eq("sube_id", subeId).eq("tarih", today),
+    admin.from("gider_kayitlari").select("genel_toplam").eq("sube_id", subeId).eq("tarih", today),
+  ])
+
+  if (gelirError || giderError) {
+    return NextResponse.json({ error: gelirError?.message || giderError?.message }, { status: 500 })
+  }
+
+  const toplamGelir = (gelir || []).reduce((sum, row) => sum + Number(row.toplam || 0), 0)
+  const toplamGider = (gider || []).reduce((sum, row) => sum + Number(row.genel_toplam || 0), 0)
+  const isAdmin = Boolean(profile.is_admin || profile.is_developer)
+  const isDeveloper = Boolean(profile.is_developer)
+
+  return NextResponse.json({
+    date: today,
+    branch,
+    displayName: profile.display_name || user.email || "Kullanıcı",
+    isAdmin,
+    isDeveloper,
+    toplamGelir,
+    toplamGider,
+    kalan: toplamGelir - toplamGider,
+  }, { headers: { "Cache-Control": "no-store" } })
+}

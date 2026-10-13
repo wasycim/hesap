@@ -1,0 +1,1199 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { toast } from "sonner"
+import { createClient } from "@/lib/supabase/client"
+import { isTestPersonnel } from "@/lib/utils/test-personnel"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { ArrowDown, ArrowUp, GripVertical, Plus, Save, Trash2, Users, Package, UserX, AlertCircle, RotateCcw } from "lucide-react"
+import { useSube } from "@/contexts/sube-context"
+import { logSecurityEvent } from "@/lib/audit-log"
+import { COLOR_OPTIONS, getColumnTextColor, getColumnColorClass, getColumnColorStyle } from "@/lib/table-column-settings"
+import { VardiyaSettingsCard } from "@/components/dashboard/vardiya-settings-card"
+import { ExitDatePicker } from "@/components/ui/exit-date-picker"
+import { getLocalDateString } from "@/lib/date-navigation"
+import { RehireModal } from "@/components/personel/rehire-modal"
+import { createResignationPayload, getPersonelStatusBadge } from "@/lib/personel-employment"
+
+interface Ortak {
+  id: string
+  ad: string
+  aktif: boolean
+}
+
+interface Personel {
+  id: string
+  ad: string
+  aktif: boolean
+  aylik_maas?: number
+  banka_maas?: number
+  nakit_maas?: number
+  saatlik_mesai_ucreti?: number
+  ise_giris_tarihi?: string | null
+  isten_cikis_tarihi?: string | null
+  giris_cikis_gecmisi?: any
+}
+
+interface KargoFirma {
+  id: string
+  ad: string
+  aktif: boolean
+}
+
+interface GelirFirma {
+  id: string
+  ad: string
+  komisyon_orani: number | null
+  color: string
+  aktif: boolean
+  sira: number
+}
+
+interface ConfirmState {
+  title: string
+  description: string
+  action: () => void
+}
+
+export default function AyarlarPage() {
+  const [ortaklar, setOrtaklar] = useState<Ortak[]>([])
+  const [personeller, setPersoneller] = useState<Personel[]>([])
+  const [kargoFirmalar, setKargoFirmalar] = useState<KargoFirma[]>([])
+  const [gelirFirmalar, setGelirFirmalar] = useState<GelirFirma[]>([])
+  const [yeniOrtak, setYeniOrtak] = useState("")
+  const [yeniPersonel, setYeniPersonel] = useState("")
+  const [yeniPersonelNetMaas, setYeniPersonelNetMaas] = useState("")
+  const [yeniPersonelBankaMaas, setYeniPersonelBankaMaas] = useState("")
+  const [yeniPersonelNakitMaas, setYeniPersonelNakitMaas] = useState("")
+  const [yeniPersonelIstenCikisTarihi, setYeniPersonelIstenCikisTarihi] = useState("")
+  const [yeniKargoFirma, setYeniKargoFirma] = useState("")
+  const [yeniGelirFirma, setYeniGelirFirma] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [netDrafts, setNetDrafts] = useState<Record<string, string>>({})
+  const [bankaDrafts, setBankaDrafts] = useState<Record<string, string>>({})
+  const [nakitDrafts, setNakitDrafts] = useState<Record<string, string>>({})
+  const [entryDateDrafts, setEntryDateDrafts] = useState<Record<string, string>>({})
+  const [exitDateDrafts, setExitDateDrafts] = useState<Record<string, string>>({})
+  const [savingSalaries, setSavingSalaries] = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [savingOrtaklar, setSavingOrtaklar] = useState(false)
+  const [savingGelirFirmalar, setSavingGelirFirmalar] = useState(false)
+  const [savingKargoFirmalar, setSavingKargoFirmalar] = useState(false)
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null)
+  const [draggedGelirFirmaId, setDraggedGelirFirmaId] = useState<string | null>(null)
+  const [dragOverGelirFirmaId, setDragOverGelirFirmaId] = useState<string | null>(null)
+  const [rehireTarget, setRehireTarget] = useState<Personel | null>(null)
+  const [rehireModalOpen, setRehireModalOpen] = useState(false)
+  const supabase = createClient()
+  const { currentSube } = useSube()
+
+  useEffect(() => {
+    if (currentSube) loadData()
+  }, [currentSube?.id])
+
+  async function loadData() {
+    const { data: authData } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
+    const user = authData?.user ?? null
+    if (!user || !currentSube) return
+
+    // Admin kontrolü
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("is_admin")
+      .eq("user_id", user.id)
+      .single()
+
+    setIsAdmin(profile?.is_admin || false)
+    
+    // Admin değilse erişimi engelle
+    if (!profile?.is_admin) {
+      setLoading(false)
+      return
+    }
+
+    const [ortakRes, personelRes, kargoRes, gelirRes] = await Promise.all([
+      supabase.from("ortaklar").select("*").eq("sube_id", currentSube.id).order("sira"),
+      supabase.from("personeller").select("*").eq("sube_id", currentSube.id).order("sira"),
+      supabase.from("kargo_cari_firmalar").select("*").eq("sube_id", currentSube.id).order("sira"),
+      supabase.from("gelir_firmalar").select("*").eq("sube_id", currentSube.id).order("sira"),
+    ])
+
+    if (ortakRes.data) setOrtaklar(ortakRes.data)
+    if (personelRes.data) {
+      const validPersoneller = personelRes.data.filter((p) => !isTestPersonnel(p))
+      setPersoneller(validPersoneller)
+      setNetDrafts(Object.fromEntries(validPersoneller.map(personel => [
+        personel.id,
+        String(Number(personel.aylik_maas || 0)),
+      ])))
+      setBankaDrafts(Object.fromEntries(personelRes.data.map(personel => [
+        personel.id,
+        String(Number(personel.banka_maas || 0)),
+      ])))
+      setNakitDrafts(Object.fromEntries(personelRes.data.map(personel => [
+        personel.id,
+        String(Number(personel.nakit_maas !== undefined && personel.nakit_maas !== null ? personel.nakit_maas : (personel.aylik_maas || 0))),
+      ])))
+      setEntryDateDrafts(Object.fromEntries(personelRes.data.map(personel => [
+        personel.id,
+        personel.ise_giris_tarihi || "",
+      ])))
+      setExitDateDrafts(Object.fromEntries(personelRes.data.map(personel => [
+        personel.id,
+        personel.isten_cikis_tarihi || "",
+      ])))
+    }
+    if (kargoRes.data) setKargoFirmalar(kargoRes.data)
+    if (gelirRes.data) setGelirFirmalar(gelirRes.data)
+    setLoading(false)
+  }
+
+  async function addOrtak() {
+    if (!yeniOrtak.trim()) return
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || !currentSube) return
+
+    await supabase.from("ortaklar").insert({
+      user_id: user.id,
+      sube_id: currentSube.id,
+      ad: yeniOrtak.toLocaleUpperCase("tr-TR"),
+      sira: ortaklar.length,
+      aktif: true,
+    })
+    setYeniOrtak("")
+    loadData()
+  }
+
+  async function addPersonel() {
+    if (!yeniPersonel.trim()) return
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || !currentSube) return
+    const aylikMaas = Number(yeniPersonelNetMaas) || 0
+    const saatlikMesaiUcreti = aylikMaas > 0 ? aylikMaas / 30 / 8 : 0
+    const istenCikisTarihi = yeniPersonelIstenCikisTarihi || null
+
+    await supabase.from("personeller").insert({
+      user_id: user.id,
+      sube_id: currentSube.id,
+      ad: yeniPersonel.toLocaleUpperCase("tr-TR"),
+      banka_maas: 0,
+      nakit_maas: aylikMaas,
+      aylik_maas: aylikMaas,
+      saatlik_mesai_ucreti: saatlikMesaiUcreti,
+      isten_cikis_tarihi: istenCikisTarihi,
+      sira: personeller.length,
+      aktif: true,
+    })
+    setYeniPersonel("")
+    setYeniPersonelNetMaas("")
+    setYeniPersonelBankaMaas("")
+    setYeniPersonelNakitMaas("")
+    setYeniPersonelIstenCikisTarihi("")
+    loadData()
+  }
+
+  async function addKargoFirma() {
+    if (!yeniKargoFirma.trim()) return
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || !currentSube) return
+
+    await supabase.from("kargo_cari_firmalar").insert({
+      user_id: user.id,
+      sube_id: currentSube.id,
+      ad: yeniKargoFirma.toLocaleUpperCase("tr-TR"),
+      sira: kargoFirmalar.length,
+      aktif: true,
+    })
+    setYeniKargoFirma("")
+    loadData()
+    window.dispatchEvent(new Event("kargo-firmalar-changed"))
+  }
+
+  async function addGelirFirma() {
+    if (!yeniGelirFirma.trim()) return
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || !currentSube) return
+
+    await supabase.from("gelir_firmalar").insert({
+      user_id: user.id,
+      sube_id: currentSube.id,
+      ad: yeniGelirFirma.toLocaleUpperCase("tr-TR"),
+      komisyon_orani: 20,
+      color: "bg-yellow-500",
+      sira: gelirFirmalar.length,
+      aktif: true,
+    })
+    setYeniGelirFirma("")
+    loadData()
+    window.dispatchEvent(new Event("gelir-firmalar-changed"))
+  }
+
+  async function toggleOrtak(id: string, aktif: boolean) {
+    setOrtaklar(prev => prev.map(ortak => (
+      ortak.id === id ? { ...ortak, aktif: !aktif } : ortak
+    )))
+  }
+
+  async function togglePersonel(id: string, currentAktif: boolean) {
+    const nextAktif = !currentAktif
+    const updatePayload: { aktif: boolean; isten_cikis_tarihi?: string | null } = { aktif: nextAktif }
+    if (nextAktif) {
+      updatePayload.isten_cikis_tarihi = null
+      setExitDateDrafts(prev => ({ ...prev, [id]: "" }))
+    }
+    const { error } = await supabase.from("personeller").update(updatePayload).eq("id", id)
+    if (error) {
+      toast.error(`Personel durumu güncellenirken hata: ${error.message}`)
+      return
+    }
+    toast.success(nextAktif ? "Personel tekrar aktif edildi ve çıkış tarihi kaldırıldı." : "Personel pasife alındı.")
+    loadData()
+  }
+
+  async function savePersonelSalaries() {
+    setSavingSalaries(true)
+    const todayStr = getLocalDateString()
+
+    for (const personel of personeller) {
+      const aylikMaas = Number(netDrafts[personel.id]) || 0
+      const iseGirisTarihi = entryDateDrafts[personel.id] ? entryDateDrafts[personel.id] : null
+      const istenCikisTarihi = exitDateDrafts[personel.id] ? exitDateDrafts[personel.id] : null
+      const isExited = Boolean(istenCikisTarihi && istenCikisTarihi <= todayStr)
+      const isFutureStart = Boolean(iseGirisTarihi && iseGirisTarihi > todayStr)
+      const isAktif = isExited ? false : (isFutureStart ? true : Boolean(personel.aktif))
+
+      let updateFields: any = {
+        banka_maas: 0,
+        nakit_maas: aylikMaas,
+        aylik_maas: aylikMaas,
+        saatlik_mesai_ucreti: aylikMaas > 0 ? aylikMaas / 30 / 8 : 0,
+        ise_giris_tarihi: iseGirisTarihi,
+        isten_cikis_tarihi: istenCikisTarihi,
+        aktif: isAktif,
+      }
+
+      if (istenCikisTarihi) {
+        const resignationPayload = createResignationPayload(personel, istenCikisTarihi, todayStr)
+        updateFields = {
+          ...updateFields,
+          ...resignationPayload,
+          aktif: isAktif,
+          aylik_maas: aylikMaas,
+          nakit_maas: aylikMaas,
+          saatlik_mesai_ucreti: aylikMaas > 0 ? aylikMaas / 30 / 8 : 0,
+          ise_giris_tarihi: iseGirisTarihi || resignationPayload.giris_cikis_gecmisi?.[0]?.ise_giris_tarihi || personel.ise_giris_tarihi,
+        }
+      }
+
+      await supabase
+        .from("personeller")
+        .update(updateFields)
+        .eq("id", personel.id)
+    }
+    toast.success("Personel maaş, giriş ve çıkış tarihleri kaydedildi.")
+    setSavingSalaries(false)
+    loadData()
+  }
+
+  async function saveOrtaklar() {
+    setSavingOrtaklar(true)
+    for (const ortak of ortaklar) {
+      await supabase
+        .from("ortaklar")
+        .update({ aktif: ortak.aktif })
+        .eq("id", ortak.id)
+    }
+    setSavingOrtaklar(false)
+    toast.success("Ortaklar kaydedildi.")
+    loadData()
+  }
+
+  async function saveGelirFirmalar() {
+    if (gelirFirmalar.some(firma => !firma.ad.trim())) {
+      toast.error("Firma adları boş bırakılamaz.")
+      return
+    }
+
+    setSavingGelirFirmalar(true)
+    for (const [index, firma] of gelirFirmalar.entries()) {
+      await supabase
+        .from("gelir_firmalar")
+        .update({
+          ad: firma.ad.trim().toLocaleUpperCase("tr-TR"),
+          komisyon_orani: firma.komisyon_orani,
+          color: firma.color,
+          aktif: firma.aktif,
+          sira: index,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", firma.id)
+    }
+    setSavingGelirFirmalar(false)
+    toast.success("Firmalar kaydedildi.")
+    window.dispatchEvent(new Event("gelir-firmalar-changed"))
+    loadData()
+  }
+
+  async function saveKargoFirmalar() {
+    setSavingKargoFirmalar(true)
+    for (const firma of kargoFirmalar) {
+      await supabase
+        .from("kargo_cari_firmalar")
+        .update({ aktif: firma.aktif })
+        .eq("id", firma.id)
+    }
+    setSavingKargoFirmalar(false)
+    toast.success("Kargo cari firmaları kaydedildi.")
+    window.dispatchEvent(new Event("kargo-firmalar-changed"))
+    loadData()
+  }
+
+  async function saveSettings() {
+    setSavingSettings(true)
+    await saveOrtaklar()
+    await savePersonelSalaries()
+    await saveGelirFirmalar()
+    await saveKargoFirmalar()
+    setSavingSettings(false)
+    toast.success("Tüm ayarlar kaydedildi.")
+  }
+
+  async function toggleKargoFirma(id: string, aktif: boolean) {
+    setKargoFirmalar(prev => prev.map(firma => (
+      firma.id === id ? { ...firma, aktif: !aktif } : firma
+    )))
+  }
+
+  async function toggleGelirFirma(id: string, aktif: boolean) {
+    setGelirFirmalar(prev => prev.map(firma => (
+      firma.id === id ? { ...firma, aktif: !aktif } : firma
+    )))
+  }
+
+  async function updateGelirFirma(id: string, patch: Partial<Pick<GelirFirma, "ad" | "komisyon_orani" | "color">>) {
+    setGelirFirmalar(prev => prev.map(firma => (
+      firma.id === id ? { ...firma, ...patch } : firma
+    )))
+  }
+
+  function moveGelirFirma(id: string, direction: -1 | 1) {
+    setGelirFirmalar(prev => {
+      const index = prev.findIndex(firma => firma.id === id)
+      const nextIndex = index + direction
+      if (index < 0 || nextIndex < 0 || nextIndex >= prev.length) return prev
+      const next = [...prev]
+      const current = next[index]
+      next[index] = next[nextIndex]
+      next[nextIndex] = current
+      return next.map((firma, sira) => ({ ...firma, sira }))
+    })
+  }
+
+  function dragGelirFirma(targetId: string) {
+    if (!draggedGelirFirmaId || draggedGelirFirmaId === targetId) return
+    setGelirFirmalar(prev => {
+      const fromIndex = prev.findIndex(firma => firma.id === draggedGelirFirmaId)
+      const toIndex = prev.findIndex(firma => firma.id === targetId)
+      if (fromIndex < 0 || toIndex < 0) return prev
+      const next = [...prev]
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, moved)
+      return next.map((firma, sira) => ({ ...firma, sira }))
+    })
+    setDragOverGelirFirmaId(null)
+  }
+
+  async function deleteOrtak(id: string) {
+    setConfirmState({
+      title: "Ortak silinsin mi?",
+      description: "Bu ortağı silmek istediğinizden emin misiniz?",
+      action: () => performDeleteOrtak(id),
+    })
+  }
+
+  async function performDeleteOrtak(id: string) {
+    const ortak = ortaklar.find(item => item.id === id)
+    await supabase.from("ortaklar").delete().eq("id", id)
+    await logSecurityEvent("ortak_delete", { id, label: ortak?.ad, sube_id: currentSube?.id })
+    loadData()
+  }
+
+  async function deletePersonel(id: string) {
+    setConfirmState({
+      title: "Personel silinsin mi?",
+      description: "Bu personeli silmek istediğinizden emin misiniz?",
+      action: () => performDeletePersonel(id),
+    })
+  }
+
+  async function performDeletePersonel(id: string) {
+    const personel = personeller.find(item => item.id === id)
+    await supabase.from("personeller").update({ aktif: false }).eq("id", id)
+    await logSecurityEvent("person_delete", { id, label: personel?.ad, sube_id: currentSube?.id })
+    toast.success(`${personel?.ad || "Personel"} silindi / pasife alındı. Geçmiş gider verileri korundu.`)
+    loadData()
+  }
+
+  async function hardDeletePersonel(id: string) {
+    const personel = personeller.find(item => item.id === id)
+    setConfirmState({
+      title: "Personeli Veritabanından KALICI Olarak Sil?",
+      description: `"${personel?.ad || "Bu personel"}" veritabanından TAMAMEN SİLİNECEKTİR. Bu işlem geri alınamaz!`,
+      action: () => performHardDeletePersonel(id),
+    })
+  }
+
+  async function performHardDeletePersonel(id: string) {
+    const personel = personeller.find(item => item.id === id)
+    const { error } = await supabase.from("personeller").delete().eq("id", id)
+    if (error) {
+      toast.error(`Kalıcı silme hatası: ${error.message}`)
+      return
+    }
+    await logSecurityEvent("person_hard_delete", { id, label: personel?.ad, sube_id: currentSube?.id })
+    toast.success(`${personel?.ad || "Personel"} veritabanından kalıcı olarak silindi.`)
+    loadData()
+  }
+
+  async function cleanAllTestPersonnel() {
+    const testItems = personeller.filter(p => {
+      const name = (p.ad || "").toLocaleUpperCase("tr-TR")
+      return name.includes("TEST") || name.includes("DEMO") || name.startsWith("TEST")
+    })
+
+    if (testItems.length === 0) {
+      toast.info("Sistemde adı 'TEST' veya 'DEMO' içeren test personeli bulunamadı.")
+      return
+    }
+
+    setConfirmState({
+      title: `${testItems.length} Adet Test Personelini Komple Sil?`,
+      description: `Aşağıdaki test personelleri veritabanından KALICI OLARAK silinecektir:\n\n${testItems.map(p => "• " + p.ad).join("\n")}`,
+      action: async () => {
+        const testIds = testItems.map(p => p.id)
+        const { error } = await supabase.from("personeller").delete().in("id", testIds)
+        if (error) {
+          toast.error(`Test personelleri silinirken hata: ${error.message}`)
+          return
+        }
+        await logSecurityEvent("test_personnel_clean", { count: testItems.length, sube_id: currentSube?.id })
+        toast.success(`${testItems.length} adet test personeli veritabanından komple silindi!`)
+        loadData()
+      },
+    })
+  }
+
+  async function deleteKargoFirma(id: string) {
+    setConfirmState({
+      title: "Firma silinsin mi?",
+      description: "Bu firmayı ve tüm kayıtlarını silmek istediğinizden emin misiniz?",
+      action: () => performDeleteKargoFirma(id),
+    })
+  }
+
+  async function deleteGelirFirma(id: string) {
+    setConfirmState({
+      title: "Gelir firması silinsin mi?",
+      description: "Bu firmayı silerseniz gelir tablosundaki eski tutarlar raporda firma adı olmadan kalabilir.",
+      action: () => performDeleteGelirFirma(id),
+    })
+  }
+
+  async function performDeleteKargoFirma(id: string) {
+    const firma = kargoFirmalar.find(item => item.id === id)
+    await supabase.from("kargo_cari_kayitlar").delete().eq("firma_id", id)
+    await supabase.from("kargo_cari_firmalar").delete().eq("id", id)
+    await logSecurityEvent("kargo_cari_delete", { id, label: firma?.ad, sube_id: currentSube?.id })
+    loadData()
+    window.dispatchEvent(new Event("kargo-firmalar-changed"))
+  }
+
+  async function performDeleteGelirFirma(id: string) {
+    const firma = gelirFirmalar.find(item => item.id === id)
+    await supabase.from("gelir_firmalar").delete().eq("id", id)
+    await logSecurityEvent("gelir_firma_delete", { id, label: firma?.ad, sube_id: currentSube?.id })
+    loadData()
+    window.dispatchEvent(new Event("gelir-firmalar-changed"))
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-64 text-muted-foreground">Yükleniyor...</div>
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-foreground mb-2">Erişim Engellendi</h2>
+          <p className="text-muted-foreground">Bu sayfaya sadece yöneticiler erişebilir.</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-4 sm:p-6">
+      <h1 className="text-2xl font-bold text-foreground mb-2">Genel Ayarlar</h1>
+      <p className="text-sm text-muted-foreground mb-6">
+        {currentSube?.ad ? `${currentSube.ad} şubesi için ayarlar` : "Şube seçimi bekleniyor"}
+      </p>
+      
+      <div className="mb-6 flex justify-end">
+        <Button onClick={saveSettings} disabled={savingSettings} className="gap-2">
+          <Save className="h-4 w-4" />
+          {savingSettings ? "Kaydediliyor..." : "Hepsini Kaydet"}
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+        {/* Ortaklar Card */}
+        <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-amber-400 to-yellow-500 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <Users className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="font-bold text-lg text-white">Ortaklar</h2>
+                <p className="text-amber-100 text-sm">Gider tablosunda sarı sütunlar</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-5">
+            <div className="flex gap-3 mb-5">
+              <Input
+                value={yeniOrtak}
+                onChange={(e) => setYeniOrtak(e.target.value)}
+                placeholder="Yeni ortak adı..."
+                className="flex-1 h-11"
+                onKeyDown={(e) => e.key === "Enter" && addOrtak()}
+              />
+              <Button 
+                onClick={addOrtak} 
+                className="bg-amber-500 hover:bg-amber-600 text-white h-11 w-11 p-0"
+              >
+                <Plus className="w-5 h-5" />
+              </Button>
+            </div>
+            <div className="mb-4 flex justify-end">
+              <Button onClick={saveOrtaklar} disabled={savingOrtaklar} className="gap-2 bg-amber-500 hover:bg-amber-600">
+                <Save className="h-4 w-4" />
+                {savingOrtaklar ? "Kaydediliyor..." : "Ortakları Kaydet"}
+              </Button>
+            </div>
+            
+            <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+              {ortaklar.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Henüz ortak eklenmemiş
+                </div>
+              ) : (
+                ortaklar.map((ortak) => (
+                  <div 
+                    key={ortak.id} 
+                    className={`flex items-center justify-between p-3.5 rounded-lg transition-all ${
+                      ortak.aktif 
+                        ? "bg-amber-50 border-l-4 border-amber-400 dark:bg-amber-500/15 dark:text-amber-100" 
+                        : "bg-muted/50 border-l-4 border-muted-foreground/30 opacity-60"
+                    }`}
+                  >
+                    <span className={`font-semibold ${ortak.aktif ? "text-foreground" : "text-muted-foreground line-through"}`}>
+                      {ortak.ad}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => toggleOrtak(ortak.id, ortak.aktif)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                          ortak.aktif 
+                            ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-100" 
+                            : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        }`}
+                      >
+                        {ortak.aktif ? "Aktif" : "Pasif"}
+                      </button>
+                      <button
+                        onClick={() => deleteOrtak(ortak.id)}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors dark:hover:bg-red-500/20"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Personeller Card */}
+        <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <Users className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="font-bold text-lg text-white">Personeller</h2>
+                <p className="text-blue-100 text-sm">Gider tablosunda mavi sütunlar</p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={cleanAllTestPersonnel}
+              className="bg-white/15 hover:bg-white/25 text-white border-0 text-xs font-semibold gap-1.5 backdrop-blur-sm shadow-sm"
+              title="İçinde TEST/DEMO geçen personelleri kalıcı sil"
+            >
+              <UserX className="w-3.5 h-3.5 text-rose-200" /> Test Personellerini Sil
+            </Button>
+          </div>
+          
+          <div className="p-5 space-y-6">
+            {/* Yeni Personel Ekle Formu */}
+            <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+              <h3 className="font-semibold text-sm flex items-center gap-2 text-foreground">
+                <Plus className="w-4 h-4 text-blue-500" /> Yeni Personel Ekle
+              </h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Personel Adı Soyadı</label>
+                  <Input
+                    value={yeniPersonel}
+                    onChange={(e) => setYeniPersonel(e.target.value)}
+                    placeholder="Örn: AHMET YILMAZ"
+                    className="h-10 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Personel Maaşı (₺)</label>
+                  <Input
+                    value={yeniPersonelNetMaas}
+                    onChange={(e) => setYeniPersonelNetMaas(e.target.value)}
+                    placeholder="28025"
+                    className="h-10 text-sm font-semibold"
+                    type="number"
+                    min="0"
+                    onKeyDown={(e) => e.key === "Enter" && addPersonel()}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end pt-1">
+                <Button onClick={addPersonel} className="bg-blue-600 hover:bg-blue-700 text-white gap-2 h-10 px-5">
+                  <Plus className="w-4 h-4" /> Personeli Kaydet
+                </Button>
+              </div>
+            </div>
+
+            {/* Mevcut Personeller Listesi & Kaydet */}
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="font-bold text-base">Mevcut Personel Maaş Ayarları</h3>
+                <p className="text-xs text-muted-foreground">Maaş değişikliklerini yaptıktan sonra Kaydet butonuna tıklayın.</p>
+              </div>
+              <Button onClick={savePersonelSalaries} disabled={savingSalaries} className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-sm">
+                <Save className="h-4 w-4" />
+                {savingSalaries ? "Kaydediliyor..." : "Tüm Maaşları Kaydet"}
+              </Button>
+            </div>
+            
+            <div className="space-y-4 max-h-[520px] overflow-y-auto pr-1">
+              {personeller.filter(p => !getPersonelStatusBadge(p, getLocalDateString()).isResigned).length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Henüz aktif personel bulunmuyor
+                </div>
+              ) : (
+                personeller.filter(p => !getPersonelStatusBadge(p, getLocalDateString()).isResigned).map((personel) => {
+                  const statusBadge = getPersonelStatusBadge(personel, getLocalDateString())
+                  return (
+                    <div 
+                      key={personel.id} 
+                      className="p-4 rounded-xl border bg-card border-border shadow-sm transition-all"
+                    >
+                      <div className="flex items-center justify-between border-b pb-2 mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-base text-foreground">
+                            {personel.ad}
+                          </span>
+                          {(statusBadge.isRehired || statusBadge.isFutureStart || statusBadge.isFutureExit) && (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${statusBadge.colorClass}`}>
+                              {statusBadge.label}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => deletePersonel(personel.id)}
+                            className="px-3 py-1.5 rounded-md text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-500/20 dark:text-red-300 transition-colors flex items-center gap-1"
+                            title="Personeli Sil / Pasife Al"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Sil
+                          </button>
+                        </div>
+                      </div>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div>
+                        <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Personel Maaşı</label>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            min="0"
+                            className="h-9 font-bold text-sm pr-7"
+                            value={netDrafts[personel.id] ?? String(Number(personel.aylik_maas || 0))}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setNetDrafts(prev => ({ ...prev, [personel.id]: val }))
+                            }}
+                          />
+                          <span className="absolute right-2.5 top-2 text-xs font-bold text-muted-foreground">₺</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 block mb-1">İşe Giriş Tarihi</label>
+                        <ExitDatePicker
+                          compact
+                          type="entry"
+                          value={entryDateDrafts[personel.id] || ""}
+                          onChange={(val) => setEntryDateDrafts(prev => ({ ...prev, [personel.id]: val }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 block mb-1">İşten Çıkış Tarihi (Ayrıldıysa)</label>
+                        <ExitDatePicker
+                          compact
+                          value={exitDateDrafts[personel.id] || ""}
+                          onChange={(val) => setExitDateDrafts(prev => ({ ...prev, [personel.id]: val }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) })
+              )}
+
+              {/* Silinen / Pasif / Ayrılan Personeller Bölümü */}
+              {personeller.filter(p => getPersonelStatusBadge(p, getLocalDateString()).isResigned).length > 0 && (
+                <div className="pt-4 border-t space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">
+                      Silinen / Pasif / İşten Ayrılan Personeller ({personeller.filter(p => getPersonelStatusBadge(p, getLocalDateString()).isResigned).length})
+                    </h4>
+                  </div>
+                  <div className="space-y-2">
+                    {personeller.filter(p => getPersonelStatusBadge(p, getLocalDateString()).isResigned).map((personel) => {
+                      const statusBadge = getPersonelStatusBadge(personel, getLocalDateString())
+                      return (
+                        <div
+                          key={personel.id}
+                          className="flex items-center justify-between p-3 rounded-lg border bg-muted/40 opacity-90 text-sm"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`font-medium text-muted-foreground ${statusBadge.isFutureStart ? "" : "line-through"}`}>{personel.ad}</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${statusBadge.colorClass}`}>
+                              {statusBadge.label}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setRehireTarget(personel)
+                                setRehireModalOpen(true)
+                              }}
+                              className="h-8 text-xs gap-1.5 font-bold text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" /> Yeniden Aktif Et
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => hardDeletePersonel(personel.id)}
+                              className="h-8 text-xs gap-1 bg-rose-600 hover:bg-rose-700 text-white"
+                              title="Veritabanından kalıcı olarak sil"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Kalıcı Sil (DB'den)
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Gelir Firmalar Card */}
+        <div className="lg:col-span-2 bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-emerald-500 to-green-600 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <Package className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="font-bold text-lg text-white">Firmalar</h2>
+                <p className="text-emerald-100 text-sm">Gelir tablosunda Firmalar bölümü ve komisyon oranları</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-5">
+            <div className="flex gap-3 mb-5 max-w-md">
+              <Input
+                value={yeniGelirFirma}
+                onChange={(e) => setYeniGelirFirma(e.target.value)}
+                placeholder="Yeni gelir firması..."
+                className="flex-1 h-11"
+                onKeyDown={(e) => e.key === "Enter" && addGelirFirma()}
+              />
+              <Button
+                onClick={addGelirFirma}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white h-11 w-11 p-0"
+              >
+                <Plus className="w-5 h-5" />
+              </Button>
+            </div>
+            <div className="mb-4 flex justify-end">
+              <Button onClick={saveGelirFirmalar} disabled={savingGelirFirmalar} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+                <Save className="h-4 w-4" />
+                {savingGelirFirmalar ? "Kaydediliyor..." : "Firmaları Kaydet"}
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {gelirFirmalar.length === 0 ? (
+                <div className="col-span-full text-center py-8 text-muted-foreground">
+                  Henüz gelir firması eklenmemiş. Yeni firma eklenince komisyon oranı varsayılan %20 olur.
+                </div>
+              ) : (
+                gelirFirmalar.map((firma, index) => (
+                  <div
+                    key={firma.id}
+                    draggable
+                    onDragStart={() => setDraggedGelirFirmaId(firma.id)}
+                    onDragEnd={() => {
+                      setDraggedGelirFirmaId(null)
+                      setDragOverGelirFirmaId(null)
+                    }}
+                    onDragOver={(event) => {
+                      event.preventDefault()
+                      setDragOverGelirFirmaId(firma.id)
+                    }}
+                    onDragLeave={() => setDragOverGelirFirmaId(prev => prev === firma.id ? null : prev)}
+                    onDrop={(event) => {
+                      event.preventDefault()
+                      dragGelirFirma(firma.id)
+                    }}
+                    className={`cursor-grab rounded-lg border-l-4 p-3.5 transition-all active:cursor-grabbing ${
+                      dragOverGelirFirmaId === firma.id && draggedGelirFirmaId !== firma.id
+                        ? "scale-[1.01] ring-2 ring-emerald-500 ring-offset-2"
+                        : ""
+                    } ${
+                      firma.aktif
+                        ? "bg-emerald-50 border-emerald-400 dark:bg-emerald-500/15"
+                        : "bg-muted/50 border-muted-foreground/30 opacity-60"
+                    }`}
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      </div>
+                      <div
+                        className={`rounded px-2 py-1 text-xs font-bold ${getColumnColorClass(firma.color)} ${getColumnTextColor(firma.color)}`}
+                        style={getColumnColorStyle(firma.color)}
+                      >
+                        SÜTUN
+                      </div>
+                    </div>
+                    <Input
+                      value={firma.ad}
+                      onChange={(event) => updateGelirFirma(firma.id, { ad: event.target.value })}
+                      className={`mb-3 h-9 font-semibold ${firma.aktif ? "" : "text-muted-foreground line-through"}`}
+                      placeholder="Firma adı"
+                    />
+                    <div className="grid grid-cols-[1fr_7rem] gap-2 items-center">
+                      <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap gap-1 max-w-[130px]">
+                          {[
+                            { value: "bg-green-600", color: "#16a34a", label: "Yeşil" },
+                            { value: "bg-blue-600", color: "#2563eb", label: "Mavi" },
+                            { value: "bg-yellow-500", color: "#eab308", label: "Sarı" },
+                            { value: "bg-orange-500", color: "#f97316", label: "Turuncu" },
+                            { value: "bg-red-600", color: "#dc2626", label: "Kırmızı" },
+                            { value: "bg-purple-600", color: "#9333ea", label: "Mor" },
+                            { value: "bg-gray-700", color: "#374151", label: "Gri" },
+                            { value: "bg-pink-600", color: "#db2777", label: "Pembe" },
+                            { value: "bg-cyan-600", color: "#0891b2", label: "Turkuaz" },
+                          ].map((preset) => {
+                            const isSelected = firma.color === preset.value;
+                            return (
+                              <button
+                                key={preset.value}
+                                type="button"
+                                onClick={() => updateGelirFirma(firma.id, { color: preset.value })}
+                                className={`h-5 w-5 rounded-full border border-black/10 transition-all hover:scale-110 active:scale-95 shadow-sm ${
+                                  isSelected ? "ring-2 ring-emerald-500 ring-offset-1 scale-105" : "opacity-80 hover:opacity-100"
+                                }`}
+                                style={{ backgroundColor: preset.color }}
+                                title={preset.label}
+                              />
+                            );
+                          })}
+                          {/* Custom Color Picker */}
+                          <div className="relative h-5 w-5">
+                            <input
+                              type="color"
+                              value={firma.color.startsWith("#") ? firma.color : "#2563eb"}
+                              onChange={(e) => updateGelirFirma(firma.id, { color: e.target.value })}
+                              className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
+                            />
+                            <div
+                              className={`h-5 w-5 rounded-full border border-dashed border-slate-400 flex items-center justify-center bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 hover:scale-110 transition-transform shadow-sm ${
+                                firma.color.startsWith("#") ? "ring-2 ring-emerald-500 ring-offset-1 scale-105" : "opacity-80"
+                              }`}
+                              title="Özel Renk"
+                            >
+                              <span className="text-[9px] text-white font-bold leading-none">+</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Hex input if custom color is selected */}
+                        {firma.color.startsWith("#") && (
+                          <input
+                            type="text"
+                            value={firma.color}
+                            onChange={(e) => updateGelirFirma(firma.id, { color: e.target.value })}
+                            className="h-8 w-16 rounded border bg-background px-1 text-[10px] font-mono text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                            placeholder="#000"
+                          />
+                        )}
+                      </div>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="% yok"
+                        value={firma.komisyon_orani ?? ""}
+                        onChange={(event) => updateGelirFirma(firma.id, {
+                          komisyon_orani: event.target.value === "" ? null : Number(event.target.value) || 0,
+                        })}
+                      />
+                    </div>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">
+                        Komisyon: {firma.komisyon_orani === null ? "Yok" : `%${firma.komisyon_orani}`}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          onClick={() => moveGelirFirma(firma.id, -1)}
+                          disabled={index === 0}
+                          title="Yukarı taşı"
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          onClick={() => moveGelirFirma(firma.id, 1)}
+                          disabled={index === gelirFirmalar.length - 1}
+                          title="Aşağı taşı"
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                        </Button>
+                        <button
+                          onClick={() => toggleGelirFirma(firma.id, firma.aktif)}
+                          className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                            firma.aktif
+                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-100"
+                              : "bg-muted text-muted-foreground hover:bg-muted/80"
+                          }`}
+                        >
+                          {firma.aktif ? "Aktif" : "Pasif"}
+                        </button>
+                        <button
+                          onClick={() => deleteGelirFirma(firma.id)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors dark:hover:bg-red-500/20"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {gelirFirmalar.length > 0 && (
+              <div className="mt-5 rounded-lg border bg-muted/20 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold">Firma Ön İzleme</h3>
+                    <p className="text-xs text-muted-foreground">Gelir tablosunda Firmalar kategorisi içindeki görünüm.</p>
+                  </div>
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100">
+                    {gelirFirmalar.filter(firma => firma.aktif).length} aktif
+                  </span>
+                </div>
+                <div className="visible-x-scroll overflow-x-auto pb-2">
+                  <div className="flex min-w-max overflow-hidden rounded-lg border">
+                    {gelirFirmalar.map((firma, index) => (
+                      <div
+                        key={firma.id}
+                        className={`min-w-40 border-r px-4 py-3 text-center last:border-r-0 ${firma.aktif ? getColumnColorClass(firma.color) : "bg-muted"} ${firma.aktif ? getColumnTextColor(firma.color) : "text-muted-foreground"}`}
+                        style={firma.aktif ? getColumnColorStyle(firma.color) : undefined}
+                      >
+                        <div className="text-[10px] font-bold uppercase opacity-80">#{index + 1}</div>
+                        <div className={`mt-1 truncate text-sm font-extrabold ${firma.aktif ? "" : "line-through"}`}>
+                          {firma.ad}
+                        </div>
+                        <div className="mt-1 text-[11px] font-semibold opacity-90">
+                          {firma.komisyon_orani === null ? "Komisyon yok" : `%${firma.komisyon_orani} komisyon`}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Kargo Cari Firmalar Card - Tam genislik */}
+        <VardiyaSettingsCard />
+
+        {/* Kargo Cari Firmalar Card - Tam genislik */}
+        <div className="lg:col-span-2 bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-cyan-500 to-cyan-600 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <Package className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="font-bold text-lg text-white">Kargo Cari Firmalar</h2>
+                <p className="text-cyan-100 text-sm">Menüde Kargo Cari altında görünecek firmalar</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-5">
+            <div className="flex gap-3 mb-5 max-w-md">
+              <Input
+                value={yeniKargoFirma}
+                onChange={(e) => setYeniKargoFirma(e.target.value)}
+                placeholder="Yeni firma adı..."
+                className="flex-1 h-11"
+                onKeyDown={(e) => e.key === "Enter" && addKargoFirma()}
+              />
+              <Button 
+                onClick={addKargoFirma} 
+                className="bg-cyan-500 hover:bg-cyan-600 text-white h-11 w-11 p-0"
+              >
+                <Plus className="w-5 h-5" />
+              </Button>
+            </div>
+            <div className="mb-4 flex justify-end">
+              <Button onClick={saveKargoFirmalar} disabled={savingKargoFirmalar} className="gap-2 bg-cyan-600 hover:bg-cyan-700">
+                <Save className="h-4 w-4" />
+                {savingKargoFirmalar ? "Kaydediliyor..." : "Kargo Cari Firmaları Kaydet"}
+              </Button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {kargoFirmalar.length === 0 ? (
+                <div className="col-span-full text-center py-8 text-muted-foreground">
+                  Henüz firma eklenmemiş. Firma ekleyince menüde Kargo Cari altında görünecek.
+                </div>
+              ) : (
+                kargoFirmalar.map((firma) => (
+                  <div 
+                    key={firma.id} 
+                    className={`flex items-center justify-between p-3.5 rounded-lg transition-all ${
+                      firma.aktif 
+                        ? "bg-cyan-50 border-l-4 border-cyan-400 dark:bg-cyan-500/15 dark:text-cyan-100" 
+                        : "bg-muted/50 border-l-4 border-muted-foreground/30 opacity-60"
+                    }`}
+                  >
+                    <span className={`font-semibold ${firma.aktif ? "text-foreground" : "text-muted-foreground line-through"}`}>
+                      {firma.ad}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => toggleKargoFirma(firma.id, firma.aktif)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                          firma.aktif 
+                            ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-100" 
+                            : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        }`}
+                      >
+                        {firma.aktif ? "Aktif" : "Pasif"}
+                      </button>
+                      <button
+                        onClick={() => deleteKargoFirma(firma.id)}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors dark:hover:bg-red-500/20"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+      <AlertDialog open={Boolean(confirmState)} onOpenChange={(open) => !open && setConfirmState(null)}>
+        <AlertDialogContent className="animate-modal-pop rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmState?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmState?.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={() => {
+                const action = confirmState?.action
+                setConfirmState(null)
+                action?.()
+              }}
+            >
+              Tamam
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <RehireModal
+        open={rehireModalOpen}
+        onOpenChange={setRehireModalOpen}
+        personel={rehireTarget}
+        onSuccess={() => {
+          if (rehireTarget) {
+            setExitDateDrafts(prev => ({ ...prev, [rehireTarget.id]: "" }))
+          }
+          loadData()
+        }}
+      />
+    </div>
+  )
+}

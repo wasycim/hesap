@@ -1,0 +1,39 @@
+{
+  "name": "hesap-mobile-ios",
+  "version": "9.9.4",
+  "private": true,
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start --tunnel",
+    "start:lan": "expo start",
+    "ios": "expo run:ios",
+    "android": "expo run:android",
+    "web": "expo start --web",
+    "eas:login": "npx --yes eas-cli@20.5.0 login",
+    "eas:whoami": "npx --yes eas-cli@20.5.0 whoami",
+    "eas:init": "npx --yes eas-cli@20.5.0 init",
+    "eas:configure": "npx --yes eas-cli@20.5.0 build:configure",
+    "eas:credentials:ios": "npx --yes eas-cli@20.5.0 credentials -p ios",
+    "eas:build:ios": "npx --yes eas-cli@20.5.0 build --platform ios --profile production",
+    "eas:submit:ios": "npx --yes eas-cli@20.5.0 submit --platform ios --latest --profile production",
+    "eas:testflight": "npx --yes eas-cli@20.5.0 build --platform ios --profile production --auto-submit",
+    "eas:android": "npx --yes eas-cli@20.5.0 build --platform android --profile production"
+  },
+  "dependencies": {
+    "expo": "~57.0.2",
+    "expo-camera": "~57.0.0",
+    "expo-notifications": "~57.0.13",
+    "expo-print": "~57.0.0",
+    "expo-secure-store": "~57.0.0",
+    "expo-sharing": "~57.0.2",
+    "expo-status-bar": "^57.0.0",
+    "react": "19.2.3",
+    "react-native": "^0.86.0"
+  },
+  "overrides": {
+    "uuid": "11.1.1"
+  },
+  "devDependencies": {
+    "@expo/ngrok": "^4.1.3"
+  }
+}

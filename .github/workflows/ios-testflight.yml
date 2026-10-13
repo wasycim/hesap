@@ -1,0 +1,153 @@
+name: Publish iOS TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Optional iOS marketing version. Leave empty to use package.json version."
+        required: false
+        type: string
+      changelog:
+        description: "TestFlight changelog shown to testers."
+        required: false
+        default: "Hesap iOS beta güncellemesi."
+        type: string
+  push:
+    tags:
+      - "ios-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  testflight:
+    name: Build and upload iOS beta
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    env:
+      IOS_BUNDLE_ID: wasy.system.hesap
+      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_API_PRIVATE_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY_BASE64 }}
+      IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+      IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+      IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+      IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+      IOS_BUILD_NUMBER: ${{ github.run_number }}
+      IOS_MARKETING_VERSION: ${{ inputs.version }}
+      TESTFLIGHT_CHANGELOG: ${{ inputs.changelog }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in \
+            APP_STORE_CONNECT_API_KEY_ID \
+            APP_STORE_CONNECT_ISSUER_ID \
+            APP_STORE_CONNECT_API_PRIVATE_KEY_BASE64 \
+            IOS_DISTRIBUTION_CERTIFICATE_BASE64 \
+            IOS_DISTRIBUTION_CERTIFICATE_PASSWORD \
+            IOS_PROVISIONING_PROFILE_BASE64 \
+            IOS_TEAM_ID
+          do
+            if [ -z "${!name:-}" ]; then
+              echo "::error title=Missing secret::$name GitHub secret olarak eklenmeli."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Sync Capacitor iOS project
+        run: npm run mobile:sync
+
+      - name: Use Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: ios/App
+
+      - name: Install Apple signing assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CERTIFICATE_PATH="$RUNNER_TEMP/ios_distribution.p12"
+          PROFILE_PATH="$RUNNER_TEMP/ios_app_store.mobileprovision"
+          PROFILE_PLIST="$RUNNER_TEMP/ios_app_store_profile.plist"
+          KEYCHAIN_PATH="$RUNNER_TEMP/hesap-ios-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+
+          python3 - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          outputs = {
+              "IOS_DISTRIBUTION_CERTIFICATE_BASE64": os.environ["CERTIFICATE_PATH"],
+              "IOS_PROVISIONING_PROFILE_BASE64": os.environ["PROFILE_PATH"],
+          }
+          for env_name, file_path in outputs.items():
+              Path(file_path).write_bytes(base64.b64decode(os.environ[env_name]))
+          PY
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+          security import "$CERTIFICATE_PATH" \
+            -P "$IOS_DISTRIBUTION_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
+          PROFILE_UUID="$(/usr/libexec/PlistBuddy -c 'Print UUID' "$PROFILE_PLIST")"
+          PROFILE_NAME="$(/usr/libexec/PlistBuddy -c 'Print Name' "$PROFILE_PLIST")"
+          PROFILE_TEAM="$(/usr/libexec/PlistBuddy -c 'Print TeamIdentifier:0' "$PROFILE_PLIST")"
+          PROFILE_APP_ID="$(/usr/libexec/PlistBuddy -c 'Print Entitlements:application-identifier' "$PROFILE_PLIST")"
+
+          if [ "$PROFILE_TEAM" != "$IOS_TEAM_ID" ]; then
+            echo "::error title=Provisioning profile team mismatch::Profile team '$PROFILE_TEAM', secret IOS_TEAM_ID '$IOS_TEAM_ID'."
+            exit 1
+          fi
+
+          if [[ "$PROFILE_APP_ID" != "$IOS_TEAM_ID.$IOS_BUNDLE_ID" ]]; then
+            echo "::error title=Provisioning profile bundle mismatch::Profile app id '$PROFILE_APP_ID', expected '$IOS_TEAM_ID.$IOS_BUNDLE_ID'."
+            exit 1
+          fi
+
+          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          echo "IOS_PROVISIONING_PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+          echo "MATCH_KEYCHAIN_NAME=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "MATCH_KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
+        env:
+          CERTIFICATE_PATH: ${{ runner.temp }}/ios_distribution.p12
+          PROFILE_PATH: ${{ runner.temp }}/ios_app_store.mobileprovision
+
+      - name: Build and upload to TestFlight
+        working-directory: ios/App
+        run: bundle exec fastlane beta
+

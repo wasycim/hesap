@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hesap | Cevrimdisi</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: Arial, sans-serif;
+      }
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        background: #0f172a;
+        color: #f8fafc;
+      }
+      main {
+        width: min(440px, calc(100vw - 32px));
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        border-radius: 22px;
+        padding: 26px;
+        background: rgba(15, 23, 42, 0.92);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+      }
+      img {
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        object-fit: cover;
+        background: #fff;
+      }
+      h1 {
+        margin: 22px 0 8px;
+        font-size: 25px;
+        line-height: 1.12;
+      }
+      p {
+        margin: 0 0 22px;
+        color: #cbd5e1;
+        line-height: 1.55;
+      }
+      button {
+        width: 100%;
+        border: 0;
+        border-radius: 14px;
+        padding: 14px 16px;
+        background: #10b981;
+        color: #031b12;
+        font-weight: 800;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/iconw.png" alt="Hesap" />
+      <h1>Internet baglantisi yok</h1>
+      <p>Baglanti gelene kadar kayitli verilerle devam edebilirsin. Internet geldiginde yeniden yukle butonuna bas.</p>
+      <button type="button" onclick="location.reload()">Yeniden yukle</button>
+    </main>
+  </body>
+</html>

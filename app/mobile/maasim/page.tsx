@@ -1,0 +1,215 @@
+"use client"
+
+import { useEffect, useState, useCallback } from "react"
+import { ChevronLeft, ChevronRight, Clock3, Loader2, MinusCircle, WalletCards, Sparkles } from "lucide-react"
+
+type Salary = {
+  period: { month: number; year: number }
+  branch: { ad: string } | null
+  personel: { id: string; name: string }
+  isManager?: boolean
+  baseSalary: number
+  bankaMaas?: number
+  nakitMaas?: number
+  corbaTotal?: number
+  corbaDetails?: Array<{ date: string; amount: number; description: string }>
+  hourlyRate: number
+  advanceTotal: number
+  overtimeTotal: number
+  remaining: number
+  advances: Array<{ date: string; amount: number; description: string }>
+  overtime: Array<{ date: string; amount: number; description: string; minutes: number; rate: number; source: string }>
+}
+
+export default function MobileSalaryPage() {
+  const now = new Date()
+  const [period, setPeriod] = useState({ month: now.getMonth() + 1, year: now.getFullYear() })
+  const [data, setData] = useState<Salary | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadSalaryData = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/mobile/salary?month=${period.month}&year=${period.year}`, {
+        headers: { "Cache-Control": "no-cache" },
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || "Maaş bilgisi yüklenemedi.")
+      setData(payload)
+    } catch (reason) {
+      setData(null)
+      setError(reason instanceof Error ? reason.message : "Maaş bilgisi yüklenemedi.")
+    } finally {
+      setLoading(false)
+    }
+  }, [period.month, period.year])
+
+  useEffect(() => {
+    loadSalaryData()
+  }, [loadSalaryData])
+
+  function moveMonth(delta: number) {
+    const date = new Date(period.year, period.month - 1 + delta, 1)
+    setPeriod({ month: date.getMonth() + 1, year: date.getFullYear() })
+  }
+
+  return (
+    <div className="ios-page space-y-4">
+      <header className="ios-large-header ios-header-row">
+        <div>
+          <span className="ios-eyebrow">{data?.isManager ? "YÖNETİCİ GÖRÜNÜMÜ" : "KİŞİSEL"}</span>
+          <h1>{data?.isManager ? "Maaş & Bordro Yönetimi" : "Maaşım"}</h1>
+          <p>{data?.isManager ? "Personellerin ve yöneticinin maaş bordrosu" : "Yalnızca size ait maaş ve onaylı avans/mesai bilgileri"}</p>
+        </div>
+      </header>
+
+      <div className="ios-period-picker">
+        <button type="button" onClick={() => moveMonth(-1)} aria-label="Önceki ay">
+          <ChevronLeft />
+        </button>
+        <strong>{monthLabel(period.month, period.year)}</strong>
+        <button type="button" onClick={() => moveMonth(1)} aria-label="Sonraki ay">
+          <ChevronRight />
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="grid min-h-[45dvh] place-items-center">
+          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+        </div>
+      ) : null}
+      {error ? <div className="ios-error">{error}</div> : null}
+      {!loading && data ? (
+        <>
+          <section className="ios-salary-hero">
+            <span>Net kalan alacak</span>
+            <strong>{formatMoney(data.remaining)}</strong>
+            <small>
+              {data.personel.name} · {data.branch?.ad || "Şube"}
+            </small>
+          </section>
+          <section className="ios-salary-metrics">
+            <SalaryMetric label="Aylık maaş" value={data.baseSalary} icon={WalletCards} />
+            {Number(data.bankaMaas) > 0 ? (
+              <SalaryMetric label="Banka maaş" value={data.bankaMaas || 0} icon={WalletCards} />
+            ) : null}
+            {Number(data.nakitMaas) > 0 ? (
+              <SalaryMetric label="Nakit maaş" value={data.nakitMaas || 0} icon={WalletCards} />
+            ) : null}
+            <SalaryMetric label="Onaylı mesai" value={data.overtimeTotal} icon={Clock3} positive />
+            <SalaryMetric label="Alınan avans" value={data.advanceTotal} icon={MinusCircle} negative />
+            {Number(data.corbaTotal) > 0 ? (
+              <SalaryMetric label="Çorba kazanılan" value={data.corbaTotal || 0} icon={Sparkles} positive />
+            ) : null}
+          </section>
+          <DetailSection
+            title="Alınan Avanslar"
+            empty="Bu ay avans kaydı yok."
+            rows={data.advances.map((item) => ({ ...item, meta: item.description, sign: -1 }))}
+          />
+          <DetailSection
+            title="Onaylı Mesailer"
+            empty="Bu ay onaylı mesai kaydı yok."
+            rows={data.overtime.map((item) => ({
+              date: item.date,
+              amount: item.amount,
+              meta: `${item.description}${item.minutes ? ` · ${formatMinutes(item.minutes)}` : ""}`,
+              sign: 1,
+            }))}
+          />
+          {data.corbaDetails && data.corbaDetails.length > 0 ? (
+            <DetailSection
+              title="Çorba Kazanılan Detayları"
+              empty="Bu ay çorba kaydı yok."
+              rows={data.corbaDetails.map((item) => ({
+                date: item.date,
+                amount: item.amount,
+                meta: item.description,
+                sign: 1,
+              }))}
+            />
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  )
+}
+
+function SalaryMetric({
+  label,
+  value,
+  icon: Icon,
+  positive,
+  negative,
+}: {
+  label: string
+  value: number
+  icon: typeof WalletCards
+  positive?: boolean
+  negative?: boolean
+}) {
+  return (
+    <div className="ios-salary-metric">
+      <Icon className="h-5 w-5" />
+      <span>{label}</span>
+      <strong className={positive ? "text-emerald-600" : negative ? "text-red-500" : ""}>
+        {positive ? "+" : negative ? "−" : ""}
+        {formatMoney(value)}
+      </strong>
+    </div>
+  )
+}
+
+function DetailSection({
+  title,
+  rows,
+  empty,
+}: {
+  title: string
+  empty: string
+  rows: Array<{ date: string; amount: number; meta: string; sign: number }>
+}) {
+  return (
+    <section className="ios-detail-section">
+      <h2>{title}</h2>
+      <div className="ios-list">
+        {rows.length ? (
+          rows.map((row, index) => (
+            <div className="ios-list-row" key={`${row.date}-${index}`}>
+              <div>
+                <strong>{formatDate(row.date)}</strong>
+                <span>{row.meta}</span>
+              </div>
+              <b className={row.sign > 0 ? "text-emerald-600" : "text-red-500"}>
+                {row.sign > 0 ? "+" : "−"}
+                {formatMoney(row.amount)}
+              </b>
+            </div>
+          ))
+        ) : (
+          <p className="ios-empty">{empty}</p>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(value)
+}
+function formatDate(value: string) {
+  if (!value) return "-"
+  const d = new Date(value.includes("T") ? value : `${value}T12:00:00.000Z`)
+  if (isNaN(d.getTime())) return "-"
+  return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" })
+}
+function formatMinutes(value: number) {
+  const hours = Math.floor(value / 60)
+  const minutes = value % 60
+  return `${hours ? `${hours} sa ` : ""}${minutes ? `${minutes} dk` : ""}`.trim()
+}
+function monthLabel(month: number, year: number) {
+  return new Date(year, month - 1, 1).toLocaleDateString("tr-TR", { month: "long", year: "numeric" })
+}

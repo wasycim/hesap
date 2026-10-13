@@ -1,0 +1,174 @@
+"use client"
+
+import { createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react"
+
+type SaveHandler = () => Promise<void | boolean> | void | boolean
+
+interface UnsavedChangesContextType {
+  isDirty: boolean
+  markDirty: () => void
+  markClean: () => void
+  registerSaveHandler: (handler: SaveHandler | null) => void
+}
+
+const UnsavedChangesContext = createContext<UnsavedChangesContextType | undefined>(undefined)
+
+export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
+  const [isDirty, setIsDirty] = useState(false)
+  const [showPopup, setShowPopup] = useState(false)
+  const [pendingUrl, setPendingUrl] = useState<string | null>(null)
+  const saveHandlerRef = useRef<SaveHandler | null>(null)
+
+  const markDirty = useCallback(() => setIsDirty(true), [])
+  const markClean = useCallback(() => setIsDirty(false), [])
+  const registerSaveHandler = useCallback((handler: SaveHandler | null) => {
+    saveHandlerRef.current = handler
+  }, [])
+
+  useEffect(() => {
+    const saveFromKeyboard = async (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLocaleLowerCase("tr-TR") !== "s") return
+      if (!saveHandlerRef.current) return
+
+      event.preventDefault()
+      const result = await saveHandlerRef.current()
+      if (result !== false) {
+        setIsDirty(false)
+      }
+    }
+
+    const markDirtyFromInput = (event: Event) => {
+      const target = event.target as HTMLElement | null
+      if (!target) return
+      if (target.closest("[data-unsaved-ignore='true']")) return
+      if (!saveHandlerRef.current) return
+      if (target.closest("input, textarea, select")) {
+        markDirty()
+      }
+    }
+
+    const markDirtyFromActionButton = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null
+      if (!target) return
+      const button = target.closest("button") as HTMLButtonElement | null
+      if (!button) return
+      if (button.closest("[data-unsaved-ignore='true']")) return
+      if (!saveHandlerRef.current) return
+
+      const text = (button.textContent || "").toLocaleLowerCase("tr-TR")
+      const isAddButton = text.includes("satır ekle") || text.includes("satir ekle")
+      const isTableDeleteButton = !!button.closest("tbody") && button.className.includes("text-red")
+
+      if (isAddButton || isTableDeleteButton) {
+        markDirty()
+      }
+    }
+
+    document.addEventListener("input", markDirtyFromInput, true)
+    document.addEventListener("change", markDirtyFromInput, true)
+    document.addEventListener("click", markDirtyFromActionButton, true)
+    window.addEventListener("keydown", saveFromKeyboard)
+
+    return () => {
+      document.removeEventListener("input", markDirtyFromInput, true)
+      document.removeEventListener("change", markDirtyFromInput, true)
+      document.removeEventListener("click", markDirtyFromActionButton, true)
+      window.removeEventListener("keydown", saveFromKeyboard)
+    }
+  }, [markDirty])
+
+  useEffect(() => {
+    const interceptLinks = (event: MouseEvent) => {
+      if (!isDirty) return
+      if (!saveHandlerRef.current) return
+
+      const target = event.target as HTMLElement | null
+      const link = target?.closest("a") as HTMLAnchorElement | null
+      if (!link || !link.href) return
+      if (link.target === "_blank") return
+      if (link.href === window.location.href) return
+
+      event.preventDefault()
+      event.stopPropagation()
+      setPendingUrl(link.href)
+      setShowPopup(true)
+    }
+
+    document.addEventListener("click", interceptLinks, true)
+    return () => document.removeEventListener("click", interceptLinks, true)
+  }, [isDirty])
+
+  async function saveAndContinue() {
+    if (saveHandlerRef.current) {
+      const result = await saveHandlerRef.current()
+      if (result === false) return
+    }
+
+    setIsDirty(false)
+    setShowPopup(false)
+
+    if (pendingUrl) {
+      window.location.href = pendingUrl
+    }
+  }
+
+  function leaveWithoutSaving() {
+    setIsDirty(false)
+    setShowPopup(false)
+
+    if (pendingUrl) {
+      window.location.href = pendingUrl
+    }
+  }
+
+  function cancelNavigation() {
+    setShowPopup(false)
+    setPendingUrl(null)
+  }
+
+  return (
+    <UnsavedChangesContext.Provider value={{ isDirty, markDirty, markClean, registerSaveHandler }}>
+      {children}
+
+      {showPopup && (
+        <div data-unsaved-ignore="true" className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
+          <div className="animate-modal-pop w-full max-w-md rounded-xl border bg-card p-6 text-card-foreground shadow-xl">
+            <h2 className="mb-2 text-lg font-bold">Kaydedilmemiş değişiklikler var</h2>
+            <p className="mb-5 text-sm text-muted-foreground">
+              Yaptığınız işlemler kaydedilmedi. Çıkmadan önce kaydetmek ister misiniz?
+            </p>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={cancelNavigation}
+                className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
+              >
+                Vazgeç
+              </button>
+              <button
+                onClick={leaveWithoutSaving}
+                className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
+              >
+                Kaydetmeden çık
+              </button>
+              <button
+                onClick={saveAndContinue}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Kaydet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </UnsavedChangesContext.Provider>
+  )
+}
+
+export function useUnsavedChanges() {
+  const context = useContext(UnsavedChangesContext)
+  if (!context) {
+    throw new Error("useUnsavedChanges must be used within UnsavedChangesProvider")
+  }
+  return context
+}

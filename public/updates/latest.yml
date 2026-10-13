@@ -1,0 +1,8 @@
+version: 9.9.5
+files:
+  - url: Hesap-Setup-9.9.5.exe
+    sha512: 0o4InRIMZ+0Q9LukI45j0TftuCRbBB81F8ckQj9RQze6kAzqsLT+1fJCOoQTmthsoZBryYeDMW4m++I9VWqwAg==
+    size: 233155144
+path: Hesap-Setup-9.9.5.exe
+sha512: 0o4InRIMZ+0Q9LukI45j0TftuCRbBB81F8ckQj9RQze6kAzqsLT+1fJCOoQTmthsoZBryYeDMW4m++I9VWqwAg==
+releaseDate: '2026-10-12T18:41:32.685Z'

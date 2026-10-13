@@ -1,0 +1,360 @@
+import { NextRequest, NextResponse } from "next/server"
+import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
+import { isTestPersonnel } from "@/lib/utils/test-personnel"
+import { isPersonelWorkingOnDate, parseGirisCikisGecmisi } from "@/lib/personel-employment"
+
+type AssignmentInput = {
+  personel_id: string
+  tarih: string
+  vardiya: string
+  notlar?: string | null
+}
+
+
+const defaultFixedShifts = [
+  { kod: "S", ad: "Sabah", simge: "S", baslangic: "06:00", bitis: "16:00", aktif: true },
+  { kod: "A", ad: "Akşam", simge: "A", baslangic: "16:00", bitis: "02:00", aktif: true },
+  { kod: "R", ad: "Ara", simge: "R", baslangic: "11:00", bitis: "21:00", aktif: true },
+  { kod: "I", ad: "İzin", simge: "İ", baslangic: null, bitis: null, aktif: true },
+]
+
+function normalizeName(value: string | null | undefined) {
+  return String(value || "")
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .replace(/[^a-z0-9çğıöşü]/g, "")
+}
+
+export function isCetinEserUser(displayName: string | null | undefined, email?: string | null): boolean {
+  const normName = normalizeName(displayName)
+  const normEmail = String(email || "").trim().toLowerCase()
+
+  const isExactName = normName === "çetineser" || normName === "cetineser"
+  const isFullComboName = (normName.includes("çetin") || normName.includes("cetin")) && normName.includes("eser")
+  const isExactEmail = normEmail.startsWith("cetin.eser") || normEmail.startsWith("cetineser") || normEmail.includes("cetin.eser") || normEmail.includes("cetineser")
+
+  return isExactName || isFullComboName || isExactEmail
+}
+
+async function requireDashboardAdmin() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { user: null, isAdmin: false, canEditShifts: false, profile: null, isExceptionUser: false }
+
+  const admin = createAdminClient()
+  const { data: profile } = await admin
+    .from("user_profiles")
+    .select("is_admin, is_developer, sube_id, display_name, email, dashboard_access")
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  const hasAccess = profile?.dashboard_access !== false
+  const isAdmin = Boolean(hasAccess && (profile?.is_admin || profile?.is_developer))
+  const isExceptionUser = Boolean(hasAccess && isCetinEserUser(profile?.display_name, profile?.email || user.email))
+  const canEditShifts = isAdmin || isExceptionUser
+
+  return { user, isAdmin, canEditShifts, profile, isExceptionUser }
+}
+
+function monthRange(month: string) {
+  const match = month.match(/^(\d{4})-(\d{2})$/)
+  if (!match) return null
+
+  const year = Number(match[1])
+  const monthIndex = Number(match[2]) - 1
+  const first = new Date(Date.UTC(year, monthIndex, 1))
+  const last = new Date(Date.UTC(year, monthIndex + 1, 0))
+
+  return {
+    from: first.toISOString().slice(0, 10),
+    to: last.toISOString().slice(0, 10),
+  }
+}
+
+function dateRange(from: string | null, to: string | null) {
+  if (!from || !to) return null
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return null
+  if (from > to) return null
+
+  return { from, to }
+}
+
+export async function GET(request: NextRequest) {
+  const { user, isAdmin, canEditShifts, profile, isExceptionUser } = await requireDashboardAdmin()
+
+
+  if (!user) {
+    return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
+  }
+
+  const requestedSubeId = request.nextUrl.searchParams.get("subeId")
+  const subeId = canEditShifts ? (requestedSubeId || profile?.sube_id) : profile?.sube_id
+  const month = request.nextUrl.searchParams.get("month")
+  const range = dateRange(
+    request.nextUrl.searchParams.get("from"),
+    request.nextUrl.searchParams.get("to"),
+  ) || (month ? monthRange(month) : null)
+
+  if (!subeId || !range) {
+    return NextResponse.json({ error: "Şube ve ay zorunlu." }, { status: 400 })
+  }
+
+  const admin = createAdminClient()
+  const { data: subeData } = await admin.from("subeler").select("id, ad").eq("id", subeId).maybeSingle()
+  const subeAd = subeData?.ad || ""
+  const is5ABranch = Boolean(subeAd.trim().toUpperCase().includes("5A") || subeId === "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981")
+  const is14Branch = Boolean(subeAd.trim().toUpperCase().includes("14") || subeId === "172cc1f6-3012-47d3-a707-36e6f77e97cf")
+  const branchIds = (is5ABranch || is14Branch)
+    ? ["b63cce3d-2d0a-4d99-a9ec-25e2de4a6981", "172cc1f6-3012-47d3-a707-36e6f77e97cf"]
+    : [subeId]
+
+  const [personelRes, planRes, shiftRes, fixedShiftRes] = await Promise.all([
+    admin
+      .from("personeller")
+      .select("*")
+      .eq("sube_id", subeId)
+      .order("sira", { ascending: true }),
+    admin
+      .from("vardiya_planlari")
+      .select("id, personel_id, tarih, vardiya, notlar")
+      .in("sube_id", branchIds)
+      .gte("tarih", range.from)
+      .lte("tarih", range.to)
+      .order("tarih", { ascending: true }),
+    admin
+      .from("vardiya_tanimlari")
+      .select("id, ad, simge, baslangic, bitis, aktif, sira")
+      .eq("sube_id", subeId)
+      .eq("aktif", true)
+      .order("sira", { ascending: true }),
+    admin
+      .from("vardiya_sabit_ayarlari")
+      .select("kod, ad, simge, baslangic, bitis, aktif")
+      .eq("sube_id", subeId),
+  ])
+
+  if (personelRes.error) {
+    return NextResponse.json({ error: personelRes.error.message }, { status: 500 })
+  }
+
+  if (planRes.error) {
+    return NextResponse.json({ error: planRes.error.message }, { status: 500 })
+  }
+
+  if (shiftRes.error) {
+    return NextResponse.json({ error: shiftRes.error.message }, { status: 500 })
+  }
+
+  if (fixedShiftRes.error) {
+    return NextResponse.json({ error: fixedShiftRes.error.message }, { status: 500 })
+  }
+
+  let personeller = (personelRes.data || []).filter((p) => !isTestPersonnel(p))
+
+  if (is5ABranch) {
+    personeller = personeller.filter(p => !p.ad.toUpperCase().includes("ÖMER KAHRİMAN") && !p.ad.toUpperCase().includes("OMER KAHRIMAN"))
+  } else if (is14Branch) {
+    const { data: omerData } = await admin
+      .from("personeller")
+      .select("*")
+      .ilike("ad", "%ÖMER KAHRİMAN%")
+      .maybeSingle()
+
+    if (omerData && !personeller.some(p => p.id === omerData.id)) {
+      personeller = [omerData, ...personeller]
+    }
+  }
+
+  const filteredPersoneller = personeller.filter((p) => {
+    const history = parseGirisCikisGecmisi(p.giris_cikis_gecmisi, p.ise_giris_tarihi, p.isten_cikis_tarihi)
+
+    if (history.length > 0) {
+      return history.some((period) => {
+        const start = period.ise_giris_tarihi
+        const end = period.isten_cikis_tarihi
+        const startedBeforeRangeEnd = !start || start <= range.to
+        const endedAfterRangeStart = !end || end >= range.from
+        return startedBeforeRangeEnd && endedAfterRangeStart
+      })
+    }
+
+    if (p.isten_cikis_tarihi && p.isten_cikis_tarihi < range.from) {
+      return false
+    }
+    if (p.ise_giris_tarihi && p.ise_giris_tarihi > range.to) {
+      return false
+    }
+
+    return Boolean(p.aktif)
+  })
+
+  const fixedByCode = new Map((fixedShiftRes.data || []).map((row) => [row.kod, row]))
+  const fixedShiftDefinitions = defaultFixedShifts
+    .map((row) => ({ ...row, ...(fixedByCode.get(row.kod) || {}) }))
+    .filter((row) => row.aktif)
+  const personelById = new Map(filteredPersoneller.map((personel) => [personel.id, personel]))
+  const planGroups = new Map<string, any[]>()
+  for (const assignment of planRes.data || []) {
+    const key = `${assignment.personel_id}__${assignment.tarih}`
+    const items = planGroups.get(key) || []
+    items.push(assignment)
+    planGroups.set(key, items)
+  }
+  const conflicts = Array.from(planGroups.entries())
+    .filter(([, items]) => items.length > 1)
+    .map(([key, items]) => {
+      const [personelId, tarih] = key.split("__")
+      return {
+        personel_id: personelId,
+        personel_ad: personelById.get(personelId)?.ad || personelId,
+        tarih,
+        count: items.length,
+        vardiyalar: items.map((item) => item.vardiya),
+      }
+    })
+
+  return NextResponse.json({
+    personeller: filteredPersoneller.map((personel) => ({
+      id: personel.id,
+      ad: personel.ad,
+      aktif: personel.aktif,
+      sira: personel.sira,
+      sabit_vardiya: personel.sabit_vardiya || null,
+      ise_giris_tarihi: personel.ise_giris_tarihi || null,
+      isten_cikis_tarihi: personel.isten_cikis_tarihi || null,
+      giris_cikis_gecmisi: personel.giris_cikis_gecmisi || [],
+    })),
+    assignments: planRes.data || [],
+    conflicts,
+    fixedShiftDefinitions,
+    shiftDefinitions: shiftRes.data || [],
+    readOnly: !canEditShifts,
+    canEditShifts,
+    isExceptionUser,
+  })
+}
+
+export async function POST(request: NextRequest) {
+  const { user, canEditShifts } = await requireDashboardAdmin()
+
+  if (!user || !canEditShifts) {
+    return NextResponse.json({ error: "Yetkisiz işlem." }, { status: 403 })
+  }
+
+  const body = await request.json().catch(() => ({}))
+  const subeId = String(body.subeId || "")
+  const assignments = Array.isArray(body.assignments) ? body.assignments as AssignmentInput[] : []
+  const fixedShifts = Array.isArray(body.fixedShifts) ? body.fixedShifts as FixedShiftInput[] : []
+
+  if (!subeId) {
+    return NextResponse.json({ error: "Şube zorunlu." }, { status: 400 })
+  }
+
+  const validAssignments = assignments.filter((assignment) => (
+    assignment.personel_id &&
+    /^\d{4}-\d{2}-\d{2}$/.test(assignment.tarih) &&
+    typeof assignment.vardiya === "string" &&
+    assignment.vardiya.length <= 80
+  ))
+
+  const assignmentKeys = new Map<string, string>()
+  for (const assignment of validAssignments) {
+    const key = `${assignment.personel_id}__${assignment.tarih}`
+    const vardiya = assignment.vardiya.trim()
+    const existing = assignmentKeys.get(key)
+    if (existing !== undefined && (existing || vardiya)) {
+      return NextResponse.json(
+        { error: "Aynı personele aynı gün ikinci vardiya atanamaz. Lütfen çakışan günü temizleyip tekrar kaydedin." },
+        { status: 409 },
+      )
+    }
+    assignmentKeys.set(key, vardiya)
+  }
+
+  const validFixedShifts = fixedShifts.filter((item) => (
+    item.personel_id &&
+    typeof item.sabit_vardiya === "string" &&
+    item.sabit_vardiya.length <= 80
+  ))
+
+  const admin = createAdminClient()
+  const targetPersonelIds = Array.from(new Set(validAssignments.map((a) => a.personel_id)))
+  if (targetPersonelIds.length > 0) {
+    const { data: targetPersoneller } = await admin
+      .from("personeller")
+      .select("id, ad, aktif, ise_giris_tarihi, isten_cikis_tarihi, giris_cikis_gecmisi")
+      .in("id", targetPersonelIds)
+
+    const personelMap = new Map((targetPersoneller || []).map((p) => [p.id, p]))
+
+    for (const assignment of validAssignments) {
+      if (!assignment.vardiya.trim()) continue
+      const p = personelMap.get(assignment.personel_id)
+      if (p) {
+        const { isWorking, status } = isPersonelWorkingOnDate(p, assignment.tarih)
+        if (!isWorking && status === "resigned") {
+          return NextResponse.json(
+            { error: `${p.ad} adlı personel bu tarihte (${assignment.tarih}) çalışmıyor / işten ayrılmış olduğu için vardiya atanamaz.` },
+            { status: 400 },
+          )
+        }
+      }
+    }
+  }
+
+  const rowsToUpsert = validAssignments
+    .filter((assignment) => assignment.vardiya.trim())
+    .map((assignment) => ({
+      user_id: user.id,
+      sube_id: subeId,
+      personel_id: assignment.personel_id,
+      tarih: assignment.tarih,
+      vardiya: assignment.vardiya.trim(),
+      notlar: assignment.notlar || null,
+      updated_at: new Date().toISOString(),
+    }))
+
+  const rowsToDelete = validAssignments.filter((assignment) => !assignment.vardiya)
+
+  if (rowsToUpsert.length) {
+    const { error } = await admin
+      .from("vardiya_planlari")
+      .upsert(rowsToUpsert, { onConflict: "sube_id,personel_id,tarih" })
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+  }
+
+  for (const assignment of rowsToDelete) {
+    const { error } = await admin
+      .from("vardiya_planlari")
+      .delete()
+      .eq("sube_id", subeId)
+      .eq("personel_id", assignment.personel_id)
+      .eq("tarih", assignment.tarih)
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+  }
+
+  for (const item of validFixedShifts) {
+    const { error } = await admin
+      .from("personeller")
+      .update({ sabit_vardiya: item.sabit_vardiya || null })
+      .eq("id", item.personel_id)
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+  }
+
+  return NextResponse.json({ ok: true })
+}
+type FixedShiftInput = {
+  personel_id: string
+  sabit_vardiya: string
+}

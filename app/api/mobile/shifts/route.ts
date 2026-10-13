@@ -1,0 +1,421 @@
+import { NextRequest, NextResponse } from "next/server"
+import { createAdminClient } from "@/lib/supabase/admin"
+import { getRequestAuthUser } from "@/lib/mobile-auth"
+import { isPersonelWorkingOnDate } from "@/lib/personel-employment"
+
+function normalizeName(value: unknown) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("tr-TR")
+}
+
+function dateKey(date = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul" }).format(date)
+}
+
+function getShiftDetails(shiftCode: string | null | undefined, customShifts: any[], fixedShifts: any[]) {
+  if (!shiftCode || shiftCode === "NONE" || shiftCode === "-" || String(shiftCode).trim() === "") {
+    return {
+      shortCode: "Belirsiz",
+      label: "Belirsiz",
+      hours: "",
+      color: "#94a3b8", // Slate Gray
+    }
+  }
+
+  const code = String(shiftCode).trim().toLocaleUpperCase("tr-TR")
+  if (code === "NOT_STARTED" || code === "BAŞLAMADI") {
+    return {
+      shortCode: "BAŞLAMADI",
+      label: "Henüz İşe Başlamadı",
+      hours: "-",
+      color: "#94a3b8",
+    }
+  }
+  if (code === "AYRILDI" || code === "AYR") {
+    return {
+      shortCode: "AYR",
+      label: "Ayrıldı (İşten Çıkış)",
+      hours: "-",
+      color: "#ef4444",
+    }
+  }
+  const custom = (customShifts || []).find((s) => s.id === shiftCode || String(s.simge).toLocaleUpperCase("tr-TR") === code)
+  const fixed = (fixedShifts || []).find((s) => s.kod === code || String(s.simge).toLocaleUpperCase("tr-TR") === code)
+
+  let shortCode = "SAB"
+  let label = "Sabah"
+  let color = "#f59e0b" // Amber Gold
+
+  if (code === "S" || code === "SAB" || (fixed && fixed.ad === "Sabah")) {
+    shortCode = "SAB"
+    label = "Sabah (06:00-16:00)"
+    color = "#f59e0b"
+  } else if (code === "A" || code === "AKS" || code === "AKŞ" || (fixed && fixed.ad === "Akşam")) {
+    shortCode = "AKŞ"
+    label = "Akşam (16:00-02:00)"
+    color = "#6366f1" // Indigo
+  } else if (code === "R" || code === "ARA" || (fixed && fixed.ad === "Ara")) {
+    shortCode = "ARA"
+    label = "Ara Vardiya (11:00-21:00)"
+    color = "#06b6d4" // Cyan
+  } else if (code === "I" || code === "İ" || code === "IZN" || code === "İZİN" || (fixed && fixed.ad === "İzin")) {
+    shortCode = "İZN"
+    label = "İzinli"
+    color = "#64748b" // Slate Gray
+  } else if (code === "OFF" || code === "TATİL") {
+    shortCode = "OFF"
+    label = "Haftalık Off"
+    color = "#10b981" // Emerald Green
+  } else if (code === "G" || code === "GEC" || code === "GECE") {
+    shortCode = "GEC"
+    label = "Gece Vardiyası"
+    color = "#8b5cf6" // Purple
+  } else if (custom) {
+    shortCode = String(custom.simge || custom.ad || code).slice(0, 3).toLocaleUpperCase("tr-TR")
+    label = `${custom.ad} (${custom.baslangic || ""}-${custom.bitis || ""})`
+    color = "#3b82f6" // Blue
+  } else {
+    shortCode = code.slice(0, 3)
+    label = fixed ? fixed.ad : code
+    color = "#0284c7"
+  }
+
+  const hours = custom
+    ? `${custom.baslangic || ""}-${custom.bitis || ""}`
+    : fixed && fixed.baslangic
+    ? `${fixed.baslangic}-${fixed.bitis}`
+    : ""
+
+  return { shortCode, label, hours, color }
+}
+
+function getWeekDates(centerDateStr: string) {
+  const date = new Date(centerDateStr)
+  if (Number.isNaN(date.getTime())) return getWeekDates(dateKey())
+
+  const day = date.getDay()
+  const diffToMonday = day === 0 ? -6 : 1 - day
+
+  const monday = new Date(date)
+  monday.setDate(date.getDate() + diffToMonday)
+
+  const days = []
+  const shortNames = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz", "Pzt (+1)"]
+  const longNames = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "Gelecek Pazartesi"]
+
+  for (let i = 0; i < 8; i++) {
+    const d = new Date(monday)
+    d.setDate(monday.getDate() + i)
+    const key = dateKey(d)
+    days.push({
+      date: key,
+      shortDay: shortNames[i],
+      longDay: longNames[i],
+      dayIndex: i,
+      isNextWeek: i === 7,
+    })
+  }
+  return days
+}
+
+export async function GET(request: NextRequest) {
+  const user = await getRequestAuthUser(request)
+  if (!user) return NextResponse.json({ error: "Oturum bulunamadı." }, { status: 401 })
+
+  const searchParams = request.nextUrl.searchParams
+  const selectedDate = searchParams.get("date") || dateKey()
+  const weekDays = getWeekDates(selectedDate)
+  const weekDateKeys = weekDays.map((d) => d.date)
+
+  const admin = createAdminClient()
+
+  const { data: profile, error: profileError } = await admin
+    .from("user_profiles")
+    .select("user_id, sube_id, display_name, is_admin, is_developer, dashboard_access, tc_kimlik")
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
+  if (!profile) {
+    return NextResponse.json({ error: "Personel profili bulunamadı." }, { status: 404 })
+  }
+
+  const BRANCH_14_ID = "172cc1f6-3012-47d3-a707-36e6f77e97cf"
+  const BRANCH_5A_ID = "b63cce3d-2d0a-4d99-a9ec-25e2de4a6981"
+
+  const isOmerUser = Boolean(
+    profile.user_id === "c5f19284-0c74-417c-9abc-d578f4aa59cd" ||
+    normalizeName(profile.display_name).includes("ÖMER KAHRİMAN") ||
+    normalizeName(profile.display_name).includes("OMER KAHRIMAN")
+  )
+
+  let subeId = isOmerUser ? BRANCH_14_ID : (profile.sube_id as string | null)
+
+  if (!subeId) {
+    const uName = profile.display_name?.trim() || ""
+    const { data: globalMatch } = await admin
+      .from("personeller")
+      .select("sube_id")
+      .or(`ad.ilike.%${uName}%`)
+      .limit(1)
+      .maybeSingle()
+
+    if (globalMatch?.sube_id) {
+      subeId = globalMatch.sube_id
+    } else {
+      const { data: firstBranch } = await admin.from("subeler").select("id").eq("aktif", true).order("ad").limit(1).maybeSingle()
+      subeId = firstBranch?.id || null
+    }
+
+    if (subeId && !isOmerUser) {
+      await admin.from("user_profiles").update({ sube_id: subeId }).eq("user_id", user.id)
+    }
+  }
+
+  if (!subeId) {
+    return NextResponse.json({ error: "Sistemde aktif şube bulunamadı." }, { status: 404 })
+  }
+
+  const isAdmin = Boolean(profile.is_admin || profile.is_developer)
+
+  const is5AOr14 = subeId === BRANCH_5A_ID || subeId === BRANCH_14_ID
+  const planBranchIds = is5AOr14
+    ? [BRANCH_5A_ID, BRANCH_14_ID]
+    : [subeId]
+
+  const [
+    { data: branch },
+    { data: rawPersoneller },
+    { data: plans },
+    { data: customShifts },
+    { data: fixedShifts }
+  ] = await Promise.all([
+    admin.from("subeler").select("id, ad, kod").eq("id", subeId).maybeSingle(),
+    admin.from("personeller").select("id, ad, sabit_vardiya, sira, aktif, isten_cikis_tarihi, ise_giris_tarihi, giris_cikis_gecmisi").eq("sube_id", subeId).eq("aktif", true).order("sira"),
+    admin.from("vardiya_planlari").select("id, personel_id, tarih, vardiya, notlar, sube_id").in("sube_id", planBranchIds).in("tarih", weekDateKeys),
+    admin.from("vardiya_tanimlari").select("id, ad, simge, baslangic, bitis, aktif, sira").eq("sube_id", subeId).eq("aktif", true).order("sira"),
+    admin.from("vardiya_sabit_ayarlari").select("kod, ad, simge, baslangic, bitis, aktif").eq("aktif", true),
+  ])
+
+  let personeller = rawPersoneller || []
+  if (subeId === BRANCH_5A_ID) {
+    personeller = personeller.filter(
+      (p) => !p.ad.toUpperCase().includes("ÖMER KAHRİMAN") && !p.ad.toUpperCase().includes("OMER KAHRIMAN")
+    )
+  } else if (subeId === BRANCH_14_ID) {
+    const { data: omerData } = await admin
+      .from("personeller")
+      .select("id, ad, sabit_vardiya, sira, aktif, isten_cikis_tarihi, ise_giris_tarihi, giris_cikis_gecmisi")
+      .ilike("ad", "%ÖMER KAHRİMAN%")
+      .maybeSingle()
+    if (omerData && !personeller.some((p) => p.id === omerData.id)) {
+      personeller = [omerData, ...personeller]
+    }
+  }
+
+  let currentPersonel = (personeller || []).find((p) => p.id === profile.tc_kimlik)
+  if (!currentPersonel) {
+    currentPersonel = (personeller || []).find((p) => normalizeName(p.ad) === normalizeName(profile.display_name))
+  }
+  if (!currentPersonel) {
+    currentPersonel = (personeller || []).find((p) => {
+      const pName = normalizeName(p.ad)
+      const uName = normalizeName(profile.display_name)
+      return pName.includes(uName) || uName.includes(pName)
+    })
+  }
+  const planMap = new Map((plans || []).map((p) => [`${p.personel_id}:${p.tarih}`, p]))
+
+  // Build Weekly Shift Grid per personnel
+  const weeklyShiftGrid = (personeller || []).map((p) => {
+    const isCurrentUser = p.id === currentPersonel?.id
+    const days = weekDays.map((wd) => {
+      const statusObj = isPersonelWorkingOnDate(p, wd.date)
+      if (statusObj.status === "not_started") {
+        return {
+          date: wd.date,
+          shortDay: wd.shortDay,
+          longDay: wd.longDay,
+          shiftCode: "BAŞLAMADI",
+          shortCode: "BAŞLAMADI",
+          label: "Henüz İşe Başlamadı",
+          hours: "-",
+          color: "#94a3b8",
+          notes: "Henüz işe başlamadı",
+          isExited: false,
+          isNotStarted: true,
+        }
+      }
+      if (statusObj.status === "resigned") {
+        return {
+          date: wd.date,
+          shortDay: wd.shortDay,
+          longDay: wd.longDay,
+          shiftCode: "AYRILDI",
+          shortCode: "AYR",
+          label: "Ayrıldı",
+          hours: "-",
+          color: "#ef4444",
+          notes: "İşten ayrıldı",
+          isExited: true,
+          isNotStarted: false,
+        }
+      }
+
+      const plan = planMap.get(`${p.id}:${wd.date}`)
+      // Vardiya belirlenmemişse kesinlikle sabit_vardiya veya önceki vardiya yazılmayacak, Belirsiz olacak
+      const shiftCode = (plan?.vardiya && plan.vardiya.trim()) ? plan.vardiya.trim() : ""
+      const { shortCode, label, hours, color } = getShiftDetails(shiftCode, customShifts || [], fixedShifts || [])
+      return {
+        date: wd.date,
+        shortDay: wd.shortDay,
+        longDay: wd.longDay,
+        shiftCode: shiftCode || null,
+        shortCode,
+        label,
+        hours,
+        color,
+        notes: plan?.notlar || null,
+        isExited: false,
+        isNotStarted: false,
+      }
+    })
+
+    const selectedDayShift = days.find((d) => d.date === selectedDate) || days[0]
+
+    return {
+      personelId: p.id,
+      name: p.ad,
+      isCurrentUser,
+      currentDayShift: selectedDayShift,
+      weeklyDays: days,
+    }
+  })
+
+  const shiftListForSelectedDate = weeklyShiftGrid.map((p) => ({
+    personelId: p.personelId,
+    name: p.name,
+    shiftCode: p.currentDayShift.shiftCode,
+    shortCode: p.currentDayShift.shortCode,
+    label: p.currentDayShift.label,
+    hours: p.currentDayShift.hours,
+    color: p.currentDayShift.color,
+    notes: p.currentDayShift.notes,
+    isCurrentUser: p.isCurrentUser,
+  }))
+
+  const currentUserShift = shiftListForSelectedDate.find((s) => s.isCurrentUser) || null
+  const hasCurrentUserShift = Boolean(
+    currentUserShift?.shiftCode &&
+    currentUserShift.shiftCode !== "NONE" &&
+    currentUserShift.shiftCode !== "BAŞLAMADI" &&
+    currentUserShift.shiftCode !== "AYRILDI" &&
+    currentUserShift.shortCode !== "Belirsiz"
+  )
+  const sameShiftPeers = hasCurrentUserShift
+    ? shiftListForSelectedDate.filter((s) => s.shiftCode && s.shiftCode === currentUserShift!.shiftCode && !s.isCurrentUser)
+    : []
+
+  const availableShifts = [
+    { code: "S", shortCode: "SAB", label: "Sabah (06:00-16:00)", color: "#f59e0b" },
+    { code: "A", shortCode: "AKŞ", label: "Akşam (16:00-02:00)", color: "#6366f1" },
+    { code: "R", shortCode: "ARA", label: "Ara (11:00-21:00)", color: "#06b6d4" },
+    { code: "I", shortCode: "İZN", label: "İzinli", color: "#64748b" },
+    { code: "OFF", shortCode: "OFF", label: "Haftalık Off", color: "#10b981" },
+    { code: "G", shortCode: "GEC", label: "Gece Vardiyası", color: "#8b5cf6" },
+    { code: "NONE", shortCode: "—", label: "Vardiya Yok / Belirlenmedi", color: "#94a3b8" },
+    ...(customShifts || []).map((s) => ({
+      code: s.id,
+      shortCode: String(s.simge || s.ad || "ÖZL").slice(0, 3).toLocaleUpperCase("tr-TR"),
+      label: `${s.ad} (${s.baslangic || ""}-${s.bitis || ""})`,
+      color: "#3b82f6",
+    })),
+  ]
+
+  const currentUserRow = weeklyShiftGrid.find((p) => p.isCurrentUser) || null
+  const nextMondayDay = weekDays.find((w) => w.isNextWeek)
+  const currentUserNextMondayShift = nextMondayDay && currentUserRow?.weeklyDays
+    ? currentUserRow.weeklyDays.find((d: any) => d.date === nextMondayDay.date) || null
+    : null
+
+  return NextResponse.json({
+    date: selectedDate,
+    weekDays,
+    branch,
+    isAdmin,
+    currentUser: currentPersonel ? { id: currentPersonel.id, name: currentPersonel.ad } : null,
+    currentUserShift,
+    nextMondayDate: nextMondayDay?.date || null,
+    nextMondayShift: currentUserNextMondayShift,
+    sameShiftPeers,
+    allShifts: isAdmin ? shiftListForSelectedDate : [],
+    weeklyGrid: weeklyShiftGrid,
+    availableShifts: isAdmin ? availableShifts : [],
+  })
+}
+
+export async function POST(request: NextRequest) {
+  const user = await getRequestAuthUser(request)
+  if (!user) return NextResponse.json({ error: "Oturum bulunamadı." }, { status: 401 })
+
+  const admin = createAdminClient()
+  const { data: profile } = await admin
+    .from("user_profiles")
+    .select("user_id, sube_id, is_admin, is_developer")
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  if (!profile || (!profile.is_admin && !profile.is_developer)) {
+    return NextResponse.json({ error: "Vardiya atamak için yönetici yetkisi gereklidir." }, { status: 403 })
+  }
+
+  const body = await request.json().catch(() => ({}))
+  const { personelId, date, shiftCode, notes } = body
+
+  if (!personelId || !date || shiftCode === undefined) {
+    return NextResponse.json({ error: "Personel, tarih ve vardiya seçimi zorunludur." }, { status: 400 })
+  }
+
+  if (shiftCode === "NONE" || shiftCode === "DELETE" || shiftCode === "" || shiftCode === "-") {
+    const { error } = await admin
+      .from("vardiya_planlari")
+      .delete()
+      .eq("personel_id", personelId)
+      .eq("tarih", date)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true, message: "Vardiya kaydı silindi." })
+  }
+
+  const { data: targetPersonel } = await admin
+    .from("personeller")
+    .select("id, ad, isten_cikis_tarihi")
+    .eq("id", personelId)
+    .maybeSingle()
+
+  if (targetPersonel?.isten_cikis_tarihi && date > targetPersonel.isten_cikis_tarihi) {
+    return NextResponse.json(
+      { error: `${targetPersonel.ad} adlı personel ${targetPersonel.isten_cikis_tarihi} tarihinde işten ayrıldığı için bu tarihten sonrasına (${date}) vardiya atanamaz.` },
+      { status: 400 },
+    )
+  }
+
+  const BRANCH_14_ID = "172cc1f6-3012-47d3-a707-36e6f77e97cf"
+  const isTargetOmer = personelId === "78a15f68-edfd-493c-b8bd-5604acf599dd"
+
+  const payload = {
+    sube_id: isTargetOmer ? BRANCH_14_ID : profile.sube_id,
+    personel_id: personelId,
+    tarih: date,
+    vardiya: shiftCode,
+    notlar: notes || null,
+    updated_at: new Date().toISOString(),
+  }
+
+  const { error } = await admin
+    .from("vardiya_planlari")
+    .upsert(payload, { onConflict: "sube_id,personel_id,tarih" })
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ success: true, message: "Vardiya başarıyla atandı." })
+}

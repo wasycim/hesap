@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Hesap</string>
+    <string name="title_activity_main">Hesap</string>
+    <string name="package_name">wasy.systems.hesap</string>
+    <string name="custom_url_scheme">wasy.systems.hesap</string>
+</resources>

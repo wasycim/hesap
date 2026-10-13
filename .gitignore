@@ -1,0 +1,38 @@
+# v0 sandbox internal files
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+.snowflake/
+.v0-trash/
+.vercel/
+next.user-config.*
+
+# Environment variables
+.env
+.env.*
+.env*.local
+!.env.example
+.secrets/
+
+# Common ignores
+node_modules
+.next/
+.codex-tmp/
+apk/
+desktop/release/
+build/ios/
+expo-go/.expo/
+expo-go/dist/
+expo-go/ios/
+expo-go/android/
+ios/App/vendor/bundle/
+ios/App/fastlane/report.xml
+ios/App/fastlane/screenshots/
+ios/App/fastlane/test_output/
+desktop/build/icon.ico
+desktop/build/icon.png
+android/app/google-services.json
+ios/App/App/GoogleService-Info.plist
+.DS_Store
+public/updates/*.exe
+backups/
