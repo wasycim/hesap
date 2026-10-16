@@ -245,6 +245,10 @@ function configurePermissions() {
     const allowed = isAllowedUrl(requestUrl) && ["media", "notifications"].includes(permission)
     callback(allowed)
   })
+  session.defaultSession.setPermissionCheckHandler((_webContents, permission, _requestingOrigin, details) => {
+    const requestUrl = details?.requestingUrl || appUrl
+    return isAllowedUrl(requestUrl) && ["media", "notifications"].includes(permission)
+  })
 }
 
 function clearDesktopAuthSession() {
@@ -330,6 +334,7 @@ function createWindow() {
       sandbox: false,
       webSecurity: true,
       spellcheck: false,
+      backgroundThrottling: false,
     },
   })
 
@@ -337,6 +342,12 @@ function createWindow() {
     if (!mainWindow || mainWindow.isDestroyed()) return
     mainWindow.show()
     mainWindow.maximize()
+  })
+
+  mainWindow.on("focus", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.flashFrame(false)
+    }
   })
 
   mainWindow.on("maximize", () => sendWindowState())
@@ -348,13 +359,12 @@ function createWindow() {
     if (isQuitting || updateInstallInProgress || process.platform === "darwin") return
     event.preventDefault()
     mainWindow.hide()
-    prepareLoginForNextOpen().catch(() => undefined)
 
     if (!hasShownTrayHint && Notification.isSupported()) {
       hasShownTrayHint = true
       new Notification({
-        title: "Hesap oturumu kapatildi",
-        body: "Uygulama tepside acik kalacak; yeniden actiginizda giris yapmaniz gerekir.",
+        title: "Hesap arka planda çalışıyor",
+        body: "Bildirimleri almaya devam etmek için uygulama sistem tepsisinde açık kalacak.",
         icon: getIconPath(),
       }).show()
     }
@@ -707,6 +717,52 @@ ipcMain.handle("desktop:set-badge-count", (_event, count) => {
 })
 ipcMain.handle("desktop:get-startup-enabled", () => ({ enabled: readStartupPreference() }))
 ipcMain.handle("desktop:set-startup-enabled", (_event, enabled) => ({ enabled: writeStartupPreference(enabled) }))
+ipcMain.handle("desktop:show-notification", async (_event, payload = {}) => {
+  try {
+    const title = String(payload.title || "Hesap").trim() || "Hesap"
+    const body = String(payload.body || "Yeni bildirim var.").trim() || "Yeni bildirim var."
+    const href = typeof payload.href === "string" ? payload.href : "/dashboard/bildirimler"
+    const level = payload.level || "info"
+
+    if (Notification.isSupported()) {
+      const notif = new Notification({
+        title,
+        body,
+        icon: getIconPath(),
+        silent: false,
+        urgency: level === "error" || level === "warning" ? "critical" : "normal",
+      })
+
+      notif.on("click", () => {
+        showMainWindow().catch(() => undefined)
+        if (href && mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("desktop:navigate", href)
+        }
+      })
+
+      notif.show()
+    }
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.flashFrame(true)
+    }
+
+    if (process.platform === "win32" && tray) {
+      try {
+        tray.displayBalloon({
+          iconType: level === "error" ? "error" : level === "warning" ? "warning" : "info",
+          title,
+          content: body,
+        })
+      } catch {}
+    }
+
+    return { ok: true }
+  } catch (error) {
+    console.error("desktop:show-notification error:", error)
+    return { ok: false, error: error instanceof Error ? error.message : "Notification failed" }
+  }
+})
 ipcMain.handle("desktop:save-pdf-report", async (_event, payload = {}) => {
   const title = sanitizeFileName(payload.title)
   const html = typeof payload.html === "string" ? payload.html : ""

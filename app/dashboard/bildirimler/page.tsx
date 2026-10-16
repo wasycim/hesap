@@ -53,7 +53,7 @@ export default function BildirimlerPage() {
   }
 
   async function deleteNotification(item: NotificationItem) {
-    if (!item.deletable || !item.read_at) return
+    if (!item.deletable) return
     setItems((current) => current.filter((entry) => entry.id !== item.id))
     await fetch(`/api/notifications?id=${encodeURIComponent(item.id)}`, { method: "DELETE" }).catch(() => undefined)
   }
@@ -111,7 +111,7 @@ export default function BildirimlerPage() {
                   <Button asChild variant="outline" size="sm">
                     <Link href={item.href || "/dashboard"}>Ilgili sayfa</Link>
                   </Button>
-                  {item.read_at && item.deletable ? (
+                  {item.deletable ? (
                     <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-red-500" onClick={() => deleteNotification(item)} title="Sil">
                       <Trash2 className="h-4 w-4" />
                     </Button>

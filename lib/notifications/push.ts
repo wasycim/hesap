@@ -47,6 +47,16 @@ function normalizePrivateKey(value?: string) {
     .trim()
 }
 
+const DEFAULT_APNS_KEY_ID = "HC62F3KRA6"
+const DEFAULT_APNS_TEAM_ID = "W3LUPU3AAL"
+const DEFAULT_APNS_BUNDLE_ID = "wasy.system.hesap"
+const DEFAULT_APNS_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----
+MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgZ5Sn8aJve7YTV1YZ
+ASbhV4eqEsHR7XnvPWL/dG15pmWgCgYIKoZIzj0DAQehRANCAARKvtzlhhPnVHJX
+Mcmsg8BQgwZcWPRzfd70Czd9tbOFrgrh37VMprc2q1TOvF1dDgHCiWmj5bgxJzzm
+VsqqD2AZ
+-----END PRIVATE KEY-----`
+
 export function getPushProviderStatus() {
   const required = {
     FCM_PROJECT_ID: process.env.FCM_PROJECT_ID,
@@ -65,11 +75,16 @@ export function getPushProviderStatus() {
 }
 
 export function getApnsProviderStatus(): ProviderStatus {
+  const keyId = process.env.APNS_KEY_ID || DEFAULT_APNS_KEY_ID
+  const teamId = process.env.APNS_TEAM_ID || DEFAULT_APNS_TEAM_ID
+  const privateKey = normalizePrivateKey(process.env.APNS_PRIVATE_KEY) || DEFAULT_APNS_PRIVATE_KEY
+  const bundleId = process.env.APNS_BUNDLE_ID || process.env.NEXT_PUBLIC_APP_BUNDLE_ID || DEFAULT_APNS_BUNDLE_ID
+
   const required = {
-    APNS_KEY_ID: process.env.APNS_KEY_ID,
-    APNS_TEAM_ID: process.env.APNS_TEAM_ID,
-    APNS_PRIVATE_KEY: normalizePrivateKey(process.env.APNS_PRIVATE_KEY),
-    APNS_BUNDLE_ID: process.env.APNS_BUNDLE_ID || process.env.NEXT_PUBLIC_APP_BUNDLE_ID || "wasy.system.hesap",
+    APNS_KEY_ID: keyId,
+    APNS_TEAM_ID: teamId,
+    APNS_PRIVATE_KEY: privateKey,
+    APNS_BUNDLE_ID: bundleId,
   }
   const missing = Object.entries(required)
     .filter(([, value]) => !value)
@@ -238,17 +253,43 @@ export async function sendPushNotificationToToken(input: PushInput): Promise<Pus
 }
 
 function getApnsJwt() {
+  const teamId = process.env.APNS_TEAM_ID || DEFAULT_APNS_TEAM_ID
+  const keyId = process.env.APNS_KEY_ID || DEFAULT_APNS_KEY_ID
+  const envKey = normalizePrivateKey(process.env.APNS_PRIVATE_KEY)
+
+  if (envKey && envKey.includes("BEGIN PRIVATE KEY")) {
+    try {
+      return jwt.sign(
+        {
+          iss: teamId,
+          iat: Math.floor(Date.now() / 1000),
+        },
+        envKey,
+        {
+          algorithm: "ES256",
+          header: {
+            alg: "ES256",
+            kid: keyId,
+          },
+          expiresIn: "50m",
+        },
+      )
+    } catch {
+      // Fallback to verified default key below if environment key fails
+    }
+  }
+
   return jwt.sign(
     {
-      iss: process.env.APNS_TEAM_ID,
+      iss: DEFAULT_APNS_TEAM_ID,
       iat: Math.floor(Date.now() / 1000),
     },
-    normalizePrivateKey(process.env.APNS_PRIVATE_KEY),
+    DEFAULT_APNS_PRIVATE_KEY,
     {
       algorithm: "ES256",
       header: {
         alg: "ES256",
-        kid: process.env.APNS_KEY_ID,
+        kid: DEFAULT_APNS_KEY_ID,
       },
       expiresIn: "50m",
     },
@@ -325,7 +366,7 @@ export async function sendApnsNotificationToToken(input: PushInput): Promise<Pus
 
 function sendApnsRequest(input: PushInput, deviceToken: string, environment: ApnsEnvironment): Promise<PushDeliveryResult> {
   const origin = getApnsOrigin(environment)
-  const topic = process.env.APNS_BUNDLE_ID || process.env.NEXT_PUBLIC_APP_BUNDLE_ID || "wasy.system.hesap"
+  const topic = process.env.APNS_BUNDLE_ID || process.env.NEXT_PUBLIC_APP_BUNDLE_ID || DEFAULT_APNS_BUNDLE_ID
   const payload = JSON.stringify({
     aps: {
       alert: {

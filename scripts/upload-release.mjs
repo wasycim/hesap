@@ -2,8 +2,15 @@ import fs from "fs"
 import path from "path"
 
 const BASE_URL = "https://pamukkaleturizm.info/api/admin/updates/upload"
-const FILE_PATH = path.join(process.cwd(), "public", "updates", "Hesap-Setup-9.9.5.exe")
-const SECRET = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || ""
+const latestYmlPath = path.join(process.cwd(), "public", "updates", "latest.yml")
+let defaultFilename = "Hesap-Setup-9.9.6.exe"
+if (fs.existsSync(latestYmlPath)) {
+  const match = fs.readFileSync(latestYmlPath, "utf8").match(/path:\s*([^\r\n]+)/)
+  if (match) defaultFilename = match[1].trim()
+}
+const FILENAME = process.argv[2] || defaultFilename
+const FILE_PATH = path.join(process.cwd(), "public", "updates", FILENAME)
+const SECRET = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 const CHUNK_SIZE = 8 * 1024 * 1024 // 8 MB (strictly below 10MB reverse proxy limit)
 
 async function upload() {
@@ -15,7 +22,7 @@ async function upload() {
   const stat = fs.statSync(FILE_PATH)
   const totalSize = stat.size
   const totalChunks = Math.ceil(totalSize / CHUNK_SIZE)
-  console.log(`Dosya: Hesap-Setup-9.9.5.exe (${(totalSize / (1024 * 1024)).toFixed(2)} MB / ${totalSize} bytes) - Toplam ${totalChunks} parca halinde yuklenecek.`)
+  console.log(`Dosya: ${FILENAME} (${(totalSize / (1024 * 1024)).toFixed(2)} MB / ${totalSize} bytes) - Toplam ${totalChunks} parca halinde yuklenecek.`)
 
   const fd = fs.openSync(FILE_PATH, "r")
   const buffer = Buffer.alloc(CHUNK_SIZE)
@@ -27,7 +34,7 @@ async function upload() {
     const bytesRead = fs.readSync(fd, buffer, 0, bytesToRead, start)
     const chunkData = buffer.subarray(0, bytesRead)
 
-    const url = `${BASE_URL}?filename=Hesap-Setup-9.9.5.exe&chunk=${i}&totalChunks=${totalChunks}`
+    const url = `${BASE_URL}?filename=${encodeURIComponent(FILENAME)}&chunk=${i}&totalChunks=${totalChunks}`
     process.stdout.write(`[${i + 1}/${totalChunks}] Parca yukleniyor (${(bytesRead / (1024 * 1024)).toFixed(2)} MB)... `)
 
     let success = false

@@ -17,6 +17,8 @@ type DesktopBridge = {
   getVersion?: () => Promise<string>
   windowControl?: (action: "minimize" | "toggle-maximize" | "close" | "reload") => Promise<{ ok: boolean; maximized?: boolean }>
   checkForUpdates?: () => Promise<{ status?: string } | unknown>
+  showNotification?: (payload: { id?: string; title: string; body: string; href?: string; level?: string }) => Promise<{ ok: boolean; error?: string }>
+  onNavigate?: (callback: (href: string) => void) => () => void
   onUpdateStatus?: (callback: (payload: { status?: string; version?: string; message?: string }) => void) => () => void
   onWindowState?: (callback: (payload: { isMaximized?: boolean; isFullScreen?: boolean }) => void) => () => void
 }

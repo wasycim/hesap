@@ -26,7 +26,28 @@ export function NotificationCenter() {
     load()
     requestDesktopNotificationPermission()
     const timer = window.setInterval(load, 30_000)
-    return () => window.clearInterval(timer)
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        load()
+      }
+    }
+    window.addEventListener("visibilitychange", onVisibilityChange)
+    window.addEventListener("focus", onVisibilityChange)
+
+    const bridge = typeof window !== "undefined" ? (window as any).hesapDesktop : null
+    const unsubscribeNavigate = bridge?.onNavigate?.((href: string) => {
+      if (href) {
+        window.location.assign(href)
+      }
+    })
+
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener("visibilitychange", onVisibilityChange)
+      window.removeEventListener("focus", onVisibilityChange)
+      unsubscribeNavigate?.()
+    }
   }, [])
 
   async function load() {
@@ -59,9 +80,22 @@ export function NotificationCenter() {
   }
 
   async function deleteNotification(item: NotificationItem) {
-    if (!item.deletable || !item.read_at) return
+    if (!item.deletable) return
     setItems((current) => current.filter((entry) => entry.id !== item.id))
     await fetch(`/api/notifications?id=${encodeURIComponent(item.id)}`, { method: "DELETE" }).catch(() => undefined)
+  }
+
+  function handleTestNotification() {
+    const testItem: NotificationItem = {
+      id: `test-${Date.now()}`,
+      title: "Hesap Masaüstü Bildirimi",
+      body: "Masaüstü bildirimleri ve sesli uyarılar başarıyla çalışıyor!",
+      href: "/dashboard/bildirimler",
+      level: "success",
+      read_at: null,
+      created_at: new Date().toISOString(),
+    }
+    showDesktopNotifications([testItem], true)
   }
 
   const unreadCount = useMemo(() => items.filter((item) => !item.read_at).length, [items])
@@ -116,7 +150,7 @@ export function NotificationCenter() {
                       <CheckCheck className="h-4 w-4" />
                     </button>
                   ) : null}
-                  {item.read_at && item.deletable ? (
+                  {item.deletable ? (
                     <button type="button" onClick={() => deleteNotification(item)} className="rounded-md p-1 text-red-500 hover:bg-red-500/10" title="Sil">
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -125,10 +159,17 @@ export function NotificationCenter() {
               </div>
             ))}
           </div>
-          <div className="border-t p-2">
-            <Link href="/dashboard/bildirimler" onClick={() => setOpen(false)} className="block rounded-md px-3 py-2 text-center text-xs font-bold text-emerald-600 hover:bg-emerald-500/10">
-              Bildirim gecmisini ac
+          <div className="border-t p-2 flex items-center justify-between gap-2">
+            <Link href="/dashboard/bildirimler" onClick={() => setOpen(false)} className="rounded-md px-3 py-1.5 text-center text-xs font-bold text-emerald-600 hover:bg-emerald-500/10">
+              Bildirim geçmişini aç
             </Link>
+            <button
+              type="button"
+              onClick={handleTestNotification}
+              className="rounded-md px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted"
+            >
+              Bildirim Test Et
+            </button>
           </div>
         </PopoverContent>
       </Popover>
@@ -138,43 +179,101 @@ export function NotificationCenter() {
 
 function requestDesktopNotificationPermission() {
   if (isNativeRuntime()) return
+  if (typeof window !== "undefined" && (window as any).hesapDesktop?.showNotification) {
+    return
+  }
   if (typeof window === "undefined" || !("Notification" in window)) return
   if (Notification.permission === "default") {
     Notification.requestPermission().catch(() => undefined)
   }
 }
 
-function showDesktopNotifications(items: NotificationItem[]) {
+function playNotificationChime() {
+  if (typeof window === "undefined") return
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+    if (!AudioCtx) return
+    const ctx = new AudioCtx()
+    const now = ctx.currentTime
+
+    const osc1 = ctx.createOscillator()
+    const gain1 = ctx.createGain()
+    osc1.type = "sine"
+    osc1.frequency.setValueAtTime(587.33, now)
+    gain1.gain.setValueAtTime(0.12, now)
+    gain1.gain.exponentialRampToValueAtTime(0.005, now + 0.16)
+    osc1.connect(gain1)
+    gain1.connect(ctx.destination)
+    osc1.start(now)
+    osc1.stop(now + 0.16)
+
+    const osc2 = ctx.createOscillator()
+    const gain2 = ctx.createGain()
+    osc2.type = "sine"
+    osc2.frequency.setValueAtTime(880, now + 0.09)
+    gain2.gain.setValueAtTime(0.15, now + 0.09)
+    gain2.gain.exponentialRampToValueAtTime(0.005, now + 0.32)
+    osc2.connect(gain2)
+    gain2.connect(ctx.destination)
+    osc2.start(now + 0.09)
+    osc2.stop(now + 0.32)
+  } catch {}
+}
+
+function showDesktopNotifications(items: NotificationItem[], force = false) {
   if (isNativeRuntime()) return
-  if (typeof window === "undefined" || !("Notification" in window)) return
-  if (Notification.permission !== "granted") return
+  if (typeof window === "undefined") return
+
+  const desktopBridge = (window as any).hesapDesktop
+  const isElectron = Boolean(desktopBridge?.showNotification)
+
+  if (!isElectron) {
+    if (!("Notification" in window) || Notification.permission !== "granted") return
+  }
 
   const notifiedKey = "hesap.desktop.notifiedNotificationIds"
   const notified = new Set<string>(safeParseStringArray(window.localStorage.getItem(notifiedKey)))
   let changed = false
 
   for (const item of items) {
-    if (item.read_at || notified.has(item.id)) continue
-    notified.add(item.id)
+    if (!force && (item.read_at || notified.has(item.id))) continue
+    if (!force) notified.add(item.id)
     changed = true
 
-    const notification = new Notification(item.title || "Hesap bildirimi", {
-      body: item.body || "Yeni bildirim var.",
-      icon: "/icon.png",
-      badge: "/icon.png",
-      tag: `hesap-${item.id}`,
-      requireInteraction: item.level === "warning" || item.level === "error",
-    })
+    if (isElectron) {
+      desktopBridge.showNotification({
+        id: item.id,
+        title: item.title || "Hesap",
+        body: item.body || "Yeni bildirim var.",
+        href: item.href || "/dashboard/bildirimler",
+        level: item.level,
+      }).catch((err: any) => console.error("Desktop notification invoke failed:", err))
+    } else {
+      try {
+        const notification = new Notification(item.title || "Hesap bildirimi", {
+          body: item.body || "Yeni bildirim var.",
+          icon: "/icon.png",
+          badge: "/icon.png",
+          tag: `hesap-${item.id}`,
+          requireInteraction: item.level === "warning" || item.level === "error",
+        })
 
-    notification.onclick = () => {
-      window.focus()
-      window.location.assign(item.href || "/dashboard")
-      notification.close()
+        notification.onclick = () => {
+          window.focus()
+          window.location.assign(item.href || "/dashboard")
+          notification.close()
+        }
+      } catch (err) {
+        console.error("HTML5 notification failed:", err)
+      }
     }
   }
 
   if (changed) {
-    window.localStorage.setItem(notifiedKey, JSON.stringify([...notified].slice(-200)))
+    playNotificationChime()
+    if (!force) {
+      window.localStorage.setItem(notifiedKey, JSON.stringify([...notified].slice(-200)))
+    }
   }
 }
 

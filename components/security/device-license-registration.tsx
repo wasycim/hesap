@@ -9,6 +9,8 @@ declare global {
       setBadgeCount?: (count: number) => Promise<{ ok: boolean }>
       getStartupEnabled?: () => Promise<{ enabled: boolean }>
       setStartupEnabled?: (enabled: boolean) => Promise<{ enabled: boolean }>
+      showNotification?: (payload: { id?: string; title: string; body: string; href?: string; level?: string }) => Promise<{ ok: boolean; error?: string }>
+      onNavigate?: (callback: (href: string) => void) => () => void
     }
   }
 }

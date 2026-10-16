@@ -20,9 +20,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ notifications: [], unreadCount: 0 })
     }
 
+    const { data: profile } = await admin
+      .from("user_profiles")
+      .select("is_admin")
+      .eq("user_id", user.id)
+      .maybeSingle()
+    const isAdmin = Boolean(profile?.is_admin)
+
     const notifications = (data || []).slice(0, 30).map((item: any) => ({
       ...item,
-      deletable: item.user_id === user.id,
+      deletable: item.user_id === user.id || isAdmin,
     }))
 
     const unreadCount = notifications.filter((n: any) => !n.read_at).length
@@ -81,12 +88,19 @@ export async function DELETE(request: NextRequest) {
     if (!id) return NextResponse.json({ error: "Bildirim id zorunlu." }, { status: 400 })
 
     const admin = createAdminClient()
-    const { error } = await admin
-      .from("app_notifications")
-      .delete()
-      .eq("id", id)
+    const { data: profile } = await admin
+      .from("user_profiles")
+      .select("is_admin")
       .eq("user_id", user.id)
-      .not("read_at", "is", null)
+      .maybeSingle()
+    const isAdmin = Boolean(profile?.is_admin)
+
+    let deleteQuery = admin.from("app_notifications").delete().eq("id", id)
+    if (!isAdmin) {
+      deleteQuery = deleteQuery.or(`user_id.eq.${user.id},user_id.is.null`)
+    }
+
+    const { error } = await deleteQuery
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true })

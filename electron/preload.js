@@ -11,6 +11,14 @@ contextBridge.exposeInMainWorld("hesapDesktop", {
   setBadgeCount: (count) => ipcRenderer.invoke("desktop:set-badge-count", count),
   getStartupEnabled: () => ipcRenderer.invoke("desktop:get-startup-enabled"),
   setStartupEnabled: (enabled) => ipcRenderer.invoke("desktop:set-startup-enabled", enabled),
+  showNotification: (payload) => ipcRenderer.invoke("desktop:show-notification", payload),
+  onNavigate: (callback) => {
+    if (typeof callback !== "function") return () => undefined
+
+    const listener = (_event, href) => callback(href)
+    ipcRenderer.on("desktop:navigate", listener)
+    return () => ipcRenderer.removeListener("desktop:navigate", listener)
+  },
   onUpdateStatus: (callback) => {
     if (typeof callback !== "function") return () => undefined
 
