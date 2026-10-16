@@ -394,7 +394,8 @@ export async function GET(request: NextRequest) {
   // kalanNakit = totalHakedis - advanceTotal - bankayaGonderilen - kesintiTotal
   const totalHakedis = baseSalary + overtimeTotal
   const bankayaGonderilen = finalMaasOnayiData ? Number(finalMaasOnayiData.bankaya_gonderilen || 0) : 0
-  const remaining = totalHakedis - advanceTotal - bankayaGonderilen - kesintiTotal
+  const rawRemaining = totalHakedis - advanceTotal - bankayaGonderilen - kesintiTotal
+  const remaining = Math.abs(rawRemaining) < 0.005 ? 0 : Math.round(rawRemaining * 100) / 100
 
   const activeCandidates = (candidates || []).filter((p) => {
     if (isTestPersonnel(p)) return false

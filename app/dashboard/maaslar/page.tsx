@@ -90,7 +90,17 @@ type AttendancePayload = {
 }
 
 function formatMoney(value: number) {
-  return value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const num = Number(value) || 0
+  const normalized = Math.abs(num) < 0.005 ? 0 : num
+  return normalized.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function formatSalaryDisplay(value: number, suffix = " TL"): string {
+  const num = Number(value) || 0
+  if (Math.abs(num) < 0.005) {
+    return `0${suffix}`
+  }
+  return `${formatMoney(num)}${suffix}`
 }
 
 function formatDate(value: string) {
@@ -753,13 +763,15 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
       .reduce((sum, item) => sum + item.amount, 0)
     const toplamKazanc = baseSalary + overtimeTotal + corbaTotal
     const totalHakedis = baseSalary + overtimeTotal
-    const remainingBeforeBank = totalHakedis - advanceTotal - kesintiTotal
+    const rawRemainingBeforeBank = totalHakedis - advanceTotal - kesintiTotal
+    const remainingBeforeBank = Math.abs(rawRemainingBeforeBank) < 0.005 ? 0 : Math.round(rawRemainingBeforeBank * 100) / 100
 
     const onay = maasOnaylari[personel.id] || null
     const bankayaGonderilen = onay ? Number(onay.bankaya_gonderilen || 0) : 0
 
     // Dynamic kalanNakit formula using totalHakedis (Maaş + Mesailer - Avans - Banka - Kesintiler)
-    const kalanNakit = totalHakedis - advanceTotal - bankayaGonderilen - kesintiTotal
+    const rawKalanNakit = totalHakedis - advanceTotal - bankayaGonderilen - kesintiTotal
+    const kalanNakit = Math.abs(rawKalanNakit) < 0.005 ? 0 : Math.round(rawKalanNakit * 100) / 100
     const nakitOdemeTarihi = onay ? onay.nakit_odeme_tarihi : null
 
     return {
@@ -868,7 +880,8 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
     const kesintiTotal = partnerKesintiler.reduce((sum, item) => sum + Number(item.tutar || 0), 0)
     const total = advances.reduce((sum, item) => sum + item.amount, 0)
     const baseSalary = Number((ortak as any).aylik_maas || 0)
-    const kalanNakit = baseSalary - total - kesintiTotal
+    const rawKalanNakit = baseSalary - total - kesintiTotal
+    const kalanNakit = Math.abs(rawKalanNakit) < 0.005 ? 0 : Math.round(rawKalanNakit * 100) / 100
 
     return {
       ortak,
@@ -923,18 +936,31 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
 
   const selectedPersonel = visiblePersonelSummaries.find(item => item.personel.id === selectedPersonelId) || visiblePersonelSummaries[0] || null
   const selectedOrtak = visibleOrtakSummaries.find(item => item.ortak.id === selectedOrtakId) || null
-  const salaryTotals = useMemo(() => visiblePersonelSummaries.reduce((acc, item) => ({
-    baseSalary: acc.baseSalary + item.baseSalary,
-    advances: acc.advances + item.advanceTotal,
-    overtime: acc.overtime + item.overtimeTotal,
-    remaining: acc.remaining + item.remaining,
-  }), { baseSalary: 0, advances: 0, overtime: 0, remaining: 0 }), [visiblePersonelSummaries])
-  const ortakTotals = useMemo(() => visibleOrtakSummaries.reduce((acc, item) => ({
-    baseSalary: acc.baseSalary + item.baseSalary,
-    total: acc.total + item.total,
-    kesintiTotal: acc.kesintiTotal + item.kesintiTotal,
-    kalanNakit: acc.kalanNakit + item.kalanNakit,
-  }), { baseSalary: 0, total: 0, kesintiTotal: 0, kalanNakit: 0 }), [visibleOrtakSummaries])
+  const salaryTotals = useMemo(() => {
+    const raw = visiblePersonelSummaries.reduce((acc, item) => ({
+      baseSalary: acc.baseSalary + item.baseSalary,
+      advances: acc.advances + item.advanceTotal,
+      overtime: acc.overtime + item.overtimeTotal,
+      remaining: acc.remaining + item.remaining,
+    }), { baseSalary: 0, advances: 0, overtime: 0, remaining: 0 })
+    return {
+      ...raw,
+      remaining: Math.abs(raw.remaining) < 0.005 ? 0 : Math.round(raw.remaining * 100) / 100,
+    }
+  }, [visiblePersonelSummaries])
+
+  const ortakTotals = useMemo(() => {
+    const raw = visibleOrtakSummaries.reduce((acc, item) => ({
+      baseSalary: acc.baseSalary + item.baseSalary,
+      total: acc.total + item.total,
+      kesintiTotal: acc.kesintiTotal + item.kesintiTotal,
+      kalanNakit: acc.kalanNakit + item.kalanNakit,
+    }), { baseSalary: 0, total: 0, kesintiTotal: 0, kalanNakit: 0 })
+    return {
+      ...raw,
+      kalanNakit: Math.abs(raw.kalanNakit) < 0.005 ? 0 : Math.round(raw.kalanNakit * 100) / 100,
+    }
+  }, [visibleOrtakSummaries])
 
   async function handleAddKesintiForOrtak(targetOrtak: any) {
     if (!currentSube || !targetOrtak || !kesintiTutarInput) {
@@ -1280,7 +1306,8 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
     const totalPersonelMaliyet = totalPersonelBaseSalary + totalPersonelOvertime
     const totalPersonelAdvanceAndKesinti = personelSummaries.reduce((sum, item) => sum + Number((item.advanceTotal || 0) + (item.kesintiTotal || 0)), 0)
     const totalPersonelBankayaGonderilen = personelSummaries.reduce((sum, item) => sum + Number(item.bankayaGonderilen || 0), 0)
-    const totalPersonelKalanNakit = personelSummaries.reduce((sum, item) => sum + Number(item.kalanNakit || 0), 0)
+    const rawTotalPersonelKalanNakit = personelSummaries.reduce((sum, item) => sum + Number(item.kalanNakit || 0), 0)
+    const totalPersonelKalanNakit = Math.abs(rawTotalPersonelKalanNakit) < 0.005 ? 0 : rawTotalPersonelKalanNakit
 
     const personelRows = personelSummaries.map(item => [
       item.personel.ad,
@@ -1289,7 +1316,7 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
       `${formatMoney(item.baseSalary + item.overtimeTotal)} TL`,
       `-${formatMoney(item.advanceTotal + item.kesintiTotal)} TL`,
       `${formatMoney(item.bankayaGonderilen)} TL`,
-      `${formatMoney(item.kalanNakit)} TL`,
+      formatSalaryDisplay(item.kalanNakit),
     ])
 
     if (personelSummaries.length > 0) {
@@ -1300,21 +1327,22 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
         `${formatMoney(totalPersonelMaliyet)} TL`,
         `-${formatMoney(totalPersonelAdvanceAndKesinti)} TL`,
         `${formatMoney(totalPersonelBankayaGonderilen)} TL`,
-        `${formatMoney(totalPersonelKalanNakit)} TL`,
+        formatSalaryDisplay(totalPersonelKalanNakit),
       ])
     }
 
     const totalOrtakBaseSalary = ortakSummaries.reduce((sum, item) => sum + Number(item.baseSalary || 0), 0)
     const totalOrtakAvans = ortakSummaries.reduce((sum, item) => sum + Number(item.total || 0), 0)
     const totalOrtakKesinti = ortakSummaries.reduce((sum, item) => sum + Number(item.kesintiTotal || 0), 0)
-    const totalOrtakKalanNakit = ortakSummaries.reduce((sum, item) => sum + Number(item.kalanNakit || 0), 0)
+    const rawTotalOrtakKalanNakit = ortakSummaries.reduce((sum, item) => sum + Number(item.kalanNakit || 0), 0)
+    const totalOrtakKalanNakit = Math.abs(rawTotalOrtakKalanNakit) < 0.005 ? 0 : rawTotalOrtakKalanNakit
 
     const ortakRows = ortakSummaries.map(item => [
       item.ortak.ad,
       `${formatMoney(item.baseSalary)} TL`,
       `-${formatMoney(item.total)} TL`,
       item.kesintiTotal > 0 ? `-${formatMoney(item.kesintiTotal)} TL` : "0,00 TL",
-      `${formatMoney(item.kalanNakit)} TL`,
+      formatSalaryDisplay(item.kalanNakit),
     ])
 
     if (ortakSummaries.length > 0) {
@@ -1323,7 +1351,7 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
         `${formatMoney(totalOrtakBaseSalary)} TL`,
         `-${formatMoney(totalOrtakAvans)} TL`,
         totalOrtakKesinti > 0 ? `-${formatMoney(totalOrtakKesinti)} TL` : "0,00 TL",
-        `${formatMoney(totalOrtakKalanNakit)} TL`,
+        formatSalaryDisplay(totalOrtakKalanNakit),
       ])
     }
 
@@ -1368,7 +1396,7 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
         { label: "Alınan Avans", value: `-${formatMoney(item.advanceTotal)} TL`, side: "right" as const, color: "red" as const },
         ...(item.kesintiTotal > 0 ? [{ label: "Yapılan Kesintiler", value: `-${formatMoney(item.kesintiTotal)} TL`, side: "right" as const, color: "red" as const }] : []),
         { label: "Bankaya Gönderilen", value: `-${formatMoney(item.bankayaGonderilen)} TL`, side: "right" as const, color: "red" as const },
-        { label: item.nakitOdemeTarihi ? `${formatDate(item.nakitOdemeTarihi)} Nakit Alınacak` : "Nakit Alınacak Net", value: `${formatMoney(item.kalanNakit)} TL`, side: "right" as const, color: item.kalanNakit >= 0 ? ("black" as const) : ("red" as const) },
+        { label: item.nakitOdemeTarihi ? `${formatDate(item.nakitOdemeTarihi)} Nakit Alınacak` : "Nakit Alınacak Net", value: formatSalaryDisplay(item.kalanNakit), side: "right" as const, color: item.kalanNakit < -0.005 ? ("red" as const) : ("black" as const) },
       ],
       tables: [
         {
@@ -1438,7 +1466,7 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
         { label: "Net Maaş", value: `${formatMoney(item.baseSalary)} TL`, side: "left" as const, color: "green" as const },
         { label: "Toplam Alınan Avans", value: `-${formatMoney(item.total)} TL`, side: "right" as const, color: "red" as const },
         ...(item.kesintiTotal > 0 ? [{ label: "Yapılan Kesintiler", value: `-${formatMoney(item.kesintiTotal)} TL`, side: "right" as const, color: "red" as const }] : []),
-        { label: "Kalan Nakit", value: `${formatMoney(item.kalanNakit)} TL`, side: "right" as const, color: item.kalanNakit >= 0 ? "black" as const : "red" as const },
+        { label: "Kalan Nakit", value: formatSalaryDisplay(item.kalanNakit), side: "right" as const, color: item.kalanNakit < -0.005 ? "red" as const : "black" as const },
       ],
       tables: [
         {
@@ -1684,7 +1712,8 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
       return
     }
 
-    const kalanAmt = targetItem.remainingBeforeBank - bankaAmt
+    const rawKalanAmt = targetItem.remainingBeforeBank - bankaAmt
+    const kalanAmt = Math.abs(rawKalanAmt) < 0.005 ? 0 : Math.round(rawKalanAmt * 100) / 100
     if (!approveNakitTarihi) {
       toast.error("Lütfen kalan nakit ödeme tarihini seçin.")
       return
@@ -1918,7 +1947,7 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
             <Card
               key={item.personel.id}
               className={`cursor-pointer shadow-sm transition hover:shadow ${
-                item.remaining < 0
+                item.remaining < -0.005
                   ? "border-red-200 bg-red-50 hover:border-red-400 dark:border-red-500/30 dark:bg-red-500/15"
                   : "border-emerald-200 bg-emerald-50 hover:border-emerald-400 dark:border-emerald-500/30 dark:bg-emerald-500/15"
               }`}
@@ -1933,8 +1962,8 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 text-muted-foreground">Bekliyor</Badge>
                   )}
                 </div>
-                <p className={`text-xl font-extrabold ${item.remaining < 0 ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"}`}>
-                  {formatMoney(item.remaining)} TL
+                <p className={`text-xl font-extrabold ${item.remaining < -0.005 ? "text-red-700 dark:text-red-100" : "text-emerald-700 dark:text-emerald-100"}`}>
+                  {formatSalaryDisplay(item.remaining)}
                 </p>
                 <div className="mt-2 space-y-1 text-xs border-t pt-2 border-emerald-200/60 dark:border-emerald-500/20">
                   <div className="flex justify-between text-muted-foreground">
@@ -2008,9 +2037,9 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
                       </Badge>
                     )}
                     {selectedPersonel.isApproved && selectedPersonel.nakitOdemeTarihi && (
-                      <Badge className={`${selectedPersonel.kalanNakit < 0 ? "bg-rose-600" : "bg-emerald-600"} text-white font-bold text-xs px-2.5 py-1`}>
+                      <Badge className={`${selectedPersonel.kalanNakit < -0.005 ? "bg-rose-600" : "bg-emerald-600"} text-white font-bold text-xs px-2.5 py-1`}>
                         <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                        {formatDate(selectedPersonel.nakitOdemeTarihi)} Nakit: {formatMoney(selectedPersonel.kalanNakit)} TL
+                        {formatDate(selectedPersonel.nakitOdemeTarihi)} Nakit: {formatSalaryDisplay(selectedPersonel.kalanNakit)}
                       </Badge>
                     )}
                   </div>
@@ -2031,7 +2060,7 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
                       <span>Yapılan Kesinti: <strong className="text-red-600 dark:text-red-400">-{formatMoney(selectedPersonel.kesintiTotal)} TL</strong></span>
                     )}
                     <span>Bankaya Gönderilen: <strong className="text-blue-600 dark:text-blue-400">{formatMoney(selectedPersonel.bankayaGonderilen)} TL</strong></span>
-                    <span>Kalan Nakit: <strong className={`${selectedPersonel.kalanNakit < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"} font-extrabold`}>{formatMoney(selectedPersonel.kalanNakit)} TL</strong></span>
+                    <span>Kalan Nakit: <strong className={`${selectedPersonel.kalanNakit < -0.005 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"} font-extrabold`}>{formatSalaryDisplay(selectedPersonel.kalanNakit)}</strong></span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -2399,12 +2428,12 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
                     </div>
                   )}
                   <div className={`px-2.5 py-1 rounded-md border text-[11px] ${
-                    ortakTotals.kalanNakit >= 0
-                      ? "bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-bold"
-                      : "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 font-bold"
+                    ortakTotals.kalanNakit < -0.005
+                      ? "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 font-bold"
+                      : "bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-bold"
                   }`}>
                     <span>Toplam Kalan: </span>
-                    <span>{formatMoney(ortakTotals.kalanNakit)} TL</span>
+                    <span>{formatSalaryDisplay(ortakTotals.kalanNakit)}</span>
                   </div>
 
                   <Button
@@ -2431,7 +2460,7 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
               <div className="mb-6 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-4">
                 {visibleOrtakSummaries.map(item => {
                   const isSelected = selectedOrtak?.ortak.id === item.ortak.id
-                  const hasRemaining = item.kalanNakit >= 0
+                  const hasRemaining = item.kalanNakit >= -0.005
                   return (
                     <div
                       key={item.ortak.id}
@@ -2465,7 +2494,7 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
                             ? "text-emerald-600 dark:text-emerald-400"
                             : "text-rose-600 dark:text-rose-400"
                         }`}>
-                          {formatMoney(item.kalanNakit)} TL
+                          {formatSalaryDisplay(item.kalanNakit)}
                         </p>
                       </div>
 
@@ -2528,8 +2557,8 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
                         <div className="h-6 w-px bg-border" />
                         <div className="text-right">
                           <span className="text-[10px] uppercase font-bold text-muted-foreground block">Kalan Nakit</span>
-                          <span className={`text-sm font-black ${selectedOrtak.kalanNakit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                            {formatMoney(selectedOrtak.kalanNakit)} TL
+                          <span className={`text-sm font-black ${selectedOrtak.kalanNakit < -0.005 ? "text-rose-600" : "text-emerald-600"}`}>
+                            {formatSalaryDisplay(selectedOrtak.kalanNakit)}
                           </span>
                         </div>
                       </div>
@@ -3370,7 +3399,8 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
               const targetItem = visiblePersonelSummaries.find(p => p.personel.id === approveTargetPersonelId)
               if (!targetItem) return null
               const bankaAmt = Number(approveBankaInput) || 0
-              const kalanNakitCalculated = targetItem.remainingBeforeBank - bankaAmt
+              const rawKalanNakitCalculated = targetItem.remainingBeforeBank - bankaAmt
+              const kalanNakitCalculated = Math.abs(rawKalanNakitCalculated) < 0.005 ? 0 : Math.round(rawKalanNakitCalculated * 100) / 100
 
               return (
                 <div className="space-y-4 py-2">
@@ -3403,7 +3433,7 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
                     )}
                     <div className="flex justify-between font-extrabold text-sm border-t pt-1.5 text-foreground">
                       <span>Banka Öncesi Kalan:</span>
-                      <span className={targetItem.remainingBeforeBank < 0 ? "text-rose-600 dark:text-rose-400" : ""}>{formatMoney(targetItem.remainingBeforeBank)} ₺</span>
+                      <span className={targetItem.remainingBeforeBank < -0.005 ? "text-rose-600 dark:text-rose-400" : ""}>{formatSalaryDisplay(targetItem.remainingBeforeBank, " ₺")}</span>
                     </div>
                   </div>
 
@@ -3424,16 +3454,16 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
                   </div>
 
                   <div className={`rounded-xl border p-3.5 flex items-center justify-between ${
-                    kalanNakitCalculated < 0
+                    kalanNakitCalculated < -0.005
                       ? "border-rose-300 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10"
                       : "border-emerald-300 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10"
                   }`}>
                     <div>
-                      <span className={`text-xs font-bold block ${kalanNakitCalculated < 0 ? "text-rose-900 dark:text-rose-200" : "text-emerald-900 dark:text-emerald-200"}`}>Hesaplanan Kalan Nakit:</span>
-                      <span className={`text-[11px] ${kalanNakitCalculated < 0 ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300"}`}>Teyit Edin: {formatMoney(targetItem.remainingBeforeBank)} - {formatMoney(bankaAmt)} =</span>
+                      <span className={`text-xs font-bold block ${kalanNakitCalculated < -0.005 ? "text-rose-900 dark:text-rose-200" : "text-emerald-900 dark:text-emerald-200"}`}>Hesaplanan Kalan Nakit:</span>
+                      <span className={`text-[11px] ${kalanNakitCalculated < -0.005 ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300"}`}>Teyit Edin: {formatMoney(targetItem.remainingBeforeBank)} - {formatMoney(bankaAmt)} =</span>
                     </div>
-                    <span className={`text-2xl font-extrabold ${kalanNakitCalculated < 0 ? "text-rose-700 dark:text-rose-200" : "text-emerald-700 dark:text-emerald-200"}`}>
-                      {formatMoney(kalanNakitCalculated)} ₺
+                    <span className={`text-2xl font-extrabold ${kalanNakitCalculated < -0.005 ? "text-rose-700 dark:text-rose-200" : "text-emerald-700 dark:text-emerald-200"}`}>
+                      {formatSalaryDisplay(kalanNakitCalculated, " ₺")}
                     </span>
                   </div>
 
@@ -3444,8 +3474,8 @@ function formatSeniority(iseGirisTarihi?: string | null, istenCikisTarihi?: stri
                       onChange={setApproveNakitTarihi}
                     />
                     {approveNakitTarihi && (
-                      <p className={`text-xs font-bold mt-1 ${kalanNakitCalculated < 0 ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300"}`}>
-                        📌 Kaydedilecek Bilgi: {formatDate(approveNakitTarihi)} Nakit: {formatMoney(kalanNakitCalculated)} ₺
+                      <p className={`text-xs font-bold mt-1 ${kalanNakitCalculated < -0.005 ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300"}`}>
+                        📌 Kaydedilecek Bilgi: {formatDate(approveNakitTarihi)} Nakit: {formatSalaryDisplay(kalanNakitCalculated, " ₺")}
                       </p>
                     )}
                   </div>

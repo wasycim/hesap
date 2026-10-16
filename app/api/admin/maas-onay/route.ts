@@ -54,7 +54,8 @@ export async function POST(request: NextRequest) {
   }
 
   const bankaAmt = Math.max(0, Number(bankaya_gonderilen) || 0)
-  const kalanAmt = isNaN(Number(kalan_nakit)) ? 0 : Number(kalan_nakit)
+  const rawKalanAmt = isNaN(Number(kalan_nakit)) ? 0 : Number(kalan_nakit)
+  const kalanAmt = Math.abs(rawKalanAmt) < 0.005 ? 0 : Math.round(rawKalanAmt * 100) / 100
   const odemeTarihi = nakit_odeme_tarihi ? String(nakit_odeme_tarihi).slice(0, 10) : null
 
   const { data, error } = await admin

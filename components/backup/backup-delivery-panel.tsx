@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { Archive, CheckCircle2, DatabaseBackup, Download, Loader2, ShieldCheck } from "lucide-react"
+import { Archive, CheckCircle2, DatabaseBackup, Download, Loader2, Send, ShieldCheck } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -68,6 +68,23 @@ export function BackupDeliveryPanel() {
     void load()
   }
 
+  const [triggering, setTriggering] = useState(false)
+
+  async function triggerManualBackup() {
+    setTriggering(true)
+    const response = await fetch("/api/admin/backup-settings", {
+      method: "POST",
+    })
+    const data = await response.json().catch(() => ({}))
+    setTriggering(false)
+    if (!response.ok) {
+      toast.error(data.error || "Yedek oluşturulamadı veya mail gönderilemedi.")
+      return
+    }
+    toast.success("Günlük yedek başarıyla alındı ve e-posta adreslerinize gönderildi!")
+    void load()
+  }
+
   if (loading && !payload) return <Card><CardContent className="grid min-h-40 place-items-center"><Loader2 className="h-6 w-6 animate-spin" /></CardContent></Card>
   if (!payload) return null
 
@@ -97,7 +114,16 @@ export function BackupDeliveryPanel() {
           </div>
         </div>
 
-        <Button onClick={save} disabled={saving || !payload.encryptionConfigured} className="gap-2"><Archive className="h-4 w-4" />{saving ? "Kaydediliyor..." : "Yedek kurallarını kaydet"}</Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={save} disabled={saving || !payload.encryptionConfigured} className="gap-2">
+            <Archive className="h-4 w-4" />
+            {saving ? "Kaydediliyor..." : "Yedek kurallarını kaydet"}
+          </Button>
+          <Button onClick={triggerManualBackup} disabled={triggering || !payload.encryptionConfigured} variant="outline" className="gap-2 border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/50">
+            {triggering ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {triggering ? "Yedek alınıyor ve mail atılıyor..." : "Şimdi Erken Yedek Al ve Mail Gönder"}
+          </Button>
+        </div>
 
         <div>
           <h3 className="mb-3 text-sm font-bold">Son yedekler</h3>

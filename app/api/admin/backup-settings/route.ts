@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireDashboardAdmin } from "@/lib/admin/require-admin"
-import { defaultBackupSettings, sanitizeBackupSettings } from "@/lib/backup/create-backup"
+import { defaultBackupSettings, sanitizeBackupSettings, createAndDeliverBackup } from "@/lib/backup/create-backup"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 export async function GET() {
@@ -35,5 +35,23 @@ export async function PATCH(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   await admin.from("security_events").insert({ user_id: guard.user.id, user_email: guard.user.email, event_type: "backup_delivery_settings_updated", details: settings })
   return NextResponse.json({ ok: true, settings })
+}
+
+export async function POST(request: NextRequest) {
+  const guard = await requireDashboardAdmin()
+  if (!guard.ok) return guard.response
+  try {
+    const result = await createAndDeliverBackup("daily")
+    const admin = createAdminClient()
+    await admin.from("security_events").insert({
+      user_id: guard.user.id,
+      user_email: guard.user.email,
+      event_type: "manual_backup_delivery_triggered",
+      details: { interval: "daily", result },
+    })
+    return NextResponse.json({ ok: true, result })
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 })
+  }
 }
 
